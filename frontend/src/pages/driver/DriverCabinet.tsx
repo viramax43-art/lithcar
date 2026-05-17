@@ -16,6 +16,7 @@ import type { DriverCabinetRide } from '../../types'
 import ActiveRideCard from './components/ActiveRideCard'
 import { ACTIVE_RIDE_STATUSES, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from './constants'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
+import Skeleton from '../../components/Skeleton'
 
 const DRIVER_ONLINE_POLL_MS = 15_000
 const DRIVER_CABINET_POLL_MS = 10_000
@@ -45,12 +46,14 @@ export default function DriverCabinet() {
     eurAmount: number
   } | null>(null)
   const [isIssuingQr, setIsIssuingQr] = useState(false)
+  const [hasLoadedCabinetOnce, setHasLoadedCabinetOnce] = useState(false)
 
   const loadCabinet = useCallback(async () => {
     const data = await getDriverCabinet({ limit: 50, offset: 0 })
     setRides(data.rides)
     setDriverDebtEur(data.driverDebtEur)
     setRecentQrSales(data.recentQrSales)
+    setHasLoadedCabinetOnce(true)
   }, [])
 
   useEffect(() => {
@@ -229,7 +232,10 @@ export default function DriverCabinet() {
 
   return (
     <div className="min-h-[100dvh] bg-surface">
-      <header className="sticky top-0 z-30 bg-black text-white shadow-card">
+      <header
+        className="sticky top-0 z-30 bg-black text-white shadow-card"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="h-14 px-5 flex items-center justify-between">
           <div className="min-w-0">
             <h1 className="text-base font-extrabold tracking-tight truncate">{session.name}</h1>
@@ -302,7 +308,20 @@ export default function DriverCabinet() {
           </section>
         )}
 
-        {activeRide ? (
+        {!hasLoadedCabinetOnce ? (
+          <div className="bg-white rounded-card p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <Skeleton width={48} height={48} rounded="full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton width="60%" height={14} />
+                <Skeleton width="40%" height={12} />
+              </div>
+            </div>
+            <Skeleton width="100%" height={14} />
+            <Skeleton width="85%" height={14} />
+            <Skeleton width="100%" height={44} rounded="xl" />
+          </div>
+        ) : activeRide ? (
           <ActiveRideCard
             ride={activeRide}
             isAdvancing={advancingRideId === activeRide.id}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Car, Gear, Key, MapPin, PenNib, Plus, Stack, Users, X } from '@phosphor-icons/react'
+import { Car, CreditCard, Gear, MapPin, PenNib, Plus, Stack, Users, X } from '@phosphor-icons/react'
 
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -17,7 +17,7 @@ const TAB_DEFS = [
   { id: 'drivers' as AdminTab, icon: Car, label: 'Водители' },
   { id: 'zones' as AdminTab, icon: PenNib, label: 'Зоны' },
   { id: 'settings' as AdminTab, icon: Gear, label: 'Цены' },
-  { id: 'qrSales' as AdminTab, icon: Key, label: 'QR лог' },
+  { id: 'qrSales' as AdminTab, icon: CreditCard, label: 'Платежи' },
 ]
 
 export default function AdminSidebar(props: AdminSidebarProps) {
@@ -53,6 +53,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     handleDeleteZone,
     pricing,
     qrSales,
+    hasLoadedQrSalesOnce,
     handlePricingChange,
     adminSession,
     newManagedKeyName,
@@ -163,7 +164,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                 {activeTab === 'drivers' && `${drivers.length} водителей · ${drivers.filter((driver) => driver.isOnline).length} онлайн`}
                 {activeTab === 'zones' && `${serviceZones.length} зон`}
                 {activeTab === 'settings' && 'Тарификация поездок'}
-                {activeTab === 'qrSales' && `${qrSales.length} QR-операций`}
+                {activeTab === 'qrSales' && `${qrSales.length} ${qrSales.length === 1 ? 'платёж' : 'платежей'}`}
                 {activeTab === 'staff' && `${managedAdminKeys.length} аккаунтов`}
               </p>
             </div>
@@ -269,6 +270,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               pricing={pricing}
               handlePricingChange={handlePricingChange}
               qrSales={qrSales}
+              hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
             />
 
             <AdminSidebarStaffSection

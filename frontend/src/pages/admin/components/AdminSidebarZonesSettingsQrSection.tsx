@@ -1,6 +1,7 @@
 import { ZONE_COLORS } from '../constants'
 import InlineConfirm from './InlineConfirm'
 import { inputCls } from './AdminSidebarShared'
+import Skeleton from '../../../components/Skeleton'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 
 type ZonesSettingsQrSectionProps = Pick<
@@ -23,6 +24,7 @@ type ZonesSettingsQrSectionProps = Pick<
   | 'pricing'
   | 'handlePricingChange'
   | 'qrSales'
+  | 'hasLoadedQrSalesOnce'
 >
 
 export function AdminSidebarZonesSettingsQrSection({
@@ -44,6 +46,7 @@ export function AdminSidebarZonesSettingsQrSection({
   pricing,
   handlePricingChange,
   qrSales,
+  hasLoadedQrSalesOnce,
 }: ZonesSettingsQrSectionProps) {
   if (activeTab === 'zones') {
     return (
@@ -201,40 +204,94 @@ export function AdminSidebarZonesSettingsQrSection({
     return null
   }
 
-  return (
-    <div className="space-y-3">
-      {qrSales.map((sale) => (
-        <div key={sale.saleId} className="rounded-card border-[1.5px] border-border p-3 bg-white space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-bold truncate">
-              {sale.driverName || sale.driverId} · €{sale.eurAmount.toFixed(2)}
-            </p>
-            <span className="text-[10px] px-2 py-0.5 rounded-pill bg-surface text-muted">
-              {sale.settlementStatus}
-            </span>
+  if (!hasLoadedQrSalesOnce) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-card bg-black/95 p-4 flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton width={100} height={10} className="!bg-white/15" />
+            <Skeleton width={120} height={24} className="!bg-white/15" />
           </div>
-          <p className="text-xs text-muted">
-            {sale.pointsAmount} pts · токен {sale.tokenPreview}
-          </p>
-          <p className="text-[11px] text-muted">
-            Погашен: {sale.redeemedAt ? new Date(sale.redeemedAt).toLocaleString('ru-RU') : 'нет'} · пользователь:{' '}
-            {sale.username || sale.userId || '—'}
-          </p>
-          <div className="rounded-xl border border-border bg-surface/40 p-2">
-            <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">События</p>
-            <div className="space-y-1">
-              {sale.events.map((event) => (
-                <p key={event.id} className="text-[11px]">
-                  <span className="font-semibold">{event.action}</span>{' '}
-                  <span className="text-muted">({event.actorType}:{event.actorId})</span>
-                </p>
-              ))}
-              {sale.events.length === 0 && <p className="text-[11px] text-muted">Нет событий</p>}
-            </div>
+          <div className="space-y-2 items-end flex flex-col">
+            <Skeleton width={110} height={10} className="!bg-white/15" />
+            <Skeleton width={80} height={18} className="!bg-white/15" />
           </div>
         </div>
-      ))}
-      {qrSales.length === 0 && <p className="text-xs text-muted text-center py-12">QR-операций пока нет</p>}
+        {[0, 1, 2].map((index) => (
+          <div key={index} className="rounded-card border-[1.5px] border-border p-3.5 bg-white space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2 min-w-0 flex-1">
+                <Skeleton width="55%" height={14} />
+                <Skeleton width="35%" height={11} />
+              </div>
+              <Skeleton width={72} height={18} />
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
+              <Skeleton width="45%" height={11} />
+              <Skeleton width={84} height={11} />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const totalEur = qrSales.reduce((sum, sale) => sum + sale.eurAmount, 0)
+  const totalPoints = qrSales.reduce((sum, sale) => sum + sale.pointsAmount, 0)
+
+  return (
+    <div className="space-y-3">
+      {qrSales.length > 0 && (
+        <div className="rounded-card bg-black text-white p-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Всего получено</p>
+            <p className="text-2xl font-extrabold mt-0.5">€{totalEur.toFixed(2)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Поинтов выдано</p>
+            <p className="text-lg font-bold mt-0.5">{totalPoints} pts</p>
+          </div>
+        </div>
+      )}
+
+      {qrSales.map((sale) => {
+        const passengerLabel = sale.username?.trim() || 'Пассажир'
+        const driverLabel = sale.driverName?.trim() || 'Водитель'
+        const when = sale.redeemedAt ? formatPaymentDate(sale.redeemedAt) : null
+
+        return (
+          <div key={sale.saleId} className="rounded-card border-[1.5px] border-border p-3.5 bg-white space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate">{passengerLabel}</p>
+                <p className="text-[11px] text-muted mt-0.5">купил {sale.pointsAmount} pts</p>
+              </div>
+              <p className="text-base font-extrabold whitespace-nowrap">€{sale.eurAmount.toFixed(2)}</p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
+              <p className="text-[11px] text-muted truncate">
+                <span className="text-muted">Водитель: </span>
+                <span className="font-semibold text-black/80">{driverLabel}</span>
+              </p>
+              {when && <p className="text-[11px] text-muted whitespace-nowrap">{when}</p>}
+            </div>
+          </div>
+        )
+      })}
+
+      {qrSales.length === 0 && (
+        <p className="text-xs text-muted text-center py-12">Платежей пока нет</p>
+      )}
     </div>
   )
+}
+
+function formatPaymentDate(iso: string): string {
+  const date = new Date(iso)
+  const now = new Date()
+  const sameYear = date.getFullYear() === now.getFullYear()
+  const datePart = date.toLocaleDateString('ru-RU', sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' })
+  const timePart = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  return `${datePart}, ${timePart}`
 }

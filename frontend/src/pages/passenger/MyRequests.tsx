@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
 import BottomNav from '../../components/BottomNav'
+import Skeleton from '../../components/Skeleton'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
 
@@ -19,6 +20,7 @@ export default function MyRequests() {
   const navigate = useNavigate()
   const [requests, setRequests] = useState<RideRequest[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export default function MyRequests() {
         if (!cancelled) setDrivers(driversData.items)
       } catch {
         if (!cancelled) setDrivers([])
+      } finally {
+        if (!cancelled) setIsLoading(false)
       }
     })()
     return () => {
@@ -50,15 +54,40 @@ export default function MyRequests() {
   return (
     <div className="min-h-[100dvh] bg-white pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-20 flex items-center justify-between px-5 h-14 bg-white/90 backdrop-blur-md border-b border-border/50">
-        <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-        <span className="text-sm font-semibold text-muted">Мои поездки</span>
+      <header
+        className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="flex items-center justify-between px-5 h-14">
+          <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
+          <span className="text-sm font-semibold text-muted">Мои поездки</span>
+        </div>
       </header>
 
       {/* List */}
       <div className="flex flex-col">
         {errorMessage && <p className="px-5 py-3 text-xs font-medium text-red-600">{errorMessage}</p>}
-        {sorted.map((req) => {
+        {isLoading &&
+          [0, 1, 2, 3].map((index) => (
+            <div key={index} className="flex flex-col gap-2 px-5 py-4 border-b border-surface">
+              <div className="flex items-center justify-between">
+                <Skeleton width={96} height={20} rounded="pill" />
+                <Skeleton width={86} height={12} />
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex flex-col items-center gap-1 pt-1">
+                  <Skeleton width={10} height={10} rounded="full" />
+                  <div className="w-px h-6 bg-border" />
+                  <Skeleton width={10} height={10} rounded="full" />
+                </div>
+                <div className="flex-1 min-w-0 space-y-3">
+                  <Skeleton width="80%" height={14} />
+                  <Skeleton width="65%" height={14} />
+                </div>
+              </div>
+            </div>
+          ))}
+        {!isLoading && sorted.map((req) => {
           const status = STATUS_MAP[req.status] || STATUS_MAP.pending
           const driver = req.driverId ? drivers.find((d) => d.id === req.driverId) : null
           const dt = new Date(req.dateTime)
@@ -118,7 +147,7 @@ export default function MyRequests() {
           )
         })}
 
-        {sorted.length === 0 && (
+        {!isLoading && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <MapPin size={48} className="text-border mb-4" weight="regular" />
             <p className="text-muted text-sm">У вас пока нет заявок</p>

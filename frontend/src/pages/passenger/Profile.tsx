@@ -13,6 +13,7 @@ import {
 
 import BottomNav from '../../components/BottomNav'
 import QrScanner from '../../components/QrScanner'
+import Skeleton from '../../components/Skeleton'
 import { ApiError, getPricing, getUserCabinet, redeemDriverQrSale } from '../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
@@ -109,9 +110,14 @@ export default function Profile() {
 
   return (
     <div className="min-h-[100dvh] bg-white pb-20 overflow-x-hidden">
-      <header className="sticky top-0 z-20 flex items-center justify-between px-5 h-14 bg-white/90 backdrop-blur-md border-b border-border/50">
-        <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-        <span className="text-sm font-semibold text-muted">Личный кабинет</span>
+      <header
+        className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="flex items-center justify-between px-5 h-14">
+          <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
+          <span className="text-sm font-semibold text-muted">Личный кабинет</span>
+        </div>
       </header>
 
       <div className="p-4 space-y-4">
@@ -121,13 +127,21 @@ export default function Profile() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
               <UserCircle size={22} weight="fill" />
-              <p className="text-sm font-semibold truncate">{cabinet?.username || cabinet?.userId || 'Пользователь'}</p>
+              {cabinet ? (
+                <p className="text-sm font-semibold truncate">{cabinet.username || cabinet.userId || 'Пользователь'}</p>
+              ) : (
+                <Skeleton width={120} height={14} className="!bg-white/15" rounded="sm" />
+              )}
             </div>
             <p className="text-xs text-white/70 shrink-0">Баланс</p>
           </div>
           <div className="flex items-center gap-2">
             <Coins size={22} weight="fill" className="text-accent" />
-            <p className="text-2xl font-extrabold break-all">{cabinet?.pointsBalance ?? 0} pts</p>
+            {cabinet ? (
+              <p className="text-2xl font-extrabold break-all">{cabinet.pointsBalance ?? 0} pts</p>
+            ) : (
+              <Skeleton width={110} height={28} className="!bg-white/15" rounded="md" />
+            )}
           </div>
 
           <button
@@ -183,7 +197,21 @@ export default function Profile() {
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">История поездок</p>
-          {sortedHistory.length === 0 && <p className="text-xs text-muted">Поездок пока нет.</p>}
+          {!cabinet && (
+            <div className="space-y-2">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="rounded-xl bg-surface p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Skeleton width="60%" height={12} />
+                    <Skeleton width={56} height={10} />
+                  </div>
+                  <Skeleton width="75%" height={12} />
+                  <Skeleton width={120} height={10} />
+                </div>
+              ))}
+            </div>
+          )}
+          {cabinet && sortedHistory.length === 0 && <p className="text-xs text-muted">Поездок пока нет.</p>}
           {sortedHistory.map((ride) => (
             <div key={ride.id} className="rounded-xl bg-surface p-3 space-y-1">
               <div className="flex items-center justify-between gap-2">

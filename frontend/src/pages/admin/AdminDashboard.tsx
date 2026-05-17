@@ -46,6 +46,7 @@ export default function AdminDashboard() {
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50 })
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
+  const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [adminSession, setAdminSession] = useState<AdminSessionUser | null>(null)
   const [adminKeyInput, setAdminKeyInput] = useState('')
@@ -105,7 +106,7 @@ export default function AdminDashboard() {
         listGroupSuggestions({ limit: 100, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
         getPricing('cookie'),
-        listAdminQrSales({ limit: 100, offset: 0 }),
+        listAdminQrSales({ limit: 100, offset: 0, redeemedOnly: true }),
       ])
       setRequests(req.items)
       setDrivers(drv.items)
@@ -113,6 +114,7 @@ export default function AdminDashboard() {
       setServiceZones(zones.items)
       setPricing(price)
       setQrSales(qrSalesPage.items)
+      setHasLoadedQrSalesOnce(true)
       if (adminSession.role === 'chief_admin') {
         await loadManagedKeys()
       }
@@ -412,6 +414,7 @@ export default function AdminDashboard() {
           handleDeleteZone={handleDeleteZone}
           pricing={pricing}
           qrSales={qrSales}
+          hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
           handlePricingChange={handlePricingChange}
           adminSession={adminSession}
           newManagedKeyName={newManagedKeyName}

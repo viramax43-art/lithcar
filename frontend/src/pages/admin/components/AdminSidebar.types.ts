@@ -34,6 +34,7 @@ export interface AdminSidebarProps {
   handleDeleteZone: (zoneId: string) => Promise<void>
   pricing: PricingSettings
   qrSales: AdminQrSaleAudit[]
+  hasLoadedQrSalesOnce: boolean
   handlePricingChange: (value: number) => Promise<void>
   adminSession: AdminSessionUser
   newManagedKeyName: string

@@ -112,17 +112,22 @@ export default function RequestDetail() {
   return (
     <div className="min-h-[100dvh] bg-white">
       {/* Header */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 px-4 h-14 bg-white/90 backdrop-blur-md border-b border-border/50">
-        <button onClick={() => navigate('/requests')} className="p-1">
-          <ArrowLeft size={22} weight="bold" />
-        </button>
-        <h1 className="text-base font-bold flex-1">Заявка</h1>
-        <span
-          className="text-xs font-bold px-3 py-1 rounded-pill"
-          style={{ color: status.color, background: status.bg }}
-        >
-          {status.label}
-        </span>
+      <header
+        className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="flex items-center gap-3 px-4 h-14">
+          <button onClick={() => navigate('/requests')} className="p-1">
+            <ArrowLeft size={22} weight="bold" />
+          </button>
+          <h1 className="text-base font-bold flex-1">Заявка</h1>
+          <span
+            className="text-xs font-bold px-3 py-1 rounded-pill"
+            style={{ color: status.color, background: status.bg }}
+          >
+            {status.label}
+          </span>
+        </div>
       </header>
 
       {/* Map */}

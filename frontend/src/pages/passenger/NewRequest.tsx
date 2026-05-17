@@ -55,7 +55,10 @@ export default function NewRequest() {
         </>
       )}
 
-      <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3 pt-3">
+      <header
+        className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
         <div className="flex items-center gap-2 px-3 py-2 rounded-pill bg-white/95 shadow-card backdrop-blur-sm">
           <h1 className="text-base font-extrabold tracking-tight">RIDE</h1>
         </div>
