@@ -10,6 +10,39 @@ export interface ApiRequestOptions {
   authMode?: AuthMode
 }
 
+export class ApiError extends Error {
+  status: number
+  body: string
+  constructor(status: number, message: string, body: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
+function extractErrorMessage(rawBody: string, status: number): string {
+  if (!rawBody) return `API request failed (${status})`
+  try {
+    const parsed = JSON.parse(rawBody) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const detail = (parsed as { detail?: unknown }).detail
+      if (typeof detail === 'string') return detail
+      if (Array.isArray(detail) && detail.length > 0) {
+        const first = detail[0]
+        if (first && typeof first === 'object' && typeof (first as { msg?: unknown }).msg === 'string') {
+          return (first as { msg: string }).msg
+        }
+      }
+      const message = (parsed as { message?: unknown }).message
+      if (typeof message === 'string') return message
+    }
+  } catch {
+    // not JSON, fallthrough
+  }
+  return rawBody
+}
+
 async function performRequest(
   path: string,
   options: ApiRequestOptions,
@@ -39,11 +72,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    const message = await response.text()
+    const rawBody = await response.text()
     if (response.status === 401 && authMode === 'bearer') {
       clearAccessToken()
     }
-    throw new Error(message || `API request failed (${response.status})`)
+    throw new ApiError(response.status, extractErrorMessage(rawBody, response.status), rawBody)
   }
 
   if (response.status === 204) {

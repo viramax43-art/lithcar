@@ -4,6 +4,8 @@ export {
   getAccessToken,
 } from '../infrastructure/auth/passengerAuthSession'
 
+export { ApiError } from '../infrastructure/http/httpClient'
+
 export type {
   AdminKeyInfo,
   AdminQrSaleAudit,
