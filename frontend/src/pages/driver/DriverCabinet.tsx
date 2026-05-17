@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Car, SignOut, SteeringWheel, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Car, QrCode, SignOut, SteeringWheel, X } from '@phosphor-icons/react'
 
 import {
   getDriverCabinet,
@@ -268,6 +268,7 @@ export default function DriverCabinet() {
             onPointsChange={setQrPointsInput}
             issue={qrIssue}
             isIssuing={isIssuingQr}
+            onReset={() => setQrIssue(null)}
             onIssue={async () => {
               setIsIssuingQr(true)
               setErrorMessage(null)
@@ -361,12 +362,15 @@ export default function DriverCabinet() {
   )
 }
 
+const QUICK_POINTS = [50, 100, 200, 500]
+
 function DriverQrIssueCard({
   points,
   onPointsChange,
   issue,
   isIssuing,
   onIssue,
+  onReset,
 }: {
   points: number
   onPointsChange: (value: number) => void
@@ -379,6 +383,7 @@ function DriverQrIssueCard({
   } | null
   isIssuing: boolean
   onIssue: () => Promise<void>
+  onReset: () => void
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
@@ -391,8 +396,8 @@ function DriverQrIssueCard({
     ;(async () => {
       const module = await import('qrcode')
       const url = await module.toDataURL(issue.qrUrl, {
-        width: 280,
-        margin: 2,
+        width: 320,
+        margin: 1,
         errorCorrectionLevel: 'H',
       })
       if (!cancelled) setQrDataUrl(url)
@@ -404,36 +409,132 @@ function DriverQrIssueCard({
     }
   }, [issue?.qrUrl])
 
-  return (
-    <section className="bg-white rounded-card p-4 space-y-3">
-      <p className="text-sm font-bold">Продажа поинтов через QR</p>
-      <div className="flex gap-2">
-        <input
-          type="number"
-          min={1}
-          value={points}
-          onChange={(event) => onPointsChange(Number(event.target.value) || 0)}
-          className="flex-1 px-3 py-2 rounded-xl border-[1.5px] border-border bg-surface text-sm"
-        />
-        <button
-          onClick={() => {
-            hapticSelection()
-            void onIssue()
-          }}
-          disabled={isIssuing || points < 1}
-          className="px-3 py-2 rounded-xl bg-black text-white text-xs font-semibold disabled:opacity-40"
-        >
-          {isIssuing ? 'Создаем...' : 'Создать чек'}
-        </button>
-      </div>
-      {issue && (
-        <div className="rounded-xl border border-border bg-surface p-3 space-y-2">
-          <p className="text-xs font-semibold">Чек: {issue.points} pts · €{issue.eurAmount.toFixed(2)}</p>
-          <p className="text-[10px] text-amber-700 font-semibold">QR одноразовый: следующий чек отменяет предыдущий.</p>
-          {qrDataUrl ? <img src={qrDataUrl} alt="QR чек поинтов" className="w-48 h-48 object-contain mx-auto" /> : null}
-          <p className="text-[10px] text-muted break-all">{issue.qrUrl}</p>
+  if (issue) {
+    return (
+      <section className="bg-white rounded-card p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Покажите пассажиру</p>
+            <p className="text-2xl font-extrabold tracking-tight mt-0.5">{issue.points} pts</p>
+            <p className="text-xs text-muted mt-0.5">К получению: <span className="font-bold text-black">€{issue.eurAmount.toFixed(2)}</span></p>
+          </div>
+          <button
+            onClick={() => {
+              hapticSelection()
+              onReset()
+            }}
+            className="px-3 py-2 rounded-pill bg-surface text-[11px] font-semibold flex items-center gap-1.5 active:scale-[0.97] transition-transform flex-shrink-0"
+          >
+            <ArrowClockwise size={12} weight="bold" />
+            Новый чек
+          </button>
         </div>
-      )}
+
+        <div className="rounded-2xl bg-white border-[1.5px] border-border p-4 flex items-center justify-center">
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="QR-чек поинтов" className="w-full max-w-[240px] aspect-square object-contain" />
+          ) : (
+            <div className="w-[240px] h-[240px] rounded-xl bg-surface animate-pulse" />
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted text-center leading-snug">
+          Пассажир сканирует QR в приложении — поинты зачисляются мгновенно.
+          <br />
+          Если выпустите новый чек — этот станет недействителен.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="bg-white rounded-card p-5 space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
+          <QrCode size={18} weight="bold" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold">Продажа поинтов</p>
+          <p className="text-[11px] text-muted">Создайте QR для пассажира</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-[11px] font-semibold text-muted">Сколько поинтов продаете</label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection()
+              onPointsChange(Math.max(1, points - 10))
+            }}
+            disabled={isIssuing}
+            className="w-11 h-11 rounded-xl bg-surface text-lg font-bold active:scale-[0.95] transition-transform disabled:opacity-40 flex-shrink-0"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={points || ''}
+            onChange={(event) => onPointsChange(Number(event.target.value) || 0)}
+            className="flex-1 min-w-0 h-11 px-3 rounded-xl border-[1.5px] border-border bg-surface text-center text-base font-bold outline-none focus:border-black focus:bg-white transition-colors"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection()
+              onPointsChange(points + 10)
+            }}
+            disabled={isIssuing}
+            className="w-11 h-11 rounded-xl bg-surface text-lg font-bold active:scale-[0.95] transition-transform disabled:opacity-40 flex-shrink-0"
+          >
+            +
+          </button>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {QUICK_POINTS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                hapticSelection()
+                onPointsChange(value)
+              }}
+              disabled={isIssuing}
+              className={`px-3 py-1.5 rounded-pill text-xs font-bold transition-all ${
+                points === value ? 'bg-black text-white' : 'bg-surface text-black active:scale-[0.95]'
+              }`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={() => {
+          hapticSelection()
+          void onIssue()
+        }}
+        disabled={isIssuing || points < 1}
+        className={`w-full h-12 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+          !isIssuing && points >= 1 ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted cursor-not-allowed'
+        }`}
+      >
+        {isIssuing ? (
+          <>
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            Создаем QR…
+          </>
+        ) : (
+          <>
+            <QrCode size={16} weight="bold" />
+            Создать QR-чек
+          </>
+        )}
+      </button>
     </section>
   )
 }
