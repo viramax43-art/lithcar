@@ -59,11 +59,11 @@ async def db_session():
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
     engine = create_async_engine(settings.database_url, echo=False)
-    async with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            await conn.execute(
-                text(f'TRUNCATE TABLE "{table.name}" RESTART IDENTITY CASCADE')
-            )
+    table_names = [f'"{table.name}"' for table in reversed(Base.metadata.sorted_tables)]
+    if table_names:
+        truncate_query = f"TRUNCATE TABLE {', '.join(table_names)} RESTART IDENTITY CASCADE"
+        async with engine.begin() as conn:
+            await conn.execute(text(truncate_query))
     await engine.dispose()
     yield
 

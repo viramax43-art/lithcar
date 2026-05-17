@@ -7,16 +7,15 @@ from aiogram.types import (
 )
 
 
-BOOK_RIDE_LABEL = "Оформить поездку"
 CANCEL_LABEL = "Отмена"
 
 
-def start_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BOOK_RIDE_LABEL)],
-        ],
-        resize_keyboard=True,
+def welcome_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📱 Открыть Mini App", url="https://t.me/rideminiapp_bot/ride")],
+            [InlineKeyboardButton(text="🤖 Оформить через бота", callback_data="start_bot_booking")],
+        ]
     )
 
 

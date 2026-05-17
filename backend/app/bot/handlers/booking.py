@@ -9,14 +9,13 @@ from aiogram.fsm.state import default_state
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards.booking import (
-    BOOK_RIDE_LABEL,
     CANCEL_LABEL,
     confirm_keyboard,
     date_keyboard,
     edit_keyboard,
     location_keyboard,
     remove_keyboard,
-    start_keyboard,
+    welcome_keyboard,
     time_keyboard,
 )
 from app.bot.services.user_binding import get_or_create_passenger_from_telegram
@@ -95,29 +94,38 @@ async def _show_confirmation(message: Message, state: FSMContext):
     await message.answer(text, reply_markup=confirm_keyboard())
 
 
+WELCOME_TEXT = (
+    "Добро пожаловать в Ride! 🚗\n\n"
+    "Мы — сервис для удобных групповых поездок. С нами вы можете быстро и с комфортом "
+    "добраться до нужной точки, оплачивая поездки внутренними поинтами.\n\n"
+    "💡 Обратите внимание: приобрести поинты можно внутри нашего Mini App.\n\n"
+    "Выберите удобный способ оформления поездки:"
+)
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "Оформлю поездку в пару шагов: геометка A, геометка B, дата и время.",
-        reply_markup=start_keyboard(),
+        WELCOME_TEXT,
+        reply_markup=welcome_keyboard(),
     )
 
 
 @router.message(F.text == CANCEL_LABEL)
 async def cancel_flow(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Оформление отменено.", reply_markup=start_keyboard())
+    await message.answer("Оформление отменено.\n\n" + WELCOME_TEXT, reply_markup=welcome_keyboard())
 
 
-@router.message((F.text == BOOK_RIDE_LABEL) & default_state)
-async def begin_booking(message: Message, state: FSMContext):
+@router.callback_query(F.data == "start_bot_booking", default_state)
+async def begin_booking_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(BookingStates.awaiting_from_location)
-    await message.answer(
+    await callback.message.answer(
         "Отправьте геометку точки A (откуда вас забрать).",
         reply_markup=location_keyboard(label="Отправить точку A"),
     )
+    await callback.answer()
 
 
 @router.message(BookingStates.awaiting_from_location, ~F.location)
@@ -228,7 +236,7 @@ async def pick_time_manual(message: Message, state: FSMContext):
 @router.callback_query(BookingStates.confirming, F.data == "confirm:cancel")
 async def cancel_from_confirm(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("Оформление отменено.", reply_markup=start_keyboard())
+    await callback.message.answer("Оформление отменено.\n\n" + WELCOME_TEXT, reply_markup=welcome_keyboard())
     await callback.answer()
 
 
@@ -325,8 +333,9 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
         "Поездка оформлена.\n"
         f"Номер заявки: {booking.request.id}\n"
         f"Списано: {booking.points_debited} поинтов\n"
-        f"Остаток: {booking.points_balance_after} поинтов",
-        reply_markup=start_keyboard(),
+        f"Остаток: {booking.points_balance_after} поинтов\n\n"
+        + WELCOME_TEXT,
+        reply_markup=welcome_keyboard(),
     )
     await callback.answer("Готово")
 
