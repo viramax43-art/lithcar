@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { SignOut, X } from '@phosphor-icons/react'
 
 import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import {
@@ -31,9 +30,10 @@ import {
   type AdminSessionUser,
   type RidePointOverride,
 } from '../../lib/backend'
-import AssignDriverModal from './components/AssignDriverModal'
+import { AdminAssignDriverModal } from './components/AdminAssignDriverModal'
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
+import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
 import { GROUP_COLORS, ZONE_COLORS, type AdminTab } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
@@ -341,21 +341,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleUpdateDriver = async (
-    driverId: string,
-    payload: Partial<{
-      name: string
-      phone: string
-      carBrand: string
-      carModel: string
-      carPlate: string
-      vehicleColor: string
-      seatsCount: number
-      about: string
-      isOnline: boolean
-      canSellPoints: boolean
-    }>
-  ) => {
+  const handleUpdateDriver = async (driverId: string, payload: Parameters<typeof updateDriver>[1]) => {
     try {
       const updated = await updateDriver(driverId, payload)
       setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
@@ -374,66 +360,24 @@ export default function AdminDashboard() {
   }
 
   if (!isInitialAdminCheckDone) {
-    return <div className="min-h-[100dvh] flex items-center justify-center text-sm text-muted">Проверяем сессию админки...</div>
+    return <AdminSessionChecking />
   }
 
   if (!adminSession) {
     return (
-      <div className="min-h-[100dvh] bg-surface flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white rounded-card shadow-card p-6 space-y-5">
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-            <p className="text-sm text-muted mt-1">Панель администратора</p>
-          </div>
-          <p className="text-sm text-muted">Введите ключ доступа. Логин/пароль не требуется.</p>
-          <input
-            type="password"
-            value={adminKeyInput}
-            onChange={(event) => setAdminKeyInput(event.target.value)}
-            placeholder="ride_admin_..."
-            className="w-full px-4 py-3 rounded-xl border-[1.5px] border-border bg-surface outline-none focus:border-black focus:bg-white transition-colors"
-          />
-          <button
-            onClick={() => void handleAdminLogin()}
-            disabled={!adminKeyInput.trim() || isAdminAuthorizing}
-            className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${adminKeyInput.trim() && !isAdminAuthorizing ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted'}`}
-          >
-            {isAdminAuthorizing ? 'Проверяем ключ...' : 'Войти'}
-          </button>
-          {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
-        </div>
-      </div>
+      <AdminLoginScreen
+        adminKeyInput={adminKeyInput}
+        isAdminAuthorizing={isAdminAuthorizing}
+        errorMessage={errorMessage}
+        onChangeKey={setAdminKeyInput}
+        onLogin={() => void handleAdminLogin()}
+      />
     )
   }
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
-      <header className="flex items-center justify-between px-6 h-16 bg-black text-white flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-          <span className="w-px h-5 bg-white/20" />
-          <span className="text-sm font-semibold text-white/80">Админ-панель</span>
-        </div>
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-pill bg-white/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="text-xs font-semibold">
-              {onlineDrivers.length} <span className="text-white/60 font-medium">онлайн</span>
-            </span>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-semibold leading-tight">{adminSession.name}</p>
-            <p className="text-[10px] text-white/50 leading-tight">{adminSession.role}</p>
-          </div>
-          <button
-            onClick={() => void handleAdminLogout()}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <SignOut size={14} weight="bold" />
-            Выйти
-          </button>
-        </div>
-      </header>
+      <AdminHeader onlineDriversCount={onlineDrivers.length} adminSession={adminSession} onLogout={() => void handleAdminLogout()} />
 
       <div className="flex flex-1 overflow-hidden">
         <AdminSidebar
@@ -532,35 +476,19 @@ export default function AdminDashboard() {
       </div>
 
       {errorMessage && (
-        <div className="fixed bottom-6 right-6 z-[3000] max-w-sm bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 animate-slide-up">
-          <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-            <X size={16} className="text-red-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-red-900">Ошибка</p>
-            <p className="text-xs text-red-700 mt-0.5 break-words">{errorMessage}</p>
-          </div>
-          <button
-            onClick={() => setErrorMessage(null)}
-            className="p-1 hover:bg-surface rounded-lg flex-shrink-0 transition-colors"
-          >
-            <X size={14} className="text-muted" />
-          </button>
-        </div>
+        <AdminErrorToast errorMessage={errorMessage} onClose={() => setErrorMessage(null)} />
       )}
 
-      {assignModalReqIds && (
-        <AssignDriverModal
-          requestIds={assignModalReqIds}
-          requests={requests}
-          drivers={drivers}
-          selectedDriverId={assignDriverId}
-          isAssigning={isAssigning}
-          onSelectDriver={setAssignDriverId}
-          onClose={() => setAssignModalReqIds(null)}
-          onSubmit={(overrides) => void handleAssign(overrides)}
-        />
-      )}
+      <AdminAssignDriverModal
+        assignModalReqIds={assignModalReqIds}
+        requests={requests}
+        drivers={drivers}
+        assignDriverId={assignDriverId}
+        isAssigning={isAssigning}
+        onSelectDriver={setAssignDriverId}
+        onClose={() => setAssignModalReqIds(null)}
+        onSubmit={(overrides) => void handleAssign(overrides)}
+      />
     </div>
   )
 }
