@@ -1,0 +1,26 @@
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+
+from app.models import Base
+
+
+class UserRole:
+    PASSENGER = "passenger"
+    ADMIN = "admin"
+    DRIVER = "driver"
+    MODERATOR = "moderator"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    user_id = Column(String, primary_key=True)
+    username = Column(String, nullable=True)
+    role = Column(String, nullable=False, server_default=UserRole.PASSENGER)
+    points_balance = Column(Integer, nullable=False, server_default="0")
+    onboarding_completed = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    def __str__(self) -> str:
+        return f"{self.user_id} ({self.role})"
+
+

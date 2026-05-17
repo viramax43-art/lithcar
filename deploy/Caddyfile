@@ -1,0 +1,32 @@
+{
+    email {env.ACME_EMAIL}
+}
+
+{$DOMAIN} {
+    encode zstd gzip
+
+    # --- API proxy ---
+    handle /api/* {
+        reverse_proxy api:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {host}
+        }
+    }
+
+    # --- Socket.IO and WebSocket proxy ---
+    handle /socket.io/* {
+        reverse_proxy api:8000 {
+            header_up Connection {http.request.header.Connection}
+            header_up Upgrade {http.request.header.Upgrade}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {host}
+        }
+    }
+
+    # --- SPA frontend ---
+    handle {
+        root * /srv
+        file_server
+        try_files {path} /index.html
+    }
+}

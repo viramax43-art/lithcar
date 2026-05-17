@@ -1,0 +1,87 @@
+# Этот пайплайн скрипт для ручного деплоя на облаке
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="/var/www/prod"
+BRANCH="origin/main"
+LOCK_FILE="/tmp/digital_deploy.lock"
+
+log() { echo -e "[$(date +'%F %T')] $*"; }
+
+changed() {
+  # Usage: changed "pathspec"
+  git diff --name-only "${OLD_HEAD}..${NEW_HEAD}" -- "$1" | grep -q .
+}
+
+# lock (защита от параллельных деплоев)
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "Deploy already running. Exit."
+  exit 1
+fi
+
+cd "$REPO_DIR"
+
+log "Fetch..."
+OLD_HEAD="$(git rev-parse HEAD)"
+git fetch origin
+NEW_HEAD="$(git rev-parse "$BRANCH")"
+
+if [[ "$OLD_HEAD" == "$NEW_HEAD" ]]; then
+  log "No changes. Exit."
+  exit 0
+fi
+
+log "Update working tree to $BRANCH ($NEW_HEAD)"
+git reset --hard "$NEW_HEAD"
+
+# флаги изменений
+BUILD_API=0
+BUILD_BOT=0
+BUILD_FE=0
+APPLY_COMPOSE=0
+
+changed "backend/" && BUILD_API=1
+changed "bot/" && BUILD_BOT=1
+changed "frontend/" && BUILD_FE=1
+changed "docker-compose.yml" && APPLY_COMPOSE=1
+changed "deploy/" && APPLY_COMPOSE=1  # caddyfile и т.п.
+
+# 0) если изменился compose — применяем конфиг (без down)
+if [[ "$APPLY_COMPOSE" -eq 1 ]]; then
+  log "Compose/deploy changed -> apply compose"
+  docker compose up -d
+fi
+
+# 1) фронт собираем только если менялся frontend/
+# (работает с вашим текущим compose, где frontend-build в профиле)
+if [[ "$BUILD_FE" -eq 1 ]]; then
+  log "Frontend changed -> build assets"
+  docker compose --profile frontend-build up frontend-build --abort-on-container-exit
+else
+  log "Frontend unchanged -> skip build"
+fi
+
+# 2) собираем и перезапускаем только нужные сервисы
+if [[ "$BUILD_API" -eq 1 ]]; then
+  log "Backend changed -> build+restart api"
+  docker compose build api
+  docker compose up -d --no-deps api
+fi
+
+if [[ "$BUILD_BOT" -eq 1 ]]; then
+  log "Bot changed -> build+restart quiz-bot"
+  docker compose build quiz-bot
+  docker compose up -d --no-deps quiz-bot
+fi
+
+# 3) убедимся что базовые сервисы подняты (noop если уже)
+log "Ensure core services up"
+docker compose up -d postgres redis caddy
+
+# 4) мягкая уборка (НЕ убивает кеш каждый раз)
+log "Prune dangling images"
+docker image prune -f >/dev/null || true
+
+log "Done."

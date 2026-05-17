@@ -1,0 +1,45 @@
+# Этот файл предназначен для прогона тестов.
+# Он поднимает полностью изолированную БД и Redis для pytest.
+
+services:
+  postgres_test:
+    image: postgres:15
+    env_file:
+      - .env.test
+    environment:
+      # Важно: не используем ${...} подстановки на уровне compose,
+      # чтобы можно было запускать без `--env-file .env.test`.
+      POSTGRES_DB: db_test
+      POSTGRES_USER: user_test
+      POSTGRES_PASSWORD: password_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  redis_test:
+    image: redis:latest
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env.test
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && pytest -vv -ra"

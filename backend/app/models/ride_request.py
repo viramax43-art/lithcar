@@ -1,0 +1,46 @@
+from uuid import uuid4
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, func
+
+from app.models import Base
+
+
+class RideRequestStatus:
+    PENDING = "pending"
+    GROUPED = "grouped"
+    ASSIGNED = "assigned"
+    EN_ROUTE_TO_PICKUP = "en_route_to_pickup"
+    AWAITING_PASSENGER = "awaiting_passenger"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+    DRIVER_FLOW_NEXT: dict[str, str] = {
+        ASSIGNED: EN_ROUTE_TO_PICKUP,
+        EN_ROUTE_TO_PICKUP: AWAITING_PASSENGER,
+        AWAITING_PASSENGER: IN_PROGRESS,
+        IN_PROGRESS: COMPLETED,
+    }
+
+    @classmethod
+    def can_driver_transition(cls, current: str, target: str) -> bool:
+        return cls.DRIVER_FLOW_NEXT.get(current) == target
+
+
+class RideRequest(Base):
+    __tablename__ = "ride_requests"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    passenger_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    passenger_name = Column(String, nullable=False)
+    passenger_phone = Column(String, nullable=False)
+    from_address = Column(String, nullable=False)
+    from_lat = Column(Float, nullable=False)
+    from_lng = Column(Float, nullable=False)
+    to_address = Column(String, nullable=False)
+    to_lat = Column(Float, nullable=False)
+    to_lng = Column(Float, nullable=False)
+    date_time = Column(DateTime(timezone=True), nullable=False, index=True)
+    status = Column(String, nullable=False, server_default=RideRequestStatus.PENDING, index=True)
+    group_id = Column(String, nullable=True, index=True)
+    driver_id = Column(String, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

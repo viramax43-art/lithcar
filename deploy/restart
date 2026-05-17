@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="/var/www/prod"
+LOCK_FILE="/tmp/digital_deploy.lock"
+
+log() { echo -e "[$(date +'%F %T')] $*"; }
+
+# lock (защита от параллельного deploy/restart)
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "Deploy/restart already running. Exit."
+  exit 1
+fi
+
+cd "$REPO_DIR"
+
+log "Force restarting whole compose stack (no volumes removed)..."
+
+# Важно: НЕ делаем `down`, чтобы:
+# - не терять здоровье/порядок запуска без необходимости
+# - не провоцировать лишние "холодные старты"
+#
+# Политика pull: тянуть образы ТОЛЬКО если их нет локально.
+# Это относится к сервисам на `image:` (postgres/redis/caddy/node и т.п.).
+# Для build-сервисов базовый `FROM python:...` будет скачан Docker'ом только если его нет локально.
+
+# 1) Rebuild ВСЕХ build-сервисов, чтобы локальные изменения попадали в образы.
+# Кеш слоёв будет переиспользован (если вы не чистили build cache).
+log "Rebuilding build-services (cache should be reused)..."
+docker compose build
+
+# 2) Собираем фронт (assets) отдельно (как в compose), pulling only if missing.
+log "Building frontend assets (profile frontend-build; pull only missing images)..."
+docker compose --profile frontend-build up --pull missing frontend-build --abort-on-container-exit
+
+# 3) Пересоздаём контейнеры и перечитываем env; образы тянем только если их нет
+docker compose up -d --pull missing --force-recreate --remove-orphans
+
+log "Restart finished."
