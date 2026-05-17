@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
-import { ArrowLeft, Phone, Calendar, Clock, NavigationArrow, Star, Users } from '@phosphor-icons/react'
+import { ArrowLeft, Car, Phone, Calendar, Clock, NavigationArrow, Star, Users } from '@phosphor-icons/react'
 import type { Driver, RideRequest } from '../../types'
 import { deleteRequest, getRequestById, listDrivers, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
@@ -263,7 +263,7 @@ export default function RequestDetail() {
                 />
               ) : (
                 <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">🚗</span>
+                  <Car size={28} weight="fill" className="text-white/80" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -324,7 +324,7 @@ export default function RequestDetail() {
         ) : (
           <div className="bg-surface rounded-card p-6 text-center">
             <div className="w-12 h-12 rounded-full bg-white border border-border flex items-center justify-center mx-auto mb-3">
-              <span className="text-xl">🚗</span>
+              <Car size={20} weight="fill" className="text-zinc-700" />
             </div>
             <p className="text-sm font-bold">Ищем водителя</p>
             <p className="text-xs text-muted mt-1">Мы уведомим вас, как только водитель будет назначен</p>

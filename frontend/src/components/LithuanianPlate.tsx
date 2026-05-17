@@ -2,6 +2,8 @@
  * Lithuanian (EU-style) car license plate renderer.
  * Format: blue EU strip on the left (12 stars + "LT") + white plate body with bold black text.
  */
+import { Star } from '@phosphor-icons/react'
+
 interface LithuanianPlateProps {
   value: string
   size?: 'sm' | 'md' | 'lg'
@@ -63,9 +65,7 @@ export default function LithuanianPlate({ value, size = 'md', className = '' }: 
         className={`flex flex-col items-center justify-center text-white ${s.stripWidth}`}
         style={{ background: '#003399' }}
       >
-        <span className={`leading-none ${s.stripStarsSize}`} style={{ color: '#FFCC00' }}>
-          ★
-        </span>
+        <Star size={size === 'sm' ? 7 : size === 'md' ? 8 : 10} weight="fill" style={{ color: '#FFCC00' }} />
         <span
           className={`leading-none font-extrabold tracking-tight ${s.stripLtSize}`}
           style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}

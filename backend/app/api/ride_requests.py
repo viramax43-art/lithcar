@@ -11,6 +11,11 @@ from app.api.auth import get_current_user, require_roles
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
 from app.models.user import User, UserRole
+from app.services.driver_service import get_driver
+from app.services.passenger_notification_service import (
+    notify_passenger_driver_assigned,
+    notify_passenger_status_changed,
+)
 from app.services.ride_booking_service import (
     InsufficientPointsError,
     InvalidRideDateTimeError,
@@ -224,6 +229,8 @@ async def assign_driver_single(
     updated = await assign_driver(db_session, request_ids=[request_id], driver_id=payload.driverId)
     if not updated:
         raise HTTPException(status_code=404, detail="Ride request not found.")
+    driver = await get_driver(db_session, driver_id=payload.driverId)
+    await notify_passenger_driver_assigned(request=updated[0], driver=driver)
     return _to_ride_request_out(updated[0])
 
 
@@ -259,6 +266,9 @@ async def assign_driver_bulk(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    driver = await get_driver(db_session, driver_id=payload.driverId)
+    for request in updated:
+        await notify_passenger_driver_assigned(request=request, driver=driver)
     return [_to_ride_request_out(request) for request in updated]
 
 
@@ -269,9 +279,21 @@ async def patch_request_status(
     _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN, AdminApiRole.MODERATOR)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    request = await update_request_status(db_session, request_id=request_id, status=payload.status)
-    if request is None:
+    existing = await get_request(db_session, request_id=request_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
+    previous_status = existing.status
+    request = await update_request_status(db_session, request_id=request_id, status=payload.status)
+    if request is None:  # defensive branch for race conditions
+        raise HTTPException(status_code=404, detail="Ride request not found.")
+    driver = None
+    if request.driver_id:
+        driver = await get_driver(db_session, driver_id=request.driver_id)
+    await notify_passenger_status_changed(
+        request=request,
+        previous_status=previous_status,
+        driver=driver,
+    )
     return _to_ride_request_out(request)
 
 

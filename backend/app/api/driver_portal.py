@@ -21,6 +21,7 @@ from app.services.driver_service import (
     update_driver_location,
     update_driver_online,
 )
+from app.services.passenger_notification_service import notify_passenger_status_changed
 from app.models.admin_audit_event import AdminAuditAction
 from app.models.driver_qr_sale import DriverQrSaleSettlementStatus
 from app.services.admin_audit_service import add_audit_event
@@ -31,6 +32,7 @@ from app.services.driver_qr_sale_service import (
 )
 from app.services.pricing_service import get_or_create_pricing
 from app.services.ride_request_service import (
+    get_request,
     list_driver_requests,
     update_driver_ride_status,
 )
@@ -346,6 +348,9 @@ async def update_cabinet_ride_status(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    current_ride = await get_request(db_session, request_id=request_id)
+    previous_status = current_ride.status if current_ride is not None else payload.status
+
     ride, error = await update_driver_ride_status(
         db_session,
         request_id=request_id,
@@ -356,6 +361,12 @@ async def update_cabinet_ride_status(
         raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
+    driver = await get_driver(db_session, driver_id=session.driver_id)
+    await notify_passenger_status_changed(
+        request=ride,
+        previous_status=previous_status,
+        driver=driver,
+    )
     return DriverRideOut(
         id=ride.id,
         fromAddress=ride.from_address,
