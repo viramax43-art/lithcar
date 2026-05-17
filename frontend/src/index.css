@@ -6,6 +6,20 @@
 
 * { box-sizing: border-box; }
 
+:root {
+  --app-safe-area-top: env(safe-area-inset-top, 0px);
+  --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --app-fullscreen-extra-top: 0px;
+  --app-fullscreen-extra-bottom: 0px;
+  --app-safe-area-top-total: calc(var(--app-safe-area-top) + var(--app-fullscreen-extra-top));
+  --app-safe-area-bottom-total: calc(var(--app-safe-area-bottom) + var(--app-fullscreen-extra-bottom));
+}
+
+:root[data-tg-fullscreen='1'] {
+  --app-fullscreen-extra-top: 20px;
+  --app-fullscreen-extra-bottom: 8px;
+}
+
 body {
   margin: 0;
   padding: 0;

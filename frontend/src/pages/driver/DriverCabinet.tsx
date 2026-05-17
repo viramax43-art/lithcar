@@ -234,7 +234,7 @@ export default function DriverCabinet() {
     <div className="min-h-[100dvh] bg-surface">
       <header
         className="sticky top-0 z-30 bg-black text-white shadow-card"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
         <div className="h-14 px-5 flex items-center justify-between">
           <div className="min-w-0">

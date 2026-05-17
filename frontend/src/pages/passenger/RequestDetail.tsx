@@ -114,7 +114,7 @@ export default function RequestDetail() {
       {/* Header */}
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
         <div className="flex items-center gap-3 px-4 h-14">
           <button onClick={() => navigate('/requests')} className="p-1">

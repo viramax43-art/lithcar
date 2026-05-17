@@ -56,7 +56,7 @@ export default function MyRequests() {
       {/* Header */}
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
         <div className="flex items-center justify-between px-5 h-14">
           <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>

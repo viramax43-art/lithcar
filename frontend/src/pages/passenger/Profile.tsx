@@ -112,7 +112,7 @@ export default function Profile() {
     <div className="min-h-[100dvh] bg-white pb-20 overflow-x-hidden">
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
         <div className="flex items-center justify-between px-5 h-14">
           <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
@@ -329,7 +329,7 @@ function QrRedeemSheet({
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
@@ -519,7 +519,7 @@ function BuyPointsSheet({
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">

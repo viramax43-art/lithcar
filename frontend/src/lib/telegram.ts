@@ -9,10 +9,12 @@ type TelegramHapticFeedback = {
 
 type TelegramWebApp = {
   platform?: string
+  isFullscreen?: boolean
   ready?: () => void
   expand?: () => void
   requestFullscreen?: () => void
   disableVerticalSwipes?: () => void
+  onEvent?: (eventType: string, callback: () => void) => void
   HapticFeedback?: TelegramHapticFeedback
 }
 
@@ -24,6 +26,13 @@ function getTelegramWebApp(): TelegramWebApp | null {
 export function initTelegramWebAppUI(): void {
   const webApp = getTelegramWebApp()
   if (!webApp) return
+
+  const syncFullscreenState = (): void => {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.tgFullscreen = webApp.isFullscreen ? '1' : '0'
+  }
+
+  syncFullscreenState()
   try {
     webApp.ready?.()
   } catch {
@@ -42,7 +51,15 @@ export function initTelegramWebAppUI(): void {
     if (!isDesktopPlatform) {
       // Newer mobile clients support explicit fullscreen mode.
       webApp.requestFullscreen?.()
+      // Fullscreen mode can settle asynchronously after request.
+      setTimeout(syncFullscreenState, 100)
+      setTimeout(syncFullscreenState, 500)
     }
+  } catch {
+    // noop
+  }
+  try {
+    webApp.onEvent?.('fullscreenChanged', syncFullscreenState)
   } catch {
     // noop
   }

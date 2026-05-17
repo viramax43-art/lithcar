@@ -57,7 +57,7 @@ export default function NewRequest() {
 
       <header
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+        style={{ paddingTop: 'calc(var(--app-safe-area-top-total) + 12px)' }}
       >
         <div className="flex items-center gap-2 px-3 py-2 rounded-pill bg-white/95 shadow-card backdrop-blur-sm">
           <h1 className="text-base font-extrabold tracking-tight">RIDE</h1>
@@ -128,7 +128,7 @@ export default function NewRequest() {
         </div>
       )}
 
-      <div className="absolute left-0 right-0 z-20 px-3" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px + 8px)' }}>
+      <div className="absolute left-0 right-0 z-20 px-3" style={{ bottom: 'calc(var(--app-safe-area-bottom-total) + 64px + 8px)' }}>
         <div className="bg-white rounded-card shadow-card p-3 space-y-2.5 animate-slide-up">
           <div className="flex flex-col gap-1.5">
             <FieldRow

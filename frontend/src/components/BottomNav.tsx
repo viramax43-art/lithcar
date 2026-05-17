@@ -14,7 +14,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border flex items-center justify-around z-50"
-      style={{ minHeight: 64, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      style={{ minHeight: 64, paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
       {tabs.map((tab) => {
         const active = location.pathname === tab.path
         return (
