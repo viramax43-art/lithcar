@@ -38,7 +38,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
       scannerRef.current = scanner
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
+        { fps: 10, aspectRatio: 1 },
         async (decodedText: string) => {
           const token = extractToken(decodedText)
           if (!token) return
