@@ -1,5 +1,6 @@
 import { SignOut, X } from '@phosphor-icons/react'
 import type { AdminSessionUser } from '../../../lib/backend'
+import { getAdminRoleLabel } from '../utils/adminRolePresentation'
 
 export function AdminSessionChecking() {
   return <div className="min-h-[100dvh] flex items-center justify-center text-sm text-muted">Проверяем сессию админки...</div>
@@ -71,7 +72,7 @@ export function AdminHeader({
         </div>
         <div className="text-right">
           <p className="text-xs font-semibold leading-tight">{adminSession.name}</p>
-          <p className="text-[10px] text-white/50 leading-tight">{adminSession.role}</p>
+          <p className="text-[10px] text-white/50 leading-tight">{getAdminRoleLabel(adminSession.role)}</p>
         </div>
         <button
           onClick={onLogout}

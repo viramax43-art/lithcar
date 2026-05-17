@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Car, CaretRight, Check, MagnifyingGlass, Star, X } from '@phosphor-icons/react'
 
 import type { Driver, LatLng, RideRequest } from '../../../types'
@@ -32,7 +32,9 @@ export default function AssignDriverModal({
   const [query, setQuery] = useState('')
 
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests])
-  const initialDrafts: RideDraft[] = useMemo(() => {
+  const requestIdsKey = useMemo(() => requestIds.join('|'), [requestIds])
+  const initializedForKeyRef = useRef<string | null>(null)
+  const buildInitialDrafts = useCallback((): RideDraft[] => {
     return requestIds
       .map((id) => requestById.get(id))
       .filter((r): r is RideRequest => Boolean(r))
@@ -49,11 +51,16 @@ export default function AssignDriverModal({
         originalToLatLng: { lat: r.to.latlng.lat, lng: r.to.latlng.lng },
       }))
   }, [requestIds, requestById])
-  const [drafts, setDrafts] = useState<RideDraft[]>(initialDrafts)
+  const [drafts, setDrafts] = useState<RideDraft[]>(() => buildInitialDrafts())
 
+  // Keep edited points stable while admin polling refreshes requests list.
   useEffect(() => {
-    setDrafts(initialDrafts)
-  }, [initialDrafts])
+    if (initializedForKeyRef.current === requestIdsKey) return
+    setDrafts(buildInitialDrafts())
+    setStep(1)
+    setQuery('')
+    initializedForKeyRef.current = requestIdsKey
+  }, [buildInitialDrafts, requestIdsKey])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,7 +131,7 @@ export default function AssignDriverModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-card shadow-card w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-card shadow-card w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

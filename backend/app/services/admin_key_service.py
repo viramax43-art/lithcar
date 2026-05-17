@@ -145,7 +145,7 @@ async def ensure_bootstrap_chief_admin_key(db_session: AsyncSession) -> None:
     if existing is not None:
         return
     entity = AdminApiKey(
-        name="Bootstrap Chief Admin",
+        name="главный администратор",
         role=AdminApiRole.CHIEF_ADMIN,
         key_hash=hashed,
         key_prefix=bootstrap_key[:16],

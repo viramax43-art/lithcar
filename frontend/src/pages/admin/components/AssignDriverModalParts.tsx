@@ -166,7 +166,7 @@ export function RideDraftCard({
       </div>
 
       <div className="px-4">
-        <div className="h-56 rounded-xl overflow-hidden border border-border relative">
+        <div className="h-80 lg:h-[26rem] rounded-xl overflow-hidden border border-border relative">
           <MapContainer
             center={[draft.fromLatLng.lat, draft.fromLatLng.lng]}
             zoom={13}
