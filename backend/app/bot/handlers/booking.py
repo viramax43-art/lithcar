@@ -11,12 +11,8 @@ from aiogram.types import CallbackQuery, Message
 from app.bot.keyboards.booking import (
     CANCEL_LABEL,
     confirm_keyboard,
-    date_keyboard,
     edit_keyboard,
-    location_keyboard,
-    remove_keyboard,
     welcome_keyboard,
-    time_keyboard,
 )
 from app.bot.services.user_binding import get_or_create_passenger_from_telegram
 from app.bot.states.booking import BookingStates
@@ -122,8 +118,7 @@ async def begin_booking_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(BookingStates.awaiting_from_location)
     await callback.message.answer(
-        "Отправьте геометку точки A (откуда вас забрать).",
-        reply_markup=location_keyboard(label="Отправить точку A"),
+        "Отправьте геопозицию точки A (откуда вас забрать).",
     )
     await callback.answer()
 
@@ -131,8 +126,7 @@ async def begin_booking_callback(callback: CallbackQuery, state: FSMContext):
 @router.message(BookingStates.awaiting_from_location, ~F.location)
 async def reject_non_location_from(message: Message):
     await message.answer(
-        "Нужна именно геометка. Нажмите кнопку ниже и отправьте точку A.",
-        reply_markup=location_keyboard(label="Отправить точку A"),
+        "Нужна именно геопозиция. Отправьте точку A через вложение локации в Telegram.",
     )
 
 
@@ -146,16 +140,14 @@ async def set_from_location(message: Message, state: FSMContext):
     await state.update_data(**from_point)
     await state.set_state(BookingStates.awaiting_to_location)
     await message.answer(
-        "Отлично. Теперь отправьте геометку точки B (куда поедем).",
-        reply_markup=location_keyboard(label="Отправить точку B"),
+        "Отлично. Теперь отправьте геопозицию точки B (куда поедем).",
     )
 
 
 @router.message(BookingStates.awaiting_to_location, ~F.location)
 async def reject_non_location_to(message: Message):
     await message.answer(
-        "Нужна геометка точки B. Нажмите кнопку и отправьте локацию.",
-        reply_markup=location_keyboard(label="Отправить точку B"),
+        "Нужна геопозиция точки B. Отправьте локацию сообщением.",
     )
 
 
@@ -168,28 +160,7 @@ async def set_to_location(message: Message, state: FSMContext):
     }
     await state.update_data(**to_point)
     await state.set_state(BookingStates.awaiting_date)
-    await message.answer(
-        "Выберите дату поездки или введите вручную в формате ДД.ММ.ГГГГ.",
-        reply_markup=remove_keyboard(),
-    )
-    await message.answer("Дата поездки:", reply_markup=date_keyboard())
-
-
-@router.callback_query(BookingStates.awaiting_date, F.data.startswith("date:"))
-async def pick_date_callback(callback: CallbackQuery, state: FSMContext):
-    if callback.data == "date:today":
-        chosen_date = date.today()
-        await state.update_data(ride_date=chosen_date.isoformat())
-        await state.set_state(BookingStates.awaiting_time)
-        await callback.message.answer("Выберите время поездки.", reply_markup=time_keyboard())
-    elif callback.data == "date:tomorrow":
-        chosen_date = date.today() + timedelta(days=1)
-        await state.update_data(ride_date=chosen_date.isoformat())
-        await state.set_state(BookingStates.awaiting_time)
-        await callback.message.answer("Выберите время поездки.", reply_markup=time_keyboard())
-    else:
-        await callback.message.answer("Введите дату в формате ДД.ММ.ГГГГ.")
-    await callback.answer()
+    await message.answer("Введите дату поездки в формате ДД.ММ.ГГГГ.")
 
 
 @router.message(BookingStates.awaiting_date, F.text)
@@ -203,24 +174,7 @@ async def pick_date_manual(message: Message, state: FSMContext):
         return
     await state.update_data(ride_date=chosen_date.isoformat())
     await state.set_state(BookingStates.awaiting_time)
-    await message.answer("Дата сохранена. Теперь выберите время.", reply_markup=time_keyboard())
-
-
-@router.callback_query(BookingStates.awaiting_time, F.data.startswith("time:"))
-async def pick_time_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    ride_date = date.fromisoformat(data["ride_date"])
-    if callback.data == "time:plus30":
-        ride_time = resolve_quick_time(ride_date=ride_date, minutes=30)
-        await state.update_data(ride_time=ride_time.isoformat())
-        await _show_confirmation(callback.message, state)
-    elif callback.data == "time:plus60":
-        ride_time = resolve_quick_time(ride_date=ride_date, minutes=60)
-        await state.update_data(ride_time=ride_time.isoformat())
-        await _show_confirmation(callback.message, state)
-    else:
-        await callback.message.answer("Введите время в формате ЧЧ:ММ (например, 19:30).")
-    await callback.answer()
+    await message.answer("Дата сохранена. Теперь введите время в формате ЧЧ:ММ.")
 
 
 @router.message(BookingStates.awaiting_time, F.text)
@@ -255,34 +209,28 @@ async def edit_back(callback: CallbackQuery):
 @router.callback_query(BookingStates.confirming, F.data == "edit:from")
 async def edit_from_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_from_location)
-    await callback.message.answer(
-        "Отправьте новую геометку точки A.",
-        reply_markup=location_keyboard(label="Отправить точку A"),
-    )
+    await callback.message.answer("Отправьте новую геопозицию точки A.")
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:to")
 async def edit_to_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_to_location)
-    await callback.message.answer(
-        "Отправьте новую геометку точки B.",
-        reply_markup=location_keyboard(label="Отправить точку B"),
-    )
+    await callback.message.answer("Отправьте новую геопозицию точки B.")
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:date")
 async def edit_date(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_date)
-    await callback.message.answer("Выберите новую дату.", reply_markup=date_keyboard())
+    await callback.message.answer("Введите новую дату в формате ДД.ММ.ГГГГ.")
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:time")
 async def edit_time(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_time)
-    await callback.message.answer("Выберите новое время.", reply_markup=time_keyboard())
+    await callback.message.answer("Введите новое время в формате ЧЧ:ММ.")
     await callback.answer()
 
 
@@ -331,9 +279,9 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.answer(
         "Поездка оформлена.\n"
-        f"Номер заявки: {booking.request.id}\n"
         f"Списано: {booking.points_debited} поинтов\n"
-        f"Остаток: {booking.points_balance_after} поинтов\n\n"
+        f"Остаток: {booking.points_balance_after} поинтов\n"
+        "Статус заявки будет отображаться в приложении.\n\n"
         + WELCOME_TEXT,
         reply_markup=welcome_keyboard(),
     )
