@@ -52,7 +52,7 @@ export default function MyRequests() {
   )
 
   return (
-    <div className="min-h-[100dvh] bg-white pb-20 animate-page-in">
+    <div className="min-h-[100dvh] bg-white pb-20">
       {/* Header */}
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"

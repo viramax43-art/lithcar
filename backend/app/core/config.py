@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379")
 
     bot_token: str = Field(default="")
+    telegram_bot_polling_enabled: bool = Field(default=True)
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

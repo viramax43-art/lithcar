@@ -99,6 +99,25 @@ services:
       start_period: 10s
       retries: 10
 
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: digital_bot
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/lithcar
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_POLLING_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "-m", "app.bot.main"]
+
 
 
   # Сервис сборки фронтенда (встроено в docker build)

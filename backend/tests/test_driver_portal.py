@@ -53,7 +53,12 @@ async def test_driver_key_login_and_cabinet_contains_assigned_rides(client, db_s
     driver_key = driver_payload["key"]
     assert driver_key.startswith("ride_driver_")
 
-    passenger = User(user_id="passenger-driver-test", username="passenger", role=UserRole.PASSENGER)
+    passenger = User(
+        user_id="passenger-driver-test",
+        username="passenger",
+        role=UserRole.PASSENGER,
+        points_balance=100,
+    )
     db_session.add(passenger)
     await db_session.commit()
 

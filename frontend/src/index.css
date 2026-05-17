@@ -132,40 +132,18 @@ body {
   box-shadow: none !important;
 }
 
-/* Page enter */
-@keyframes pageIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-page-in { animation: pageIn 0.24s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
-
-/* Fade-in (header tooltip) */
+/* Toast animation */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-6px); }
+  from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fadeIn 0.2s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+.animate-fade-in { animation: fadeIn 0.25s ease-out; }
 
-/* Pop-in for pills / badges */
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.8); }
-  to   { opacity: 1; transform: scale(1); }
-}
-.animate-pop-in { animation: popIn 0.2s cubic-bezier(0.34, 1.5, 0.64, 1) backwards; }
-
-/* Slide from top (search overlay) */
-@keyframes slideFromTop {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-slide-from-top { animation: slideFromTop 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
-
-/* Slide up (bottom card) */
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-slide-up { animation: slideUp 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
 
 /* Three-dot pulse for "resolving address" indicator. */
 @keyframes dotPulse {

@@ -231,7 +231,7 @@ export default function DriverCabinet() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-surface animate-page-in">
+    <div className="min-h-[100dvh] bg-surface">
       <header
         className="sticky top-0 z-30 bg-black text-white shadow-card"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}

@@ -11,9 +11,13 @@ from app.api.auth import get_current_user, require_roles
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
 from app.models.user import User, UserRole
+from app.services.ride_booking_service import (
+    InsufficientPointsError,
+    InvalidRideDateTimeError,
+    book_ride_with_points,
+)
 from app.services.ride_request_service import (
     assign_driver,
-    create_ride_request,
     delete_ride_request,
     get_request,
     list_passenger_requests,
@@ -122,9 +126,9 @@ async def create_request(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     try:
-        request = await create_ride_request(
+        booking_result = await book_ride_with_points(
             db_session,
-            passenger_id=current_user.user_id,
+            user=current_user,
             passenger_name=payload.passengerName,
             passenger_phone=payload.passengerPhone,
             from_address=payload.fromPoint.address,
@@ -135,8 +139,20 @@ async def create_request(
             to_lng=payload.toPoint.latlng.lng,
             date_time=payload.dateTime,
         )
+        request = booking_result.request
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except InvalidRideDateTimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except InsufficientPointsError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "insufficient_points",
+                "requiredPoints": exc.required_points,
+                "currentBalance": exc.current_balance,
+            },
+        ) from exc
     return _to_ride_request_out(request)
 
 

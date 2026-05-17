@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from datetime import date, time
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from app.bot.handlers.booking import (
+    combine_booking_datetime,
+    duplicate_submit,
+    get_selected_datetime,
+    parse_manual_date,
+    parse_manual_time,
+    reject_non_location_from,
+    resolve_quick_time,
+)
+
+
+def test_parse_manual_date():
+    assert parse_manual_date("21.05.2026") == date(2026, 5, 21)
+    assert parse_manual_date("2026-05-21") is None
+
+
+def test_parse_manual_time():
+    assert parse_manual_time("19:30") == time(19, 30)
+    assert parse_manual_time("24:01") is None
+
+
+def test_combine_and_restore_selected_datetime():
+    combined = combine_booking_datetime(ride_date=date(2026, 5, 21), ride_time=time(12, 45))
+    assert combined.isoformat() == "2026-05-21T12:45:00+00:00"
+    restored = get_selected_datetime({"ride_date": "2026-05-21", "ride_time": "12:45:00"})
+    assert restored.isoformat() == "2026-05-21T12:45:00+00:00"
+
+
+def test_resolve_quick_time_returns_time_value():
+    value = resolve_quick_time(ride_date=date.today(), minutes=30)
+    assert isinstance(value, time)
+
+
+async def test_reject_non_location_message():
+    message = SimpleNamespace(answer=AsyncMock())
+    await reject_non_location_from(message)
+    assert message.answer.await_count == 1
+
+
+async def test_duplicate_submit_callback():
+    callback = SimpleNamespace(answer=AsyncMock())
+    await duplicate_submit(callback)
+    callback.answer.assert_awaited_once()

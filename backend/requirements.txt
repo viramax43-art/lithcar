@@ -11,5 +11,6 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 boto3
+aiogram
 pytest
 pytest-asyncio

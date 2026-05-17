@@ -1,13 +1,27 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import select
 
 from app.core.security import create_access_token
+from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.user import User, UserRole
 
 
-async def _create_user(db_session, *, user_id: str, role: str, username: str = "user") -> User:
-    user = User(user_id=user_id, username=username, role=role)
+async def _create_user(
+    db_session,
+    *,
+    user_id: str,
+    role: str,
+    username: str = "user",
+    points_balance: int = 100,
+) -> User:
+    user = User(
+        user_id=user_id,
+        username=username,
+        role=role,
+        points_balance=points_balance,
+    )
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -58,6 +72,8 @@ async def test_passenger_create_list_and_get_own_requests(client, db_session):
     created = await client.post("/api/ride-requests", json=payload, headers=headers)
     assert created.status_code == 201
     request_id = created.json()["id"]
+    await db_session.refresh(passenger)
+    assert passenger.points_balance == 90
 
     mine = await client.get("/api/ride-requests/me", headers=headers)
     assert mine.status_code == 200
@@ -68,6 +84,36 @@ async def test_passenger_create_list_and_get_own_requests(client, db_session):
     details = await client.get(f"/api/ride-requests/{request_id}", headers=headers)
     assert details.status_code == 200
     assert details.json()["passengerId"] == passenger.user_id
+    tx_result = await db_session.execute(
+        select(PointsTransaction).where(PointsTransaction.reference_id == request_id)
+    )
+    tx = tx_result.scalar_one_or_none()
+    assert tx is not None
+    assert tx.transaction_type == PointsTransactionType.RIDE_BOOKING_DEBIT
+
+
+async def test_create_request_with_insufficient_points_returns_400(client, db_session):
+    passenger = await _create_user(
+        db_session,
+        user_id="p-low",
+        role=UserRole.PASSENGER,
+        points_balance=3,
+    )
+    await _create_zone(client)
+
+    response = await client.post(
+        "/api/ride-requests",
+        json={
+            "passengerName": "Low Balance",
+            "passengerPhone": "+37060000010",
+            "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
+            "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
+            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        },
+        headers=_headers_for(passenger.user_id, passenger.role),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "insufficient_points"
 
 
 async def test_create_request_outside_zone_returns_400(client, db_session):
@@ -86,6 +132,39 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
         headers=_headers_for(passenger.user_id, passenger.role),
     )
     assert response.status_code == 400
+    await db_session.refresh(passenger)
+    assert passenger.points_balance == 100
+    tx_result = await db_session.execute(
+        select(PointsTransaction).where(PointsTransaction.user_id == passenger.user_id)
+    )
+    assert list(tx_result.scalars().all()) == []
+
+
+async def test_create_request_writes_debit_transaction(client, db_session):
+    passenger = await _create_user(db_session, user_id="p-tx", role=UserRole.PASSENGER, points_balance=40)
+    await _create_zone(client)
+
+    response = await client.post(
+        "/api/ride-requests",
+        json={
+            "passengerName": "Tx User",
+            "passengerPhone": "+37060000111",
+            "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
+            "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
+            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        },
+        headers=_headers_for(passenger.user_id, passenger.role),
+    )
+    assert response.status_code == 201
+    request_id = response.json()["id"]
+
+    tx_result = await db_session.execute(
+        select(PointsTransaction).where(PointsTransaction.reference_id == request_id)
+    )
+    tx = tx_result.scalar_one_or_none()
+    assert tx is not None
+    assert tx.transaction_type == PointsTransactionType.RIDE_BOOKING_DEBIT
+    assert tx.amount == -10
 
 
 async def test_admin_assign_driver_and_filter_requests(client, db_session):

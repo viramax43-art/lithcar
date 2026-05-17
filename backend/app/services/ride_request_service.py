@@ -9,7 +9,7 @@ from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.zone_service import is_point_in_any_active_zone
 
 
-async def create_ride_request(
+async def create_ride_request_record(
     db_session: AsyncSession,
     *,
     passenger_id: str,
@@ -42,6 +42,37 @@ async def create_ride_request(
         status=RideRequestStatus.PENDING,
     )
     db_session.add(request)
+    await db_session.flush()
+    return request
+
+
+async def create_ride_request(
+    db_session: AsyncSession,
+    *,
+    passenger_id: str,
+    passenger_name: str,
+    passenger_phone: str,
+    from_address: str,
+    from_lat: float,
+    from_lng: float,
+    to_address: str,
+    to_lat: float,
+    to_lng: float,
+    date_time: datetime,
+) -> RideRequest:
+    request = await create_ride_request_record(
+        db_session,
+        passenger_id=passenger_id,
+        passenger_name=passenger_name,
+        passenger_phone=passenger_phone,
+        from_address=from_address,
+        from_lat=from_lat,
+        from_lng=from_lng,
+        to_address=to_address,
+        to_lat=to_lat,
+        to_lng=to_lng,
+        date_time=date_time,
+    )
     await db_session.commit()
     await db_session.refresh(request)
     return request
