@@ -187,9 +187,25 @@ function readInitDataFromUrl(): string {
   return parseQuery(hashQuery)
 }
 
+function readInitDataFromTelegramGlobals(): string {
+  type TelegramGlobal = {
+    Telegram?: {
+      WebApp?: { initData?: string }
+      WebView?: { initParams?: Record<string, unknown> }
+    }
+  }
+  const telegram = (window as Window & TelegramGlobal).Telegram
+  const fromWebApp = telegram?.WebApp?.initData
+  if (typeof fromWebApp === 'string' && fromWebApp) return fromWebApp
+
+  const fromWebViewParams = telegram?.WebView?.initParams?.tgWebAppData
+  if (typeof fromWebViewParams === 'string' && fromWebViewParams) return fromWebViewParams
+
+  return ''
+}
+
 function getTelegramInitData(): string {
-  const fromWindow = (window as Window & { Telegram?: { WebApp?: { initData?: string } } })
-    .Telegram?.WebApp?.initData
+  const fromWindow = readInitDataFromTelegramGlobals()
   const fromUrl = readInitDataFromUrl()
   const fromEnv = (import.meta.env.VITE_TELEGRAM_INIT_DATA as string | undefined) ?? ''
   const fromStorage = readStoredInitData()
@@ -202,6 +218,21 @@ function getTelegramInitData(): string {
     return ''
   }
   return 'test:7370074938:hrd:hrdlean'
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+async function waitForTelegramInitData(maxAttempts = 10, delayMs = 120): Promise<string> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const initData = getTelegramInitData()
+    if (initData) return initData
+    await sleep(delayMs)
+  }
+  return ''
 }
 
 export function clearAccessToken(): void {
@@ -230,8 +261,8 @@ async function loginWithTelegramInitData(initData: string): Promise<string> {
   return body.access_token
 }
 
-function getRequiredInitData(): string {
-  const initData = getTelegramInitData()
+async function getRequiredInitData(): Promise<string> {
+  const initData = await waitForTelegramInitData()
   if (!initData) {
     throw new Error(
       'Не найден Telegram initData. Откройте приложение через Telegram или запишите initData в localStorage (ride_init_data).'
@@ -245,7 +276,7 @@ async function refreshAccessToken(): Promise<string> {
     return tokenRefreshPromise
   }
   tokenRefreshPromise = (async () => {
-    const initData = getRequiredInitData()
+    const initData = await getRequiredInitData()
     return loginWithTelegramInitData(initData)
   })()
   try {
