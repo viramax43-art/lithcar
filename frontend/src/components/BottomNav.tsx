@@ -24,12 +24,16 @@ export default function BottomNav() {
               hapticSelection()
               navigate(tab.path)
             }}
-            className={`flex-1 flex flex-col items-center gap-0.5 py-3 px-2 transition-colors duration-150 ${
+            className={`flex-1 flex flex-col items-center gap-0.5 py-3 px-2 transition-colors duration-200 ${
               active ? 'text-accent-dark' : 'text-muted'
             }`}
           >
-            <tab.icon size={22} weight={active ? 'fill' : 'regular'} />
-            <span className="text-[10px] font-medium">{tab.label}</span>
+            <span className={`transition-transform duration-200 ${active ? 'scale-110' : 'scale-100'}`}>
+              <tab.icon size={22} weight={active ? 'fill' : 'regular'} />
+            </span>
+            <span className={`text-[10px] font-medium transition-all duration-200 ${active ? 'opacity-100' : 'opacity-60'}`}>
+              {tab.label}
+            </span>
           </button>
         )
       })}

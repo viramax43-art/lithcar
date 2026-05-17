@@ -92,12 +92,12 @@ export default function NewRequest() {
       {model.isPinLive && (
         <div className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]" style={{ top: 'calc(42% - 88px)' }}>
           {model.pinOutOfZone ? (
-            <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
+            <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-pop-in">
               <Warning size={12} weight="fill" />
               Вне зоны обслуживания
             </div>
           ) : model.isResolving ? (
-            <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-fade-in">
+            <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-pop-in">
               <span className={`w-3 h-3 rounded-full border-[2px] border-border animate-spin ${model.activeIsFrom ? 'border-t-point-a' : 'border-t-point-b'}`} />
               <span className="inline-flex items-center gap-0.5">
                 Определяем адрес
@@ -107,11 +107,11 @@ export default function NewRequest() {
               </span>
             </div>
           ) : model.pinAddress ? (
-            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card truncate max-w-[80vw] animate-fade-in ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
+            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card truncate max-w-[80vw] animate-pop-in ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
               {model.pinAddress}
             </div>
           ) : (
-            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
+            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card animate-pop-in ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
               {model.activeIsFrom ? 'Куда подать машину?' : 'Куда поедем?'}
             </div>
           )}
@@ -256,7 +256,7 @@ export default function NewRequest() {
       </div>
 
       {model.showSearch && (
-        <div className="absolute inset-0 z-40 bg-white flex flex-col animate-fade-in">
+        <div className="absolute inset-0 z-40 bg-white flex flex-col animate-slide-from-top">
           <header className="flex items-center gap-3 px-3 py-3 border-b border-border">
             <button
               onClick={() => {

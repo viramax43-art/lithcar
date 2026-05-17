@@ -109,7 +109,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-white pb-20 overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-white pb-20 overflow-x-hidden animate-page-in">
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}

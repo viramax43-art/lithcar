@@ -110,7 +110,7 @@ export default function RequestDetail() {
   )
 
   return (
-    <div className="min-h-[100dvh] bg-white">
+    <div className="min-h-[100dvh] bg-white animate-page-in">
       {/* Header */}
       <header
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
