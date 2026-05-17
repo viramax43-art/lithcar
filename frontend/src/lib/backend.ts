@@ -153,13 +153,50 @@ const ENABLE_BROWSER_TEST_AUTH =
   (import.meta.env.VITE_ENABLE_BROWSER_TEST_AUTH as string | undefined) ??
   (API_TARGET === 'remote' ? 'false' : 'true')
 
+function readStoredInitData(): string {
+  try {
+    return localStorage.getItem('ride_init_data') ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function persistInitData(initData: string): void {
+  if (!initData) return
+  try {
+    localStorage.setItem('ride_init_data', initData)
+  } catch {
+    // noop
+  }
+}
+
+function readInitDataFromUrl(): string {
+  const parseQuery = (value: string): string => {
+    if (!value) return ''
+    const normalized = value.startsWith('?') || value.startsWith('#') ? value.slice(1) : value
+    const params = new URLSearchParams(normalized)
+    return params.get('tgWebAppData') ?? params.get('initData') ?? ''
+  }
+
+  const fromSearch = parseQuery(window.location.search)
+  if (fromSearch) return fromSearch
+
+  const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+  if (!hash) return ''
+  const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash
+  return parseQuery(hashQuery)
+}
+
 function getTelegramInitData(): string {
   const fromWindow = (window as Window & { Telegram?: { WebApp?: { initData?: string } } })
     .Telegram?.WebApp?.initData
+  const fromUrl = readInitDataFromUrl()
   const fromEnv = (import.meta.env.VITE_TELEGRAM_INIT_DATA as string | undefined) ?? ''
-  const fromStorage = localStorage.getItem('ride_init_data') ?? ''
-  if (fromWindow || fromEnv || fromStorage) {
-    return fromWindow || fromEnv || fromStorage
+  const fromStorage = readStoredInitData()
+  const resolved = fromWindow || fromUrl || fromEnv || fromStorage
+  if (resolved) {
+    persistInitData(resolved)
+    return resolved
   }
   if (ENABLE_BROWSER_TEST_AUTH === 'false') {
     return ''
