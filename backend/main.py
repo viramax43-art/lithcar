@@ -4,7 +4,19 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from app.api import admin_audit, admin_keys, auth, driver_portal, drivers, group_suggestions, points_qr, pricing, ride_requests, service_zones
+from app.api import (
+    admin_audit,
+    admin_keys,
+    auth,
+    driver_portal,
+    drivers,
+    group_suggestions,
+    points_card,
+    points_qr,
+    pricing,
+    ride_requests,
+    service_zones,
+)
 from app.core.lifespan import lifespan
 from app.core.dependencies import get_db_session
 from app.core.config import settings
