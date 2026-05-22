@@ -22,6 +22,8 @@ export interface RideRequest {
   status: RideStatus
   groupId?: string
   driverId?: string
+  pickupChangedByDriver: boolean
+  pickupConfirmedAt: string | null
   createdAt: string
 }
 
@@ -97,6 +99,8 @@ export interface DriverCabinetRide {
   status: RideStatus
   dateTime: string
   createdAt: string
+  pickupChangedByDriver: boolean
+  pickupConfirmedAt: string | null
 }
 
 export interface DriverCabinetData {

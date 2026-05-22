@@ -53,9 +53,11 @@ export {
   sendDriverLocation,
   setDriverOnlineStatus,
   setDriverRideStatus,
+  updateDriverRidePickup,
 } from '../infrastructure/api/driverApi'
 
 export {
+  confirmPickup,
   createRequest,
   deleteRequest,
   getCurrentUser,

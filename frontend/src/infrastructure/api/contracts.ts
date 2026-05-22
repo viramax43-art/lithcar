@@ -108,6 +108,8 @@ export interface RideRequestApi {
   status: RideRequest['status']
   groupId?: string
   driverId?: string
+  pickupChangedByDriver: boolean
+  pickupConfirmedAt: string | null
   createdAt: string
 }
 

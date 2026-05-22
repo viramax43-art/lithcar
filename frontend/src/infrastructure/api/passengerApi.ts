@@ -69,6 +69,13 @@ export async function updateRequest(
   return mapRideRequest(updated)
 }
 
+export async function confirmPickup(requestId: string): Promise<RideRequest> {
+  const item = await apiRequest<RideRequestApi>(`/api/ride-requests/${requestId}/confirm-pickup`, {
+    method: 'POST',
+  })
+  return mapRideRequest(item)
+}
+
 export async function deleteRequest(requestId: string): Promise<void> {
   await apiRequest<{ success: boolean }>(`/api/ride-requests/${requestId}`, { method: 'DELETE' })
 }

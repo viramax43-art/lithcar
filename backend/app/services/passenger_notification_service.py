@@ -115,6 +115,17 @@ def _build_message(status: str, *, request: RideRequest, driver: Driver | None) 
     return None
 
 
+async def notify_passenger_pickup_changed(*, request: RideRequest, driver: Driver | None) -> None:
+    """Notify passenger that the driver has changed their pickup point."""
+    text = "📍 Водитель изменил точку подачи!\n\n"
+    text += f"Новая точка: {request.from_address}\n\n"
+    if driver:
+        text += f"{_driver_card(driver)}\n\n"
+    text += "⚠️ Пожалуйста, подтвердите, что вы видите новую точку посадки в приложении."
+    await _send_to_passenger(passenger_id=request.passenger_id, text=text)
+    await _send_pickup_point(passenger_id=request.passenger_id, request=request)
+
+
 async def notify_passenger_driver_assigned(*, request: RideRequest, driver: Driver | None) -> None:
     if driver is None:
         return

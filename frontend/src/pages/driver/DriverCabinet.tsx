@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowClockwise, Car, QrCode, SignOut, SteeringWheel, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Car, MapTrifold, QrCode, SignOut, SteeringWheel, Users, X } from '@phosphor-icons/react'
 
 import {
   getDriverCabinet,
@@ -10,11 +10,14 @@ import {
   sendDriverLocation,
   setDriverOnlineStatus,
   setDriverRideStatus,
+  updateDriverRidePickup,
   type DriverSessionUser,
 } from '../../lib/backend'
-import type { DriverCabinetRide } from '../../types'
-import ActiveRideCard from './components/ActiveRideCard'
-import { ACTIVE_RIDE_STATUSES, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from './constants'
+import { reverseGeocode } from '../../lib/geocode'
+import type { DriverCabinetRide, LatLng } from '../../types'
+import DriverMap from './components/DriverMap'
+import DriverPassengerCard from './components/DriverPassengerCard'
+import { DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from './constants'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import Skeleton from '../../components/Skeleton'
 
@@ -37,6 +40,7 @@ export default function DriverCabinet() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [advancingRideId, setAdvancingRideId] = useState<string | null>(null)
+  const [selectedRideId, setSelectedRideId] = useState<string | null>(null)
   const [qrPointsInput, setQrPointsInput] = useState(100)
   const [qrIssue, setQrIssue] = useState<{
     saleId: string
@@ -151,14 +155,35 @@ export default function DriverCabinet() {
     }
   }
 
-  const { activeRide, upcomingRides, completedRides } = useMemo(() => {
-    const active = rides.find((r) => (ACTIVE_RIDE_STATUSES as string[]).includes(r.status)) ?? null
+  const handleMarkerDragEnd = async (rideId: string, latlng: LatLng) => {
+    setErrorMessage(null)
+    let address = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`
+    try {
+      const resolved = await reverseGeocode(latlng)
+      if (resolved) address = resolved
+    } catch {
+      // use coordinate fallback
+    }
+    try {
+      const updated = await updateDriverRidePickup(rideId, address, latlng.lat, latlng.lng)
+      setRides((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      hapticImpact('light')
+    } catch (error) {
+      hapticNotification('error')
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить точку подачи.')
+    }
+  }
+
+  const { activeRides, completedRides } = useMemo(() => {
+    const active = rides.filter((r) => r.status !== 'completed')
     const completed = rides.filter((r) => r.status === 'completed')
-    const upcoming = rides.filter(
-      (r) => r.id !== active?.id && r.status !== 'completed',
-    )
-    return { activeRide: active, upcomingRides: upcoming, completedRides: completed }
+    return { activeRides: active, completedRides: completed }
   }, [rides])
+
+  const pendingConfirmCount = useMemo(
+    () => activeRides.filter((r) => r.pickupChangedByDriver && !r.pickupConfirmedAt).length,
+    [activeRides],
+  )
 
   if (!session) {
     return (
@@ -268,6 +293,77 @@ export default function DriverCabinet() {
       </header>
 
       <main className="px-4 py-4 space-y-4 max-w-2xl mx-auto pb-12">
+        {/* ── Map with all pickup points ── */}
+        {!hasLoadedCabinetOnce ? (
+          <div className="bg-white rounded-card p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <Skeleton width={48} height={48} rounded="full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton width="60%" height={14} />
+                <Skeleton width="40%" height={12} />
+              </div>
+            </div>
+            <Skeleton width="100%" height={14} />
+            <Skeleton width="85%" height={14} />
+            <Skeleton width="100%" height={44} rounded="xl" />
+          </div>
+        ) : activeRides.length > 0 ? (
+          <>
+            {/* Summary banner */}
+            <div className="bg-black text-white rounded-card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                <MapTrifold size={20} weight="fill" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold">
+                  <Users size={14} weight="fill" className="inline -mt-0.5 mr-1" />
+                  {activeRides.length} {activeRides.length === 1 ? 'пассажир' : activeRides.length < 5 ? 'пассажира' : 'пассажиров'}
+                </p>
+                <p className="text-[11px] text-white/60 mt-0.5">
+                  {pendingConfirmCount > 0
+                    ? `${pendingConfirmCount} ожидают подтверждения точки`
+                    : 'Перетаскивайте маркеры чтобы изменить точку подачи'}
+                </p>
+              </div>
+            </div>
+
+            {/* Interactive map */}
+            <DriverMap
+              rides={activeRides}
+              selectedRideId={selectedRideId}
+              onSelectRide={setSelectedRideId}
+              onMarkerDragEnd={(rideId, latlng) => void handleMarkerDragEnd(rideId, latlng)}
+            />
+
+            {/* Passenger list */}
+            <section className="space-y-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted px-1">
+                Пассажиры · {activeRides.length}
+              </h2>
+              {activeRides.map((ride, idx) => (
+                <DriverPassengerCard
+                  key={ride.id}
+                  ride={ride}
+                  index={idx}
+                  isSelected={selectedRideId === ride.id}
+                  isAdvancing={advancingRideId === ride.id}
+                  onSelect={() => setSelectedRideId(selectedRideId === ride.id ? null : ride.id)}
+                  onAdvance={() => void handleAdvanceStatus(ride)}
+                />
+              ))}
+            </section>
+          </>
+        ) : (
+          <div className="bg-white rounded-card p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
+              <Car size={22} className="text-muted" weight="fill" />
+            </div>
+            <p className="text-sm font-bold">Активных поездок нет</p>
+            <p className="text-xs text-muted mt-1">Как только админ назначит вам заказ — он появится здесь.</p>
+          </div>
+        )}
+
+        {/* QR section */}
         {session.canSellPoints && (
           <DriverQrIssueCard
             points={qrPointsInput}
@@ -304,46 +400,6 @@ export default function DriverCabinet() {
                   {sale.redeemedAt ? new Date(sale.redeemedAt).toLocaleString('ru-RU') : 'не погашен'}
                 </span>
               </div>
-            ))}
-          </section>
-        )}
-
-        {!hasLoadedCabinetOnce ? (
-          <div className="bg-white rounded-card p-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <Skeleton width={48} height={48} rounded="full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton width="60%" height={14} />
-                <Skeleton width="40%" height={12} />
-              </div>
-            </div>
-            <Skeleton width="100%" height={14} />
-            <Skeleton width="85%" height={14} />
-            <Skeleton width="100%" height={44} rounded="xl" />
-          </div>
-        ) : activeRide ? (
-          <ActiveRideCard
-            ride={activeRide}
-            isAdvancing={advancingRideId === activeRide.id}
-            onAdvance={() => void handleAdvanceStatus(activeRide)}
-          />
-        ) : (
-          <div className="bg-white rounded-card p-8 text-center">
-            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
-              <Car size={22} className="text-muted" weight="fill" />
-            </div>
-            <p className="text-sm font-bold">Активных поездок нет</p>
-            <p className="text-xs text-muted mt-1">Как только админ назначит вам заказ — он появится здесь.</p>
-          </div>
-        )}
-
-        {upcomingRides.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted px-1">
-              Следующие поездки · {upcomingRides.length}
-            </h2>
-            {upcomingRides.map((ride) => (
-              <RideRow key={ride.id} ride={ride} />
             ))}
           </section>
         )}

@@ -47,6 +47,19 @@ export async function setDriverOnlineStatus(isOnline: boolean): Promise<DriverSe
   })
 }
 
+export async function updateDriverRidePickup(
+  rideId: string,
+  fromAddress: string,
+  fromLat: number,
+  fromLng: number,
+): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/pickup`, {
+    method: 'PATCH',
+    body: { fromAddress, fromLat, fromLng },
+    authMode: 'cookie',
+  })
+}
+
 export async function issueDriverQrSale(points: number): Promise<DriverQrIssueResult> {
   return apiRequest<DriverQrIssueResult>('/api/driver/cabinet/qr-sales/issue', {
     method: 'POST',

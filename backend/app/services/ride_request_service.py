@@ -277,6 +277,53 @@ async def update_ride_request(
     return request
 
 
+async def update_driver_pickup_point(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+    from_address: str,
+    from_lat: float,
+    from_lng: float,
+) -> tuple[RideRequest | None, str | None]:
+    """Driver edits the pickup point for a ride assigned to them."""
+    request = await get_request(db_session, request_id=request_id)
+    if request is None:
+        return None, "Поездка не найдена."
+    if request.driver_id != driver_id:
+        return None, "Эта поездка не назначена вам."
+    if request.status not in (RideRequestStatus.ASSIGNED, RideRequestStatus.EN_ROUTE_TO_PICKUP):
+        return None, "Нельзя изменить точку подачи в текущем статусе."
+    if not await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng):
+        return None, "Точка подачи вне активных зон обслуживания."
+    request.from_address = from_address
+    request.from_lat = from_lat
+    request.from_lng = from_lng
+    request.pickup_changed_by_driver = True
+    request.pickup_confirmed_at = None
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request, None
+
+
+async def confirm_pickup_point(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    passenger_id: str,
+) -> tuple[RideRequest | None, str | None]:
+    """Passenger confirms they've seen the updated pickup point."""
+    request = await get_request(db_session, request_id=request_id)
+    if request is None:
+        return None, "Поездка не найдена."
+    if request.passenger_id != passenger_id:
+        return None, "Эта поездка не принадлежит вам."
+    request.pickup_confirmed_at = func.now()
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request, None
+
+
 async def delete_ride_request(db_session: AsyncSession, *, request_id: str) -> bool:
     request = await get_request(db_session, request_id=request_id)
     if request is None:

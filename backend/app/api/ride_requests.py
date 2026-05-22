@@ -23,6 +23,7 @@ from app.services.ride_booking_service import (
 )
 from app.services.ride_request_service import (
     assign_driver,
+    confirm_pickup_point,
     delete_ride_request,
     get_request,
     list_passenger_requests,
@@ -92,6 +93,8 @@ class RideRequestOut(BaseModel):
     status: str
     groupId: str | None
     driverId: str | None
+    pickupChangedByDriver: bool
+    pickupConfirmedAt: datetime | None
     createdAt: datetime
 
 
@@ -120,6 +123,8 @@ def _to_ride_request_out(request) -> RideRequestOut:
         status=request.status,
         groupId=request.group_id,
         driverId=request.driver_id,
+        pickupChangedByDriver=request.pickup_changed_by_driver,
+        pickupConfirmedAt=request.pickup_confirmed_at,
         createdAt=request.created_at,
     )
 
@@ -332,6 +337,24 @@ async def patch_request(
     if updated is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
     return _to_ride_request_out(updated)
+
+
+@router.post("/{request_id}/confirm-pickup", response_model=RideRequestOut)
+async def confirm_pickup(
+    request_id: str,
+    current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    request, error = await confirm_pickup_point(
+        db_session,
+        request_id=request_id,
+        passenger_id=current_user.user_id,
+    )
+    if request is None:
+        raise HTTPException(status_code=404, detail=error or "Ride request not found.")
+    if error is not None:
+        raise HTTPException(status_code=400, detail=error)
+    return _to_ride_request_out(request)
 
 
 @router.delete("/{request_id}")

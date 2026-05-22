@@ -18,6 +18,8 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     status: item.status,
     groupId: item.groupId,
     driverId: item.driverId,
+    pickupChangedByDriver: item.pickupChangedByDriver,
+    pickupConfirmedAt: item.pickupConfirmedAt,
     createdAt: item.createdAt,
   }
 }

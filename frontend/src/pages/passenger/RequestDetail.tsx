@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
-import { ArrowLeft, Car, Phone, Calendar, Clock, NavigationArrow, Star, Users } from '@phosphor-icons/react'
+import { ArrowLeft, Car, Check, MapPin, Phone, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
 import type { Driver, RideRequest } from '../../types'
-import { deleteRequest, getRequestById, listDrivers, updateRequest } from '../../lib/backend'
+import { confirmPickup, deleteRequest, getRequestById, listDrivers, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 
@@ -32,6 +32,7 @@ export default function RequestDetail() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isConfirmingPickup, setIsConfirmingPickup] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -224,6 +225,65 @@ export default function RequestDetail() {
           </div>
         )}
         {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
+
+        {/* Pickup confirmation banner */}
+        {request.pickupChangedByDriver && !request.pickupConfirmedAt && (
+          <div className="bg-amber-50 border-[1.5px] border-amber-200 rounded-card p-4 space-y-3 animate-slide-up">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Warning size={18} weight="fill" className="text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-900">Водитель изменил точку подачи</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Новая точка: <span className="font-semibold">{request.from.address}</span>
+                </p>
+                <p className="text-[11px] text-amber-600 mt-0.5">
+                  Пожалуйста, подтвердите, что вы видите новую точку посадки.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setIsConfirmingPickup(true)
+                setErrorMessage(null)
+                try {
+                  const updated = await confirmPickup(request.id)
+                  setRequest(updated)
+                } catch (error) {
+                  setErrorMessage(error instanceof Error ? error.message : 'Не удалось подтвердить точку.')
+                } finally {
+                  setIsConfirmingPickup(false)
+                }
+              }}
+              disabled={isConfirmingPickup}
+              className="w-full py-3 rounded-xl bg-amber-500 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
+            >
+              {isConfirmingPickup ? (
+                'Подтверждаем…'
+              ) : (
+                <>
+                  <Check size={16} weight="bold" />
+                  Подтвердить точку посадки
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Pickup confirmed badge */}
+        {request.pickupChangedByDriver && request.pickupConfirmedAt && (
+          <div className="bg-green-50 border border-green-200 rounded-card p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <MapPin size={14} weight="fill" className="text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-green-800">Точка подачи подтверждена</p>
+              <p className="text-[11px] text-green-600">{request.from.address}</p>
+            </div>
+            <Check size={16} weight="bold" className="text-green-600 flex-shrink-0" />
+          </div>
+        )}
 
         {/* Route card */}
         <div className="bg-surface rounded-card p-4">

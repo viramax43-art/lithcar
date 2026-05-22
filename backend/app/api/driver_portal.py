@@ -34,6 +34,7 @@ from app.services.pricing_service import get_or_create_pricing
 from app.services.ride_request_service import (
     get_request,
     list_driver_requests,
+    update_driver_pickup_point,
     update_driver_ride_status,
 )
 
@@ -67,10 +68,18 @@ class DriverRideOut(BaseModel):
     status: str
     dateTime: datetime
     createdAt: datetime
+    pickupChangedByDriver: bool
+    pickupConfirmedAt: datetime | None
 
 
 class DriverRideStatusUpdate(BaseModel):
     status: str
+
+
+class DriverPickupUpdate(BaseModel):
+    fromAddress: str = Field(min_length=1)
+    fromLat: float = Field(ge=-90, le=90)
+    fromLng: float = Field(ge=-180, le=180)
 
 
 class DriverCabinetOut(BaseModel):
@@ -233,6 +242,8 @@ async def driver_cabinet(
                 status=item.status,
                 dateTime=item.date_time,
                 createdAt=item.created_at,
+                pickupChangedByDriver=item.pickup_changed_by_driver,
+                pickupConfirmedAt=item.pickup_confirmed_at,
             )
             for item in rides
         ],
@@ -378,4 +389,44 @@ async def update_cabinet_ride_status(
         status=ride.status,
         dateTime=ride.date_time,
         createdAt=ride.created_at,
+        pickupChangedByDriver=ride.pickup_changed_by_driver,
+        pickupConfirmedAt=ride.pickup_confirmed_at,
+    )
+
+
+@router.patch("/cabinet/rides/{request_id}/pickup", response_model=DriverRideOut)
+async def update_cabinet_ride_pickup(
+    request_id: str,
+    payload: DriverPickupUpdate,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    ride, error = await update_driver_pickup_point(
+        db_session,
+        request_id=request_id,
+        driver_id=session.driver_id,
+        from_address=payload.fromAddress,
+        from_lat=payload.fromLat,
+        from_lng=payload.fromLng,
+    )
+    if ride is None:
+        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
+    if error is not None:
+        raise HTTPException(status_code=400, detail=error)
+    from app.services.passenger_notification_service import notify_passenger_pickup_changed
+    driver = await get_driver(db_session, driver_id=session.driver_id)
+    await notify_passenger_pickup_changed(request=ride, driver=driver)
+    return DriverRideOut(
+        id=ride.id,
+        fromAddress=ride.from_address,
+        toAddress=ride.to_address,
+        fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
+        toLatLng=LatLngOut(lat=ride.to_lat, lng=ride.to_lng),
+        passengerName=ride.passenger_name,
+        passengerPhone=ride.passenger_phone,
+        status=ride.status,
+        dateTime=ride.date_time,
+        createdAt=ride.created_at,
+        pickupChangedByDriver=ride.pickup_changed_by_driver,
+        pickupConfirmedAt=ride.pickup_confirmed_at,
     )
