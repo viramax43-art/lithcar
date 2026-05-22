@@ -44,7 +44,6 @@ async def _setup_driver_and_passenger(client, db_session):
         "/api/drivers",
         json={
             "name": "Pickup Driver",
-            "phone": "+37060001001",
             "carBrand": "VW",
             "carModel": "Golf",
             "carPlate": "PKP001",
@@ -77,7 +76,6 @@ async def _setup_driver_and_passenger(client, db_session):
         "/api/ride-requests",
         json={
             "passengerName": "Pickup Passenger",
-            "passengerPhone": "+37060001002",
             "fromPoint": {"address": "Start A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "End B", "latlng": {"lat": 54.70, "lng": 25.28}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
@@ -200,7 +198,6 @@ async def test_driver_cannot_edit_pickup_of_other_drivers_ride(client, db_sessio
         "/api/drivers",
         json={
             "name": "Other Driver",
-            "phone": "+37060001003",
             "carBrand": "BMW",
             "carModel": "320",
             "carPlate": "OTH002",

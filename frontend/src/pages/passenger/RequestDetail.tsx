@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
-import { ArrowLeft, Car, Check, MapPin, Phone, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
+import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
 import type { Driver, RideRequest } from '../../types'
 import { confirmPickup, deleteRequest, getRequestById, listDrivers, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
@@ -176,8 +176,6 @@ export default function RequestDetail() {
               onClick={async () => {
                 const nextName = window.prompt('Имя пассажира', request.passengerName)
                 if (!nextName || !nextName.trim()) return
-                const nextPhone = window.prompt('Телефон', request.passengerPhone)
-                if (!nextPhone || !nextPhone.trim()) return
                 const nextDateTime = window.prompt('Дата и время (ISO, YYYY-MM-DDTHH:mm)', request.dateTime.slice(0, 16))
                 if (!nextDateTime || !nextDateTime.trim()) return
                 setIsSaving(true)
@@ -185,7 +183,6 @@ export default function RequestDetail() {
                 try {
                   const updated = await updateRequest(request.id, {
                     passengerName: nextName.trim(),
-                    passengerPhone: nextPhone.trim(),
                     from: request.from,
                     to: request.to,
                     dateTime: nextDateTime.trim(),
@@ -360,12 +357,6 @@ export default function RequestDetail() {
             </div>
 
             <div className="px-5 pb-5 flex gap-3">
-              <a
-                href={`tel:${driver.phone}`}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/10 rounded-xl text-sm font-semibold hover:bg-white/20 transition-colors active:scale-[0.98]"
-              >
-                <Phone size={16} weight="fill" /> Позвонить
-              </a>
               {driver.currentLocation && (
                 <a
                   href={showOnMapHref(driver.currentLocation, `Водитель · ${driver.name}`)}
@@ -403,7 +394,6 @@ export default function RequestDetail() {
         <div className="bg-surface rounded-card p-4 space-y-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Пассажир</p>
           <p className="text-sm font-semibold">{request.passengerName}</p>
-          <p className="text-sm text-muted">{request.passengerPhone}</p>
         </div>
       </div>
     </div>

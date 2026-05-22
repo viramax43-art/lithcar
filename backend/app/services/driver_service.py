@@ -26,7 +26,6 @@ async def create_driver(
     *,
     user_id: str | None,
     name: str,
-    phone: str,
     photo_url: str | None,
     car_brand: str,
     car_model: str,
@@ -56,7 +55,6 @@ async def create_driver(
     driver = Driver(
         user_id=normalized_user_id,
         name=name,
-        phone=phone,
         photo_url=photo_url,
         car_brand=car_brand,
         car_model=car_model,
@@ -180,7 +178,6 @@ async def update_driver_profile(
     *,
     driver_id: str,
     name: str | None = None,
-    phone: str | None = None,
     photo_url: str | None = None,
     car_brand: str | None = None,
     car_model: str | None = None,
@@ -197,8 +194,6 @@ async def update_driver_profile(
         return None
     if name is not None:
         driver.name = name
-    if phone is not None:
-        driver.phone = phone
     if photo_url is not None:
         driver.photo_url = photo_url
     if car_brand is not None:

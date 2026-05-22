@@ -28,7 +28,6 @@ export async function getRequestById(requestId: string): Promise<RideRequest> {
 
 export async function createRequest(payload: {
   passengerName: string
-  passengerPhone: string
   from: { address: string; latlng: { lat: number; lng: number } }
   to: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string
@@ -37,7 +36,6 @@ export async function createRequest(payload: {
     method: 'POST',
     body: {
       passengerName: payload.passengerName,
-      passengerPhone: payload.passengerPhone,
       fromPoint: payload.from,
       toPoint: payload.to,
       dateTime: payload.dateTime,
@@ -50,7 +48,6 @@ export async function updateRequest(
   requestId: string,
   payload: Partial<{
     passengerName: string
-    passengerPhone: string
     from: { address: string; latlng: { lat: number; lng: number } }
     to: { address: string; latlng: { lat: number; lng: number } }
     dateTime: string
@@ -60,7 +57,6 @@ export async function updateRequest(
     method: 'PATCH',
     body: {
       passengerName: payload.passengerName,
-      passengerPhone: payload.passengerPhone,
       fromPoint: payload.from,
       toPoint: payload.to,
       dateTime: payload.dateTime,
@@ -88,8 +84,14 @@ export async function listServiceZones(
 }
 
 export async function getPricing(authMode: 'bearer' | 'cookie' = 'bearer'): Promise<PricingSettings> {
-  const result = await apiRequest<{ pointsPerRide: number; pointPriceCents: number }>('/api/pricing', { authMode })
-  return { pointsPerRide: result.pointsPerRide, pointPriceCents: result.pointPriceCents }
+  const result = await apiRequest<PricingSettings>('/api/pricing', { authMode })
+  return {
+    pointsPerRide: result.pointsPerRide,
+    pointPriceCents: result.pointPriceCents,
+    workStartTime: result.workStartTime ?? '06:00',
+    workEndTime: result.workEndTime ?? '19:00',
+    slotIntervalMinutes: result.slotIntervalMinutes ?? 30,
+  }
 }
 
 export async function getUserCabinet(params?: PaginationParams): Promise<UserCabinetData> {
@@ -99,6 +101,13 @@ export async function getUserCabinet(params?: PaginationParams): Promise<UserCab
 
 export async function redeemDriverQrSale(token: string): Promise<DriverQrRedeemResult> {
   return apiRequest<DriverQrRedeemResult>('/api/points/qr/redeem', { method: 'POST', body: { token } })
+}
+
+export async function purchasePointsByCard(points: number): Promise<{ success: boolean; pointsAdded: number; pointsBalance: number; eurAmountCents: number }> {
+  return apiRequest<{ success: boolean; pointsAdded: number; pointsBalance: number; eurAmountCents: number }>(
+    '/api/points/card/purchase',
+    { method: 'POST', body: { points } },
+  )
 }
 
 export async function listGroupSuggestions(params?: PaginationParams): Promise<PaginatedResult<GroupSuggestion>> {

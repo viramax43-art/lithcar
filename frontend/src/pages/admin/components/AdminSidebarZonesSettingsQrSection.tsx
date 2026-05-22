@@ -173,11 +173,58 @@ export function AdminSidebarZonesSettingsQrSection({
               type="number"
               min={1}
               value={pricing.pointPriceCents}
-              onChange={(event) => void handlePricingChange(parseInt(event.target.value, 10))}
+              onChange={(event) => {
+                const v = parseInt(event.target.value, 10)
+                if (!Number.isNaN(v) && v >= 1) void handlePricingChange({ pointPriceCents: v })
+              }}
               className={inputCls}
             />
           </div>
         </div>
+
+        <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
+          <p className="text-sm font-bold">Рабочие часы и слоты</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Начало</label>
+              <input
+                type="time"
+                value={pricing.workStartTime}
+                onChange={(event) => void handlePricingChange({ workStartTime: event.target.value })}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Конец</label>
+              <input
+                type="time"
+                value={pricing.workEndTime}
+                onChange={(event) => void handlePricingChange({ workEndTime: event.target.value })}
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Интервал слотов (мин)</label>
+            <select
+              value={pricing.slotIntervalMinutes}
+              onChange={(event) => void handlePricingChange({ slotIntervalMinutes: parseInt(event.target.value, 10) })}
+              className={inputCls}
+            >
+              {[15, 30, 45, 60].map((v) => (
+                <option key={v} value={v}>{v} мин</option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11px] text-muted">
+            Пассажиры смогут выбирать время поездки только из слотов: {pricing.workStartTime}, {(() => {
+              const [h, m] = pricing.workStartTime.split(':').map(Number)
+              const next = h * 60 + m + pricing.slotIntervalMinutes
+              return `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`
+            })()}, … до {pricing.workEndTime}
+          </p>
+        </div>
+
         <div className="rounded-card bg-black text-white p-5 space-y-3">
           <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">Расчёт</p>
           <div className="flex items-center justify-between text-sm">

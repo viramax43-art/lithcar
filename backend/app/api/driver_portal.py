@@ -64,7 +64,6 @@ class DriverRideOut(BaseModel):
     fromLatLng: LatLngOut
     toLatLng: LatLngOut
     passengerName: str
-    passengerPhone: str
     status: str
     dateTime: datetime
     createdAt: datetime
@@ -238,7 +237,6 @@ async def driver_cabinet(
                 fromLatLng=LatLngOut(lat=item.from_lat, lng=item.from_lng),
                 toLatLng=LatLngOut(lat=item.to_lat, lng=item.to_lng),
                 passengerName=item.passenger_name,
-                passengerPhone=item.passenger_phone,
                 status=item.status,
                 dateTime=item.date_time,
                 createdAt=item.created_at,
@@ -385,7 +383,6 @@ async def update_cabinet_ride_status(
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
         toLatLng=LatLngOut(lat=ride.to_lat, lng=ride.to_lng),
         passengerName=ride.passenger_name,
-        passengerPhone=ride.passenger_phone,
         status=ride.status,
         dateTime=ride.date_time,
         createdAt=ride.created_at,
@@ -423,7 +420,6 @@ async def update_cabinet_ride_pickup(
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
         toLatLng=LatLngOut(lat=ride.to_lat, lng=ride.to_lng),
         passengerName=ride.passenger_name,
-        passengerPhone=ride.passenger_phone,
         status=ride.status,
         dateTime=ride.date_time,
         createdAt=ride.created_at,

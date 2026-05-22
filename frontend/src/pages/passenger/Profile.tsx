@@ -14,7 +14,7 @@ import {
 import BottomNav from '../../components/BottomNav'
 import QrScanner from '../../components/QrScanner'
 import Skeleton from '../../components/Skeleton'
-import { ApiError, getPricing, getUserCabinet, redeemDriverQrSale } from '../../lib/backend'
+import { ApiError, getPricing, getUserCabinet, purchasePointsByCard, redeemDriverQrSale } from '../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
@@ -37,7 +37,7 @@ type CardReceipt = {
   eurAmount: number
 }
 
-const DEFAULT_PRICING: PricingSettings = { pointsPerRide: 10, pointPriceCents: 50 }
+const DEFAULT_PRICING: PricingSettings = { pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 }
 
 export default function Profile() {
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
@@ -101,9 +101,8 @@ export default function Profile() {
     setLastCardReceipt(null)
   }
 
-  const handleCardPurchased = (points: number, eurAmount: number) => {
-    // Demo mode: optimistically update local balance. Real acquiring will be wired later.
-    setCabinet((prev) => (prev ? { ...prev, pointsBalance: (prev.pointsBalance ?? 0) + points } : prev))
+  const handleCardPurchased = (points: number, newBalance: number, eurAmount: number) => {
+    setCabinet((prev) => (prev ? { ...prev, pointsBalance: newBalance } : prev))
     setLastCardReceipt({ pointsAdded: points, eurAmount })
     setLastReceipt(null)
   }
@@ -251,7 +250,7 @@ export default function Profile() {
         <BuyPointsSheet
           pricing={pricing}
           onClose={() => setIsBuySheetOpen(false)}
-          onPurchased={handleCardPurchased}
+          onPurchased={(pts, newBal, eur) => handleCardPurchased(pts, newBal, eur)}
         />
       )}
     </div>
@@ -480,7 +479,7 @@ function BuyPointsSheet({
 }: {
   pricing: PricingSettings
   onClose: () => void
-  onPurchased: (points: number, eurAmount: number) => void
+  onPurchased: (points: number, newBalance: number, eurAmount: number) => void
 }) {
   const [points, setPoints] = useState<number>(100)
   const [stage, setStage] = useState<'form' | 'processing' | 'success'>('form')
@@ -500,16 +499,19 @@ function BuyPointsSheet({
 
   const canPay = stage === 'form' && points >= 1
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (!canPay) return
     hapticSelection()
     setStage('processing')
-    // Demo acquiring: simulate processing latency before showing success.
-    window.setTimeout(() => {
+    try {
+      const result = await purchasePointsByCard(points)
       hapticNotification('success')
       setStage('success')
-      onPurchased(points, eurAmount)
-    }, 1400)
+      onPurchased(result.pointsAdded, result.pointsBalance, result.eurAmountCents / 100)
+    } catch {
+      hapticNotification('error')
+      setStage('form')
+    }
   }
 
   const headerTitle =
@@ -603,7 +605,7 @@ function BuyPointsSheet({
               </div>
 
               <button
-                onClick={handlePay}
+                onClick={() => void handlePay()}
                 disabled={!canPay}
                 className={`w-full h-12 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                   canPay ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted cursor-not-allowed'

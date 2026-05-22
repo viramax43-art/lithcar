@@ -10,6 +10,7 @@ from app.models import Base
 class PointsTransactionType:
     DRIVER_QR_TOP_UP = "driver_qr_top_up"
     RIDE_BOOKING_DEBIT = "ride_booking_debit"
+    CARD_PURCHASE = "card_purchase"
 
 
 class PointsTransaction(Base):

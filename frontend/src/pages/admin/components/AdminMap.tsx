@@ -1,8 +1,10 @@
+import { useCallback, useRef, useState } from 'react'
 import L from 'leaflet'
-import { Calendar, Car, Clock, ArrowSquareOut, Phone, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
+import { Calendar, Car, Clock, ArrowSquareOut, Crosshair, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 
 import type { Driver, LatLng, RideRequest, ServiceZone } from '../../../types'
+import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { STATUS_CONFIG } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 
@@ -28,6 +30,14 @@ function DrawingClickHandler({ onPoint }: { onPoint: (latlng: LatLng) => void })
       onPoint({ lat: event.latlng.lat, lng: event.latlng.lng })
     },
   })
+  return null
+}
+
+function FlyToHelper({ target }: { target: LatLng | null }) {
+  const map = useMap()
+  if (target) {
+    map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 15), { duration: 0.6 })
+  }
   return null
 }
 
@@ -66,13 +76,115 @@ export default function AdminMap({
     : ''
   const timeStr = dt ? dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''
 
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<NominatimSearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [flyTarget, setFlyTarget] = useState<LatLng | null>(null)
+  const [isLocating, setIsLocating] = useState(false)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const searchAbort = useRef<AbortController | null>(null)
+
+  const handleSearchInput = useCallback((query: string) => {
+    setSearchQuery(query)
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    if (searchAbort.current) { searchAbort.current.abort(); searchAbort.current = null }
+    if (query.length < 3) { setSearchResults([]); setIsSearching(false); return }
+    searchTimeout.current = setTimeout(async () => {
+      setIsSearching(true)
+      const controller = new AbortController()
+      searchAbort.current = controller
+      try {
+        const data = await searchPlaces(query, controller.signal)
+        setSearchResults(data)
+      } catch { setSearchResults([]) }
+      finally { setIsSearching(false) }
+    }, 500)
+  }, [])
+
+  const handleSelectResult = useCallback((result: NominatimSearchResult) => {
+    const latlng: LatLng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
+    setFlyTarget(latlng)
+    setTimeout(() => setFlyTarget(null), 1000)
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults([])
+  }, [])
+
+  const handleLocateMe = useCallback(() => {
+    if (!navigator.geolocation) return
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false)
+        setFlyTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setTimeout(() => setFlyTarget(null), 1000)
+      },
+      () => { setIsLocating(false) },
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }, [])
+
   return (
     <main className="flex-1 relative">
+      {/* Search + Geolocation controls */}
+      <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2">
+        {searchOpen ? (
+          <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-h-[50vh] overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+              <MagnifyingGlass size={16} className="text-muted flex-shrink-0" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => handleSearchInput(e.target.value)}
+                placeholder="Поиск адреса…"
+                className="flex-1 text-sm outline-none bg-transparent min-w-0"
+              />
+              <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]) }} className="p-1 hover:bg-surface rounded-lg">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="overflow-y-auto max-h-60">
+              {isSearching && <p className="px-3 py-2 text-xs text-muted">Ищем…</p>}
+              {searchResults.map((r) => (
+                <button
+                  key={r.place_id}
+                  onClick={() => handleSelectResult(r)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-surface transition-colors border-b border-border/30 last:border-b-0 truncate"
+                >
+                  {r.display_name}
+                </button>
+              ))}
+              {!isSearching && searchQuery.length >= 3 && searchResults.length === 0 && (
+                <p className="px-3 py-2 text-xs text-muted">Ничего не найдено.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-10 h-10 bg-white rounded-xl shadow-card flex items-center justify-center hover:bg-surface transition-colors"
+            title="Поиск адреса"
+          >
+            <MagnifyingGlass size={18} weight="bold" />
+          </button>
+        )}
+        <button
+          onClick={handleLocateMe}
+          disabled={isLocating}
+          className="w-10 h-10 bg-white rounded-xl shadow-card flex items-center justify-center hover:bg-surface transition-colors disabled:opacity-60"
+          title="Моё местоположение"
+        >
+          {isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
+        </button>
+      </div>
+
       <MapContainer center={VILNIUS_CENTER} zoom={12} style={{ width: '100%', height: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <FlyToHelper target={flyTarget} />
 
         {mapRequests.map((request) => {
           const highlighted = request.id === selectedReqId
@@ -168,7 +280,6 @@ export default function AdminMap({
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>
-              <p className="text-[11px] text-muted">{selectedReq.passengerPhone}</p>
             </div>
             <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0"
@@ -244,13 +355,6 @@ export default function AdminMap({
                     {assignedDriver.carModel} · {assignedDriver.carPlate}
                   </p>
                 </div>
-                <a
-                  href={`tel:${assignedDriver.phone}`}
-                  className="w-8 h-8 rounded-xl bg-surface hover:bg-border flex items-center justify-center transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Phone size={13} />
-                </a>
               </div>
             )}
           </div>

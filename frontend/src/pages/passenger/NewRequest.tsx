@@ -13,6 +13,7 @@ export default function NewRequest() {
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
   const todayDate = new Date().toISOString().split('T')[0]
+  const maxDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
@@ -186,19 +187,35 @@ export default function NewRequest() {
                 }}
                 className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0"
                 min={todayDate}
+                max={maxDate}
               />
             </div>
             <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
               <Clock size={14} className="text-muted flex-shrink-0" />
-              <input
-                type="time"
+              <select
                 value={model.dateTime.split('T')[1] || ''}
                 onChange={(e) => {
                   const date = model.dateTime.split('T')[0] || todayDate
                   model.setDateTime(`${date}T${e.target.value}`)
                 }}
-                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0"
-              />
+                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
+              >
+                <option value="">Выберите время</option>
+                {(() => {
+                  const slots: string[] = []
+                  const [sh, sm] = (model.pricing.workStartTime || '06:00').split(':').map(Number)
+                  const [eh, em] = (model.pricing.workEndTime || '19:00').split(':').map(Number)
+                  const interval = model.pricing.slotIntervalMinutes || 30
+                  const startMin = sh * 60 + sm
+                  const endMin = eh * 60 + em
+                  for (let t = startMin; t <= endMin; t += interval) {
+                    const hh = String(Math.floor(t / 60)).padStart(2, '0')
+                    const mm = String(t % 60).padStart(2, '0')
+                    slots.push(`${hh}:${mm}`)
+                  }
+                  return slots.map((s) => <option key={s} value={s}>{s}</option>)
+                })()}
+              </select>
             </div>
           </div>
 

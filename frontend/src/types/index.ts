@@ -15,7 +15,6 @@ export type RideStatus =
 export interface RideRequest {
   id: string
   passengerName: string
-  passengerPhone: string
   from: { address: string; latlng: LatLng }
   to: { address: string; latlng: LatLng }
   dateTime: string
@@ -31,7 +30,6 @@ export interface Driver {
   id: string
   userId?: string | null
   name: string
-  phone: string
   photoUrl?: string | null
   carBrand?: string
   carModel: string
@@ -67,6 +65,9 @@ export interface ServiceZone {
 export interface PricingSettings {
   pointsPerRide: number
   pointPriceCents: number
+  workStartTime: string
+  workEndTime: string
+  slotIntervalMinutes: number
 }
 
 export interface UserCabinetRideHistoryItem {
@@ -95,7 +96,6 @@ export interface DriverCabinetRide {
   fromLatLng: LatLng
   toLatLng: LatLng
   passengerName: string
-  passengerPhone: string
   status: RideStatus
   dateTime: string
   createdAt: string

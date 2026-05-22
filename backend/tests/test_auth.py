@@ -131,7 +131,6 @@ async def test_user_cabinet_returns_balance_and_ride_history(client, db_session)
     ride = RideRequest(
         passenger_id="401",
         passenger_name="Cabinet User",
-        passenger_phone="+37060000111",
         from_address="A",
         from_lat=54.69,
         from_lng=25.27,

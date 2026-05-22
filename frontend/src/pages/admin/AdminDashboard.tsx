@@ -44,7 +44,7 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([])
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50 })
+  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 })
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
   const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -73,7 +73,6 @@ export default function AdminDashboard() {
   const [newZoneName, setNewZoneName] = useState('')
   const [newZoneColor, setNewZoneColor] = useState(ZONE_COLORS[0])
   const [newDriverName, setNewDriverName] = useState('')
-  const [newDriverPhone, setNewDriverPhone] = useState('')
   const [newDriverPhotoFile, setNewDriverPhotoFile] = useState<File | null>(null)
   const [newDriverPhotoPreview, setNewDriverPhotoPreview] = useState<string | null>(null)
   const [newDriverCarBrand, setNewDriverCarBrand] = useState('')
@@ -208,10 +207,9 @@ export default function AdminDashboard() {
     }
   }
 
-  const handlePricingChange = async (newPointPriceCents: number) => {
-    if (Number.isNaN(newPointPriceCents) || newPointPriceCents < 1) return
+  const handlePricingChange = async (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => {
     try {
-      const updated = await updatePricing({ pointPriceCents: newPointPriceCents })
+      const updated = await updatePricing(payload)
       setPricing(updated)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить тариф.')
@@ -293,7 +291,7 @@ export default function AdminDashboard() {
   }
 
   const handleCreateDriver = async () => {
-    if (!newDriverName.trim() || !newDriverPhone.trim() || !newDriverCarBrand.trim() || !newDriverCarModel.trim() || !newDriverCarPlate.trim()) {
+    if (!newDriverName.trim() || !newDriverCarBrand.trim() || !newDriverCarModel.trim() || !newDriverCarPlate.trim()) {
       return
     }
     try {
@@ -304,7 +302,6 @@ export default function AdminDashboard() {
       }
       const result = await createDriver({
         name: newDriverName.trim(),
-        phone: newDriverPhone.trim(),
         photoKey: uploadedPhotoKey,
         carBrand: newDriverCarBrand.trim(),
         carModel: newDriverCarModel.trim(),
@@ -317,7 +314,6 @@ export default function AdminDashboard() {
       })
       setLastCreatedDriverKey(result.key)
       setNewDriverName('')
-      setNewDriverPhone('')
       setNewDriverPhotoFile(null)
       setNewDriverPhotoPreview(null)
       setNewDriverCarBrand('')
@@ -430,8 +426,6 @@ export default function AdminDashboard() {
           handleUpdateManagedKey={handleUpdateManagedKey}
           newDriverName={newDriverName}
           setNewDriverName={setNewDriverName}
-          newDriverPhone={newDriverPhone}
-          setNewDriverPhone={setNewDriverPhone}
           newDriverPhotoPreview={newDriverPhotoPreview}
           setNewDriverPhotoFile={setNewDriverPhotoFile}
           setNewDriverPhotoPreview={setNewDriverPhotoPreview}

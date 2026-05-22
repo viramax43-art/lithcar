@@ -43,7 +43,6 @@ export async function listDrivers(onlineOnly = false, params?: PaginationParams)
 export async function createDriver(payload: {
   userId?: string
   name: string
-  phone: string
   photoKey?: string
   carBrand: string
   carModel: string
@@ -76,7 +75,6 @@ export async function updateDriver(
   driverId: string,
   payload: Partial<{
     name: string
-    phone: string
     photoKey: string
     carBrand: string
     carModel: string
@@ -117,14 +115,20 @@ export async function deleteServiceZone(zoneId: string): Promise<void> {
 }
 
 export async function updatePricing(
-  payload: Partial<Pick<PricingSettings, 'pointsPerRide' | 'pointPriceCents'>>
+  payload: Partial<Pick<PricingSettings, 'pointsPerRide' | 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>
 ): Promise<PricingSettings> {
-  const result = await apiRequest<{ pointsPerRide: number; pointPriceCents: number }>('/api/pricing', {
+  const result = await apiRequest<PricingSettings>('/api/pricing', {
     method: 'PATCH',
     body: payload,
     authMode: 'cookie',
   })
-  return { pointsPerRide: result.pointsPerRide, pointPriceCents: result.pointPriceCents }
+  return {
+    pointsPerRide: result.pointsPerRide,
+    pointPriceCents: result.pointPriceCents,
+    workStartTime: result.workStartTime ?? '06:00',
+    workEndTime: result.workEndTime ?? '19:00',
+    slotIntervalMinutes: result.slotIntervalMinutes ?? 30,
+  }
 }
 
 export async function loginAdminByKey(key: string): Promise<AdminSessionUser> {

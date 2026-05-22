@@ -8,7 +8,6 @@ interface EditDriverModalProps {
   onClose: () => void
   onSubmit: (payload: {
     name: string
-    phone: string
     carBrand: string
     carModel: string
     carPlate: string
@@ -25,7 +24,6 @@ const inputCls =
 
 export default function EditDriverModal({ driver, onClose, onSubmit }: EditDriverModalProps) {
   const [name, setName] = useState(driver.name)
-  const [phone, setPhone] = useState(driver.phone)
   const [carBrand, setCarBrand] = useState(driver.carBrand ?? '')
   const [carModel, setCarModel] = useState(driver.carModel)
   const [carPlate, setCarPlate] = useState(driver.carPlate)
@@ -44,12 +42,11 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
   }, [onClose])
 
   const handleSubmit = async () => {
-    if (!name.trim() || !phone.trim() || !carBrand.trim() || !carModel.trim() || !carPlate.trim()) return
+    if (!name.trim() || !carBrand.trim() || !carModel.trim() || !carPlate.trim()) return
     setSubmitting(true)
     try {
       await onSubmit({
         name: name.trim(),
-        phone: phone.trim(),
         carBrand: carBrand.trim(),
         carModel: carModel.trim(),
         carPlate: carPlate.trim(),
@@ -82,10 +79,6 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">Имя</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted">Телефон</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

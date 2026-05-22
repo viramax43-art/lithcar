@@ -14,7 +14,6 @@ async def create_ride_request_record(
     *,
     passenger_id: str,
     passenger_name: str,
-    passenger_phone: str,
     from_address: str,
     from_lat: float,
     from_lng: float,
@@ -31,7 +30,6 @@ async def create_ride_request_record(
     request = RideRequest(
         passenger_id=passenger_id,
         passenger_name=passenger_name,
-        passenger_phone=passenger_phone,
         from_address=from_address,
         from_lat=from_lat,
         from_lng=from_lng,
@@ -51,7 +49,6 @@ async def create_ride_request(
     *,
     passenger_id: str,
     passenger_name: str,
-    passenger_phone: str,
     from_address: str,
     from_lat: float,
     from_lng: float,
@@ -64,7 +61,6 @@ async def create_ride_request(
         db_session,
         passenger_id=passenger_id,
         passenger_name=passenger_name,
-        passenger_phone=passenger_phone,
         from_address=from_address,
         from_lat=from_lat,
         from_lng=from_lng,
@@ -232,7 +228,6 @@ async def update_ride_request(
     *,
     request_id: str,
     passenger_name: str | None = None,
-    passenger_phone: str | None = None,
     from_address: str | None = None,
     from_lat: float | None = None,
     from_lng: float | None = None,
@@ -256,8 +251,6 @@ async def update_ride_request(
 
     if passenger_name is not None:
         request.passenger_name = passenger_name
-    if passenger_phone is not None:
-        request.passenger_phone = passenger_phone
     if from_address is not None:
         request.from_address = from_address
     if from_lat is not None:

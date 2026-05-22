@@ -69,8 +69,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     handleUpdateManagedKey,
     newDriverName,
     setNewDriverName,
-    newDriverPhone,
-    setNewDriverPhone,
     newDriverPhotoPreview,
     setNewDriverPhotoFile,
     setNewDriverPhotoPreview,
@@ -219,8 +217,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               setExpandedDriverId={setExpandedDriverId}
               newDriverName={newDriverName}
               setNewDriverName={setNewDriverName}
-              newDriverPhone={newDriverPhone}
-              setNewDriverPhone={setNewDriverPhone}
               newDriverPhotoPreview={newDriverPhotoPreview}
               setNewDriverPhotoFile={setNewDriverPhotoFile}
               setNewDriverPhotoPreview={setNewDriverPhotoPreview}

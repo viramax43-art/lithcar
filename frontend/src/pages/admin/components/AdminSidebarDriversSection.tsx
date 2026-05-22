@@ -1,4 +1,4 @@
-import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, Phone, User, Users } from '@phosphor-icons/react'
+import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
 import type { MutableRefObject } from 'react'
 import { showOnMapHref } from '../../../lib/navigation'
 import LithuanianPlate from '../../../components/LithuanianPlate'
@@ -14,8 +14,6 @@ type DriversSectionProps = Pick<
   | 'setExpandedDriverId'
   | 'newDriverName'
   | 'setNewDriverName'
-  | 'newDriverPhone'
-  | 'setNewDriverPhone'
   | 'newDriverPhotoPreview'
   | 'setNewDriverPhotoFile'
   | 'setNewDriverPhotoPreview'
@@ -54,8 +52,6 @@ export function AdminSidebarDriversSection({
   setExpandedDriverId,
   newDriverName,
   setNewDriverName,
-  newDriverPhone,
-  setNewDriverPhone,
   newDriverPhotoPreview,
   setNewDriverPhotoFile,
   setNewDriverPhotoPreview,
@@ -98,12 +94,6 @@ export function AdminSidebarDriversSection({
             value={newDriverName}
             onChange={(event) => setNewDriverName(event.target.value)}
             placeholder="Имя"
-            className={inputCls}
-          />
-          <input
-            value={newDriverPhone}
-            onChange={(event) => setNewDriverPhone(event.target.value)}
-            placeholder="Телефон"
             className={inputCls}
           />
           <div className="grid grid-cols-2 gap-2">
@@ -335,23 +325,8 @@ export function AdminSidebarDriversSection({
                     </div>
                   </Section>
 
-                  <Section title="Контакты">
+                  <Section title="Ключ">
                     <div className="space-y-2">
-                      <a
-                        href={`tel:${driver.phone}`}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-border hover:border-black transition-colors group"
-                      >
-                        <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                          <Phone size={13} className="text-accent-dark" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Телефон</p>
-                          <p className="text-xs font-semibold truncate">{driver.phone || '—'}</p>
-                        </div>
-                        <span className="text-[10px] font-bold text-accent-dark opacity-0 group-hover:opacity-100 transition-opacity">
-                          Позвонить
-                        </span>
-                      </a>
                       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-border">
                         <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
                           <Key size={13} className="text-amber-700" />

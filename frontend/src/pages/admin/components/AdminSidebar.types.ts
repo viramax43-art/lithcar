@@ -35,7 +35,7 @@ export interface AdminSidebarProps {
   pricing: PricingSettings
   qrSales: AdminQrSaleAudit[]
   hasLoadedQrSalesOnce: boolean
-  handlePricingChange: (value: number) => Promise<void>
+  handlePricingChange: (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => Promise<void>
   adminSession: AdminSessionUser
   newManagedKeyName: string
   setNewManagedKeyName: (value: string) => void
@@ -53,8 +53,6 @@ export interface AdminSidebarProps {
   ) => Promise<void>
   newDriverName: string
   setNewDriverName: (value: string) => void
-  newDriverPhone: string
-  setNewDriverPhone: (value: string) => void
   newDriverPhotoPreview: string | null
   setNewDriverPhotoFile: (file: File | null) => void
   setNewDriverPhotoPreview: (value: string | null) => void
@@ -80,7 +78,6 @@ export interface AdminSidebarProps {
     driverId: string,
     payload: Partial<{
       name: string
-      phone: string
       carBrand: string
       carModel: string
       carPlate: string

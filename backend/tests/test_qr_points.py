@@ -11,7 +11,6 @@ async def _create_driver_with_qr_permission(client):
         "/api/drivers",
         json={
             "name": "QR Driver",
-            "phone": "+37060000188",
             "carBrand": "Toyota",
             "carModel": "Corolla",
             "carPlate": "QR188",

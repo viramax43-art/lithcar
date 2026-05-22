@@ -253,7 +253,6 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
                 db_session,
                 user=user,
                 passenger_name=callback.from_user.full_name,
-                passenger_phone=f"tg:{callback.from_user.id}",
                 from_address=data["from_address"],
                 from_lat=data["from_lat"],
                 from_lng=data["from_lng"],

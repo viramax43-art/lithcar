@@ -67,6 +67,7 @@ export {
   listGroupSuggestions,
   listMyRequests,
   listServiceZones,
+  purchasePointsByCard,
   redeemDriverQrSale,
   updateRequest,
 } from '../infrastructure/api/passengerApi'

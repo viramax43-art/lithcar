@@ -11,7 +11,6 @@ class Driver(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(String, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True, unique=True)
     name = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
     photo_url = Column(String, nullable=True)
     car_brand = Column(String, nullable=False, server_default="Unknown")
     car_model = Column(String, nullable=False)

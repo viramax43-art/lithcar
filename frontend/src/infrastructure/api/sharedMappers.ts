@@ -11,7 +11,6 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
   return {
     id: item.id,
     passengerName: item.passengerName,
-    passengerPhone: item.passengerPhone,
     from: item.fromPoint,
     to: item.toPoint,
     dateTime: item.dateTime,

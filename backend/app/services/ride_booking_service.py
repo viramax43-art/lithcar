@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,7 +60,6 @@ async def book_ride_with_points(
     *,
     user: User,
     passenger_name: str,
-    passenger_phone: str,
     from_address: str,
     from_lat: float,
     from_lng: float,
@@ -70,11 +69,38 @@ async def book_ride_with_points(
     date_time: datetime,
 ) -> RideBookingResult:
     normalized_date_time = _normalize_datetime(date_time)
-    if normalized_date_time <= datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    if normalized_date_time <= now:
         raise InvalidRideDateTimeError("Ride date and time must be in the future.")
+    max_date = now + timedelta(days=2)
+    if normalized_date_time > max_date:
+        raise InvalidRideDateTimeError("Ride can be planned at most 2 days ahead.")
 
     try:
         pricing = await _get_or_create_pricing_no_commit(db_session)
+
+        # Validate time slot
+        ride_hour = normalized_date_time.hour
+        ride_minute = normalized_date_time.minute
+        ride_total_minutes = ride_hour * 60 + ride_minute
+
+        work_start = pricing.work_start_time or "06:00"
+        work_end = pricing.work_end_time or "19:00"
+        interval = int(pricing.slot_interval_minutes or 30)
+
+        start_h, start_m = (int(x) for x in work_start.split(":"))
+        end_h, end_m = (int(x) for x in work_end.split(":"))
+        start_total = start_h * 60 + start_m
+        end_total = end_h * 60 + end_m
+
+        if ride_total_minutes < start_total or ride_total_minutes > end_total:
+            raise InvalidRideDateTimeError(
+                f"Ride time must be between {work_start} and {work_end}."
+            )
+        if (ride_total_minutes - start_total) % interval != 0:
+            raise InvalidRideDateTimeError(
+                f"Ride time must align to {interval}-minute slots starting at {work_start}."
+            )
         points_per_ride = int(pricing.points_per_ride)
         current_balance = int(user.points_balance or 0)
         if current_balance < points_per_ride:
@@ -87,7 +113,6 @@ async def book_ride_with_points(
             db_session,
             passenger_id=user.user_id,
             passenger_name=passenger_name,
-            passenger_phone=passenger_phone,
             from_address=from_address,
             from_lat=from_lat,
             from_lng=from_lng,

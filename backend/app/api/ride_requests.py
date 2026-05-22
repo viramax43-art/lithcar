@@ -48,7 +48,6 @@ class RoutePoint(BaseModel):
 
 class RideRequestCreate(BaseModel):
     passengerName: str = Field(min_length=1)
-    passengerPhone: str = Field(min_length=1)
     fromPoint: RoutePoint
     toPoint: RoutePoint
     dateTime: datetime
@@ -76,7 +75,6 @@ class RideStatusUpdatePayload(BaseModel):
 
 class RideRequestUpdate(BaseModel):
     passengerName: str | None = Field(default=None, min_length=1)
-    passengerPhone: str | None = Field(default=None, min_length=1)
     fromPoint: RoutePoint | None = None
     toPoint: RoutePoint | None = None
     dateTime: datetime | None = None
@@ -86,7 +84,6 @@ class RideRequestOut(BaseModel):
     id: str
     passengerId: str
     passengerName: str
-    passengerPhone: str
     fromPoint: RoutePoint
     toPoint: RoutePoint
     dateTime: datetime
@@ -110,7 +107,6 @@ def _to_ride_request_out(request) -> RideRequestOut:
         id=request.id,
         passengerId=request.passenger_id,
         passengerName=request.passenger_name,
-        passengerPhone=request.passenger_phone,
         fromPoint=RoutePoint(
             address=request.from_address,
             latlng=LatLng(lat=request.from_lat, lng=request.from_lng),
@@ -140,7 +136,6 @@ async def create_request(
             db_session,
             user=current_user,
             passenger_name=payload.passengerName,
-            passenger_phone=payload.passengerPhone,
             from_address=payload.fromPoint.address,
             from_lat=payload.fromPoint.latlng.lat,
             from_lng=payload.fromPoint.latlng.lng,
@@ -323,7 +318,6 @@ async def patch_request(
             db_session,
             request_id=request_id,
             passenger_name=payload.passengerName,
-            passenger_phone=payload.passengerPhone,
             from_address=payload.fromPoint.address if payload.fromPoint else None,
             from_lat=payload.fromPoint.latlng.lat if payload.fromPoint else None,
             from_lng=payload.fromPoint.latlng.lng if payload.fromPoint else None,

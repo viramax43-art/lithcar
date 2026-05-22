@@ -35,7 +35,6 @@ async def test_driver_key_login_and_cabinet_contains_assigned_rides(client, db_s
         "/api/drivers",
         json={
             "name": "Driver One",
-            "phone": "+37060000123",
             "carBrand": "Toyota",
             "carModel": "Prius",
             "carPlate": "AAA001",
@@ -69,7 +68,6 @@ async def test_driver_key_login_and_cabinet_contains_assigned_rides(client, db_s
         "/api/ride-requests",
         json={
             "passengerName": "Passenger",
-            "passengerPhone": "+37060000999",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
@@ -101,7 +99,6 @@ async def test_driver_session_returns_can_sell_points_flag(client):
         "/api/drivers",
         json={
             "name": "Driver Points",
-            "phone": "+37060000124",
             "carBrand": "BMW",
             "carModel": "X3",
             "carPlate": "BBB002",
@@ -143,7 +140,6 @@ async def test_driver_online_heartbeat_is_visible_and_expires(client, db_session
         "/api/drivers",
         json={
             "name": "Driver Heartbeat",
-            "phone": "+37060000125",
             "carBrand": "Audi",
             "carModel": "A4",
             "carPlate": "CCC003",

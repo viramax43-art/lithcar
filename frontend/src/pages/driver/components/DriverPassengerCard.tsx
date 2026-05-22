@@ -4,7 +4,6 @@ import {
   Clock,
   MapPin,
   NavigationArrow,
-  Phone,
   Warning,
 } from '@phosphor-icons/react'
 
@@ -58,7 +57,6 @@ export default function DriverPassengerCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate">{ride.passengerName}</p>
-          <p className="text-[11px] text-muted truncate">{ride.passengerPhone}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {needsConfirm && (
@@ -125,13 +123,6 @@ export default function DriverPassengerCard({
 
           {/* Action buttons */}
           <div className="flex gap-2">
-            <a
-              href={`tel:${ride.passengerPhone}`}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-xs font-bold active:scale-[0.97] transition-transform"
-            >
-              <Phone size={13} weight="fill" />
-              Позвонить
-            </a>
             <a
               href={directionsHref(navTarget, headingToPickup ? 'Подача' : 'Конечная')}
               target="_blank"

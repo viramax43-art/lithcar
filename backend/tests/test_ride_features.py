@@ -62,7 +62,6 @@ async def test_passenger_create_list_and_get_own_requests(client, db_session):
 
     payload = {
         "passengerName": "Alice Rider",
-        "passengerPhone": "+37060000001",
         "fromPoint": {"address": "Point A", "latlng": {"lat": 54.69, "lng": 25.27}},
         "toPoint": {"address": "Point B", "latlng": {"lat": 54.70, "lng": 25.28}},
         "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
@@ -105,7 +104,6 @@ async def test_create_request_with_insufficient_points_returns_400(client, db_se
         "/api/ride-requests",
         json={
             "passengerName": "Low Balance",
-            "passengerPhone": "+37060000010",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
@@ -124,7 +122,6 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
         "/api/ride-requests",
         json={
             "passengerName": "Bob",
-            "passengerPhone": "+37060000002",
             "fromPoint": {"address": "Out A", "latlng": {"lat": 55.2, "lng": 26.0}},
             "toPoint": {"address": "Out B", "latlng": {"lat": 55.3, "lng": 26.1}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
@@ -148,7 +145,6 @@ async def test_create_request_writes_debit_transaction(client, db_session):
         "/api/ride-requests",
         json={
             "passengerName": "Tx User",
-            "passengerPhone": "+37060000111",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
@@ -175,7 +171,6 @@ async def test_admin_assign_driver_and_filter_requests(client, db_session):
         "/api/drivers",
         json={
             "name": "Jonas",
-            "phone": "+37060000003",
             "carBrand": "Toyota",
             "carModel": "Toyota",
             "carPlate": "ABC123",
@@ -194,7 +189,6 @@ async def test_admin_assign_driver_and_filter_requests(client, db_session):
         "/api/ride-requests",
         json={
             "passengerName": "Passenger 3",
-            "passengerPhone": "+37060000004",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
             "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
@@ -263,7 +257,6 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
         "/api/ride-requests",
         json={
             "passengerName": "P1",
-            "passengerPhone": "+37060000005",
             "fromPoint": {"address": "AA", "latlng": {"lat": 54.691, "lng": 25.271}},
             "toPoint": {"address": "BB", "latlng": {"lat": 54.700, "lng": 25.280}},
             "dateTime": base_dt.isoformat(),
@@ -274,7 +267,6 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
         "/api/ride-requests",
         json={
             "passengerName": "P2",
-            "passengerPhone": "+37060000006",
             "fromPoint": {"address": "CC", "latlng": {"lat": 54.692, "lng": 25.272}},
             "toPoint": {"address": "DD", "latlng": {"lat": 54.701, "lng": 25.281}},
             "dateTime": (base_dt + timedelta(minutes=20)).isoformat(),

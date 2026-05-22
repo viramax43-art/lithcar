@@ -101,7 +101,6 @@ export interface RideRequestApi {
   id: string
   passengerId: string
   passengerName: string
-  passengerPhone: string
   fromPoint: { address: string; latlng: { lat: number; lng: number } }
   toPoint: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string

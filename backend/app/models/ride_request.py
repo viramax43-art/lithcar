@@ -32,7 +32,6 @@ class RideRequest(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     passenger_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     passenger_name = Column(String, nullable=False)
-    passenger_phone = Column(String, nullable=False)
     from_address = Column(String, nullable=False)
     from_lat = Column(Float, nullable=False)
     from_lng = Column(Float, nullable=False)

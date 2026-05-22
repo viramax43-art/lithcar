@@ -4,7 +4,6 @@ import {
   Clock,
   MapPin,
   NavigationArrow,
-  Phone,
   User,
 } from '@phosphor-icons/react'
 
@@ -114,15 +113,7 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate">{ride.passengerName}</p>
-          <p className="text-[11px] text-white/75 truncate">{ride.passengerPhone}</p>
         </div>
-        <a
-          href={`tel:${ride.passengerPhone}`}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors active:scale-[0.97]"
-        >
-          <Phone size={13} weight="fill" />
-          Позвонить
-        </a>
       </div>
 
       {/* Stepper */}

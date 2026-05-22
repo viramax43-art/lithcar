@@ -11,7 +11,7 @@ export default {
         border: '#E6E6E6',
         muted: '#858585',
         'point-a': '#EF4444',
-        'point-b': '#22C55E',
+        'point-b': '#3B82F6',
         driver: '#3B82F6',
       },
       borderRadius: {

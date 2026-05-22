@@ -36,7 +36,6 @@ class LatLng(BaseModel):
 class DriverCreate(BaseModel):
     userId: str | None = None
     name: str = Field(min_length=1)
-    phone: str = Field(min_length=1)
     photoKey: str | None = None
     carBrand: str = Field(min_length=1)
     carModel: str = Field(min_length=1)
@@ -60,7 +59,6 @@ class DriverLocationUpdate(BaseModel):
 
 class DriverUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
-    phone: str | None = Field(default=None, min_length=1)
     photoKey: str | None = None
     carBrand: str | None = Field(default=None, min_length=1)
     carModel: str | None = Field(default=None, min_length=1)
@@ -77,7 +75,6 @@ class DriverOut(BaseModel):
     id: str
     userId: str | None
     name: str
-    phone: str
     photoUrl: str | None
     carBrand: str
     carModel: str
@@ -126,7 +123,6 @@ def _to_driver_out(driver) -> DriverOut:
         id=driver.id,
         userId=driver.user_id,
         name=driver.name,
-        phone=driver.phone,
         photoUrl=photo_url,
         carBrand=driver.car_brand,
         carModel=driver.car_model,
@@ -204,7 +200,6 @@ async def create_driver_endpoint(
         db_session,
         user_id=payload.userId,
         name=payload.name,
-        phone=payload.phone,
         photo_url=payload.photoKey,
         car_brand=payload.carBrand,
         car_model=payload.carModel,
@@ -231,7 +226,6 @@ async def update_driver_endpoint(
         db_session,
         driver_id=driver_id,
         name=payload.name,
-        phone=payload.phone,
         photo_url=payload.photoKey,
         car_brand=payload.carBrand,
         car_model=payload.carModel,

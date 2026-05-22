@@ -34,7 +34,6 @@ def _driver_card(driver: Driver) -> str:
     car = " ".join(p for p in [driver.car_brand, driver.car_model] if p).strip() or "Автомобиль"
     lines = [
         f"👤 {driver.name}",
-        f"📞 {driver.phone}",
         f"🚗 {car}, {driver.car_plate}",
     ]
     if driver.vehicle_color:

@@ -15,21 +15,52 @@ import type { LatLng, PricingSettings, ServiceZone } from '../../../types'
 import { isPointInAnyZone } from '../../../utils/geo'
 import { PIN_ANCHOR_Y_FRAC } from './NewRequestMapBinder'
 
+const STORAGE_KEY = 'ride_new_request_draft'
+
+interface RequestDraft {
+  fromPoint: LatLng | null
+  toPoint: LatLng | null
+  fromAddress: string
+  toAddress: string
+  dateTime: string
+  activeField: 'from' | 'to'
+}
+
+function loadDraft(): Partial<RequestDraft> {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as Partial<RequestDraft>
+  } catch {
+    return {}
+  }
+}
+
+function saveDraft(draft: RequestDraft): void {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function clearDraft(): void {
+  try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+}
+
 export function useNewRequestController() {
   const navigate = useNavigate()
-  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50 })
+  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 })
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [passengerName, setPassengerName] = useState('Текущий пользователь')
-  const [passengerPhone] = useState('+370 600 00000')
   const activeZones = serviceZones.filter((z) => z.isActive)
   const hasZones = activeZones.length > 0
 
-  const [activeField, setActiveField] = useState<'from' | 'to'>('from')
-  const [fromPoint, setFromPoint] = useState<LatLng | null>(null)
-  const [toPoint, setToPoint] = useState<LatLng | null>(null)
-  const [fromAddress, setFromAddress] = useState('')
-  const [toAddress, setToAddress] = useState('')
-  const [dateTime, setDateTime] = useState('')
+  const draft = useRef(loadDraft()).current
+  const [activeField, setActiveField] = useState<'from' | 'to'>(draft.activeField ?? 'from')
+  const [fromPoint, setFromPoint] = useState<LatLng | null>(draft.fromPoint ?? null)
+  const [toPoint, setToPoint] = useState<LatLng | null>(draft.toPoint ?? null)
+  const [fromAddress, setFromAddress] = useState(draft.fromAddress ?? '')
+  const [toAddress, setToAddress] = useState(draft.toAddress ?? '')
+  const [dateTime, setDateTime] = useState(draft.dateTime ?? '')
 
   const [pinLatLng, setPinLatLng] = useState<LatLng | null>(null)
   const [pinAddress, setPinAddress] = useState('')
@@ -277,13 +308,13 @@ export function useNewRequestController() {
     try {
       await createRequest({
         passengerName,
-        passengerPhone,
         from: { address: fromAddress, latlng: fromPoint },
         to: { address: toAddress, latlng: toPoint },
         dateTime,
       })
       hapticNotification('success')
       setSubmitted(true)
+      clearDraft()
       setTimeout(() => navigate('/requests'), 1200)
     } catch (error) {
       hapticNotification('error')
@@ -291,7 +322,11 @@ export function useNewRequestController() {
     } finally {
       setSubmitting(false)
     }
-  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, passengerPhone, toAddress, toPoint])
+  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint])
+
+  useEffect(() => {
+    saveDraft({ fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField })
+  }, [fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField])
 
   useEffect(() => {
     return () => {
@@ -311,7 +346,6 @@ export function useNewRequestController() {
   return {
     pricing,
     passengerName,
-    passengerPhone,
     hasZones,
     activeZones,
     activeField,
