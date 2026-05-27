@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Car, CaretLeft, CaretRight, CreditCard, Gear, MapPin, PenNib, Plus, Stack, Users, X } from '@phosphor-icons/react'
+import { Car, CaretLeft, CaretRight, CreditCard, Gear, MapPin, PenNib, Plus, Users, X } from '@phosphor-icons/react'
 
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -13,7 +13,6 @@ import type { CopyState } from './AdminSidebarShared'
 
 const TAB_DEFS = [
   { id: 'requests' as AdminTab, icon: MapPin, label: 'Заявки' },
-  { id: 'suggestions' as AdminTab, icon: Stack, label: 'Группы' },
   { id: 'drivers' as AdminTab, icon: Car, label: 'Водители' },
   { id: 'zones' as AdminTab, icon: PenNib, label: 'Зоны' },
   { id: 'settings' as AdminTab, icon: Gear, label: 'Цены' },
@@ -176,7 +175,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               <h2 className="text-base font-extrabold tracking-tight">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
               <p className="text-[11px] text-muted mt-0.5">
                 {activeTab === 'requests' && `${requests.length}${requestsTotal > requests.length ? ` из ${requestsTotal}` : ''} заявок`}
-                {activeTab === 'suggestions' && `${suggestions.length} групп`}
                 {activeTab === 'drivers' && `${drivers.length} водителей · ${drivers.filter((driver) => driver.isOnline).length} онлайн`}
                 {activeTab === 'zones' && `${serviceZones.length} зон`}
                 {activeTab === 'settings' && 'Тарификация поездок'}

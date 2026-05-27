@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, func
 
 from app.models import Base
 
@@ -42,6 +42,7 @@ class RideRequest(Base):
     status = Column(String, nullable=False, server_default=RideRequestStatus.PENDING, index=True)
     group_id = Column(String, nullable=True, index=True)
     driver_id = Column(String, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True)
+    route_order = Column(Integer, nullable=True)
     pickup_changed_by_driver = Column(Boolean, nullable=False, server_default="false")
     pickup_notified_at = Column(DateTime(timezone=True), nullable=True)
     pickup_confirmed_at = Column(DateTime(timezone=True), nullable=True)

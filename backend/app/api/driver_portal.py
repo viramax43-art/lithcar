@@ -68,6 +68,7 @@ class DriverRideOut(BaseModel):
     status: str
     dateTime: datetime
     createdAt: datetime
+    routeOrder: int | None
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
@@ -242,11 +243,12 @@ async def driver_cabinet(
                 status=item.status,
                 dateTime=item.date_time,
                 createdAt=item.created_at,
+                routeOrder=item.route_order,
                 pickupChangedByDriver=item.pickup_changed_by_driver,
                 pickupNotifiedAt=item.pickup_notified_at,
                 pickupConfirmedAt=item.pickup_confirmed_at,
             )
-            for item in rides
+            for item in sorted(rides, key=lambda r: (r.route_order or 9999, r.created_at))
         ],
         driverDebtEur=round(debt_total_cents / 100, 2),
         recentQrSales=[

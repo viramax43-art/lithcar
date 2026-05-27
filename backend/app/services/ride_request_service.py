@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
+from app.services.geo_service import haversine_km
 from app.services.zone_service import is_point_in_any_active_zone
 
 
@@ -134,6 +135,31 @@ async def list_driver_requests(
     return list(result.scalars().all()), total
 
 
+def _compute_route_order(requests: list[RideRequest]) -> list[RideRequest]:
+    """Nearest-neighbor heuristic: start from centroid, greedily pick closest pickup."""
+    if len(requests) <= 1:
+        return list(requests)
+    # Use centroid of all pickup points as virtual start
+    avg_lat = sum(r.from_lat for r in requests) / len(requests)
+    avg_lng = sum(r.from_lng for r in requests) / len(requests)
+    remaining = list(requests)
+    ordered: list[RideRequest] = []
+    cur_lat, cur_lng = avg_lat, avg_lng
+    while remaining:
+        best_idx = 0
+        best_dist = float("inf")
+        for i, req in enumerate(remaining):
+            dist = haversine_km(cur_lat, cur_lng, req.from_lat, req.from_lng)
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = i
+        chosen = remaining.pop(best_idx)
+        ordered.append(chosen)
+        # After picking up this passenger, the next waypoint starts from their pickup
+        cur_lat, cur_lng = chosen.from_lat, chosen.from_lng
+    return ordered
+
+
 async def assign_driver(
     db_session: AsyncSession,
     *,
@@ -179,6 +205,13 @@ async def assign_driver(
                 request.to_lng = next_to_lng
         request.driver_id = driver_id
         request.status = RideRequestStatus.ASSIGNED
+    # Compute optimized route order using nearest-neighbor heuristic
+    if len(requests) > 1:
+        ordered = _compute_route_order(requests)
+        for idx, req in enumerate(ordered):
+            req.route_order = idx + 1
+    elif len(requests) == 1:
+        requests[0].route_order = 1
     await db_session.commit()
     for request in requests:
         await db_session.refresh(request)

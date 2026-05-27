@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowClockwise, Car, MapTrifold, QrCode, SignOut, SteeringWheel, Users, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Car, Lightning, MapTrifold, NavigationArrow, QrCode, SignOut, SteeringWheel, Users, X } from '@phosphor-icons/react'
 
 import {
   getDriverCabinet,
@@ -15,6 +15,7 @@ import {
   type DriverSessionUser,
 } from '../../lib/backend'
 import { reverseGeocode } from '../../lib/geocode'
+import { optimizeDriverRoute, type RouteStep } from '../../lib/routeOptimizer'
 import type { DriverCabinetRide, LatLng } from '../../types'
 import DriverMap from './components/DriverMap'
 import DriverPassengerCard from './components/DriverPassengerCard'
@@ -193,7 +194,9 @@ export default function DriverCabinet() {
   }
 
   const { activeRides, completedRides } = useMemo(() => {
-    const active = rides.filter((r) => r.status !== 'completed')
+    const active = rides
+      .filter((r) => r.status !== 'completed')
+      .sort((a, b) => (a.routeOrder ?? 9999) - (b.routeOrder ?? 9999))
     const completed = rides.filter((r) => r.status === 'completed')
     return { activeRides: active, completedRides: completed }
   }, [rides])
@@ -202,6 +205,20 @@ export default function DriverCabinet() {
     () => activeRides.filter((r) => r.pickupChangedByDriver && !r.pickupConfirmedAt).length,
     [activeRides],
   )
+
+  const optimizedSteps: RouteStep[] = useMemo(() => {
+    if (activeRides.length === 0) return []
+    return optimizeDriverRoute(
+      activeRides.map((r) => ({
+        id: r.id,
+        passengerName: r.passengerName,
+        fromLatLng: r.fromLatLng,
+        fromAddress: r.fromAddress,
+        toLatLng: r.toLatLng,
+        toAddress: r.toAddress,
+      })),
+    )
+  }, [activeRides])
 
   if (!session) {
     return (
@@ -347,6 +364,41 @@ export default function DriverCabinet() {
                 </p>
               </div>
             </div>
+
+            {/* Recommended route order — always computed client-side */}
+            {optimizedSteps.length > 0 && (
+              <div className="bg-white rounded-card border-[1.5px] border-violet-200 overflow-hidden">
+                <div className="px-4 py-3 bg-gradient-to-r from-violet-50 to-amber-50 flex items-center gap-2">
+                  <Lightning size={14} weight="fill" className="text-amber-500 flex-shrink-0" />
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-violet-700">Рекомендованный маршрут</p>
+                </div>
+                <div className="px-4 py-3 space-y-0">
+                  {optimizedSteps.map((step, idx) => {
+                    const isLast = idx === optimizedSteps.length - 1
+                    const isPickup = step.type === 'pickup'
+                    return (
+                      <div key={`${step.rideId}-${step.type}`} className="flex items-start gap-2.5">
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold ${
+                            isPickup ? 'bg-black text-white' : 'bg-accent text-white'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          {!isLast && <div className="w-px h-3 bg-border mt-0.5 mb-0.5" />}
+                        </div>
+                        <div className="flex-1 min-w-0 pt-0.5 pb-1">
+                          <p className="text-xs font-bold truncate">
+                            <NavigationArrow size={10} weight="fill" className={`inline -mt-0.5 mr-1 ${isPickup ? 'text-violet-500' : 'text-accent'}`} />
+                            {isPickup ? `Забрать ${step.passengerName}` : `Высадить ${step.passengerName}`}
+                          </p>
+                          <p className="text-[10px] text-muted truncate mt-0.5">{step.address}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Interactive map */}
             <DriverMap

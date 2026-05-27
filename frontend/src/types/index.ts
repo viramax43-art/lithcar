@@ -99,6 +99,7 @@ export interface DriverCabinetRide {
   status: RideStatus
   dateTime: string
   createdAt: string
+  routeOrder: number | null
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null

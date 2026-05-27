@@ -11,4 +11,4 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
   completed: { label: 'Завершена', color: '#858585', bg: 'rgba(133,133,133,0.1)' },
 }
 
-export type AdminTab = 'requests' | 'suggestions' | 'drivers' | 'zones' | 'settings' | 'qrSales' | 'staff'
+export type AdminTab = 'requests' | 'drivers' | 'zones' | 'settings' | 'qrSales' | 'staff'
