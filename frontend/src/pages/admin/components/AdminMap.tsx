@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, Lightning, MagnifyingGlass, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
 import type { Driver, LatLng, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
@@ -74,6 +74,17 @@ function FlyToHelper({ target }: { target: LatLng | null }) {
   if (target) {
     map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 15), { duration: 0.6 })
   }
+  return null
+}
+
+function MapInvalidator({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      map.invalidateSize({ animate: false })
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [sidebarCollapsed, map])
   return null
 }
 
@@ -414,12 +425,14 @@ export default function AdminMap({
         </button>
       )}
 
-      <MapContainer center={VILNIUS_CENTER} zoom={12} style={{ width: '100%', height: '100%' }}>
+      <MapContainer center={VILNIUS_CENTER} zoom={12} zoomControl={false} style={{ width: '100%', height: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ZoomControl position="bottomright" />
         <FlyToHelper target={flyTarget} />
+        <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
 
         {/* Clustered active ride markers */}
         <MarkerClusterGroup markers={clusterMarkers} />

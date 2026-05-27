@@ -104,8 +104,8 @@ body {
 
 /* Leaflet z-index fixes */
 .leaflet-pane { z-index: 1 !important; }
-.leaflet-top, .leaflet-bottom { z-index: 2 !important; }
-.leaflet-control { z-index: 2 !important; }
+.leaflet-top, .leaflet-bottom { z-index: 800 !important; }
+.leaflet-control { z-index: 800 !important; }
 
 /* Custom map markers */
 .marker-a,

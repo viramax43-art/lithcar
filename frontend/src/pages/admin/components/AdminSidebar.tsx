@@ -139,7 +139,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   return (
     <>
-      <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white overflow-hidden relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
+      <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
         {/* Drawer handle for mobile */}
         <div className="admin-drawer-handle" onClick={onToggleCollapse} />
         {/* Collapse toggle (desktop only) */}
