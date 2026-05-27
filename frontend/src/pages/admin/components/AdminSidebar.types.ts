@@ -3,11 +3,18 @@ import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, Ser
 import type { AdminTab } from '../constants'
 
 export interface AdminSidebarProps {
+  collapsed: boolean
+  onToggleCollapse: () => void
   activeTab: AdminTab
   setActiveTab: (tab: AdminTab) => void
   filterStatus: string
   setFilterStatus: (status: string) => void
   requests: RideRequest[]
+  requestsTotal: number
+  isLoadingMoreRequests: boolean
+  onLoadMoreRequests: () => void
+  searchQuery: string
+  setSearchQuery: (query: string) => void
   selectedReqId: string | null
   setSelectedReqId: (id: string | null) => void
   setAssignModalReqIds: (ids: string[] | null) => void

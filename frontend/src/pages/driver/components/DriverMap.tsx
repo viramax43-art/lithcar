@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { ArrowsOut, ArrowsIn, Crosshair } from '@phosphor-icons/react'
 
 import type { DriverCabinetRide, LatLng } from '../../../types'
 
@@ -12,9 +13,10 @@ interface DriverMapProps {
 }
 
 function pickupIcon(index: number, ride: DriverCabinetRide): L.DivIcon {
-  const needsConfirm = ride.pickupChangedByDriver && !ride.pickupConfirmedAt
+  const notNotified = ride.pickupChangedByDriver && !ride.pickupNotifiedAt
+  const needsConfirm = ride.pickupChangedByDriver && !!ride.pickupNotifiedAt && !ride.pickupConfirmedAt
   const confirmed = ride.pickupChangedByDriver && !!ride.pickupConfirmedAt
-  const cls = confirmed ? 'marker-pickup confirmed' : needsConfirm ? 'marker-pickup pending-confirm' : 'marker-pickup'
+  const cls = confirmed ? 'marker-pickup confirmed' : (needsConfirm || notNotified) ? 'marker-pickup pending-confirm' : 'marker-pickup'
   return L.divIcon({
     className: '',
     html: `<div class="${cls}">${index + 1}</div>`,
@@ -60,7 +62,31 @@ function FitBounds({ rides, selectedRideId }: { rides: DriverCabinetRide[]; sele
   return null
 }
 
+function LocateMe() {
+  const map = useMap()
+  const handleLocate = () => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 0.5 })
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
+  return (
+    <button
+      onClick={handleLocate}
+      className="absolute bottom-3 left-3 z-[1000] w-10 h-10 bg-white rounded-xl shadow-card flex items-center justify-center active:scale-95 transition-transform touch-none"
+      title="Моё местоположение"
+    >
+      <Crosshair size={18} weight="bold" />
+    </button>
+  )
+}
+
 export default function DriverMap({ rides, selectedRideId, onSelectRide, onMarkerDragEnd }: DriverMapProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const activeRides = useMemo(
     () => rides.filter((r) => r.status !== 'completed'),
     [rides],
@@ -82,7 +108,9 @@ export default function DriverMap({ rides, selectedRideId, onSelectRide, onMarke
   }
 
   return (
-    <div className="h-64 w-full rounded-card overflow-hidden shadow-card">
+    <div className={`w-full rounded-card overflow-hidden shadow-card relative transition-all duration-300 ${
+      isFullscreen ? 'driver-map-fullscreen' : 'h-[50vh] min-h-[280px] max-h-[420px]'
+    }`}>
       <MapContainer
         center={defaultCenter}
         zoom={13}
@@ -92,6 +120,7 @@ export default function DriverMap({ rides, selectedRideId, onSelectRide, onMarke
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <FitBounds rides={activeRides} selectedRideId={selectedRideId} />
+        <LocateMe />
 
         {activeRides.map((ride, idx) => {
           const canDrag = ride.status === 'assigned' || ride.status === 'en_route_to_pickup'
@@ -137,6 +166,22 @@ export default function DriverMap({ rides, selectedRideId, onSelectRide, onMarke
           />
         ))}
       </MapContainer>
+
+      {/* Fullscreen toggle */}
+      <button
+        onClick={() => setIsFullscreen((v) => !v)}
+        className="absolute top-3 right-3 z-[1000] w-10 h-10 bg-white rounded-xl shadow-card flex items-center justify-center active:scale-95 transition-transform touch-none"
+        title={isFullscreen ? 'Свернуть карту' : 'Развернуть карту'}
+      >
+        {isFullscreen ? <ArrowsIn size={18} weight="bold" /> : <ArrowsOut size={18} weight="bold" />}
+      </button>
+
+      {/* Drag hint on first visit */}
+      {activeRides.some((r) => r.status === 'assigned' || r.status === 'en_route_to_pickup') && !isFullscreen && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-pill bg-black/75 text-white text-[10px] font-semibold pointer-events-none">
+          Перетаскивайте маркеры для изменения точки подачи
+        </div>
+      )}
     </div>
   )
 }

@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.bot.handlers.booking import router as booking_router
+from app.bot.handlers.pickup_confirm import router as pickup_confirm_router
 from app.core.config import settings
 
 
@@ -23,6 +24,7 @@ async def start_bot() -> None:
     bot = Bot(token=settings.bot_token)
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.include_router(booking_router)
+    dispatcher.include_router(pickup_confirm_router)
 
     logger.info("Telegram bot polling started.")
     await dispatcher.start_polling(bot, allowed_updates=dispatcher.resolve_used_update_types())

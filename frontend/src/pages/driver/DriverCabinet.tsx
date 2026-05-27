@@ -7,6 +7,7 @@ import {
   issueDriverQrSale,
   loginDriverByKey,
   logoutDriverSession,
+  notifyPickupChange,
   sendDriverLocation,
   setDriverOnlineStatus,
   setDriverRideStatus,
@@ -174,6 +175,23 @@ export default function DriverCabinet() {
     }
   }
 
+  const [notifyingRideId, setNotifyingRideId] = useState<string | null>(null)
+
+  const handleNotifyPickupChange = async (ride: DriverCabinetRide) => {
+    setNotifyingRideId(ride.id)
+    setErrorMessage(null)
+    try {
+      const updated = await notifyPickupChange(ride.id)
+      setRides((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      hapticImpact('medium')
+    } catch (error) {
+      hapticNotification('error')
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось уведомить пассажира.')
+    } finally {
+      setNotifyingRideId(null)
+    }
+  }
+
   const { activeRides, completedRides } = useMemo(() => {
     const active = rides.filter((r) => r.status !== 'completed')
     const completed = rides.filter((r) => r.status === 'completed')
@@ -261,38 +279,41 @@ export default function DriverCabinet() {
         className="sticky top-0 z-30 bg-black text-white shadow-card"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
-        <div className="h-14 px-5 flex items-center justify-between">
-          <div className="min-w-0">
+        <div className="h-16 px-4 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <h1 className="text-base font-extrabold tracking-tight truncate">{session.name}</h1>
-            <p className="text-[11px] text-white/60 truncate">
-              водитель · долг пользователей €{driverDebtEur.toFixed(2)}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="inline-flex items-center gap-1 text-[11px] text-white/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                Онлайн
+              </span>
+              {driverDebtEur > 0 && (
+                <>
+                  <span className="w-px h-3 bg-white/20" />
+                  <span className="text-[11px] text-white/60">Долг: <span className="text-accent font-bold">€{driverDebtEur.toFixed(2)}</span></span>
+                </>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill text-[11px] font-bold bg-accent text-black">
-              <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-              Онлайн
-            </span>
-            <button
-              onClick={async () => {
-                try {
-                  await setDriverOnlineStatus(false)
-                } finally {
-                  await logoutDriverSession()
-                  setSession(null)
-                  setRides([])
-                }
-              }}
-              className="p-2 rounded-pill bg-white/10 hover:bg-white/20 transition-colors"
-              title="Выйти"
-            >
-              <SignOut size={16} weight="bold" />
-            </button>
-          </div>
+          <button
+            onClick={async () => {
+              try {
+                await setDriverOnlineStatus(false)
+              } finally {
+                await logoutDriverSession()
+                setSession(null)
+                setRides([])
+              }
+            }}
+            className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center flex-shrink-0"
+            title="Выйти"
+          >
+            <SignOut size={18} weight="bold" />
+          </button>
         </div>
       </header>
 
-      <main className="px-4 py-4 space-y-4 max-w-2xl mx-auto pb-12">
+      <main className="px-4 py-5 space-y-5 max-w-2xl mx-auto pb-16">
         {/* ── Map with all pickup points ── */}
         {!hasLoadedCabinetOnce ? (
           <div className="bg-white rounded-card p-5 space-y-4">
@@ -311,8 +332,8 @@ export default function DriverCabinet() {
           <>
             {/* Summary banner */}
             <div className="bg-black text-white rounded-card p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                <MapTrifold size={20} weight="fill" />
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                <MapTrifold size={22} weight="fill" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold">
@@ -336,8 +357,8 @@ export default function DriverCabinet() {
             />
 
             {/* Passenger list */}
-            <section className="space-y-2">
-              <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted px-1">
+            <section className="space-y-3">
+              <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted px-1 sticky-section-header py-2 -mx-4 px-5">
                 Пассажиры · {activeRides.length}
               </h2>
               {activeRides.map((ride, idx) => (
@@ -347,8 +368,10 @@ export default function DriverCabinet() {
                   index={idx}
                   isSelected={selectedRideId === ride.id}
                   isAdvancing={advancingRideId === ride.id}
+                  isNotifying={notifyingRideId === ride.id}
                   onSelect={() => setSelectedRideId(selectedRideId === ride.id ? null : ride.id)}
                   onAdvance={() => void handleAdvanceStatus(ride)}
+                  onNotifyPickup={() => void handleNotifyPickupChange(ride)}
                 />
               ))}
             </section>
@@ -405,8 +428,8 @@ export default function DriverCabinet() {
         )}
 
         {completedRides.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted px-1">
+          <section className="space-y-3">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted px-1 sticky-section-header py-2 -mx-4 px-5">
               История · {completedRides.length}
             </h2>
             {completedRides.slice(0, 10).map((ride) => (

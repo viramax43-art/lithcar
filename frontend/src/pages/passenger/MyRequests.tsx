@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
 import BottomNav from '../../components/BottomNav'
 import Skeleton from '../../components/Skeleton'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
+
+const PAGE_SIZE = 20
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Ожидает', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -16,19 +18,31 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> =
   completed: { label: 'Завершена', color: '#858585', bg: 'rgba(133,133,133,0.1)' },
 }
 
+const STATUS_TABS = [
+  { key: 'active', label: 'Активные' },
+  { key: 'completed', label: 'Завершённые' },
+  { key: 'all', label: 'Все' },
+]
+
 export default function MyRequests() {
   const navigate = useNavigate()
   const [requests, setRequests] = useState<RideRequest[]>([])
+  const [total, setTotal] = useState(0)
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [tab, setTab] = useState<'active' | 'completed' | 'all'>('active')
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const requestsData = await listMyRequests({ limit: 50, offset: 0 })
-        if (!cancelled) setRequests(requestsData.items)
+        const requestsData = await listMyRequests({ limit: PAGE_SIZE, offset: 0 })
+        if (!cancelled) {
+          setRequests(requestsData.items)
+          setTotal(requestsData.total)
+        }
       } catch (error) {
         if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить заявки.')
       }
@@ -47,9 +61,32 @@ export default function MyRequests() {
     }
   }, [])
 
-  const sorted = [...requests].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || requests.length >= total) return
+    setIsLoadingMore(true)
+    try {
+      const page = await listMyRequests({ limit: PAGE_SIZE, offset: requests.length })
+      setRequests((prev) => [...prev, ...page.items])
+      setTotal(page.total)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подгрузить заявки.')
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [isLoadingMore, requests.length, total])
+
+  const sorted = useMemo(() => {
+    const filtered = tab === 'active'
+      ? requests.filter((r) => r.status !== 'completed')
+      : tab === 'completed'
+        ? requests.filter((r) => r.status === 'completed')
+        : requests
+    return [...filtered].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  }, [requests, tab])
+
+  const canLoadMore = requests.length < total
 
   return (
     <div className="min-h-[100dvh] bg-white pb-20">
@@ -61,6 +98,20 @@ export default function MyRequests() {
         <div className="flex items-center justify-between px-5 h-14">
           <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
           <span className="text-sm font-semibold text-muted">Мои поездки</span>
+        </div>
+        {/* Status tabs */}
+        <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto">
+          {STATUS_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key as typeof tab)}
+              className={`px-3 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors ${
+                tab === t.key ? 'bg-black text-white' : 'bg-surface text-muted'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -98,7 +149,7 @@ export default function MyRequests() {
             <button
               key={req.id}
               onClick={() => navigate(`/requests/${req.id}`)}
-              className="flex flex-col gap-2 px-5 py-4 border-b border-surface text-left hover:bg-surface/50 transition-colors"
+              className="flex flex-col gap-2 px-5 py-4 border-b border-surface text-left active:bg-surface/80 transition-colors"
             >
               {/* Top row: status + time */}
               <div className="flex items-center justify-between">
@@ -147,10 +198,30 @@ export default function MyRequests() {
           )
         })}
 
+        {/* Load more */}
+        {!isLoading && canLoadMore && (
+          <button
+            onClick={() => void loadMore()}
+            disabled={isLoadingMore}
+            className="mx-5 my-4 py-3 rounded-xl bg-surface hover:bg-border text-xs font-semibold text-muted transition-colors disabled:opacity-50"
+          >
+            {isLoadingMore ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
+                Загружаем…
+              </span>
+            ) : (
+              `Показать ещё (${requests.length} из ${total})`
+            )}
+          </button>
+        )}
+
         {!isLoading && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <MapPin size={48} className="text-border mb-4" weight="regular" />
-            <p className="text-muted text-sm">У вас пока нет заявок</p>
+            <p className="text-muted text-sm">
+              {tab === 'active' ? 'Нет активных поездок' : tab === 'completed' ? 'Нет завершённых поездок' : 'У вас пока нет заявок'}
+            </p>
             <button
               onClick={() => navigate('/')}
               className="mt-4 px-6 py-2.5 bg-black text-white text-sm font-bold rounded-pill"

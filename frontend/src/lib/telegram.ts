@@ -34,6 +34,8 @@ function getTelegramWebApp(): TelegramWebApp | null {
 
 const DESKTOP_PLATFORMS = new Set(['tdesktop', 'macos', 'web', 'weba', 'webk'])
 
+let fullscreenRequested = false
+
 function readInsetPx(...values: Array<number | undefined>): number {
   return Math.max(
     0,
@@ -50,7 +52,7 @@ function syncTelegramViewportState(webApp: TelegramWebApp): void {
   const bottom = readInsetPx(webApp.safeAreaInset?.bottom, webApp.contentSafeAreaInset?.bottom)
 
   root.dataset.tgPlatform = platform || 'unknown'
-  root.dataset.tgFullscreen = webApp.isFullscreen ? '1' : '0'
+  root.dataset.tgFullscreen = (webApp.isFullscreen || fullscreenRequested) ? '1' : '0'
   root.dataset.tgSafeAreaTop = top > 0 ? '1' : '0'
   root.dataset.tgSafeAreaBottom = bottom > 0 ? '1' : '0'
   root.style.setProperty('--app-telegram-safe-area-top', `${top}px`)
@@ -81,7 +83,10 @@ export function initTelegramWebAppUI(): void {
     const isDesktopPlatform = DESKTOP_PLATFORMS.has(platform)
     if (!isDesktopPlatform) {
       // Newer mobile clients support explicit fullscreen mode.
-      webApp.requestFullscreen?.()
+      if (webApp.requestFullscreen) {
+        webApp.requestFullscreen()
+        fullscreenRequested = true
+      }
       // Fullscreen and safe-area values can settle asynchronously after request.
       setTimeout(syncViewportState, 100)
       setTimeout(syncViewportState, 500)

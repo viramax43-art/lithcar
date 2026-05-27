@@ -50,6 +50,7 @@ export {
   issueDriverQrSale,
   loginDriverByKey,
   logoutDriverSession,
+  notifyPickupChange,
   sendDriverLocation,
   setDriverOnlineStatus,
   setDriverRideStatus,

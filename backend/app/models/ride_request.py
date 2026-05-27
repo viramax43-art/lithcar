@@ -43,5 +43,6 @@ class RideRequest(Base):
     group_id = Column(String, nullable=True, index=True)
     driver_id = Column(String, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True)
     pickup_changed_by_driver = Column(Boolean, nullable=False, server_default="false")
+    pickup_notified_at = Column(DateTime(timezone=True), nullable=True)
     pickup_confirmed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

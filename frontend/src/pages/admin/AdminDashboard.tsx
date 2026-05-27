@@ -63,6 +63,14 @@ export default function AdminDashboard() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [filterDate, setFilterDate] = useState<string>('')
+  const [filterDateEnd, setFilterDateEnd] = useState<string>('')
+  const [filterTime, setFilterTime] = useState<string>('')
+  const [filterTimeEnd, setFilterTimeEnd] = useState<string>('')
+  const [requestsTotal, setRequestsTotal] = useState(0)
+  const [isLoadingMoreRequests, setIsLoadingMoreRequests] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [assignModalReqIds, setAssignModalReqIds] = useState<string[] | null>(null)
   const [assignDriverId, setAssignDriverId] = useState<string>('')
@@ -95,12 +103,14 @@ export default function AdminDashboard() {
     }
   }, [adminSession?.role])
 
+  const ADMIN_PAGE_SIZE = 50
+
   const loadAll = useCallback(async () => {
     if (!adminSession) return
     setErrorMessage(null)
     try {
       const [req, drv, sug, zones, price, qrSalesPage] = await Promise.all([
-        listAdminRequests(filterStatus, { limit: 100, offset: 0 }),
+        listAdminRequests(filterStatus, { limit: ADMIN_PAGE_SIZE, offset: 0 }),
         listDrivers(false, { limit: 200, offset: 0 }),
         listGroupSuggestions({ limit: 100, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
@@ -108,6 +118,7 @@ export default function AdminDashboard() {
         listAdminQrSales({ limit: 100, offset: 0, redeemedOnly: true }),
       ])
       setRequests(req.items)
+      setRequestsTotal(req.total)
       setDrivers(drv.items)
       setSuggestions(sug.items)
       setServiceZones(zones.items)
@@ -121,6 +132,20 @@ export default function AdminDashboard() {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить админ-данные.')
     }
   }, [adminSession, filterStatus, loadManagedKeys])
+
+  const loadMoreRequests = useCallback(async () => {
+    if (isLoadingMoreRequests || requests.length >= requestsTotal) return
+    setIsLoadingMoreRequests(true)
+    try {
+      const page = await listAdminRequests(filterStatus, { limit: ADMIN_PAGE_SIZE, offset: requests.length })
+      setRequests((prev) => [...prev, ...page.items])
+      setRequestsTotal(page.total)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подгрузить заявки.')
+    } finally {
+      setIsLoadingMoreRequests(false)
+    }
+  }, [filterStatus, isLoadingMoreRequests, requests.length, requestsTotal])
 
   const ensureAdminSession = useCallback(async () => {
     try {
@@ -374,16 +399,23 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
       <AdminHeader onlineDriversCount={onlineDrivers.length} adminSession={adminSession} onLogout={() => void handleAdminLogout()} />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         <AdminSidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           filterStatus={filterStatus}
           setFilterStatus={setFilterStatus}
           requests={requests}
+          requestsTotal={requestsTotal}
+          isLoadingMoreRequests={isLoadingMoreRequests}
+          onLoadMoreRequests={() => void loadMoreRequests()}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
           selectedReqId={selectedReqId}
           setSelectedReqId={setSelectedReqId}
           setAssignModalReqIds={setAssignModalReqIds}
@@ -469,6 +501,16 @@ export default function AdminDashboard() {
             if (!isDrawing) return
             setDrawingPoints((prev) => [...prev, point])
           }}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+          filterDate={filterDate}
+          filterDateEnd={filterDateEnd}
+          filterTime={filterTime}
+          filterTimeEnd={filterTimeEnd}
+          onFilterDateChange={setFilterDate}
+          onFilterDateEndChange={setFilterDateEnd}
+          onFilterTimeChange={setFilterTime}
+          onFilterTimeEndChange={setFilterTimeEnd}
         />
       </div>
 

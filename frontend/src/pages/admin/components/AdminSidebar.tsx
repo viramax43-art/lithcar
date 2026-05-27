@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Car, CreditCard, Gear, MapPin, PenNib, Plus, Stack, Users, X } from '@phosphor-icons/react'
+import { Car, CaretLeft, CaretRight, CreditCard, Gear, MapPin, PenNib, Plus, Stack, Users, X } from '@phosphor-icons/react'
 
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -22,11 +22,18 @@ const TAB_DEFS = [
 
 export default function AdminSidebar(props: AdminSidebarProps) {
   const {
+    collapsed,
+    onToggleCollapse,
     activeTab,
     setActiveTab,
     filterStatus,
     setFilterStatus,
     requests,
+    requestsTotal,
+    isLoadingMoreRequests,
+    onLoadMoreRequests,
+    searchQuery,
+    setSearchQuery,
     selectedReqId,
     setSelectedReqId,
     setAssignModalReqIds,
@@ -132,15 +139,26 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   return (
     <>
-      <aside className="w-[440px] flex-shrink-0 border-r border-border flex bg-white overflow-hidden">
-        <div className="w-16 border-r border-border bg-surface flex flex-col items-center py-3 gap-1 flex-shrink-0">
+      <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white overflow-hidden relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
+        {/* Drawer handle for mobile */}
+        <div className="admin-drawer-handle" onClick={onToggleCollapse} />
+        {/* Collapse toggle (desktop only) */}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden md:flex absolute top-1/2 -right-4 z-[1001] w-9 h-9 bg-white border border-border rounded-full shadow-card items-center justify-center hover:bg-surface transition-colors"
+          style={{ transform: 'translateY(-50%)' }}
+          title={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+        >
+          {collapsed ? <CaretRight size={14} weight="bold" /> : <CaretLeft size={14} weight="bold" />}
+        </button>
+        <div className="admin-sidebar-icon-rail w-16 border-r border-border bg-surface flex flex-col items-center py-3 gap-1.5 flex-shrink-0">
           {tabs.map((tab) => {
             const active = activeTab === tab.id
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-12 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all ${
+                className={`w-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all touch-none ${
                   active ? 'bg-black text-white' : 'text-muted hover:bg-white hover:text-black'
                 }`}
                 title={tab.label}
@@ -157,7 +175,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             <div>
               <h2 className="text-base font-extrabold tracking-tight">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
               <p className="text-[11px] text-muted mt-0.5">
-                {activeTab === 'requests' && `${requests.length} заявок`}
+                {activeTab === 'requests' && `${requests.length}${requestsTotal > requests.length ? ` из ${requestsTotal}` : ''} заявок`}
                 {activeTab === 'suggestions' && `${suggestions.length} групп`}
                 {activeTab === 'drivers' && `${drivers.length} водителей · ${drivers.filter((driver) => driver.isOnline).length} онлайн`}
                 {activeTab === 'zones' && `${serviceZones.length} зон`}
@@ -195,12 +213,17 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 scroll-smooth-y gpu-scroll">
             <AdminSidebarRequestsSuggestionsSection
               activeTab={activeTab}
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
               requests={requests}
+              requestsTotal={requestsTotal}
+              isLoadingMoreRequests={isLoadingMoreRequests}
+              onLoadMoreRequests={onLoadMoreRequests}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
               selectedReqId={selectedReqId}
               setSelectedReqId={setSelectedReqId}
               setAssignModalReqIds={setAssignModalReqIds}
@@ -291,6 +314,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
           </div>
         </div>
       </aside>
+
 
       {editingDriver && (
         <EditDriverModal

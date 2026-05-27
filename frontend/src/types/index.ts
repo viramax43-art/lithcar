@@ -100,6 +100,7 @@ export interface DriverCabinetRide {
   dateTime: string
   createdAt: string
   pickupChangedByDriver: boolean
+  pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
 }
 

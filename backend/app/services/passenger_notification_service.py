@@ -4,6 +4,7 @@ import logging
 from datetime import timezone
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.core.config import settings
 from app.models.driver import Driver
@@ -116,13 +117,41 @@ def _build_message(status: str, *, request: RideRequest, driver: Driver | None) 
 
 async def notify_passenger_pickup_changed(*, request: RideRequest, driver: Driver | None) -> None:
     """Notify passenger that the driver has changed their pickup point."""
+    if not _notifications_enabled():
+        return
+    chat_id = _resolve_chat_id(request.passenger_id)
+    if chat_id is None:
+        return
+
     text = "📍 Водитель изменил точку подачи!\n\n"
     text += f"Новая точка: {request.from_address}\n\n"
     if driver:
         text += f"{_driver_card(driver)}\n\n"
-    text += "⚠️ Пожалуйста, подтвердите, что вы видите новую точку посадки в приложении."
-    await _send_to_passenger(passenger_id=request.passenger_id, text=text)
-    await _send_pickup_point(passenger_id=request.passenger_id, request=request)
+    text += "Пожалуйста, подтвердите новую точку посадки кнопкой ниже."
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text="✅ Подтвердить точку посадки",
+                callback_data=f"pickup_confirm:{request.id}",
+            )],
+        ]
+    )
+
+    try:
+        async with Bot(token=settings.bot_token) as bot:
+            await bot.send_location(
+                chat_id=chat_id,
+                latitude=request.from_lat,
+                longitude=request.from_lng,
+            )
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_markup=keyboard,
+            )
+    except Exception:
+        logger.exception("Failed to deliver passenger pickup-changed notification.")
 
 
 async def notify_passenger_driver_assigned(*, request: RideRequest, driver: Driver | None) -> None:

@@ -1,9 +1,11 @@
 import {
+  CaretDown,
   CaretRight,
   Check,
   Clock,
   MapPin,
   NavigationArrow,
+  PaperPlaneTilt,
   Warning,
 } from '@phosphor-icons/react'
 
@@ -16,8 +18,10 @@ interface DriverPassengerCardProps {
   index: number
   isSelected: boolean
   isAdvancing: boolean
+  isNotifying: boolean
   onSelect: () => void
   onAdvance: () => void
+  onNotifyPickup: () => void
 }
 
 export default function DriverPassengerCard({
@@ -25,8 +29,10 @@ export default function DriverPassengerCard({
   index,
   isSelected,
   isAdvancing,
+  isNotifying,
   onSelect,
   onAdvance,
+  onNotifyPickup,
 }: DriverPassengerCardProps) {
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
   const nextSt = nextStatus(ride.status)
@@ -35,11 +41,9 @@ export default function DriverPassengerCard({
   const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 
-  const needsConfirm = ride.pickupChangedByDriver && !ride.pickupConfirmedAt
+  const pickupChangedNotNotified = ride.pickupChangedByDriver && !ride.pickupNotifiedAt
+  const needsPassengerConfirm = ride.pickupChangedByDriver && !!ride.pickupNotifiedAt && !ride.pickupConfirmedAt
   const confirmed = ride.pickupChangedByDriver && !!ride.pickupConfirmedAt
-
-  const headingToPickup = ride.status === 'en_route_to_pickup' || ride.status === 'assigned'
-  const navTarget = headingToPickup ? ride.fromLatLng : ride.toLatLng
 
   return (
     <div
@@ -50,33 +54,42 @@ export default function DriverPassengerCard({
       {/* Header row — tap to select */}
       <button
         onClick={onSelect}
-        className="w-full px-4 py-3 flex items-center gap-3 text-left"
+        className="w-full px-4 py-3.5 flex items-center gap-3 text-left touch-none"
       >
-        <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-sm font-extrabold flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center text-sm font-extrabold flex-shrink-0">
           {index + 1}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-pill touch-compact"
+              style={{ color: statusColors.color, background: statusColors.bg }}
+            >
+              {DRIVER_STATUS_LABEL[ride.status]}
+            </span>
+            {pickupChangedNotNotified && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-blue-50 text-blue-600 text-[10px] font-bold touch-compact">
+                <Warning size={10} weight="fill" />
+                Подтвердите
+              </span>
+            )}
+            {needsPassengerConfirm && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-amber-50 text-amber-600 text-[10px] font-bold touch-compact">
+                <Warning size={10} weight="fill" />
+                Ждём
+              </span>
+            )}
+            {confirmed && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-green-50 text-green-600 text-[10px] font-bold touch-compact">
+                <Check size={10} weight="bold" />
+                ОК
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {needsConfirm && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-amber-50 text-amber-600 text-[10px] font-bold">
-              <Warning size={10} weight="fill" />
-              Ждём
-            </span>
-          )}
-          {confirmed && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-green-50 text-green-600 text-[10px] font-bold">
-              <Check size={10} weight="bold" />
-              ОК
-            </span>
-          )}
-          <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded-pill"
-            style={{ color: statusColors.color, background: statusColors.bg }}
-          >
-            {DRIVER_STATUS_LABEL[ride.status]}
-          </span>
+        <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-muted transition-transform" style={{ transform: isSelected ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+          <CaretDown size={14} weight="bold" />
         </div>
       </button>
 
@@ -96,8 +109,10 @@ export default function DriverPassengerCard({
               </p>
               {ride.pickupChangedByDriver && (
                 <p className="text-[10px] mt-1 font-semibold text-amber-600">
-                  {needsConfirm
-                    ? '⏳ Точка изменена — пассажир ещё не подтвердил'
+                  {pickupChangedNotNotified
+                    ? '📝 Точка изменена — нажмите «Подтвердить» чтобы уведомить пассажира'
+                    : needsPassengerConfirm
+                    ? '⏳ Уведомление отправлено — пассажир ещё не подтвердил'
                     : '✅ Точка изменена — пассажир подтвердил'}
                 </p>
               )}
@@ -121,36 +136,74 @@ export default function DriverPassengerCard({
             {dateStr} · {timeStr}
           </div>
 
-          {/* Action buttons */}
+          {/* Navigation buttons — open in any navigator */}
           <div className="flex gap-2">
             <a
-              href={directionsHref(navTarget, headingToPickup ? 'Подача' : 'Конечная')}
+              href={directionsHref(ride.fromLatLng, 'Подача')}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-black text-white text-xs font-bold active:scale-[0.97] transition-transform"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-black text-white text-sm font-bold btn-press touch-none"
             >
-              <NavigationArrow size={13} weight="fill" />
-              Маршрут
+              <NavigationArrow size={15} weight="fill" />
+              Подача
+            </a>
+            <a
+              href={directionsHref(ride.toLatLng, 'Конечная')}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-700 text-white text-sm font-bold btn-press touch-none"
+            >
+              <NavigationArrow size={15} weight="fill" />
+              Конечная
             </a>
           </div>
 
-          {/* Show on map link */}
-          <a
-            href={showOnMapHref(ride.fromLatLng, `Подача · ${ride.passengerName}`)}
-            target="_blank"
-            rel="noreferrer"
-            className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors"
-          >
-            <MapPin size={12} weight="fill" />
-            Показать точку подачи на карте
-          </a>
+          {/* Show on map links */}
+          <div className="flex gap-2">
+            <a
+              href={showOnMapHref(ride.fromLatLng, `Подача · ${ride.passengerName}`)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors touch-none"
+            >
+              <MapPin size={12} weight="fill" />
+              Точка A
+            </a>
+            <a
+              href={showOnMapHref(ride.toLatLng, `Конечная · ${ride.passengerName}`)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors touch-none"
+            >
+              <MapPin size={12} weight="fill" />
+              Точка B
+            </a>
+          </div>
+
+          {/* Confirm & notify passenger about changed pickup */}
+          {pickupChangedNotNotified && (
+            <button
+              onClick={onNotifyPickup}
+              disabled={isNotifying}
+              className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isNotifying ? (
+                'Отправляем…'
+              ) : (
+                <>
+                  <PaperPlaneTilt size={15} weight="fill" />
+                  Подтвердить и уведомить пассажира
+                </>
+              )}
+            </button>
+          )}
 
           {/* Status advance CTA */}
           {cta && nextSt && (
             <button
               onClick={onAdvance}
               disabled={isAdvancing}
-              className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-xl bg-black text-white text-sm font-bold inline-flex items-center justify-center gap-2 btn-press disabled:opacity-60 disabled:cursor-not-allowed touch-none"
             >
               {isAdvancing ? 'Обновляем…' : cta}
               {!isAdvancing && <CaretRight size={14} weight="bold" />}

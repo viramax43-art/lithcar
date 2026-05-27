@@ -57,29 +57,29 @@ export function AdminHeader({
   onLogout: () => void
 }) {
   return (
-    <header className="flex items-center justify-between px-6 h-16 bg-black text-white flex-shrink-0">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-        <span className="w-px h-5 bg-white/20" />
-        <span className="text-sm font-semibold text-white/80">Админ-панель</span>
+    <header className="flex items-center justify-between px-4 md:px-6 h-14 md:h-16 bg-black text-white flex-shrink-0">
+      <div className="flex items-center gap-2 md:gap-4">
+        <h1 className="text-lg md:text-xl font-extrabold tracking-tight">RIDE</h1>
+        <span className="w-px h-5 bg-white/20 hidden md:block" />
+        <span className="text-xs md:text-sm font-semibold text-white/80 hidden md:inline">Админ-панель</span>
       </div>
-      <div className="flex items-center gap-5">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-pill bg-white/10">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-          <span className="text-xs font-semibold">
-            {onlineDriversCount} <span className="text-white/60 font-medium">онлайн</span>
+      <div className="flex items-center gap-2 md:gap-5">
+        <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-2 rounded-pill bg-white/10">
+          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          <span className="text-[11px] md:text-xs font-semibold">
+            {onlineDriversCount} <span className="text-white/60 font-medium hidden sm:inline">онлайн</span>
           </span>
         </div>
-        <div className="text-right">
+        <div className="text-right admin-header-desktop-extras">
           <p className="text-xs font-semibold leading-tight">{adminSession.name}</p>
           <p className="text-[10px] text-white/50 leading-tight">{getAdminRoleLabel(adminSession.role)}</p>
         </div>
         <button
           onClick={onLogout}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-white/10 hover:bg-white/20 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-pill bg-white/10 hover:bg-white/20 transition-colors touch-none"
         >
           <SignOut size={14} weight="bold" />
-          Выйти
+          <span className="hidden sm:inline">Выйти</span>
         </button>
       </div>
     </header>
@@ -88,7 +88,7 @@ export function AdminHeader({
 
 export function AdminErrorToast({ errorMessage, onClose }: { errorMessage: string; onClose: () => void }) {
   return (
-    <div className="fixed bottom-6 right-6 z-[3000] max-w-sm bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 animate-slide-up">
+    <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[3000] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 animate-slide-up">
       <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
         <X size={16} className="text-red-600" />
       </div>
@@ -96,7 +96,7 @@ export function AdminErrorToast({ errorMessage, onClose }: { errorMessage: strin
         <p className="text-xs font-bold text-red-900">Ошибка</p>
         <p className="text-xs text-red-700 mt-0.5 break-words">{errorMessage}</p>
       </div>
-      <button onClick={onClose} className="p-1 hover:bg-surface rounded-lg flex-shrink-0 transition-colors">
+      <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-surface rounded-lg flex-shrink-0 transition-colors touch-none">
         <X size={14} className="text-muted" />
       </button>
     </div>

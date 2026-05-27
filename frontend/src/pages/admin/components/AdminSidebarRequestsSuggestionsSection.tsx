@@ -1,4 +1,5 @@
-import { CaretDown, CaretRight, Clock } from '@phosphor-icons/react'
+import { useMemo } from 'react'
+import { CaretDown, CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 
 import { STATUS_CONFIG } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -9,6 +10,11 @@ type RequestsSuggestionsProps = Pick<
   | 'filterStatus'
   | 'setFilterStatus'
   | 'requests'
+  | 'requestsTotal'
+  | 'isLoadingMoreRequests'
+  | 'onLoadMoreRequests'
+  | 'searchQuery'
+  | 'setSearchQuery'
   | 'selectedReqId'
   | 'setSelectedReqId'
   | 'setAssignModalReqIds'
@@ -34,6 +40,11 @@ export function AdminSidebarRequestsSuggestionsSection({
   filterStatus,
   setFilterStatus,
   requests,
+  requestsTotal,
+  isLoadingMoreRequests,
+  onLoadMoreRequests,
+  searchQuery,
+  setSearchQuery,
   selectedReqId,
   setSelectedReqId,
   setAssignModalReqIds,
@@ -42,15 +53,48 @@ export function AdminSidebarRequestsSuggestionsSection({
   setSelectedGroupId,
   groupColorMap,
 }: RequestsSuggestionsProps) {
+  const filteredRequests = useMemo(() => {
+    if (!searchQuery.trim()) return requests
+    const q = searchQuery.toLowerCase()
+    return requests.filter(
+      (r) =>
+        r.passengerName.toLowerCase().includes(q) ||
+        r.from.address.toLowerCase().includes(q) ||
+        r.to.address.toLowerCase().includes(q)
+    )
+  }, [requests, searchQuery])
+
+  const canLoadMore = requests.length < requestsTotal
+
   if (activeTab === 'requests') {
     return (
       <>
-        <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
+        {/* Search input */}
+        <div className="relative mb-3">
+          <MagnifyingGlass size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по имени или адресу…"
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border-[1.5px] border-border bg-surface text-sm outline-none focus:border-black focus:bg-white transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center hover:bg-border rounded-lg transition-colors touch-none"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Status filter pills */}
+        <div className="flex items-center gap-2 mb-3 scroll-x-hide pb-1 -mx-1 px-1">
           {REQUEST_STATUSES.map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`px-3 py-2 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors touch-compact ${
                 filterStatus === status ? 'bg-black text-white' : 'bg-surface text-muted hover:text-black'
               }`}
             >
@@ -58,15 +102,17 @@ export function AdminSidebarRequestsSuggestionsSection({
             </button>
           ))}
         </div>
-        <div className="space-y-2">
-          {requests.map((request) => {
+
+        {/* Requests list */}
+        <div className="space-y-2.5">
+          {filteredRequests.map((request) => {
             const status = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.pending
             const selected = selectedReqId === request.id
             return (
               <button
                 key={request.id}
                 onClick={() => setSelectedReqId(selected ? null : request.id)}
-                className={`w-full text-left p-3 rounded-card border-[1.5px] transition-all ${
+                className={`w-full text-left p-3.5 rounded-card border-[1.5px] transition-all touch-none ${
                   selected ? 'border-black bg-surface' : 'border-border hover:border-muted'
                 }`}
               >
@@ -91,8 +137,8 @@ export function AdminSidebarRequestsSuggestionsSection({
                   </div>
                 </div>
                 <div className="mt-2.5 pt-2.5 border-t border-border flex items-center justify-between">
-                  <span className="text-[10px] text-muted flex items-center gap-1">
-                    <Clock size={10} />
+                  <span className="text-[11px] text-muted flex items-center gap-1.5">
+                    <Clock size={11} />
                     {new Date(request.dateTime).toLocaleString('ru-RU', {
                       day: 'numeric',
                       month: 'short',
@@ -106,7 +152,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                         event.stopPropagation()
                         setAssignModalReqIds([request.id])
                       }}
-                      className="text-[10px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-2.5 py-1 rounded-pill transition-colors"
+                      className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-1.5 rounded-pill transition-colors touch-compact"
                     >
                       Назначить
                     </button>
@@ -115,8 +161,26 @@ export function AdminSidebarRequestsSuggestionsSection({
               </button>
             )
           })}
-          {requests.length === 0 && (
+          {filteredRequests.length === 0 && (
             <p className="text-xs text-muted text-center py-12">Заявок не найдено</p>
+          )}
+
+          {/* Load more button */}
+          {canLoadMore && !searchQuery && (
+            <button
+              onClick={onLoadMoreRequests}
+              disabled={isLoadingMoreRequests}
+              className="w-full py-3.5 mt-2 rounded-xl bg-surface hover:bg-border text-sm font-semibold text-muted transition-colors disabled:opacity-50 touch-none"
+            >
+              {isLoadingMoreRequests ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
+                  Загружаем…
+                </span>
+              ) : (
+                `Показать ещё (${requests.length} из ${requestsTotal})`
+              )}
+            </button>
           )}
         </div>
       </>
