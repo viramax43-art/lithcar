@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from app.services.geo_service import haversine_km, point_in_polygon
 from app.services.pricing_service import ride_price_eur
-from app.services.suggestion_service import _similarity_score
+from app.services.suggestion_service import _similarity_score_from_distances
 
 
 def test_point_in_polygon_and_haversine():
@@ -50,8 +50,13 @@ def test_suggestion_similarity():
         date_time=now + timedelta(hours=4),
     )
 
-    close_score = _similarity_score(first, second)
-    far_score = _similarity_score(first, third)
+    from_dist_close = haversine_km(first.from_lat, first.from_lng, second.from_lat, second.from_lng)
+    to_dist_close = haversine_km(first.to_lat, first.to_lng, second.to_lat, second.to_lng)
+    close_score = _similarity_score_from_distances(from_dist_close, to_dist_close, first, second)
+
+    from_dist_far = haversine_km(first.from_lat, first.from_lng, third.from_lat, third.from_lng)
+    to_dist_far = haversine_km(first.to_lat, first.to_lng, third.to_lat, third.to_lng)
+    far_score = _similarity_score_from_distances(from_dist_far, to_dist_far, first, third)
 
     assert close_score > far_score
     assert close_score >= 60

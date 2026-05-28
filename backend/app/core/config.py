@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     s3_force_path_style: bool = Field(default=True)
     s3_required_on_startup: bool = Field(default=True)
 
+    osrm_base_url: str = Field(default="https://router.project-osrm.org")
+
     @property
     def frontend_cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_cors_origins.split(",") if origin.strip()]

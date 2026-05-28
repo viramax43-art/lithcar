@@ -120,6 +120,36 @@ services:
 
 
 
+  # OSRM — маршрутизация по дорогам (Литва)
+  # Для первого запуска: скачайте lithuania-latest.osm.pbf с https://download.geofabrik.de/europe/lithuania.html
+  # и поместите в ./deploy/osrm/ , затем запустите:
+  #   docker compose run --rm osrm-prep
+  #   docker compose up -d osrm
+  osrm-prep:
+    image: osrm/osrm-backend:latest
+    container_name: digital_osrm_prep
+    volumes:
+      - ./deploy/osrm:/data
+    entrypoint: >
+      /bin/sh -c "
+        osrm-extract -p /opt/car.lua /data/lithuania-latest.osm.pbf &&
+        osrm-partition /data/lithuania-latest.osrm &&
+        osrm-customize /data/lithuania-latest.osrm
+      "
+    profiles: ["osrm-setup"]
+    restart: "no"
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: digital_osrm
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - ./deploy/osrm:/data:ro
+    command: ["osrm-routed", "--algorithm", "mld", "/data/lithuania-latest.osrm"]
+    profiles: ["osrm"]
+
   # Сервис сборки фронтенда (встроено в docker build)
   frontend-build:
     image: node:20-alpine

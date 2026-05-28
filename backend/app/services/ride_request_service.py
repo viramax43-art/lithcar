@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
-from app.services.geo_service import haversine_km
+from app.services.geo_service import get_distance_matrix_km, haversine_km
 from app.services.zone_service import is_point_in_any_active_zone
 
 
@@ -135,28 +135,33 @@ async def list_driver_requests(
     return list(result.scalars().all()), total
 
 
-def _compute_route_order(requests: list[RideRequest]) -> list[RideRequest]:
-    """Nearest-neighbor heuristic: start from centroid, greedily pick closest pickup."""
+async def _compute_route_order(requests: list[RideRequest]) -> list[RideRequest]:
+    """Nearest-neighbor heuristic using OSRM road distances (haversine fallback)."""
     if len(requests) <= 1:
         return list(requests)
-    # Use centroid of all pickup points as virtual start
+    # Build distance matrix for all pickup points + a virtual centroid start
     avg_lat = sum(r.from_lat for r in requests) / len(requests)
     avg_lng = sum(r.from_lng for r in requests) / len(requests)
-    remaining = list(requests)
+    # points[0] = centroid, points[1..N] = pickup locations
+    points: list[tuple[float, float]] = [(avg_lat, avg_lng)]
+    for r in requests:
+        points.append((r.from_lat, r.from_lng))
+    matrix = await get_distance_matrix_km(points)
+    # Nearest-neighbor starting from centroid (index 0)
+    remaining = list(range(1, len(points)))  # indices 1..N
     ordered: list[RideRequest] = []
-    cur_lat, cur_lng = avg_lat, avg_lng
+    current_idx = 0
     while remaining:
-        best_idx = 0
+        best_idx_in_remaining = 0
         best_dist = float("inf")
-        for i, req in enumerate(remaining):
-            dist = haversine_km(cur_lat, cur_lng, req.from_lat, req.from_lng)
+        for ri, point_idx in enumerate(remaining):
+            dist = matrix[current_idx][point_idx]
             if dist < best_dist:
                 best_dist = dist
-                best_idx = i
-        chosen = remaining.pop(best_idx)
-        ordered.append(chosen)
-        # After picking up this passenger, the next waypoint starts from their pickup
-        cur_lat, cur_lng = chosen.from_lat, chosen.from_lng
+                best_idx_in_remaining = ri
+        chosen_point_idx = remaining.pop(best_idx_in_remaining)
+        ordered.append(requests[chosen_point_idx - 1])  # -1 because centroid is at index 0
+        current_idx = chosen_point_idx
     return ordered
 
 
@@ -205,9 +210,9 @@ async def assign_driver(
                 request.to_lng = next_to_lng
         request.driver_id = driver_id
         request.status = RideRequestStatus.ASSIGNED
-    # Compute optimized route order using nearest-neighbor heuristic
+    # Compute optimized route order using OSRM road distances
     if len(requests) > 1:
-        ordered = _compute_route_order(requests)
+        ordered = await _compute_route_order(requests)
         for idx, req in enumerate(ordered):
             req.route_order = idx + 1
     elif len(requests) == 1:

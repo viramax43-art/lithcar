@@ -269,7 +269,7 @@ export default function AdminMap({
     )
   }, [])
 
-  const handleOptimizeRoute = useCallback(() => {
+  const handleOptimizeRoute = useCallback(async () => {
     const pendingRequests = activeRequests.filter((r) => !r.driverId || r.status === 'assigned')
     if (pendingRequests.length < 2) {
       setOptimizedRoute(null)
@@ -277,7 +277,7 @@ export default function AdminMap({
       return
     }
     const driverLoc = drivers.find((d) => d.isOnline && d.currentLocation)?.currentLocation
-    const result = optimizeRoute(pendingRequests, driverLoc)
+    const result = await optimizeRoute(pendingRequests, driverLoc)
     setOptimizedRoute(result)
     setShowRoutePanel(true)
   }, [activeRequests, drivers])
@@ -384,7 +384,7 @@ export default function AdminMap({
             {isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
           <button
-            onClick={handleOptimizeRoute}
+            onClick={() => void handleOptimizeRoute()}
             className="h-11 px-4 bg-white rounded-xl shadow-card flex items-center gap-2 hover:bg-surface transition-colors touch-none"
             title="Оптимизировать маршрут"
           >

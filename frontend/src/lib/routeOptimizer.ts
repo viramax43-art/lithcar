@@ -1,4 +1,5 @@
 import type { LatLng } from '../types'
+import { getDistanceMatrixKm } from './osrm'
 
 export interface RouteStep {
   type: 'pickup' | 'dropoff'
@@ -8,24 +9,12 @@ export interface RouteStep {
   address: string
 }
 
-function haversineKm(a: LatLng, b: LatLng): number {
-  const R = 6371
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinLat = Math.sin(dLat / 2)
-  const sinLng = Math.sin(dLng / 2)
-  const h =
-    sinLat * sinLat +
-    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-}
-
 /**
- * Greedy nearest-neighbor route optimization for driver rides.
+ * Greedy nearest-neighbor route optimization using OSRM road distances.
  * Generates a recommended interleaved pickup/dropoff sequence.
  * Constraint: a passenger can only be dropped off after being picked up.
  */
-export function optimizeDriverRoute(
+export async function optimizeDriverRoute(
   rides: Array<{
     id: string
     passengerName: string
@@ -35,7 +24,7 @@ export function optimizeDriverRoute(
     toAddress: string
   }>,
   driverLocation?: LatLng,
-): RouteStep[] {
+): Promise<RouteStep[]> {
   if (rides.length === 0) return []
 
   if (rides.length === 1) {
@@ -46,27 +35,39 @@ export function optimizeDriverRoute(
     ]
   }
 
-  type Candidate = RouteStep & { done: boolean }
-  const pickups: Candidate[] = rides.map((r) => ({
+  // Build points array: [start, pickup_0, dropoff_0, pickup_1, dropoff_1, ...]
+  const startPoint: LatLng = driverLocation ?? rides[0].fromLatLng
+  const allPoints: LatLng[] = [startPoint]
+  for (const r of rides) {
+    allPoints.push(r.fromLatLng)
+    allPoints.push(r.toLatLng)
+  }
+  const matrix = await getDistanceMatrixKm(allPoints)
+
+  // Map point indices: ride i → pickup at 1 + i*2, dropoff at 2 + i*2
+  type Candidate = RouteStep & { done: boolean; pointIdx: number }
+  const pickups: Candidate[] = rides.map((r, i) => ({
     type: 'pickup',
     rideId: r.id,
     passengerName: r.passengerName,
     location: r.fromLatLng,
     address: r.fromAddress,
     done: false,
+    pointIdx: 1 + i * 2,
   }))
-  const dropoffs: Candidate[] = rides.map((r) => ({
+  const dropoffs: Candidate[] = rides.map((r, i) => ({
     type: 'dropoff',
     rideId: r.id,
     passengerName: r.passengerName,
     location: r.toLatLng,
     address: r.toAddress,
     done: false,
+    pointIdx: 2 + i * 2,
   }))
 
   const pickedUp = new Set<string>()
   const steps: RouteStep[] = []
-  let current: LatLng = driverLocation ?? rides[0].fromLatLng
+  let currentIdx = 0 // start point
 
   const totalPoints = pickups.length + dropoffs.length
 
@@ -76,7 +77,7 @@ export function optimizeDriverRoute(
 
     for (const p of pickups) {
       if (p.done) continue
-      const d = haversineKm(current, p.location)
+      const d = matrix[currentIdx][p.pointIdx]
       if (d < bestDist) {
         bestDist = d
         bestCandidate = p
@@ -86,7 +87,7 @@ export function optimizeDriverRoute(
     for (const d of dropoffs) {
       if (d.done) continue
       if (!pickedUp.has(d.rideId)) continue
-      const dist = haversineKm(current, d.location)
+      const dist = matrix[currentIdx][d.pointIdx]
       if (dist < bestDist) {
         bestDist = dist
         bestCandidate = d
@@ -96,7 +97,7 @@ export function optimizeDriverRoute(
     if (!bestCandidate) break
 
     bestCandidate.done = true
-    current = bestCandidate.location
+    currentIdx = bestCandidate.pointIdx
     steps.push({
       type: bestCandidate.type,
       rideId: bestCandidate.rideId,

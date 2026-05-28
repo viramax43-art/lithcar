@@ -206,9 +206,15 @@ export default function DriverCabinet() {
     [activeRides],
   )
 
-  const optimizedSteps: RouteStep[] = useMemo(() => {
-    if (activeRides.length === 0) return []
-    return optimizeDriverRoute(
+  const [optimizedSteps, setOptimizedSteps] = useState<RouteStep[]>([])
+
+  useEffect(() => {
+    if (activeRides.length === 0) {
+      setOptimizedSteps([])
+      return
+    }
+    let cancelled = false
+    void optimizeDriverRoute(
       activeRides.map((r) => ({
         id: r.id,
         passengerName: r.passengerName,
@@ -217,7 +223,10 @@ export default function DriverCabinet() {
         toLatLng: r.toLatLng,
         toAddress: r.toAddress,
       })),
-    )
+    ).then((steps) => {
+      if (!cancelled) setOptimizedSteps(steps)
+    })
+    return () => { cancelled = true }
   }, [activeRides])
 
   if (!session) {
