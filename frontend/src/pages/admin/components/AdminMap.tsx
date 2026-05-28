@@ -5,7 +5,7 @@ import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, ZoomContro
 
 import type { Driver, LatLng, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
-import { STATUS_CONFIG } from '../constants'
+import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
 import { optimizeRoute, type OptimizedRoute } from '../utils/routeOptimizer'
@@ -41,24 +41,16 @@ interface AdminMapProps {
   onFilterTimeChange: (v: string) => void
   onFilterTimeEndChange: (v: string) => void
   slotIntervalMinutes?: number
+  enabledColors: Set<MapColorGroupKey>
+  onToggleColor: (key: MapColorGroupKey) => void
 }
 
-/** Map ride status to marker color class */
+/** Map ride status to CSS class */
 function getMarkerClass(status: RideStatus): string {
-  switch (status) {
-    case 'en_route_to_pickup':
-    case 'awaiting_passenger':
-      return 'marker-ride-red'
-    case 'in_progress':
-      return 'marker-ride-blue'
-    case 'completed':
-      return 'marker-ride-green'
-    case 'pending':
-    case 'grouped':
-    case 'assigned':
-    default:
-      return 'marker-ride-gray'
+  for (const group of MAP_COLOR_GROUPS) {
+    if (group.statuses.includes(status)) return group.cssClass
   }
+  return 'marker-ride-gray'
 }
 
 function getMarkerSize(status: RideStatus): number {
@@ -128,6 +120,8 @@ export default function AdminMap({
   onFilterTimeChange,
   onFilterTimeEndChange,
   slotIntervalMinutes,
+  enabledColors,
+  onToggleColor,
 }: AdminMapProps) {
   // --- Date/time filtering ---
   const filteredRequests = useMemo(() => {
@@ -189,27 +183,22 @@ export default function AdminMap({
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
 
-  // Build cluster markers for active requests
-  const clusterMarkers = useMemo(() => {
-    const markers: Array<{
-      id: string
-      position: [number, number]
-      icon: L.DivIcon
-      onClick?: () => void
-      tooltipText?: string
-    }> = []
+  // Build cluster markers grouped by color
+  type ClusterMarker = { id: string; position: [number, number]; icon: L.DivIcon; onClick?: () => void; tooltipText?: string }
+  const clusterMarkersByColor = useMemo(() => {
+    const groups: Record<MapColorGroupKey, ClusterMarker[]> = { amber: [], red: [], blue: [], green: [] }
 
     activeRequests.forEach((req) => {
-      const markerClass = getMarkerClass(req.status)
+      const group = MAP_COLOR_GROUPS.find((g) => g.statuses.includes(req.status))
+      if (!group) return
       const size = getMarkerSize(req.status)
       const icon = L.divIcon({
         className: '',
-        html: `<div class="${markerClass}"></div>`,
+        html: `<div class="${group.cssClass}"></div>`,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       })
-      // Pickup point
-      markers.push({
+      groups[group.key].push({
         id: `${req.id}-from`,
         position: [req.from.latlng.lat, req.from.latlng.lng],
         icon,
@@ -218,7 +207,7 @@ export default function AdminMap({
       })
     })
 
-    return markers
+    return groups
   }, [activeRequests, onSelectRequest])
 
   // Completed destination markers (green history)
@@ -237,12 +226,17 @@ export default function AdminMap({
     }))
   }, [completedRequests, onSelectRequest])
 
-  // Completed pickup markers (point A)
+  // Completed pickup markers (point A) — green for finished routes
   const completedPickupMarkers = useMemo(() => {
     return completedRequests.map((req) => ({
       id: `${req.id}-done-from`,
       position: [req.from.latlng.lat, req.from.latlng.lng] as [number, number],
-      icon: makeIcon('marker-a-sm'),
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="marker-green-sm"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      }),
       onClick: () => onSelectRequest(req.id),
       tooltipText: `A · №${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
     }))
@@ -302,6 +296,7 @@ export default function AdminMap({
   }, [activeRequests, drivers])
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
+
   const timeSlotStepMinutes = useMemo(() => {
     if (!slotIntervalMinutes || slotIntervalMinutes <= 0) return 30
     return slotIntervalMinutes
@@ -451,6 +446,31 @@ export default function AdminMap({
             Все поездки
           </button>
         </div>
+
+        {/* Color (status) filter */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-border/40">
+          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider mr-0.5">Цвет:</span>
+          {MAP_COLOR_GROUPS.map((group) => {
+            const active = enabledColors.has(group.key)
+            return (
+              <button
+                key={group.key}
+                onClick={() => onToggleColor(group.key)}
+                className={`h-7 pl-1.5 pr-2.5 rounded-lg border text-xs font-semibold transition-colors touch-none flex items-center gap-1.5 ${
+                  active ? 'border-transparent text-white' : 'border-border text-muted bg-white'
+                }`}
+                style={active ? { backgroundColor: group.hex, borderColor: group.hex } : {}}
+                title={group.label}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/50"
+                  style={{ backgroundColor: active ? '#fff' : group.hex }}
+                />
+                {group.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Search + Geolocation + Optimize controls */}
@@ -555,12 +575,18 @@ export default function AdminMap({
         <FlyToHelper target={flyTarget} />
         <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
 
-        {/* Clustered active ride markers */}
-        <MarkerClusterGroup markers={clusterMarkers} />
+        {/* Clustered active ride markers — one cluster group per color */}
+        {MAP_COLOR_GROUPS.filter((g) => enabledColors.has(g.key)).map((group) => (
+          <MarkerClusterGroup
+            key={group.key}
+            markers={clusterMarkersByColor[group.key]}
+            clusterColor={group.hex}
+          />
+        ))}
 
         {/* Clustered completed markers (A + green B) */}
-        <MarkerClusterGroup markers={completedDestinationMarkers} />
-        <MarkerClusterGroup markers={completedPickupMarkers} />
+        <MarkerClusterGroup markers={completedDestinationMarkers} clusterColor="#22C55E" />
+        <MarkerClusterGroup markers={completedPickupMarkers} clusterColor="#22C55E" />
 
         {/* Destination markers + route lines for active non-completed rides */}
         {activeRequests.map((request) => {

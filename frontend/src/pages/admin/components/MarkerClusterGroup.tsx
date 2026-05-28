@@ -11,28 +11,42 @@ interface MarkerClusterGroupProps {
     onClick?: () => void
     tooltipText?: string
   }>
+  /** Hex color for cluster circle (e.g. "#F59E0B") */
+  clusterColor?: string
 }
 
-export default function MarkerClusterGroup({ markers }: MarkerClusterGroupProps) {
+function makeClusterIcon(count: number, color: string): L.DivIcon {
+  const size = count >= 20 ? 52 : count >= 8 ? 44 : 36
+  const fontSize = count >= 20 ? 14 : count >= 8 ? 13 : 12
+  const borderColor = color + '55'
+  const html = `<div style="
+    width:${size}px;height:${size}px;
+    border-radius:50%;
+    background:${color};
+    border:3px solid ${borderColor};
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-family:Inter,sans-serif;font-weight:800;font-size:${fontSize}px;
+    box-shadow:0 2px 8px ${color}66;
+  ">${count}</div>`
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: L.point(size, size),
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+export default function MarkerClusterGroup({ markers, clusterColor = '#6B7280' }: MarkerClusterGroupProps) {
   const map = useMap()
 
   useEffect(() => {
+    const color = clusterColor
     const cluster = L.markerClusterGroup({
       maxClusterRadius: 60,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
-      iconCreateFunction: (clusterObj) => {
-        const count = clusterObj.getChildCount()
-        let size: 'small' | 'medium' | 'large' = 'small'
-        if (count >= 20) size = 'large'
-        else if (count >= 8) size = 'medium'
-        return L.divIcon({
-          html: `<div>${count}</div>`,
-          className: `marker-cluster-${size}`,
-          iconSize: L.point(size === 'small' ? 36 : size === 'medium' ? 44 : 52, size === 'small' ? 36 : size === 'medium' ? 44 : 52),
-        })
-      },
+      iconCreateFunction: (clusterObj) => makeClusterIcon(clusterObj.getChildCount(), color),
     })
 
     markers.forEach((m) => {
@@ -56,7 +70,7 @@ export default function MarkerClusterGroup({ markers }: MarkerClusterGroupProps)
     return () => {
       map.removeLayer(cluster)
     }
-  }, [map, markers])
+  }, [map, markers, clusterColor])
 
   return null
 }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Car, CaretDown, CaretRight, Clock, Lightning, MagnifyingGlass, Path, X } from '@phosphor-icons/react'
 
-import { STATUS_CONFIG } from '../constants'
+import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 
 type RequestsSuggestionsProps = Pick<
@@ -13,6 +13,7 @@ type RequestsSuggestionsProps = Pick<
   | 'filterDateEnd'
   | 'filterTime'
   | 'filterTimeEnd'
+  | 'enabledColors'
   | 'requests'
   | 'requestsTotal'
   | 'isLoadingMoreRequests'
@@ -46,6 +47,7 @@ export function AdminSidebarRequestsSuggestionsSection({
   filterDateEnd,
   filterTime,
   filterTimeEnd,
+  enabledColors,
   requests,
   requestsTotal,
   isLoadingMoreRequests,
@@ -90,10 +92,16 @@ export function AdminSidebarRequestsSuggestionsSection({
   }, [requests, filterDate, filterDateEnd, filterTime, filterTimeEnd])
 
   const filteredRequests = useMemo(() => {
+    // Apply color filter (status group)
+    const enabledStatuses = new Set(
+      MAP_COLOR_GROUPS.filter((g) => enabledColors.has(g.key)).flatMap((g) => g.statuses),
+    )
+    const byColor = requestsInDateTimeWindow.filter((r) => enabledStatuses.has(r.status))
+
     const byStatus =
       filterStatus === 'all'
-        ? requestsInDateTimeWindow
-        : requestsInDateTimeWindow.filter((request) => request.status === filterStatus)
+        ? byColor
+        : byColor.filter((request) => request.status === filterStatus)
 
     if (!searchQuery.trim()) return byStatus
     const q = searchQuery.toLowerCase()
@@ -104,7 +112,7 @@ export function AdminSidebarRequestsSuggestionsSection({
         r.from.address.toLowerCase().includes(q) ||
         r.to.address.toLowerCase().includes(q)
     )
-  }, [requestsInDateTimeWindow, filterStatus, searchQuery])
+  }, [requestsInDateTimeWindow, filterStatus, enabledColors, searchQuery])
 
   const canLoadMore = requests.length < requestsTotal
 
@@ -231,7 +239,20 @@ export function AdminSidebarRequestsSuggestionsSection({
               }`}
             >
               <div className="flex items-center justify-between mb-2.5 gap-2">
-                <span className="text-sm font-bold truncate">{request.passengerName}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {/* Color dot matching map marker color */}
+                  {(() => {
+                    const colorGroup = MAP_COLOR_GROUPS.find((g) => g.statuses.includes(request.status))
+                    return colorGroup ? (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white shadow-sm"
+                        style={{ backgroundColor: colorGroup.hex }}
+                        title={colorGroup.label}
+                      />
+                    ) : null
+                  })()}
+                  <span className="text-sm font-bold truncate">{request.passengerName}</span>
+                </div>
                 <span
                   className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0 ml-2"
                   style={{ color: status.color, background: status.bg }}

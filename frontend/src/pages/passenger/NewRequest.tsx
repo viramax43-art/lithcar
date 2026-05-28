@@ -1,7 +1,7 @@
-import { Calendar, CaretRight, Clock, Coins, Crosshair, Info, MagnifyingGlass, NavigationArrow, Warning, X } from '@phosphor-icons/react'
+import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet'
 import { useState } from 'react'
-import BottomNav from '../../components/BottomNav'
+import { useNavigate } from 'react-router-dom'
 import { hapticSelection } from '../../lib/telegram'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import { FieldRow } from './new-request/FieldRow'
@@ -13,8 +13,10 @@ const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 export default function NewRequest() {
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
+  const navigate = useNavigate()
   const todayDate = new Date().toISOString().split('T')[0]
   const maxDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [menuOpen, setMenuOpen] = useState(false)
   const [infoDismissed, setInfoDismissed] = useState(() => {
     try { return sessionStorage.getItem('ride_info_dismissed') === '1' } catch { return false }
   })
@@ -69,9 +71,13 @@ export default function NewRequest() {
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
         style={{ paddingTop: 'calc(var(--app-safe-area-top-total) + 12px)' }}
       >
-        <div className="flex items-center gap-2 px-3 py-2 rounded-pill bg-white/95 shadow-card backdrop-blur-sm">
-          <h1 className="text-base font-extrabold tracking-tight">RIDE</h1>
-        </div>
+        <button
+          onClick={() => { hapticSelection(); setMenuOpen(true) }}
+          className="w-10 h-10 rounded-pill bg-white/95 shadow-card backdrop-blur-sm flex items-center justify-center active:scale-95 transition-transform"
+          title="Меню"
+        >
+          <List size={20} weight="bold" />
+        </button>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -98,6 +104,56 @@ export default function NewRequest() {
           </button>
         </div>
       </header>
+
+      {/* Side menu drawer */}
+      {menuOpen && (
+        <>
+          <div
+            className="absolute inset-0 z-[500] bg-black/30 backdrop-blur-[1px]"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div
+            className="absolute top-0 left-0 bottom-0 z-[501] w-72 bg-white flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.12)] animate-slide-in-left"
+            style={{ paddingTop: 'var(--app-safe-area-top-total)', paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+          >
+            <div className="flex items-center justify-between px-4 h-14 border-b border-border/50">
+              <h2 className="text-lg font-extrabold tracking-tight">RIDE</h2>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+              <button
+                onClick={() => { hapticSelection(); setMenuOpen(false); navigate('/requests') }}
+                className="flex items-center gap-3 w-full px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                  <ClipboardText size={18} weight="duotone" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Мои поездки</p>
+                  <p className="text-[11px] text-muted">История заявок</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { hapticSelection(); setMenuOpen(false); navigate('/profile') }}
+                className="flex items-center gap-3 w-full px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                  <UserCircle size={18} weight="duotone" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Личный кабинет</p>
+                  <p className="text-[11px] text-muted">Баланс, история, QR</p>
+                </div>
+              </button>
+            </nav>
+          </div>
+        </>
+      )}
 
       {model.isPinLive && (
         <div
@@ -144,7 +200,7 @@ export default function NewRequest() {
       <div
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out"
         style={{
-          bottom: 'calc(var(--app-safe-area-bottom-total) + 64px)',
+          bottom: 'var(--app-safe-area-bottom-total)',
           transform: model.isPanning ? 'translateY(110%)' : 'translateY(0)',
         }}
       >
@@ -381,7 +437,6 @@ export default function NewRequest() {
         </div>
       )}
 
-      <BottomNav />
     </div>
   )
 }

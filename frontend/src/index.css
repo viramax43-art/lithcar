@@ -168,6 +168,15 @@ body {
   box-shadow: 0 1px 4px rgba(59,130,246,0.4);
 }
 
+.marker-green-sm {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #22C55E;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(34,197,94,0.4);
+}
+
 .marker-driver-label.leaflet-tooltip {
   background: rgba(17, 17, 17, 0.92);
   color: #fff;
@@ -216,6 +225,18 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-slide-up { animation: slideUp 0.3s ease-out; }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right { animation: slideInRight 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-left { animation: slideInLeft 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
 
 /* Three-dot pulse for "resolving address" indicator. */
 @keyframes dotPulse {

@@ -224,6 +224,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               filterDateEnd={filterDateEnd}
               filterTime={filterTime}
               filterTimeEnd={filterTimeEnd}
+              enabledColors={enabledColors}
               requests={requests}
               requestsTotal={requestsTotal}
               isLoadingMoreRequests={isLoadingMoreRequests}

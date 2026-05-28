@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
+  ArrowLeft,
   CaretRight,
   CheckCircle,
   Coins,
@@ -11,8 +13,6 @@ import {
   UserCircle,
   X,
 } from '@phosphor-icons/react'
-
-import BottomNav from '../../components/BottomNav'
 import QrScanner from '../../components/QrScanner'
 import Skeleton from '../../components/Skeleton'
 import { ApiError, getPricing, getUserCabinet, purchasePointsByCard, redeemDriverQrSale } from '../../lib/backend'
@@ -48,6 +48,7 @@ const DEFAULT_PRICING: PricingSettings = {
 }
 
 export default function Profile() {
+  const navigate = useNavigate()
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
   const [historyItems, setHistoryItems] = useState<UserCabinetRideHistoryItem[]>([])
@@ -116,17 +117,23 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-white pb-20 overflow-x-hidden">
+    <div className="fixed inset-0 z-[200] bg-white flex flex-col overflow-x-hidden animate-slide-in-right">
       <header
-        className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+        className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
-        <div className="flex items-center justify-between px-5 h-14">
-          <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-          <span className="text-sm font-semibold text-muted">Личный кабинет</span>
+        <div className="flex items-center gap-3 px-3 h-14">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={20} weight="bold" />
+          </button>
+          <h1 className="text-base font-extrabold tracking-tight flex-1">Личный кабинет</h1>
         </div>
       </header>
 
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
       <div className="p-4 space-y-4">
         {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
 
@@ -253,8 +260,7 @@ export default function Profile() {
           )}
         </section>
       </div>
-
-      <BottomNav />
+      </div>
 
       {isQrSheetOpen && (
         <QrRedeemSheet

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
-import BottomNav from '../../components/BottomNav'
+import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
 import Skeleton from '../../components/Skeleton'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
@@ -89,15 +88,20 @@ export default function MyRequests() {
   const canLoadMore = requests.length < total
 
   return (
-    <div className="min-h-[100dvh] bg-white pb-20">
+    <div className="fixed inset-0 z-[200] bg-white flex flex-col animate-slide-in-right">
       {/* Header */}
       <header
-        className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+        className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
-        <div className="flex items-center justify-between px-5 h-14">
-          <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-          <span className="text-sm font-semibold text-muted">Мои поездки</span>
+        <div className="flex items-center gap-3 px-3 h-14">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={20} weight="bold" />
+          </button>
+          <h1 className="text-base font-extrabold tracking-tight flex-1">Мои поездки</h1>
         </div>
         {/* Status tabs */}
         <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto">
@@ -116,7 +120,7 @@ export default function MyRequests() {
       </header>
 
       {/* List */}
-      <div className="flex flex-col">
+      <div className="flex-1 overflow-y-auto flex flex-col" style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
         {errorMessage && <p className="px-5 py-3 text-xs font-medium text-red-600">{errorMessage}</p>}
         {isLoading &&
           [0, 1, 2, 3].map((index) => (
@@ -235,7 +239,6 @@ export default function MyRequests() {
         )}
       </div>
 
-      <BottomNav />
     </div>
   )
 }

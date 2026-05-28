@@ -1,6 +1,6 @@
 import type { AdminKeyInfo, AdminQrSaleAudit, AdminSessionUser } from '../../../lib/backend'
 import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../../types'
-import type { AdminTab } from '../constants'
+import type { AdminTab, MapColorGroupKey } from '../constants'
 
 export interface AdminSidebarProps {
   collapsed: boolean
@@ -13,6 +13,7 @@ export interface AdminSidebarProps {
   filterDateEnd: string
   filterTime: string
   filterTimeEnd: string
+  enabledColors: Set<MapColorGroupKey>
   requests: RideRequest[]
   requestsTotal: number
   isLoadingMoreRequests: boolean

@@ -34,7 +34,7 @@ import { AdminAssignDriverModal } from './components/AdminAssignDriverModal'
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
-import { GROUP_COLORS, ZONE_COLORS, type AdminTab } from './constants'
+import { GROUP_COLORS, MAP_COLOR_GROUPS, ZONE_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
 
@@ -80,6 +80,17 @@ export default function AdminDashboard() {
   const [filterDateEnd, setFilterDateEnd] = useState<string>(() => todayDate)
   const [filterTime, setFilterTime] = useState<string>(() => '00:00')
   const [filterTimeEnd, setFilterTimeEnd] = useState<string>(() => '23:59')
+  const [enabledColors, setEnabledColors] = useState<Set<MapColorGroupKey>>(
+    () => new Set(MAP_COLOR_GROUPS.map((g) => g.key)),
+  )
+  const handleToggleColor = (key: MapColorGroupKey) => {
+    setEnabledColors((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
   const [requestsTotal, setRequestsTotal] = useState(0)
   const [isLoadingMoreRequests, setIsLoadingMoreRequests] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -426,6 +437,7 @@ export default function AdminDashboard() {
           filterDateEnd={filterDateEnd}
           filterTime={filterTime}
           filterTimeEnd={filterTimeEnd}
+          enabledColors={enabledColors}
           requests={requests}
           requestsTotal={requestsTotal}
           isLoadingMoreRequests={isLoadingMoreRequests}
@@ -528,6 +540,8 @@ export default function AdminDashboard() {
           onFilterTimeChange={setFilterTime}
           onFilterTimeEndChange={setFilterTimeEnd}
           slotIntervalMinutes={pricing.slotIntervalMinutes}
+          enabledColors={enabledColors}
+          onToggleColor={handleToggleColor}
         />
       </div>
 
