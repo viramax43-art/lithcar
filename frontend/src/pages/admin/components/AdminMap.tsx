@@ -221,8 +221,8 @@ export default function AdminMap({
     return markers
   }, [activeRequests, onSelectRequest])
 
-  // Completed (green history) markers — always shown as green
-  const completedMarkers = useMemo(() => {
+  // Completed destination markers (green history)
+  const completedDestinationMarkers = useMemo(() => {
     return completedRequests.map((req) => ({
       id: `${req.id}-done`,
       position: [req.to.latlng.lat, req.to.latlng.lng] as [number, number],
@@ -234,6 +234,17 @@ export default function AdminMap({
       }),
       onClick: () => onSelectRequest(req.id),
       tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} → ${req.to.address}`,
+    }))
+  }, [completedRequests, onSelectRequest])
+
+  // Completed pickup markers (point A)
+  const completedPickupMarkers = useMemo(() => {
+    return completedRequests.map((req) => ({
+      id: `${req.id}-done-from`,
+      position: [req.from.latlng.lat, req.from.latlng.lng] as [number, number],
+      icon: makeIcon('marker-a-sm'),
+      onClick: () => onSelectRequest(req.id),
+      tooltipText: `A · №${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
     }))
   }, [completedRequests, onSelectRequest])
 
@@ -547,8 +558,9 @@ export default function AdminMap({
         {/* Clustered active ride markers */}
         <MarkerClusterGroup markers={clusterMarkers} />
 
-        {/* Clustered completed (green history) markers */}
-        <MarkerClusterGroup markers={completedMarkers} />
+        {/* Clustered completed markers (A + green B) */}
+        <MarkerClusterGroup markers={completedDestinationMarkers} />
+        <MarkerClusterGroup markers={completedPickupMarkers} />
 
         {/* Destination markers + route lines for active non-completed rides */}
         {activeRequests.map((request) => {
@@ -573,6 +585,26 @@ export default function AdminMap({
                 }}
               />
             </div>
+          )
+        })}
+
+        {/* Completed routes are also shown as dashed A→B */}
+        {completedRequests.map((request) => {
+          const highlighted = request.id === selectedReqId
+          return (
+            <Polyline
+              key={`completed-line-${request.id}`}
+              positions={[
+                [request.from.latlng.lat, request.from.latlng.lng],
+                [request.to.latlng.lat, request.to.latlng.lng],
+              ]}
+              pathOptions={{
+                color: '#16A34A',
+                dashArray: '8, 8',
+                weight: highlighted ? 3 : 2,
+                opacity: highlighted ? 0.9 : 0.35,
+              }}
+            />
           )
         })}
 
