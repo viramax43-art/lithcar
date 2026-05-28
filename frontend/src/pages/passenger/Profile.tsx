@@ -13,9 +13,8 @@ import {
   UserCircle,
   X,
 } from '@phosphor-icons/react'
-import QrScanner from '../../components/QrScanner'
 import Skeleton from '../../components/Skeleton'
-import { ApiError, getPricing, getUserCabinet, purchasePointsByCard, redeemDriverQrSale } from '../../lib/backend'
+import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard } from '../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
@@ -28,9 +27,8 @@ const STATUS_MAP: Record<string, string> = {
 }
 
 type RedeemReceipt = {
-  pointsAdded: number
+  pointsRequested: number
   eurAmount: number
-  driverName: string
 }
 
 type CardReceipt = {
@@ -104,8 +102,7 @@ export default function Profile() {
     setIsBuySheetOpen(true)
   }
 
-  const handleRedeemed = (receipt: RedeemReceipt, newBalance: number) => {
-    setCabinet((prev) => (prev ? { ...prev, pointsBalance: newBalance } : prev))
+  const handleIssued = (receipt: RedeemReceipt) => {
     setLastReceipt(receipt)
     setLastCardReceipt(null)
   }
@@ -180,8 +177,8 @@ export default function Profile() {
               <QrCode size={18} weight="bold" />
             </span>
             <span className="flex-1 text-left min-w-0">
-              <span className="block text-[13px] font-semibold">QR от водителя</span>
-              <span className="block text-[11px] text-white/60 truncate">Оплата наличными при поездке</span>
+              <span className="block text-[13px] font-semibold">Создать QR для водителя</span>
+              <span className="block text-[11px] text-white/60 truncate">Водитель сканирует и начисляет поинты</span>
             </span>
             <CaretRight size={14} weight="bold" className="text-white/50 flex-shrink-0" />
           </button>
@@ -201,9 +198,9 @@ export default function Profile() {
             <div className="mt-1 rounded-2xl bg-white/10 border border-white/15 px-3 py-2.5 flex items-center gap-2.5">
               <CheckCircle size={18} weight="fill" className="text-accent flex-shrink-0" />
               <p className="text-[11px] leading-snug text-white/90 min-w-0">
-                <span className="font-bold">+{lastReceipt.pointsAdded} pts</span>
+                <span className="font-bold">Запрошено {lastReceipt.pointsRequested} pts</span>
                 {' · '}
-                <span className="text-white/70">долг {lastReceipt.driverName}: €{lastReceipt.eurAmount.toFixed(2)}</span>
+                <span className="text-white/70">водитель начислит по QR · €{lastReceipt.eurAmount.toFixed(2)}</span>
               </p>
             </div>
           )}
@@ -263,9 +260,9 @@ export default function Profile() {
       </div>
 
       {isQrSheetOpen && (
-        <QrRedeemSheet
+        <QrIssueSheet
           onClose={() => setIsQrSheetOpen(false)}
-          onRedeemed={handleRedeemed}
+          onIssued={handleIssued}
         />
       )}
 
@@ -280,21 +277,23 @@ export default function Profile() {
   )
 }
 
-type RedeemFailure =
-  | { kind: 'already_redeemed'; message: string }
-  | { kind: 'invalid'; message: string }
-  | { kind: 'generic'; message: string }
-
-function QrRedeemSheet({
+function QrIssueSheet({
   onClose,
-  onRedeemed,
+  onIssued,
 }: {
   onClose: () => void
-  onRedeemed: (receipt: RedeemReceipt, newBalance: number) => void
+  onIssued: (receipt: RedeemReceipt) => void
 }) {
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [failure, setFailure] = useState<RedeemFailure | null>(null)
-  const [receipt, setReceipt] = useState<RedeemReceipt | null>(null)
+  const [points, setPoints] = useState<number>(100)
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [issue, setIssue] = useState<{
+    token: string
+    qrUrl: string
+    points: number
+    eurAmount: number
+  } | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const previous = document.body.style.overflow
@@ -304,48 +303,52 @@ function QrRedeemSheet({
     }
   }, [])
 
-  const handleRedeem = async (token: string) => {
-    const trimmed = token.trim()
-    if (!trimmed || isRedeeming) return
-    setIsRedeeming(true)
-    setFailure(null)
+  useEffect(() => {
+    if (!issue?.qrUrl) {
+      setQrDataUrl(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const qrcode = await import('qrcode')
+      const url = await qrcode.toDataURL(issue.qrUrl, {
+        width: 300,
+        margin: 1,
+        errorCorrectionLevel: 'H',
+      })
+      if (!cancelled) setQrDataUrl(url)
+    })().catch(() => {
+      if (!cancelled) setQrDataUrl(null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [issue?.qrUrl])
+
+  const createQr = async () => {
+    if (!points || points < 1 || isCreating) return
+    setIsCreating(true)
+    setError(null)
     try {
-      const response = await redeemDriverQrSale(trimmed)
+      const response = await issuePassengerQrSale(points)
       hapticNotification('success')
-      const r: RedeemReceipt = {
-        pointsAdded: response.pointsAdded,
+      setIssue({
+        token: response.token,
+        qrUrl: response.qrUrl,
+        points: response.points,
         eurAmount: response.eurAmount,
-        driverName: response.driverName,
-      }
-      setReceipt(r)
-      onRedeemed(r, response.pointsBalance)
-    } catch (error) {
+      })
+      onIssued({
+        pointsRequested: response.points,
+        eurAmount: response.eurAmount,
+      })
+    } catch (err) {
       hapticNotification('error')
-      if (error instanceof ApiError) {
-        if (error.status === 410) {
-          setFailure({ kind: 'already_redeemed', message: error.message })
-        } else if (error.status === 404) {
-          setFailure({ kind: 'invalid', message: error.message })
-        } else {
-          setFailure({ kind: 'generic', message: error.message })
-        }
-      } else {
-        setFailure({
-          kind: 'generic',
-          message: error instanceof Error ? error.message : 'Не удалось погасить QR-чек.',
-        })
-      }
+      setError(err instanceof Error ? err.message : 'Не удалось создать QR.')
     } finally {
-      setIsRedeeming(false)
+      setIsCreating(false)
     }
   }
-
-  const tryAgain = () => {
-    setFailure(null)
-  }
-
-  const showScanner = !receipt && !failure
-  const showFailure = !receipt && !!failure
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
@@ -355,12 +358,8 @@ function QrRedeemSheet({
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
-            <p className="text-base font-extrabold tracking-tight">
-              {receipt ? 'Поинты начислены' : showFailure ? 'Чек недоступен' : 'Сканирование QR'}
-            </p>
-            {showScanner && (
-              <p className="text-[11px] text-muted">Покажите QR водителя в кадре</p>
-            )}
+            <p className="text-base font-extrabold tracking-tight">QR на получение поинтов</p>
+            <p className="text-[11px] text-muted">Покажите QR водителю для сканирования</p>
           </div>
           <button
             onClick={onClose}
@@ -371,124 +370,52 @@ function QrRedeemSheet({
           </button>
         </div>
 
-        <div className="px-5 pb-5 pt-2 overflow-y-auto">
-          {receipt ? (
-            <SuccessView receipt={receipt} onClose={onClose} />
-          ) : showFailure && failure ? (
-            <RedeemFailureView failure={failure} onTryAgain={tryAgain} onClose={onClose} />
+        <div className="px-5 pb-5 pt-2 overflow-y-auto space-y-4">
+          {!issue ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold text-muted">Сколько поинтов нужно</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={points || ''}
+                  onChange={(event) => setPoints(Number(event.target.value) || 0)}
+                  className="w-full h-12 px-4 rounded-2xl border-[1.5px] border-border bg-surface text-base font-bold outline-none focus:border-black focus:bg-white transition-colors"
+                />
+              </div>
+              <button
+                onClick={() => void createQr()}
+                disabled={isCreating || points < 1}
+                className={`w-full h-12 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                  !isCreating && points >= 1 ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted'
+                }`}
+              >
+                {isCreating ? 'Создаем QR…' : 'Создать QR'}
+              </button>
+              {error && <p className="text-xs text-red-600">{error}</p>}
+            </>
           ) : (
-            <div className="space-y-4">
-              <QrScanner onTokenRead={(token) => void handleRedeem(token)} />
-
-              {isRedeeming && (
-                <div className="flex items-center justify-center gap-2 text-xs text-muted">
-                  <div className="w-3.5 h-3.5 rounded-full border-2 border-border border-t-black animate-spin" />
-                  Подтверждаем чек…
-                </div>
-              )}
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-surface p-3 flex items-center justify-center">
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR на получение поинтов" className="w-full max-w-[240px] aspect-square object-contain" />
+                ) : (
+                  <div className="w-[240px] h-[240px] rounded-xl bg-border animate-pulse" />
+                )}
+              </div>
+              <p className="text-center text-sm font-bold">{issue.points} pts</p>
+              <p className="text-center text-xs text-muted">К оплате наличными: €{issue.eurAmount.toFixed(2)}</p>
+              <button
+                onClick={() => setIssue(null)}
+                className="w-full h-11 rounded-2xl bg-surface text-sm font-semibold"
+              >
+                Создать другой QR
+              </button>
             </div>
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function RedeemFailureView({
-  failure,
-  onTryAgain,
-  onClose,
-}: {
-  failure: RedeemFailure
-  onTryAgain: () => void
-  onClose: () => void
-}) {
-  const isAlreadyRedeemed = failure.kind === 'already_redeemed'
-  const isInvalid = failure.kind === 'invalid'
-
-  const title = isAlreadyRedeemed
-    ? 'Этот QR уже погашен'
-    : isInvalid
-      ? 'QR недействителен'
-      : 'Не удалось зачислить'
-
-  const subtitle = isAlreadyRedeemed
-    ? 'Чек одноразовый — поинты по нему уже зачислены.'
-    : isInvalid
-      ? 'Похоже, это не наш QR-чек или он был отменён.'
-      : failure.message
-
-  const hint = isAlreadyRedeemed
-    ? 'Попросите водителя выпустить новый QR — старый чек становится неактивным после первого сканирования.'
-    : isInvalid
-      ? 'Проверьте, что вы сканируете актуальный QR водителя в этом приложении.'
-      : null
-
-  return (
-    <div className="flex flex-col items-center text-center gap-3 py-2">
-      <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
-        <SealWarning size={36} weight="fill" className="text-amber-600" />
-      </div>
-      <div>
-        <p className="text-lg font-extrabold tracking-tight">{title}</p>
-        <p className="text-xs text-muted mt-1 max-w-xs">{subtitle}</p>
-      </div>
-      {hint && (
-        <p className="text-[11px] text-muted leading-snug max-w-xs">{hint}</p>
-      )}
-      <div className="w-full grid grid-cols-2 gap-2 mt-2">
-        <button
-          onClick={onClose}
-          className="py-3 rounded-2xl bg-surface text-sm font-bold active:scale-[0.98] transition-transform"
-        >
-          Закрыть
-        </button>
-        <button
-          onClick={onTryAgain}
-          className="py-3 rounded-2xl bg-black text-white text-sm font-bold active:scale-[0.98] transition-transform"
-        >
-          Сканировать ещё
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function SuccessView({
-  receipt,
-  onClose,
-}: {
-  receipt: RedeemReceipt
-  onClose: () => void
-}) {
-  return (
-    <div className="flex flex-col items-center text-center gap-3 py-2">
-      <div className="w-16 h-16 rounded-full bg-accent/15 flex items-center justify-center">
-        <CheckCircle size={40} weight="fill" className="text-accent-dark" />
-      </div>
-      <div>
-        <p className="text-3xl font-extrabold tracking-tight">+{receipt.pointsAdded} pts</p>
-        <p className="text-xs text-muted mt-1">Зачислено на ваш баланс</p>
-      </div>
-      <div className="w-full rounded-2xl bg-surface px-4 py-3 mt-1 space-y-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted">Водитель</span>
-          <span className="text-xs font-semibold truncate">{receipt.driverName}</span>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted">К оплате наличными</span>
-          <span className="text-xs font-bold">€{receipt.eurAmount.toFixed(2)}</span>
-        </div>
-      </div>
-      <p className="text-[11px] text-muted leading-snug max-w-xs">
-        Передайте водителю €{receipt.eurAmount.toFixed(2)} наличными за пополнение.
-      </p>
-      <button
-        onClick={onClose}
-        className="w-full mt-2 py-3 rounded-2xl bg-black text-white text-sm font-bold active:scale-[0.98] transition-transform"
-      >
-        Готово
-      </button>
     </div>
   )
 }

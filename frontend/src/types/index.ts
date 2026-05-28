@@ -24,6 +24,7 @@ export interface RideRequest {
   driverId?: string
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
+  assignedDriver?: Driver | null
   createdAt: string
 }
 

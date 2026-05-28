@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
-import type { Driver, RideRequest } from '../../types'
-import { confirmPickup, deleteRequest, getRequestById, listDrivers, updateRequest } from '../../lib/backend'
+import type { RideRequest } from '../../types'
+import { confirmPickup, deleteRequest, getRequestById, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 
@@ -28,7 +28,6 @@ export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [request, setRequest] = useState<RideRequest | null>(null)
-  const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -47,12 +46,6 @@ export default function RequestDetail() {
       } finally {
         if (!cancelled) setLoading(false)
       }
-      try {
-        const driversData = await listDrivers(false, { limit: 200, offset: 0 })
-        if (!cancelled) setDrivers(driversData.items)
-      } catch {
-        if (!cancelled) setDrivers([])
-      }
     })()
     return () => {
       cancelled = true
@@ -68,8 +61,6 @@ export default function RequestDetail() {
         try {
           const fresh = await getRequestById(id)
           setRequest(fresh)
-          const driversData = await listDrivers(false, { limit: 200, offset: 0 })
-          setDrivers(driversData.items)
         } catch {
           // ignore transient polling errors
         }
@@ -94,7 +85,7 @@ export default function RequestDetail() {
     )
   }
 
-  const driver = request.driverId ? drivers.find((d) => d.id === request.driverId) : null
+  const driver = request.assignedDriver ?? null
   const hasAssignedDriverStatus = ['assigned', 'en_route_to_pickup', 'awaiting_passenger', 'in_progress', 'completed'].includes(
     request.status,
   )

@@ -3,7 +3,6 @@
  * Redesigned around two core actions: "Еду на точку" and "Прибыл".
  */
 import {
-  ArrowSquareOut,
   CaretRight,
   Check,
   Clock,
@@ -213,7 +212,7 @@ function SheetBody({
           className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-black text-white text-sm font-bold active:bg-zinc-800 transition-colors touch-none"
         >
           <NavigationArrow size={16} weight="fill" />
-          Маршрут
+          Показать в навигаторе
         </a>
         <a
           href={tgLink}
@@ -224,15 +223,6 @@ function SheetBody({
         >
           <TelegramLogo size={16} weight="fill" />
           Написать
-        </a>
-        <a
-          href={point.mapLinks.google}
-          target="_blank"
-          rel="noreferrer"
-          className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center active:scale-95 transition-transform touch-none flex-shrink-0"
-          title="Открыть на карте"
-        >
-          <ArrowSquareOut size={18} weight="bold" className="text-muted" />
         </a>
       </div>
 

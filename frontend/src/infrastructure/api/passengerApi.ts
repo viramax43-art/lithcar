@@ -2,7 +2,7 @@ import type { GroupSuggestion, PricingSettings, RideRequest, ServiceZone, UserCa
 import { apiRequest } from '../http/httpClient'
 import type {
   CurrentUser,
-  DriverQrRedeemResult,
+  PassengerQrIssueResult,
   PaginatedResult,
   PaginationParams,
   RideRequestApi,
@@ -100,8 +100,11 @@ export async function getUserCabinet(params?: PaginationParams): Promise<UserCab
   return mapUserCabinetData(response)
 }
 
-export async function redeemDriverQrSale(token: string): Promise<DriverQrRedeemResult> {
-  return apiRequest<DriverQrRedeemResult>('/api/points/qr/redeem', { method: 'POST', body: { token } })
+export async function issuePassengerQrSale(points: number): Promise<PassengerQrIssueResult> {
+  return apiRequest<PassengerQrIssueResult>('/api/points/qr/issue', {
+    method: 'POST',
+    body: { points },
+  })
 }
 
 export async function purchasePointsByCard(points: number): Promise<{ success: boolean; pointsAdded: number; pointsBalance: number; eurAmountCents: number }> {

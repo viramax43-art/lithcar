@@ -39,6 +39,7 @@ from app.services.ride_request_service import (
     get_request,
     list_driver_requests,
     mark_pickup_notified,
+    reset_driver_pickup_point,
     update_driver_pickup_point,
     update_driver_ride_status,
 )
@@ -657,6 +658,24 @@ async def update_cabinet_ride_pickup(
         from_address=payload.fromAddress,
         from_lat=payload.fromLat,
         from_lng=payload.fromLng,
+    )
+    if ride is None:
+        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
+    if error is not None:
+        raise HTTPException(status_code=400, detail=error)
+    return _to_driver_ride_out(ride)
+
+
+@router.post("/cabinet/rides/{request_id}/pickup/reset", response_model=DriverRideOut)
+async def reset_cabinet_ride_pickup(
+    request_id: str,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    ride, error = await reset_driver_pickup_point(
+        db_session,
+        request_id=request_id,
+        driver_id=session.driver_id,
     )
     if ride is None:
         raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")

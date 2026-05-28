@@ -8,6 +8,21 @@ export function toPageQuery(params?: PaginationParams): string {
 }
 
 export function mapRideRequest(item: RideRequestApi): RideRequest {
+  const assignedDriver = item.assignedDriver
+    ? {
+      id: item.assignedDriver.id,
+      name: item.assignedDriver.name,
+      photoUrl: item.assignedDriver.photoUrl ?? undefined,
+      carBrand: item.assignedDriver.carBrand,
+      carModel: item.assignedDriver.carModel,
+      carPlate: item.assignedDriver.carPlate,
+      vehicleColor: item.assignedDriver.vehicleColor,
+      seatsCount: item.assignedDriver.seatsCount,
+      rating: item.assignedDriver.rating,
+      isOnline: item.assignedDriver.isOnline,
+      currentLocation: item.assignedDriver.currentLocation ?? undefined,
+    }
+    : null
   return {
     id: item.id,
     rideNumber: item.rideNumber,
@@ -20,6 +35,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     driverId: item.driverId,
     pickupChangedByDriver: item.pickupChangedByDriver,
     pickupConfirmedAt: item.pickupConfirmedAt,
+    assignedDriver,
     createdAt: item.createdAt,
   }
 }

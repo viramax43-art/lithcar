@@ -10,6 +10,7 @@ interface DriverMapProps {
   selectedPointId: string | null
   nextPointId: string | null
   driverLocation: LatLng | null
+  roadPolyline: LatLng[]
   onSelectPoint: (point: DriverMapPoint) => void
   onPickupDragEnd: (rideId: string, latlng: LatLng) => void
 }
@@ -104,6 +105,7 @@ export default function DriverMap({
   selectedPointId,
   nextPointId,
   driverLocation,
+  roadPolyline,
   onSelectPoint,
   onPickupDragEnd,
 }: DriverMapProps) {
@@ -149,8 +151,20 @@ export default function DriverMap({
         />
       )}
 
-      {/* A→B dashed lines */}
-      {rideLines.map(({ pickup, dropoff }) => {
+      {/* Primary route by roads */}
+      {roadPolyline.length > 1 && (
+        <Polyline
+          positions={roadPolyline.map((p) => [p.lat, p.lng])}
+          pathOptions={{
+            color: '#111827',
+            weight: 4,
+            opacity: 0.75,
+          }}
+        />
+      )}
+
+      {/* Fallback dashed A→B lines when road route is unavailable */}
+      {roadPolyline.length <= 1 && rideLines.map(({ pickup, dropoff }) => {
         if (!pickup || !dropoff) return null
         const isDone = pickup.pointStatus === 'done' && dropoff.pointStatus === 'done'
         const isHighlighted = selectedPointId === pickup.id || selectedPointId === dropoff.id

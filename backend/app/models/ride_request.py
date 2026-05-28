@@ -56,4 +56,7 @@ class RideRequest(Base):
     pickup_changed_by_driver = Column(Boolean, nullable=False, server_default="false")
     pickup_notified_at = Column(DateTime(timezone=True), nullable=True)
     pickup_confirmed_at = Column(DateTime(timezone=True), nullable=True)
+    original_from_address = Column(String, nullable=True)
+    original_from_lat = Column(Float, nullable=True)
+    original_from_lng = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

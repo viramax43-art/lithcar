@@ -30,6 +30,25 @@ async def issue_driver_qr_sale(
     return sale
 
 
+async def issue_passenger_qr_sale(
+    db_session: AsyncSession,
+    *,
+    issuer_user_id: str,
+    points_amount: int,
+) -> DriverQrSale:
+    pricing = await get_or_create_pricing(db_session)
+    eur_amount_cents = int(points_amount) * int(pricing.point_price_cents)
+    sale = DriverQrSale(
+        issuer_user_id=issuer_user_id,
+        redeemed_by_user_id=issuer_user_id,
+        points_amount=points_amount,
+        eur_amount_cents=eur_amount_cents,
+    )
+    db_session.add(sale)
+    await db_session.flush()
+    return sale
+
+
 async def invalidate_driver_active_qr_sales(
     db_session: AsyncSession,
     *,
@@ -40,6 +59,26 @@ async def invalidate_driver_active_qr_sales(
         .where(
             and_(
                 DriverQrSale.driver_id == driver_id,
+                DriverQrSale.redeemed_at.is_(None),
+                DriverQrSale.cash_settlement_status == DriverQrSaleSettlementStatus.OWED_TO_DRIVER,
+            )
+        )
+        .values(cash_settlement_status=DriverQrSaleSettlementStatus.CANCELLED_BEFORE_REDEEM)
+    )
+    result = await db_session.execute(stmt)
+    return int(result.rowcount or 0)
+
+
+async def invalidate_passenger_active_qr_sales(
+    db_session: AsyncSession,
+    *,
+    issuer_user_id: str,
+) -> int:
+    stmt = (
+        update(DriverQrSale)
+        .where(
+            and_(
+                DriverQrSale.issuer_user_id == issuer_user_id,
                 DriverQrSale.redeemed_at.is_(None),
                 DriverQrSale.cash_settlement_status == DriverQrSaleSettlementStatus.OWED_TO_DRIVER,
             )
@@ -67,6 +106,35 @@ async def consume_driver_qr_sale(
             )
         )
         .values(redeemed_at=now, redeemed_by_user_id=redeemed_by_user_id)
+        .returning(DriverQrSale)
+    )
+    result = await db_session.execute(stmt)
+    row = result.scalar_one_or_none()
+    return row
+
+
+async def consume_passenger_qr_sale(
+    db_session: AsyncSession,
+    *,
+    token: str,
+    redeemed_by_driver_id: str,
+) -> DriverQrSale | None:
+    now = datetime.now(timezone.utc)
+    stmt = (
+        update(DriverQrSale)
+        .where(
+            and_(
+                DriverQrSale.token == token,
+                DriverQrSale.redeemed_at.is_(None),
+                DriverQrSale.cash_settlement_status == DriverQrSaleSettlementStatus.OWED_TO_DRIVER,
+                DriverQrSale.issuer_user_id.is_not(None),
+            )
+        )
+        .values(
+            redeemed_at=now,
+            driver_id=redeemed_by_driver_id,
+            redeemed_by_driver_id=redeemed_by_driver_id,
+        )
         .returning(DriverQrSale)
     )
     result = await db_session.execute(stmt)

@@ -58,15 +58,25 @@ export interface DriverQrIssueResult {
   eurAmount: number
 }
 
+export interface PassengerQrIssueResult {
+  success: boolean
+  saleId: string
+  token: string
+  qrUrl: string
+  points: number
+  eurAmount: number
+}
+
 export interface DriverQrRedeemResult {
   success: boolean
   saleId: string
   pointsAdded: number
-  pointsBalance: number
+  passengerPointsBalance: number
   eurAmount: number
   debtStatus: string
   driverId: string
   driverName: string
+  passengerId: string
 }
 
 export interface AdminQrSaleAudit {
@@ -110,6 +120,19 @@ export interface RideRequestApi {
   driverId?: string
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
+  assignedDriver?: {
+    id: string
+    name: string
+    photoUrl: string | null
+    carBrand: string
+    carModel: string
+    carPlate: string
+    vehicleColor: string
+    seatsCount: number
+    rating: number
+    isOnline: boolean
+    currentLocation: { lat: number; lng: number } | null
+  } | null
   createdAt: string
 }
 

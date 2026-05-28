@@ -21,7 +21,8 @@ class DriverQrSale(Base):
     __tablename__ = "driver_qr_sales"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    driver_id = Column(String, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_id = Column(String, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=True, index=True)
+    issuer_user_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=True, index=True)
     token = Column(String(120), unique=True, nullable=False, index=True, default=generate_qr_sale_token)
     points_amount = Column(Integer, nullable=False)
     eur_amount_cents = Column(Integer, nullable=False)
@@ -32,5 +33,6 @@ class DriverQrSale(Base):
         index=True,
     )
     redeemed_by_user_id = Column(String, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True, index=True)
+    redeemed_by_driver_id = Column(String, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True)
     redeemed_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

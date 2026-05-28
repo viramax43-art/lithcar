@@ -1,6 +1,6 @@
 import type { DriverCabinetData, DriverCabinetRide, DriverMapData, RideStatus } from '../../types'
 import { apiRequest } from '../http/httpClient'
-import type { DriverQrIssueResult, DriverSessionUser, PaginationParams } from './contracts'
+import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
 
 export async function loginDriverByKey(key: string): Promise<DriverSessionUser> {
@@ -60,6 +60,13 @@ export async function updateDriverRidePickup(
   })
 }
 
+export async function resetDriverRidePickup(rideId: string): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/pickup/reset`, {
+    method: 'POST',
+    authMode: 'cookie',
+  })
+}
+
 export async function notifyPickupChange(rideId: string): Promise<DriverCabinetRide> {
   return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/notify-pickup-change`, {
     method: 'POST',
@@ -87,6 +94,14 @@ export async function issueDriverQrSale(points: number): Promise<DriverQrIssueRe
   return apiRequest<DriverQrIssueResult>('/api/driver/cabinet/qr-sales/issue', {
     method: 'POST',
     body: { points },
+    authMode: 'cookie',
+  })
+}
+
+export async function redeemPassengerQrSale(token: string): Promise<DriverQrRedeemResult> {
+  return apiRequest<DriverQrRedeemResult>('/api/points/qr/redeem', {
+    method: 'POST',
+    body: { token },
     authMode: 'cookie',
   })
 }

@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin_session import require_admin_roles
 from app.api.auth import get_current_user, require_roles
+from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
 from app.models.user import User, UserRole
-from app.services.driver_service import get_driver
+from app.services.driver_service import get_driver, is_driver_online
 from app.services.passenger_notification_service import (
     notify_passenger_driver_assigned,
     notify_passenger_status_changed,
@@ -93,7 +94,22 @@ class RideRequestOut(BaseModel):
     driverId: str | None
     pickupChangedByDriver: bool
     pickupConfirmedAt: datetime | None
+    assignedDriver: "RideAssignedDriverOut | None" = None
     createdAt: datetime
+
+
+class RideAssignedDriverOut(BaseModel):
+    id: str
+    name: str
+    photoUrl: str | None
+    carBrand: str
+    carModel: str
+    carPlate: str
+    vehicleColor: str
+    seatsCount: int
+    rating: float
+    isOnline: bool
+    currentLocation: LatLng | None
 
 
 class RideRequestPage(BaseModel):
@@ -103,7 +119,7 @@ class RideRequestPage(BaseModel):
     offset: int
 
 
-def _to_ride_request_out(request) -> RideRequestOut:
+def _to_ride_request_out(request, *, assigned_driver: RideAssignedDriverOut | None = None) -> RideRequestOut:
     return RideRequestOut(
         id=request.id,
         rideNumber=request.ride_number,
@@ -123,7 +139,31 @@ def _to_ride_request_out(request) -> RideRequestOut:
         driverId=request.driver_id,
         pickupChangedByDriver=request.pickup_changed_by_driver,
         pickupConfirmedAt=request.pickup_confirmed_at,
+        assignedDriver=assigned_driver,
         createdAt=request.created_at,
+    )
+
+
+def _to_assigned_driver_out(driver) -> RideAssignedDriverOut:
+    effective_online = is_driver_online(
+        driver,
+        online_timeout_seconds=settings.driver_online_ttl_seconds,
+    )
+    current_location = None
+    if effective_online and driver.current_lat is not None and driver.current_lng is not None:
+        current_location = LatLng(lat=driver.current_lat, lng=driver.current_lng)
+    return RideAssignedDriverOut(
+        id=driver.id,
+        name=driver.name,
+        photoUrl=driver.photo_url,
+        carBrand=driver.car_brand,
+        carModel=driver.car_model,
+        carPlate=driver.car_plate,
+        vehicleColor=driver.vehicle_color,
+        seatsCount=driver.seats_count,
+        rating=driver.rating,
+        isOnline=effective_online,
+        currentLocation=current_location,
     )
 
 
@@ -218,7 +258,12 @@ async def get_request_details(
 
     if current_user.role not in {UserRole.ADMIN, UserRole.MODERATOR} and request.passenger_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied.")
-    return _to_ride_request_out(request)
+    assigned_driver = None
+    if request.driver_id:
+        driver = await get_driver(db_session, driver_id=request.driver_id)
+        if driver is not None:
+            assigned_driver = _to_assigned_driver_out(driver)
+    return _to_ride_request_out(request, assigned_driver=assigned_driver)
 
 
 @router.patch("/{request_id}/assign", response_model=RideRequestOut)

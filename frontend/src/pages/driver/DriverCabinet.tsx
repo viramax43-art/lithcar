@@ -19,12 +19,14 @@ import {
   loginDriverByKey,
   logoutDriverSession,
   notifyPickupChange,
+  resetDriverRidePickup,
   sendDriverLocation,
   setDriverOnlineStatus,
   updateDriverRidePickup,
   type DriverSessionUser,
 } from '../../lib/backend'
 import { reverseGeocode } from '../../lib/geocode'
+import { getRoadRoutePolyline } from '../../lib/osrm'
 import { hapticImpact, hapticNotification } from '../../lib/telegram'
 import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng } from '../../types'
 
@@ -139,18 +141,28 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
 function NextStopBar({
   point,
   isActioning,
+  isNotifying,
+  isResetting,
   onOpenSheet,
   onQuickAction,
+  onNotifyPickup,
+  onResetPickup,
 }: {
   point: DriverMapPoint
   isActioning: boolean
+  isNotifying: boolean
+  isResetting: boolean
   onOpenSheet: () => void
   onQuickAction: () => void
+  onNotifyPickup: () => void
+  onResetPickup: () => void
 }) {
   const actionLabel = getQuickActionLabel(point)
   const action = getQuickAction(point)
   const isPickup = point.pointType === 'pickup'
   const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
+  const showPickupQuickActions = isPickup && point.pickupChangedByDriver
+  const canNotifyPickup = showPickupQuickActions && !point.pickupNotifiedAt
 
   const isGreen = ['awaiting_passenger', 'in_progress'].some((s) =>
     (isPickup && s === 'awaiting_passenger' && point.rideStatus === 'awaiting_passenger') ||
@@ -213,6 +225,24 @@ function NextStopBar({
           </button>
         )}
       </div>
+      {showPickupQuickActions && (
+        <div className="px-4 pb-3 flex items-center gap-2.5">
+          <button
+            onClick={onResetPickup}
+            disabled={isResetting}
+            className="flex-1 h-11 rounded-xl border border-border bg-surface text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+          >
+            {isResetting ? 'Сбрасываем…' : 'Сбросить'}
+          </button>
+          <button
+            onClick={onNotifyPickup}
+            disabled={isNotifying || !canNotifyPickup}
+            className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+          >
+            {isNotifying ? 'Отправляем…' : canNotifyPickup ? 'Уведомить пассажира' : 'Уже уведомлен'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -227,8 +257,10 @@ export default function DriverCabinet() {
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [isActioning, setIsActioning] = useState(false)
   const [isNotifying, setIsNotifying] = useState(false)
+  const [isResettingPickup, setIsResettingPickup] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
+  const [roadPolyline, setRoadPolyline] = useState<LatLng[]>([])
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
@@ -333,6 +365,35 @@ export default function DriverCabinet() {
 
   const selectedPoint = points.find((p) => p.id === selectedPointId) ?? null
 
+  const routeWaypoints = useMemo<LatLng[]>(() => {
+    const ordered = [...activePoints].sort(
+      (a, b) => (a.recommendedOrder ?? 999) - (b.recommendedOrder ?? 999),
+    )
+    const waypoints = ordered.map((p) => p.latLng)
+    if (driverLocation && waypoints.length > 0) {
+      return [driverLocation, ...waypoints]
+    }
+    return waypoints
+  }, [activePoints, driverLocation])
+
+  useEffect(() => {
+    if (routeWaypoints.length < 2) {
+      setRoadPolyline([])
+      return
+    }
+    let cancelled = false
+    void getRoadRoutePolyline(routeWaypoints)
+      .then((polyline) => {
+        if (!cancelled) setRoadPolyline(polyline)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setRoadPolyline([])
+        setErrorMessage(error instanceof Error ? error.message : 'Не удалось построить маршрут по дороге.')
+      })
+    return () => { cancelled = true }
+  }, [routeWaypoints])
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const performAction = async (point: DriverMapPoint, action: string) => {
@@ -377,6 +438,23 @@ export default function DriverCabinet() {
       setErrorMessage(err instanceof Error ? err.message : 'Не удалось уведомить пассажира.')
     } finally {
       setIsNotifying(false)
+    }
+  }
+
+  const handleResetPickup = async () => {
+    const point = selectedPoint ?? nextPoint
+    if (!point) return
+    setIsResettingPickup(true)
+    setErrorMessage(null)
+    try {
+      await resetDriverRidePickup(point.rideId)
+      hapticImpact('light')
+      await loadMapData()
+    } catch (err) {
+      hapticNotification('error')
+      setErrorMessage(err instanceof Error ? err.message : 'Не удалось сбросить точку подачи.')
+    } finally {
+      setIsResettingPickup(false)
     }
   }
 
@@ -438,6 +516,7 @@ export default function DriverCabinet() {
           selectedPointId={selectedPointId}
           nextPointId={nextPoint?.id ?? null}
           driverLocation={driverLocation}
+          roadPolyline={roadPolyline}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
           onPickupDragEnd={(rideId, latlng) => void handlePickupDragEnd(rideId, latlng)}
         />
@@ -501,8 +580,12 @@ export default function DriverCabinet() {
         <NextStopBar
           point={nextPoint}
           isActioning={isActioning}
+          isNotifying={isNotifying}
+          isResetting={isResettingPickup}
           onOpenSheet={() => setSelectedPointId(nextPoint.id)}
           onQuickAction={handleNextStopQuickAction}
+          onNotifyPickup={() => void handleNotifyPickup()}
+          onResetPickup={() => void handleResetPickup()}
         />
       )}
 

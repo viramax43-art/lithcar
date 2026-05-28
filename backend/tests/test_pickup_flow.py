@@ -156,6 +156,32 @@ async def test_driver_edit_pickup_resets_confirmation(client, db_session):
     assert second_edit.json()["fromAddress"] == "Second edit"
 
 
+async def test_driver_can_reset_pickup_to_original(client, db_session):
+    """Driver can revert pickup point back to original after editing it."""
+    ctx = await _setup_driver_and_passenger(client, db_session)
+
+    # Edit pickup first.
+    edited = await client.patch(
+        f"/api/driver/cabinet/rides/{ctx['request_id']}/pickup",
+        json={"fromAddress": "Temp edit", "fromLat": 54.691, "fromLng": 25.271},
+    )
+    assert edited.status_code == 200
+    assert edited.json()["pickupChangedByDriver"] is True
+
+    # Reset to original point.
+    reset = await client.post(
+        f"/api/driver/cabinet/rides/{ctx['request_id']}/pickup/reset",
+    )
+    assert reset.status_code == 200
+    body = reset.json()
+    assert body["pickupChangedByDriver"] is False
+    assert body["pickupNotifiedAt"] is None
+    assert body["pickupConfirmedAt"] is None
+    assert body["fromAddress"] == "Start A"
+    assert body["fromLatLng"]["lat"] == 54.69
+    assert body["fromLatLng"]["lng"] == 25.27
+
+
 async def test_passenger_can_confirm_pickup(client, db_session):
     """Passenger can confirm a pickup point that was changed by driver."""
     ctx = await _setup_driver_and_passenger(client, db_session)

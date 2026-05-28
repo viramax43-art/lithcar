@@ -374,12 +374,51 @@ async def update_driver_pickup_point(
         return None, "Нельзя изменить точку подачи в текущем статусе."
     if not await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng):
         return None, "Точка подачи вне активных зон обслуживания."
+    if request.original_from_lat is None or request.original_from_lng is None:
+        request.original_from_address = request.from_address
+        request.original_from_lat = request.from_lat
+        request.original_from_lng = request.from_lng
     request.from_address = from_address
     request.from_lat = from_lat
     request.from_lng = from_lng
     request.pickup_changed_by_driver = True
     request.pickup_notified_at = None
     request.pickup_confirmed_at = None
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request, None
+
+
+async def reset_driver_pickup_point(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+) -> tuple[RideRequest | None, str | None]:
+    """Driver resets edited pickup point back to the original one."""
+    request = await get_request(db_session, request_id=request_id)
+    if request is None:
+        return None, "Поездка не найдена."
+    if request.driver_id != driver_id:
+        return None, "Эта поездка не назначена вам."
+    if request.status not in (RideRequestStatus.ASSIGNED, RideRequestStatus.EN_ROUTE_TO_PICKUP):
+        return None, "Нельзя изменить точку подачи в текущем статусе."
+    if (
+        request.original_from_address is None
+        or request.original_from_lat is None
+        or request.original_from_lng is None
+    ):
+        return None, "Исходная точка подачи не найдена."
+
+    request.from_address = request.original_from_address
+    request.from_lat = request.original_from_lat
+    request.from_lng = request.original_from_lng
+    request.pickup_changed_by_driver = False
+    request.pickup_notified_at = None
+    request.pickup_confirmed_at = None
+    request.original_from_address = None
+    request.original_from_lat = None
+    request.original_from_lng = None
     await db_session.commit()
     await db_session.refresh(request)
     return request, None
