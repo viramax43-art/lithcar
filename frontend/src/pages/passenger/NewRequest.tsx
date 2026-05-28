@@ -9,13 +9,18 @@ import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
+const toLocalDateInput = (value: Date): string =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 
 export default function NewRequest() {
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
-  const todayDate = new Date().toISOString().split('T')[0]
-  const maxDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const now = new Date()
+  const todayDate = toLocalDateInput(now)
+  const maxDateObj = new Date(now)
+  maxDateObj.setDate(maxDateObj.getDate() + 2)
+  const maxDate = toLocalDateInput(maxDateObj)
   const [menuOpen, setMenuOpen] = useState(false)
   const hasInfo = Boolean(model.pricing.userInfoText.trim())
 
@@ -203,8 +208,8 @@ export default function NewRequest() {
         {/* Service info (persistent, non-dismissible) */}
         {hasInfo && (
           <div className="mx-3 mb-2 flex items-center gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
-            <Info size={15} weight="fill" className="text-muted flex-shrink-0" />
-            <p className="flex-1 text-xs text-black leading-snug">{model.pricing.userInfoText}</p>
+            <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
+            <p className="flex-1 text-xs text-black leading-none">{model.pricing.userInfoText}</p>
           </div>
         )}
 

@@ -233,10 +233,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               selectedReqId={selectedReqId}
               setSelectedReqId={setSelectedReqId}
               setAssignModalReqIds={setAssignModalReqIds}
-              suggestions={suggestions}
-              selectedGroupId={selectedGroupId}
-              setSelectedGroupId={setSelectedGroupId}
-              groupColorMap={groupColorMap}
             />
 
             <AdminSidebarDriversSection

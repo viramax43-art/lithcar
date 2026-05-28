@@ -18,7 +18,7 @@
   --app-safe-area-top-total: calc(var(--app-safe-area-top) + var(--app-fullscreen-extra-top));
   --app-safe-area-bottom-total: calc(var(--app-safe-area-bottom) + var(--app-fullscreen-extra-bottom));
   /* Unified passenger UI offsets (Telegram overlays + touch comfort). */
-  --app-user-ui-buffer-top: 26px;
+  --app-user-ui-buffer-top: 38px;
   --app-user-ui-buffer-bottom: 8px;
   --app-user-safe-top: calc(var(--app-safe-area-top-total) + var(--app-user-ui-buffer-top));
   --app-user-safe-bottom: calc(var(--app-safe-area-bottom-total) + var(--app-user-ui-buffer-bottom));

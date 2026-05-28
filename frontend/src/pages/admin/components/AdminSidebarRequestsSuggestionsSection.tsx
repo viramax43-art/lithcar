@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Car, CaretDown, CaretRight, Clock, Lightning, MagnifyingGlass, Path, X } from '@phosphor-icons/react'
+import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -21,10 +21,6 @@ type RequestsSuggestionsProps = Pick<
   | 'selectedReqId'
   | 'setSelectedReqId'
   | 'setAssignModalReqIds'
-  | 'suggestions'
-  | 'selectedGroupId'
-  | 'setSelectedGroupId'
-  | 'groupColorMap'
 >
 
 export function AdminSidebarRequestsSuggestionsSection({
@@ -43,10 +39,6 @@ export function AdminSidebarRequestsSuggestionsSection({
   selectedReqId,
   setSelectedReqId,
   setAssignModalReqIds,
-  suggestions,
-  selectedGroupId,
-  setSelectedGroupId,
-  groupColorMap,
 }: RequestsSuggestionsProps) {
   const requestsInDateTimeWindow = useMemo(() => {
     return requests.filter((request) => {
@@ -101,77 +93,6 @@ export function AdminSidebarRequestsSuggestionsSection({
 
   return (
     <>
-      {/* Optimization panel — always visible when suggestions exist */}
-      {suggestions.length > 0 && (
-        <div className="mb-4 space-y-2.5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-              <Lightning size={12} weight="fill" className="text-amber-500" />
-              Оптимизированные маршруты
-            </p>
-          </div>
-          {suggestions.map((suggestion) => {
-            const selected = selectedGroupId === suggestion.id
-            const color = groupColorMap[suggestion.id] ?? '#8B5CF6'
-            const groupRequests = requests.filter((request) => suggestion.requestIds.includes(request.id))
-
-            return (
-              <div
-                key={suggestion.id}
-                className={`rounded-card border-[1.5px] overflow-hidden transition-all ${
-                  selected ? 'border-black' : 'border-border'
-                }`}
-                style={{ borderLeftColor: color, borderLeftWidth: 4 }}
-              >
-                <button
-                  onClick={() => setSelectedGroupId(selected ? null : suggestion.id)}
-                  className="w-full text-left p-3 hover:bg-surface/60 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Path size={14} weight="bold" style={{ color }} />
-                      <span className="text-sm font-bold">Маршрут</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-surface text-muted">
-                        {suggestion.requestIds.length} пасс.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-accent/10 text-accent-dark">
-                        {suggestion.similarity}% совп.
-                      </span>
-                      {selected ? <CaretDown size={12} weight="bold" /> : <CaretRight size={12} weight="bold" />}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted mt-1.5 leading-snug">{suggestion.reason}</p>
-                </button>
-                {selected && (
-                  <div className="px-3 pb-3 space-y-2 border-t border-border bg-surface/40 pt-2.5">
-                    {groupRequests.map((request, idx) => (
-                      <div key={request.id} className="flex items-start gap-2 text-[11px]">
-                        <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold truncate">{request.passengerName}</p>
-                          <p className="text-muted truncate">{request.from.address} → {request.to.address}</p>
-                        </div>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => setAssignModalReqIds(suggestion.requestIds)}
-                      className="mt-2 w-full py-2.5 bg-black text-white text-xs font-bold rounded-xl transition-all active:scale-[0.97] inline-flex items-center justify-center gap-2"
-                    >
-                      <Car size={14} weight="fill" />
-                      Назначить водителя
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       {/* Search input */}
       <div className="relative mb-3">
         <MagnifyingGlass size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />

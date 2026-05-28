@@ -15,7 +15,6 @@ import {
   listAdminKeys,
   listDrivers,
   listAdminQrSales,
-  listGroupSuggestions,
   listServiceZones,
   loginAdminByKey,
   logoutAdminSession,
@@ -132,10 +131,9 @@ export default function AdminDashboard() {
     if (!adminSession) return
     setErrorMessage(null)
     try {
-      const [req, drv, sug, zones, price, qrSalesPage] = await Promise.all([
+      const [req, drv, zones, price, qrSalesPage] = await Promise.all([
         listAdminRequests('all', { limit: ADMIN_PAGE_SIZE, offset: 0 }),
         listDrivers(false, { limit: 200, offset: 0 }),
-        listGroupSuggestions({ limit: 100, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
         getPricing('cookie'),
         listAdminQrSales({ limit: 100, offset: 0, redeemedOnly: true }),
@@ -143,7 +141,7 @@ export default function AdminDashboard() {
       setRequests(req.items)
       setRequestsTotal(req.total)
       setDrivers(drv.items)
-      setSuggestions(sug.items)
+      setSuggestions([])
       setServiceZones(zones.items)
       setPricing(price)
       setQrSales(qrSalesPage.items)

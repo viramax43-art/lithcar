@@ -8,7 +8,7 @@ import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
-import { optimizeRoute, type OptimizedRoute } from '../utils/routeOptimizer'
+import { buildSimilarTripGroups, type SimilarTripGroup } from '../utils/similarTrips'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 
@@ -194,10 +194,17 @@ export default function AdminMap({
   const [isSearching, setIsSearching] = useState(false)
   const [flyTarget, setFlyTarget] = useState<LatLng | null>(null)
   const [isLocating, setIsLocating] = useState(false)
-  const [showRoutePanel, setShowRoutePanel] = useState(false)
-  const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(null)
+  const [showSimilarPanel, setShowSimilarPanel] = useState(false)
+  const [isFindingSimilar, setIsFindingSimilar] = useState(false)
+  const [similarError, setSimilarError] = useState<string | null>(null)
+  const [similarGroups, setSimilarGroups] = useState<SimilarTripGroup[]>([])
+  const [selectedSimilarGroupId, setSelectedSimilarGroupId] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
+  const selectedSimilarGroup = useMemo(
+    () => similarGroups.find((g) => g.id === selectedSimilarGroupId) ?? null,
+    [similarGroups, selectedSimilarGroupId],
+  )
 
   // Build cluster markers grouped by color
   type ClusterMarker = { id: string; position: [number, number]; icon: L.DivIcon; onClick?: () => void; tooltipText?: string }
@@ -298,29 +305,37 @@ export default function AdminMap({
     )
   }, [])
 
-  const handleOptimizeRoute = useCallback(async () => {
-    const pendingRequests = visibleActiveRequests.filter((r) => !r.driverId || r.status === 'assigned')
-    if (pendingRequests.length < 2) {
-      setOptimizedRoute(null)
-      setShowRoutePanel(true)
+  const handleFindSimilarTrips = useCallback(async () => {
+    const candidates = visibleActiveRequests.filter((r) => !r.driverId || r.status === 'pending' || r.status === 'grouped' || r.status === 'assigned')
+    setShowSimilarPanel(true)
+    if (candidates.length < 2) {
+      setSimilarGroups([])
+      setSelectedSimilarGroupId(null)
+      setSimilarError('Недостаточно заявок для поиска похожих поездок (нужно минимум 2).')
       return
     }
-    const driverLoc = drivers.find((d) => d.isOnline && d.currentLocation)?.currentLocation
+    setIsFindingSimilar(true)
+    setSimilarError(null)
     try {
-      const result = await optimizeRoute(pendingRequests, driverLoc)
-      setOptimizedRoute(result)
+      const slotStep = !slotIntervalMinutes || slotIntervalMinutes <= 0 ? 30 : slotIntervalMinutes
+      const groups = await buildSimilarTripGroups(candidates, slotStep)
+      setSimilarGroups(groups)
+      setSelectedSimilarGroupId(groups[0]?.id ?? null)
+      if (groups.length === 0) {
+        setSimilarError('Похожих и действительно выгодных групп не найдено в текущем фильтре.')
+      }
     } catch (error) {
-      setOptimizedRoute({
-        steps: [],
-        totalDistanceKm: 0,
-        savedDistanceKm: 0,
-        explanation: error instanceof Error
+      setSimilarGroups([])
+      setSelectedSimilarGroupId(null)
+      setSimilarError(
+        error instanceof Error
           ? error.message
-          : 'Сейчас не получается рассчитать оптимальный маршрут.',
-      })
+          : 'Сейчас не получается подобрать похожие поездки.',
+      )
+    } finally {
+      setIsFindingSimilar(false)
     }
-    setShowRoutePanel(true)
-  }, [visibleActiveRequests, drivers])
+  }, [visibleActiveRequests, slotIntervalMinutes])
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
@@ -552,12 +567,12 @@ export default function AdminMap({
             {isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
           <button
-            onClick={() => void handleOptimizeRoute()}
+            onClick={() => void handleFindSimilarTrips()}
             className="h-11 px-4 bg-white rounded-xl shadow-card flex items-center gap-2 hover:bg-surface transition-colors touch-none"
-            title="Оптимизировать маршрут"
+            title="Подобрать похожие поездки"
           >
             <Lightning size={16} weight="bold" className="text-amber-500" />
-            <span className="text-xs font-bold">Оптимизация</span>
+            <span className="text-xs font-bold">Похожие поездки</span>
           </button>
         </div>
 
@@ -665,6 +680,37 @@ export default function AdminMap({
           )
         })}
 
+        {/* Selected similar-group route overlay */}
+        {selectedSimilarGroup && selectedSimilarGroup.steps.length > 1 && (
+          <>
+            <Polyline
+              positions={selectedSimilarGroup.steps.map((step) => [step.location.lat, step.location.lng] as [number, number])}
+              pathOptions={{
+                color: '#7C3AED',
+                dashArray: '6, 6',
+                weight: 4,
+                opacity: 0.85,
+              }}
+            />
+            {selectedSimilarGroup.steps.map((step, idx) => (
+              <Marker
+                key={`similar-step-${selectedSimilarGroup.id}-${step.rideId}-${step.type}-${idx}`}
+                position={[step.location.lat, step.location.lng]}
+                icon={L.divIcon({
+                  className: '',
+                  html: `<div style="width:22px;height:22px;border-radius:9999px;background:${step.type === 'pickup' ? '#EF4444' : '#3B82F6'};border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">${idx + 1}</div>`,
+                  iconSize: [22, 22],
+                  iconAnchor: [11, 11],
+                })}
+              >
+                <Tooltip direction="top" offset={[0, -12]} className="marker-driver-label">
+                  {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
+                </Tooltip>
+              </Marker>
+            ))}
+          </>
+        )}
+
         {serviceZones.map((zone) => (
           <Polygon
             key={zone.id}
@@ -724,59 +770,79 @@ export default function AdminMap({
         </div>
       )}
 
-      {/* Route Optimization Panel */}
-      {showRoutePanel && (
+      {/* Similar Trips Panel */}
+      {showSimilarPanel && (
         <div className="admin-map-route-panel absolute bottom-4 left-4 w-[380px] max-h-[50vh] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               <Lightning size={16} weight="bold" className="text-amber-500" />
-              <span className="text-sm font-bold">Рекомендация маршрута</span>
+              <span className="text-sm font-bold">Похожие поездки</span>
             </div>
-            <button onClick={() => setShowRoutePanel(false)} className="p-1.5 hover:bg-surface rounded-xl transition-colors">
+            <button onClick={() => setShowSimilarPanel(false)} className="p-1.5 hover:bg-surface rounded-xl transition-colors">
               <X size={14} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {!optimizedRoute || optimizedRoute.steps.length === 0 ? (
-              <p className="text-xs text-muted">Недостаточно заявок без водителя для оптимизации (нужно минимум 2).</p>
+            {isFindingSimilar ? (
+              <p className="text-xs text-muted">Подбираем похожие поездки по дорогам…</p>
+            ) : similarError ? (
+              <p className="text-xs text-muted">{similarError}</p>
+            ) : similarGroups.length === 0 ? (
+              <p className="text-xs text-muted">Похожих групп не найдено.</p>
             ) : (
-              <>
-                <p className="text-xs text-muted">{optimizedRoute.explanation}</p>
-                <div className="text-[11px] flex items-center gap-3">
-                  <span className="font-semibold">Общий путь: {optimizedRoute.totalDistanceKm.toFixed(1)} км</span>
-                  {optimizedRoute.savedDistanceKm > 0.5 && (
-                    <span className="text-green-600 font-semibold">Экономия: ~{optimizedRoute.savedDistanceKm.toFixed(1)} км</span>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  {optimizedRoute.steps.map((step, idx) => (
-                    <div key={`${step.requestId}-${step.type}-${idx}`} className="flex items-start gap-2.5">
-                      <div className="flex flex-col items-center pt-0.5 flex-shrink-0">
-                        <span className={`w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${step.type === 'pickup' ? 'bg-red-500' : 'bg-blue-500'}`}>
-                          {idx + 1}
-                        </span>
-                        {idx < optimizedRoute.steps.length - 1 && <div className="w-px h-3 bg-border mt-0.5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-semibold text-muted uppercase">
-                          {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
-                        </p>
-                        <p className="text-xs truncate">{step.address}</p>
-                      </div>
+              <div className="space-y-3">
+                {similarGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className={`rounded-xl border p-3 space-y-2.5 transition-colors ${
+                      selectedSimilarGroupId === group.id ? 'border-violet-500 bg-violet-50/40' : 'border-border'
+                    }`}
+                  >
+                    <p className="text-[11px] text-muted leading-snug">{group.reason}</p>
+                    <div className="text-[11px] flex items-center gap-3">
+                      <span className="font-semibold">Путь: {group.totalKm.toFixed(1)} км · ~{Math.round(group.totalMin)} мин</span>
+                      <span className="text-green-600 font-semibold">Выгода: {group.savingsKm.toFixed(1)} км · {Math.round(group.savingsMin)} мин</span>
                     </div>
-                  ))}
-                </div>
-                <button
-                  onClick={() => {
-                    const reqIds = [...new Set(optimizedRoute.steps.map((s) => s.requestId))]
-                    onOpenAssignModal(reqIds)
-                    setShowRoutePanel(false)
-                  }}
-                  className="w-full py-2.5 bg-black text-white rounded-xl text-xs font-bold transition-all active:scale-[0.97] mt-2"
-                >
-                  Назначить водителя на группу
-                </button>
-              </>
+                    <button
+                      onClick={() => setSelectedSimilarGroupId(group.id)}
+                      className={`w-full py-2 rounded-lg text-[11px] font-bold transition-colors ${
+                        selectedSimilarGroupId === group.id
+                          ? 'bg-violet-100 text-violet-700'
+                          : 'bg-surface text-muted hover:text-black'
+                      }`}
+                    >
+                      {selectedSimilarGroupId === group.id ? 'Маршрут показан на карте' : 'Показать маршрут на карте'}
+                    </button>
+                    <div className="space-y-1.5">
+                      {group.steps.map((step, idx) => (
+                        <div key={`${group.id}-${step.rideId}-${step.type}-${idx}`} className="flex items-start gap-2.5">
+                          <div className="flex flex-col items-center pt-0.5 flex-shrink-0">
+                            <span className={`w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${step.type === 'pickup' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                              {idx + 1}
+                            </span>
+                            {idx < group.steps.length - 1 && <div className="w-px h-3 bg-border mt-0.5" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-semibold text-muted uppercase">
+                              {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
+                            </p>
+                            <p className="text-xs truncate">{step.address}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        onOpenAssignModal(group.requestIds)
+                        setShowSimilarPanel(false)
+                      }}
+                      className="w-full py-2.5 bg-black text-white rounded-xl text-xs font-bold transition-all active:scale-[0.97]"
+                    >
+                      Назначить водителя на группу ({group.requestIds.length})
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
