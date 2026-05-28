@@ -31,6 +31,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     filterDateEnd,
     filterTime,
     filterTimeEnd,
+    enabledColors,
     requests,
     requestsTotal,
     isLoadingMoreRequests,

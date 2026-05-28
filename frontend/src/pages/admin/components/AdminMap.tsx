@@ -584,9 +584,13 @@ export default function AdminMap({
           />
         ))}
 
-        {/* Clustered completed markers (A + green B) */}
-        <MarkerClusterGroup markers={completedDestinationMarkers} clusterColor="#22C55E" />
-        <MarkerClusterGroup markers={completedPickupMarkers} clusterColor="#22C55E" />
+        {/* Clustered completed markers (A + green B) — controlled by green toggle */}
+        {enabledColors.has('green') && (
+          <>
+            <MarkerClusterGroup markers={completedDestinationMarkers} clusterColor="#22C55E" />
+            <MarkerClusterGroup markers={completedPickupMarkers} clusterColor="#22C55E" />
+          </>
+        )}
 
         {/* Destination markers + route lines for active non-completed rides */}
         {activeRequests.map((request) => {
@@ -614,8 +618,8 @@ export default function AdminMap({
           )
         })}
 
-        {/* Completed routes are also shown as dashed A→B */}
-        {completedRequests.map((request) => {
+        {/* Completed routes dashed A→B — controlled by green toggle */}
+        {enabledColors.has('green') && completedRequests.map((request) => {
           const highlighted = request.id === selectedReqId
           return (
             <Polyline
