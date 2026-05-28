@@ -120,7 +120,7 @@ export default function Profile() {
     <div className="fixed inset-0 z-[200] bg-white flex flex-col overflow-x-hidden animate-slide-in-right">
       <header
         className="flex-shrink-0 bg-white border-b border-border/50"
-        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
+        style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
         <div className="flex items-center gap-3 px-3 h-14">
           <button
@@ -133,7 +133,7 @@ export default function Profile() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}>
       <div className="p-4 space-y-4">
         {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
 
@@ -351,7 +351,7 @@ function QrRedeemSheet({
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
-        style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+        style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
@@ -544,7 +544,7 @@ function BuyPointsSheet({
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
-        style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+        style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">

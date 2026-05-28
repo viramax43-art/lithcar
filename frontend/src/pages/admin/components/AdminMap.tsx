@@ -159,8 +159,24 @@ export default function AdminMap({
   // Separate completed (green history) from active
   const activeRequests = useMemo(() => filteredRequests.filter((r) => r.status !== 'completed'), [filteredRequests])
   const completedRequests = useMemo(() => filteredRequests.filter((r) => r.status === 'completed'), [filteredRequests])
+  const enabledStatuses = useMemo(
+    () => new Set(MAP_COLOR_GROUPS.filter((g) => enabledColors.has(g.key)).flatMap((g) => g.statuses)),
+    [enabledColors],
+  )
+  const visibleRequests = useMemo(
+    () => filteredRequests.filter((r) => enabledStatuses.has(r.status)),
+    [filteredRequests, enabledStatuses],
+  )
+  const visibleActiveRequests = useMemo(
+    () => activeRequests.filter((r) => enabledStatuses.has(r.status)),
+    [activeRequests, enabledStatuses],
+  )
+  const visibleCompletedRequests = useMemo(
+    () => completedRequests.filter((r) => enabledStatuses.has(r.status)),
+    [completedRequests, enabledStatuses],
+  )
 
-  const selectedReq = filteredRequests.find((request) => request.id === selectedReqId) ?? null
+  const selectedReq = visibleRequests.find((request) => request.id === selectedReqId) ?? null
   const assignedDriver = selectedReq?.driverId
     ? drivers.find((d) => d.id === selectedReq.driverId) ?? null
     : null
@@ -188,7 +204,7 @@ export default function AdminMap({
   const clusterMarkersByColor = useMemo(() => {
     const groups: Record<MapColorGroupKey, ClusterMarker[]> = { amber: [], red: [], blue: [], green: [] }
 
-    activeRequests.forEach((req) => {
+    visibleActiveRequests.forEach((req) => {
       const group = MAP_COLOR_GROUPS.find((g) => g.statuses.includes(req.status))
       if (!group) return
       const size = getMarkerSize(req.status)
@@ -208,11 +224,11 @@ export default function AdminMap({
     })
 
     return groups
-  }, [activeRequests, onSelectRequest])
+  }, [visibleActiveRequests, onSelectRequest])
 
   // Completed destination markers (green history)
   const completedDestinationMarkers = useMemo(() => {
-    return completedRequests.map((req) => ({
+    return visibleCompletedRequests.map((req) => ({
       id: `${req.id}-done`,
       position: [req.to.latlng.lat, req.to.latlng.lng] as [number, number],
       icon: L.divIcon({
@@ -224,11 +240,11 @@ export default function AdminMap({
       onClick: () => onSelectRequest(req.id),
       tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} → ${req.to.address}`,
     }))
-  }, [completedRequests, onSelectRequest])
+  }, [visibleCompletedRequests, onSelectRequest])
 
   // Completed pickup markers (point A) — green for finished routes
   const completedPickupMarkers = useMemo(() => {
-    return completedRequests.map((req) => ({
+    return visibleCompletedRequests.map((req) => ({
       id: `${req.id}-done-from`,
       position: [req.from.latlng.lat, req.from.latlng.lng] as [number, number],
       icon: L.divIcon({
@@ -240,7 +256,7 @@ export default function AdminMap({
       onClick: () => onSelectRequest(req.id),
       tooltipText: `A · №${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
     }))
-  }, [completedRequests, onSelectRequest])
+  }, [visibleCompletedRequests, onSelectRequest])
 
   const handleSearchInput = useCallback((query: string) => {
     setSearchQuery(query)
@@ -283,7 +299,7 @@ export default function AdminMap({
   }, [])
 
   const handleOptimizeRoute = useCallback(async () => {
-    const pendingRequests = activeRequests.filter((r) => !r.driverId || r.status === 'assigned')
+    const pendingRequests = visibleActiveRequests.filter((r) => !r.driverId || r.status === 'assigned')
     if (pendingRequests.length < 2) {
       setOptimizedRoute(null)
       setShowRoutePanel(true)
@@ -304,7 +320,7 @@ export default function AdminMap({
       })
     }
     setShowRoutePanel(true)
-  }, [activeRequests, drivers])
+  }, [visibleActiveRequests, drivers])
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
@@ -376,7 +392,7 @@ export default function AdminMap({
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
             <span className="text-[11px] font-semibold text-muted whitespace-nowrap">Фильтр периода</span>
-            <span className="text-[11px] text-muted/70 whitespace-nowrap">· {filteredRequests.length} заявок</span>
+            <span className="text-[11px] text-muted/70 whitespace-nowrap">· {visibleRequests.length} заявок</span>
           </div>
           {hasAnyFilter ? <span className="text-[11px] text-muted">Фильтр активен</span> : <span className="text-[11px] text-muted">Показываем всё</span>}
         </div>
@@ -604,7 +620,7 @@ export default function AdminMap({
         )}
 
         {/* Destination markers + route lines for active non-completed rides */}
-        {activeRequests.map((request) => {
+        {visibleActiveRequests.map((request) => {
           const highlighted = request.id === selectedReqId
           return (
             <div key={request.id}>
@@ -630,7 +646,7 @@ export default function AdminMap({
         })}
 
         {/* Completed routes dashed A→B — controlled by green toggle */}
-        {enabledColors.has('green') && completedRequests.map((request) => {
+        {enabledColors.has('green') && visibleCompletedRequests.map((request) => {
           const highlighted = request.id === selectedReqId
           return (
             <Polyline

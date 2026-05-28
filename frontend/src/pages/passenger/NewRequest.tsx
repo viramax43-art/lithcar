@@ -17,14 +17,7 @@ export default function NewRequest() {
   const todayDate = new Date().toISOString().split('T')[0]
   const maxDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const [menuOpen, setMenuOpen] = useState(false)
-  const [infoDismissed, setInfoDismissed] = useState(() => {
-    try { return sessionStorage.getItem('ride_info_dismissed') === '1' } catch { return false }
-  })
-  const dismissInfo = () => {
-    try { sessionStorage.setItem('ride_info_dismissed', '1') } catch { /* ignore */ }
-    setInfoDismissed(true)
-  }
-  const hasInfo = Boolean(model.pricing.userInfoText.trim()) && !infoDismissed
+  const hasInfo = Boolean(model.pricing.userInfoText.trim())
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
@@ -69,7 +62,7 @@ export default function NewRequest() {
 
       <header
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
-        style={{ paddingTop: 'calc(var(--app-safe-area-top-total) + 12px)' }}
+        style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
         <button
           onClick={() => { hapticSelection(); setMenuOpen(true) }}
@@ -114,7 +107,7 @@ export default function NewRequest() {
           />
           <div
             className="absolute top-0 left-0 bottom-0 z-[501] w-72 bg-white flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.12)] animate-slide-in-left"
-            style={{ paddingTop: 'var(--app-safe-area-top-total)', paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+            style={{ paddingTop: 'var(--app-user-safe-top)', paddingBottom: 'var(--app-user-safe-bottom)' }}
           >
             <div className="flex items-center justify-between px-4 h-14 border-b border-border/50">
               <h2 className="text-lg font-extrabold tracking-tight">RIDE</h2>
@@ -157,8 +150,8 @@ export default function NewRequest() {
 
       {model.isPinLive && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw] transition-[top] duration-[250ms] ease-in-out"
-          style={{ top: model.isPanning ? 'calc(42% - 88px)' : 'calc(35% - 88px)' }}
+          className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
+          style={{ top: 'calc(42% - 88px)' }}
         >
           {model.pinOutOfZone ? (
             <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
@@ -188,7 +181,10 @@ export default function NewRequest() {
       )}
 
       {model.zoneWarning && (
-        <div className="absolute left-3 right-3 z-30 top-16 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-pill shadow-card animate-fade-in">
+        <div
+          className="absolute left-3 right-3 z-30 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-pill shadow-card animate-fade-in"
+          style={{ top: 'calc(var(--app-user-safe-top) + 48px)' }}
+        >
           <Warning size={16} weight="fill" className="text-red-500 flex-shrink-0" />
           <span className="text-xs font-semibold text-red-700 flex-1 truncate">{model.zoneWarning}</span>
           <button onClick={() => model.setZoneWarning(null)} className="flex-shrink-0">
@@ -200,25 +196,22 @@ export default function NewRequest() {
       <div
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out"
         style={{
-          bottom: 'var(--app-safe-area-bottom-total)',
-          transform: model.isPanning ? 'translateY(110%)' : 'translateY(0)',
+          bottom: 0,
+          transform: model.isPanning ? 'translateY(100%)' : 'translateY(0)',
         }}
       >
-        {/* Info banner — separate from card */}
+        {/* Service info (persistent, non-dismissible) */}
         {hasInfo && (
-          <div className="mx-3 mb-2 flex items-start gap-2.5 bg-white/95 backdrop-blur-sm border border-border rounded-card shadow-card px-3 py-2.5">
-            <Info size={15} weight="bold" className="text-muted flex-shrink-0 mt-0.5" />
+          <div className="mx-3 mb-2 flex items-start gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
+            <Info size={15} weight="fill" className="text-muted flex-shrink-0 mt-0.5" />
             <p className="flex-1 text-xs text-black leading-snug">{model.pricing.userInfoText}</p>
-            <button
-              onClick={dismissInfo}
-              className="flex-shrink-0 w-6 h-6 flex items-center justify-center hover:bg-surface rounded-lg transition-colors touch-none"
-            >
-              <X size={13} />
-            </button>
           </div>
         )}
 
-        <div className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 pb-3 space-y-3">
+        <div
+          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3"
+          style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
+        >
           <div className="flex flex-col gap-1.5">
             <FieldRow
               dotClass="bg-point-a"
@@ -364,8 +357,8 @@ export default function NewRequest() {
         <div
           className="absolute inset-0 z-[600] bg-white flex flex-col animate-fade-in"
           style={{
-            paddingTop: 'var(--app-safe-area-top-total)',
-            paddingBottom: 'var(--app-safe-area-bottom-total)',
+            paddingTop: 'var(--app-user-safe-top)',
+            paddingBottom: 'var(--app-user-safe-bottom)',
           }}
         >
           <header className="flex items-center gap-3 px-3 py-3 border-b border-border">

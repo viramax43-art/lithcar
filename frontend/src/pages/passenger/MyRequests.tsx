@@ -92,7 +92,7 @@ export default function MyRequests() {
       {/* Header */}
       <header
         className="flex-shrink-0 bg-white border-b border-border/50"
-        style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
+        style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
         <div className="flex items-center gap-3 px-3 h-14">
           <button
@@ -120,7 +120,7 @@ export default function MyRequests() {
       </header>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto flex flex-col" style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
+      <div className="flex-1 overflow-y-auto flex flex-col" style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}>
         {errorMessage && <p className="px-5 py-3 text-xs font-medium text-red-600">{errorMessage}</p>}
         {isLoading &&
           [0, 1, 2, 3].map((index) => (
