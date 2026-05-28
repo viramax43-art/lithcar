@@ -71,3 +71,25 @@ export async function getDistanceDurationMatrix(points: LatLng[]): Promise<Dista
   if (osrm) return osrm
   throw new Error('Сейчас не получается подобрать похожие поездки: сервис маршрутизации недоступен.')
 }
+
+/**
+ * Build a road polyline (GeoJSON) through all waypoints in order.
+ * Throws when OSRM is unavailable.
+ */
+export async function getRoadRoutePolyline(points: LatLng[]): Promise<LatLng[]> {
+  if (points.length < 2) return points
+  const coords = points.map((p) => `${p.lng},${p.lat}`).join(';')
+  const url = `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error('OSRM route response not ok')
+    const data = await resp.json()
+    if (data.code !== 'Ok' || !data.routes?.[0]?.geometry?.coordinates) {
+      throw new Error('OSRM route has no geometry')
+    }
+    const coordinates = data.routes[0].geometry.coordinates as [number, number][]
+    return coordinates.map(([lng, lat]) => ({ lat, lng }))
+  } catch {
+    throw new Error('Не удалось построить дорожный маршрут для выбранной группы.')
+  }
+}

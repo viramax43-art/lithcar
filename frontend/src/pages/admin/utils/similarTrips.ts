@@ -228,8 +228,16 @@ export async function buildSimilarTripGroups(
     })
   }
 
-  return groups
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 24)
+  // Keep only top profitable non-overlapping groups (one ride belongs to one group max).
+  const sorted = groups.sort((a, b) => b.score - a.score)
+  const usedRideIds = new Set<string>()
+  const disjoint: SimilarTripGroup[] = []
+  for (const group of sorted) {
+    if (group.requestIds.some((id) => usedRideIds.has(id))) continue
+    disjoint.push(group)
+    group.requestIds.forEach((id) => usedRideIds.add(id))
+    if (disjoint.length >= 24) break
+  }
+  return disjoint
 }
 

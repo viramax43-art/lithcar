@@ -75,7 +75,14 @@ describe('buildSimilarTripGroups', () => {
       makeReq('4', '2026-05-28T10:16:00', [1, 1], [11, 1]),
     ]
     const groups = await buildSimilarTripGroups(rides, 30, { getMatrix: matrixFromPoints })
-    expect(groups.length).toBeGreaterThan(1)
+    expect(groups.length).toBeGreaterThan(0)
+    const used = new Set<string>()
+    groups.forEach((g) => {
+      g.requestIds.forEach((id) => {
+        expect(used.has(id)).toBe(false)
+        used.add(id)
+      })
+    })
   })
 
   it('throws clear error when routing matrix is unavailable', async () => {

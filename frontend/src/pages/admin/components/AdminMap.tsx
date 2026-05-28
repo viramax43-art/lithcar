@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, Lightning, MagnifyingGlass, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
 import type { Driver, LatLng, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
+import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
@@ -199,12 +200,42 @@ export default function AdminMap({
   const [similarError, setSimilarError] = useState<string | null>(null)
   const [similarGroups, setSimilarGroups] = useState<SimilarTripGroup[]>([])
   const [selectedSimilarGroupId, setSelectedSimilarGroupId] = useState<string | null>(null)
+  const [selectedSimilarStepKey, setSelectedSimilarStepKey] = useState<string | null>(null)
+  const [selectedSimilarRoadPolyline, setSelectedSimilarRoadPolyline] = useState<LatLng[] | null>(null)
+  const [similarRoadError, setSimilarRoadError] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const selectedSimilarGroup = useMemo(
     () => similarGroups.find((g) => g.id === selectedSimilarGroupId) ?? null,
     [similarGroups, selectedSimilarGroupId],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    const loadRoadPolyline = async () => {
+      if (!selectedSimilarGroup || selectedSimilarGroup.steps.length < 2) {
+        setSelectedSimilarRoadPolyline(null)
+        setSimilarRoadError(null)
+        return
+      }
+      try {
+        const road = await getRoadRoutePolyline(selectedSimilarGroup.steps.map((s) => s.location))
+        if (!cancelled) {
+          setSelectedSimilarRoadPolyline(road)
+          setSimilarRoadError(null)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedSimilarRoadPolyline(null)
+          setSimilarRoadError(error instanceof Error ? error.message : 'Не удалось построить маршрут по дорогам.')
+        }
+      }
+    }
+    void loadRoadPolyline()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSimilarGroup])
 
   // Build cluster markers grouped by color
   type ClusterMarker = { id: string; position: [number, number]; icon: L.DivIcon; onClick?: () => void; tooltipText?: string }
@@ -311,6 +342,7 @@ export default function AdminMap({
     if (candidates.length < 2) {
       setSimilarGroups([])
       setSelectedSimilarGroupId(null)
+      setSelectedSimilarRoadPolyline(null)
       setSimilarError('Недостаточно заявок для поиска похожих поездок (нужно минимум 2).')
       return
     }
@@ -321,12 +353,16 @@ export default function AdminMap({
       const groups = await buildSimilarTripGroups(candidates, slotStep)
       setSimilarGroups(groups)
       setSelectedSimilarGroupId(groups[0]?.id ?? null)
+      setSelectedSimilarStepKey(null)
+      setSelectedSimilarRoadPolyline(null)
       if (groups.length === 0) {
         setSimilarError('Похожих и действительно выгодных групп не найдено в текущем фильтре.')
       }
     } catch (error) {
       setSimilarGroups([])
       setSelectedSimilarGroupId(null)
+      setSelectedSimilarStepKey(null)
+      setSelectedSimilarRoadPolyline(null)
       setSimilarError(
         error instanceof Error
           ? error.message
@@ -681,10 +717,10 @@ export default function AdminMap({
         })}
 
         {/* Selected similar-group route overlay */}
-        {selectedSimilarGroup && selectedSimilarGroup.steps.length > 1 && (
-          <>
+        {selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1 && (
+          <Pane name="similar-route-pane" style={{ zIndex: 1200 }}>
             <Polyline
-              positions={selectedSimilarGroup.steps.map((step) => [step.location.lat, step.location.lng] as [number, number])}
+              positions={selectedSimilarRoadPolyline.map((p) => [p.lat, p.lng] as [number, number])}
               pathOptions={{
                 color: '#7C3AED',
                 dashArray: '6, 6',
@@ -696,9 +732,18 @@ export default function AdminMap({
               <Marker
                 key={`similar-step-${selectedSimilarGroup.id}-${step.rideId}-${step.type}-${idx}`}
                 position={[step.location.lat, step.location.lng]}
+                zIndexOffset={1500}
+                eventHandlers={{
+                  click: () => {
+                    const stepKey = `${selectedSimilarGroup.id}-${step.rideId}-${step.type}-${idx}`
+                    setSelectedSimilarStepKey(stepKey)
+                    setFlyTarget(step.location)
+                    setTimeout(() => setFlyTarget(null), 1000)
+                  },
+                }}
                 icon={L.divIcon({
                   className: '',
-                  html: `<div style="width:22px;height:22px;border-radius:9999px;background:${step.type === 'pickup' ? '#EF4444' : '#3B82F6'};border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">${idx + 1}</div>`,
+                  html: `<div style="width:22px;height:22px;border-radius:9999px;background:${step.type === 'pickup' ? '#EF4444' : '#3B82F6'};border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:${selectedSimilarStepKey === `${selectedSimilarGroup.id}-${step.rideId}-${step.type}-${idx}` ? '0 0 0 4px rgba(124,58,237,.25),0 2px 10px rgba(0,0,0,.30)' : '0 2px 8px rgba(0,0,0,.25)'}">${idx + 1}</div>`,
                   iconSize: [22, 22],
                   iconAnchor: [11, 11],
                 })}
@@ -706,9 +751,15 @@ export default function AdminMap({
                 <Tooltip direction="top" offset={[0, -12]} className="marker-driver-label">
                   {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
                 </Tooltip>
+                <Popup autoPan className="marker-driver-label">
+                  <div className="text-xs">
+                    <p className="font-bold">{idx + 1}. {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}</p>
+                    <p className="mt-1">{step.address}</p>
+                  </div>
+                </Popup>
               </Marker>
             ))}
-          </>
+          </Pane>
         )}
 
         {serviceZones.map((zone) => (
@@ -804,7 +855,10 @@ export default function AdminMap({
                       <span className="text-green-600 font-semibold">Выгода: {group.savingsKm.toFixed(1)} км · {Math.round(group.savingsMin)} мин</span>
                     </div>
                     <button
-                      onClick={() => setSelectedSimilarGroupId(group.id)}
+                      onClick={() => {
+                        setSelectedSimilarGroupId(group.id)
+                        setSelectedSimilarStepKey(null)
+                      }}
                       className={`w-full py-2 rounded-lg text-[11px] font-bold transition-colors ${
                         selectedSimilarGroupId === group.id
                           ? 'bg-violet-100 text-violet-700'
@@ -813,9 +867,26 @@ export default function AdminMap({
                     >
                       {selectedSimilarGroupId === group.id ? 'Маршрут показан на карте' : 'Показать маршрут на карте'}
                     </button>
+                    {selectedSimilarGroupId === group.id && similarRoadError && (
+                      <p className="text-[11px] text-muted">{similarRoadError}</p>
+                    )}
                     <div className="space-y-1.5">
                       {group.steps.map((step, idx) => (
-                        <div key={`${group.id}-${step.rideId}-${step.type}-${idx}`} className="flex items-start gap-2.5">
+                        <button
+                          key={`${group.id}-${step.rideId}-${step.type}-${idx}`}
+                          onClick={() => {
+                            const stepKey = `${group.id}-${step.rideId}-${step.type}-${idx}`
+                            setSelectedSimilarGroupId(group.id)
+                            setSelectedSimilarStepKey(stepKey)
+                            setFlyTarget(step.location)
+                            setTimeout(() => setFlyTarget(null), 1000)
+                          }}
+                          className={`w-full flex items-start gap-2.5 text-left rounded-lg px-1 py-1 transition-colors ${
+                            selectedSimilarStepKey === `${group.id}-${step.rideId}-${step.type}-${idx}`
+                              ? 'bg-violet-100/70'
+                              : 'hover:bg-surface'
+                          }`}
+                        >
                           <div className="flex flex-col items-center pt-0.5 flex-shrink-0">
                             <span className={`w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${step.type === 'pickup' ? 'bg-red-500' : 'bg-blue-500'}`}>
                               {idx + 1}
@@ -828,7 +899,7 @@ export default function AdminMap({
                             </p>
                             <p className="text-xs truncate">{step.address}</p>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                     <button
