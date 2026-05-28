@@ -1,6 +1,6 @@
 import type { LatLng } from '../types'
 
-const OSRM_BASE = 'https://router.project-osrm.org'
+const OSRM_BASE = import.meta.env.VITE_OSRM_BASE_URL || 'https://router.project-osrm.org'
 export interface DistanceDurationMatrix {
   distanceKm: number[][]
   durationMin: number[][]

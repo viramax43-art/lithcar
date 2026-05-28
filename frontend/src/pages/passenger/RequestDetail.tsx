@@ -4,7 +4,8 @@ import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
 import type { RideRequest } from '../../types'
-import { confirmPickup, deleteRequest, getRequestById, updateRequest } from '../../lib/backend'
+import StarRatingInput from '../../components/StarRatingInput'
+import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 
@@ -32,6 +33,9 @@ export default function RequestDetail() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isConfirmingPickup, setIsConfirmingPickup] = useState(false)
+  const [ratingScore, setRatingScore] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -378,6 +382,68 @@ export default function RequestDetail() {
                 ? 'Данные о водителе обновляются. Обновите экран через несколько секунд.'
                 : 'Мы уведомим вас, как только водитель будет назначен'}
             </p>
+          </div>
+        )}
+
+        {request.status === 'completed' && request.rating && (
+          <div className="bg-surface rounded-card p-5 space-y-4">
+            {request.rating.canRate ? (
+              <>
+                <div>
+                  <p className="text-sm font-extrabold">Оцените поездку</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    {driver ? `Как вам поездка с ${driver.name}?` : 'Ваша оценка поможет другим пассажирам'}
+                  </p>
+                </div>
+                <StarRatingInput value={ratingScore} onChange={setRatingScore} disabled={isRatingSubmitting} />
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  disabled={isRatingSubmitting}
+                  placeholder="Комментарий (необязательно)"
+                  rows={3}
+                  maxLength={500}
+                  className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"
+                />
+                <button
+                  type="button"
+                  disabled={isRatingSubmitting || ratingScore < 1}
+                  onClick={() => {
+                    if (!id || ratingScore < 1) return
+                    void (async () => {
+                      setIsRatingSubmitting(true)
+                      setErrorMessage(null)
+                      try {
+                        const updated = await rateRideAsPassenger(id, {
+                          score: ratingScore,
+                          comment: ratingComment.trim() || undefined,
+                        })
+                        setRequest(updated)
+                      } catch (error) {
+                        setErrorMessage(error instanceof Error ? error.message : 'Не удалось отправить оценку.')
+                      } finally {
+                        setIsRatingSubmitting(false)
+                      }
+                    })()
+                  }}
+                  className="w-full h-12 rounded-xl bg-black text-white text-sm font-extrabold disabled:opacity-40"
+                >
+                  {isRatingSubmitting ? 'Отправка…' : 'Отправить оценку'}
+                </button>
+              </>
+            ) : request.rating.myScore ? (
+              <div className="text-center space-y-2">
+                <p className="text-sm font-extrabold">Спасибо за оценку!</p>
+                <div className="flex items-center justify-center gap-1">
+                  {Array.from({ length: request.rating.myScore }).map((_, i) => (
+                    <Star key={i} size={20} weight="fill" className="text-amber-400" />
+                  ))}
+                </div>
+                {request.rating.myComment && (
+                  <p className="text-xs text-muted">{request.rating.myComment}</p>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
 

@@ -3,6 +3,7 @@ import {
   Check,
   QrCode,
   SignOut,
+  Star,
   SteeringWheel,
   X,
 } from '@phosphor-icons/react'
@@ -58,7 +59,11 @@ export default function DriverSideMenu({
             </div>
             <div className="min-w-0">
               <p className="text-sm font-extrabold truncate">{session.name}</p>
-              <p className="text-[11px] text-muted mt-0.5">Сканируйте QR пассажира</p>
+              <p className="text-[11px] text-muted mt-0.5 flex items-center gap-1">
+                <Star size={11} weight="fill" className="text-amber-400" />
+                Ваш рейтинг {session.rating.toFixed(1)}
+                {session.ratingCount > 0 && <span>({session.ratingCount})</span>}
+              </p>
             </div>
           </div>
           <button

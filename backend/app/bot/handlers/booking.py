@@ -21,8 +21,10 @@ from app.services.pricing_service import get_or_create_pricing
 from app.services.ride_booking_service import (
     InsufficientPointsError,
     InvalidRideDateTimeError,
+    RideQuoteUnavailableError,
     book_ride_with_points,
 )
+from app.services.ride_quote_service import calculate_ride_quote
 
 router = Router(name="booking")
 
@@ -78,12 +80,28 @@ async def _show_confirmation(message: Message, state: FSMContext):
     data = await state.get_data()
     user, pricing = await _load_user_and_pricing(message)
     ride_datetime = get_selected_datetime(data)
+    try:
+        quote = await calculate_ride_quote(
+            pricing,
+            from_lat=float(data["from_lat"]),
+            from_lng=float(data["from_lng"]),
+            to_lat=float(data["to_lat"]),
+            to_lng=float(data["to_lng"]),
+        )
+        cost_line = f"Стоимость: {quote.points} поинтов (€{quote.price_eur:.2f})"
+        if quote.metrics is not None:
+            cost_line += (
+                f"\nМаршрут: {quote.metrics.road_km:.1f} км, "
+                f"{quote.metrics.duration_min:.0f} мин ({quote.metrics.tier_label})"
+            )
+    except ValueError:
+        cost_line = f"Стоимость: {pricing.points_per_ride} поинтов (расчёт маршрута недоступен)"
     text = (
         "Проверьте детали поездки:\n\n"
         f"Точка A: {data['from_address']}\n"
         f"Точка B: {data['to_address']}\n"
         f"Дата и время: {ride_datetime.strftime('%d.%m.%Y %H:%M')} UTC\n\n"
-        f"Стоимость: {pricing.points_per_ride} поинтов\n"
+        f"{cost_line}\n"
         f"Ваш баланс: {int(user.points_balance or 0)} поинтов"
     )
     await state.set_state(BookingStates.confirming)
@@ -269,7 +287,7 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
         )
         await callback.answer()
         return
-    except (InvalidRideDateTimeError, ValueError) as exc:
+    except (InvalidRideDateTimeError, RideQuoteUnavailableError, ValueError) as exc:
         await state.update_data(submitted=False)
         await callback.message.answer(f"Не удалось оформить поездку: {exc}")
         await callback.answer()

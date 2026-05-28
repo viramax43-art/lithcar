@@ -90,6 +90,17 @@ export async function applyDriverPointAction(
   })
 }
 
+export async function rateRideAsDriver(
+  rideId: string,
+  payload: { score: number; comment?: string },
+): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/rate`, {
+    method: 'POST',
+    body: payload,
+    authMode: 'cookie',
+  })
+}
+
 export async function issueDriverQrSale(points: number): Promise<DriverQrIssueResult> {
   return apiRequest<DriverQrIssueResult>('/api/driver/cabinet/qr-sales/issue', {
     method: 'POST',

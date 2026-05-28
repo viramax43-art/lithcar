@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Sequence, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models import Base
 
@@ -59,4 +60,12 @@ class RideRequest(Base):
     original_from_address = Column(String, nullable=True)
     original_from_lat = Column(Float, nullable=True)
     original_from_lng = Column(Float, nullable=True)
+    quoted_points = Column(Integer, nullable=True)
+    quoted_price_cents = Column(Integer, nullable=True)
+    quote_road_km = Column(Float, nullable=True)
+    quote_straight_km = Column(Float, nullable=True)
+    quote_circuity = Column(Float, nullable=True)
+    quote_duration_min = Column(Float, nullable=True)
+    quote_tier_label = Column(String, nullable=True)
+    quote_breakdown_json = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

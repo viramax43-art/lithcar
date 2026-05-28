@@ -44,7 +44,6 @@ class DriverCreate(BaseModel):
     seatsCount: int = Field(default=4, ge=1, le=12)
     licenseNumber: str = ""
     about: str = ""
-    rating: float = 5.0
     isOnline: bool = False
     canSellPoints: bool = False
 
@@ -66,7 +65,6 @@ class DriverUpdate(BaseModel):
     vehicleColor: str | None = Field(default=None, min_length=1)
     seatsCount: int | None = Field(default=None, ge=1, le=12)
     about: str | None = None
-    rating: float | None = Field(default=None, ge=0.0, le=5.0)
     isOnline: bool | None = None
     canSellPoints: bool | None = None
 
@@ -208,7 +206,6 @@ async def create_driver_endpoint(
         seats_count=payload.seatsCount,
         license_number=payload.licenseNumber,
         about=payload.about,
-        rating=payload.rating,
         is_online=payload.isOnline,
         can_sell_points=payload.canSellPoints,
     )
@@ -233,7 +230,6 @@ async def update_driver_endpoint(
         vehicle_color=payload.vehicleColor,
         seats_count=payload.seatsCount,
         about=payload.about,
-        rating=payload.rating,
         is_online=payload.isOnline,
         can_sell_points=payload.canSellPoints,
     )

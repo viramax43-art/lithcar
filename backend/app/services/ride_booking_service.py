@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +9,12 @@ from app.models.points_transaction import PointsTransaction, PointsTransactionTy
 from app.models.pricing_settings import PricingSettings
 from app.models.ride_request import RideRequest
 from app.models.user import User
-from app.services.pricing_service import DEFAULT_POINT_PRICE_CENTS, DEFAULT_POINTS_PER_RIDE
+from app.services.pricing_service import (
+    DEFAULT_POINT_PRICE_CENTS,
+    DEFAULT_POINTS_PER_RIDE,
+    DEFAULT_PRICING_MODE,
+)
+from app.services.ride_quote_service import calculate_ride_quote, default_pricing_formula_json
 from app.services.ride_request_service import create_ride_request_record
 
 
@@ -28,6 +33,10 @@ class InvalidRideDateTimeError(RideBookingError):
     pass
 
 
+class RideQuoteUnavailableError(RideBookingError):
+    pass
+
+
 @dataclass
 class RideBookingResult:
     request: RideRequest
@@ -38,11 +47,15 @@ class RideBookingResult:
 async def _get_or_create_pricing_no_commit(db_session: AsyncSession) -> PricingSettings:
     pricing = await db_session.get(PricingSettings, 1)
     if pricing is not None:
+        if pricing.pricing_formula_json is None:
+            pricing.pricing_formula_json = default_pricing_formula_json()
         return pricing
     pricing = PricingSettings(
         id=1,
         points_per_ride=DEFAULT_POINTS_PER_RIDE,
         point_price_cents=DEFAULT_POINT_PRICE_CENTS,
+        pricing_mode=DEFAULT_PRICING_MODE,
+        pricing_formula_json=default_pricing_formula_json(),
     )
     db_session.add(pricing)
     await db_session.flush()
@@ -53,6 +66,12 @@ def _normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+def _quote_breakdown_to_json(quote) -> list[dict] | None:
+    if not quote.breakdown:
+        return None
+    return [asdict(line) for line in quote.breakdown]
 
 
 async def book_ride_with_points(
@@ -79,7 +98,6 @@ async def book_ride_with_points(
     try:
         pricing = await _get_or_create_pricing_no_commit(db_session)
 
-        # Validate time slot
         ride_hour = normalized_date_time.hour
         ride_minute = normalized_date_time.minute
         ride_total_minutes = ride_hour * 60 + ride_minute
@@ -101,7 +119,19 @@ async def book_ride_with_points(
             raise InvalidRideDateTimeError(
                 f"Ride time must align to {interval}-minute slots starting at {work_start}."
             )
-        points_per_ride = int(pricing.points_per_ride)
+
+        try:
+            quote = await calculate_ride_quote(
+                pricing,
+                from_lat=from_lat,
+                from_lng=from_lng,
+                to_lat=to_lat,
+                to_lng=to_lng,
+            )
+        except ValueError as exc:
+            raise RideQuoteUnavailableError(str(exc)) from exc
+
+        points_per_ride = int(quote.points)
         current_balance = int(user.points_balance or 0)
         if current_balance < points_per_ride:
             raise InsufficientPointsError(
@@ -109,6 +139,7 @@ async def book_ride_with_points(
                 current_balance=current_balance,
             )
 
+        metrics = quote.metrics
         request = await create_ride_request_record(
             db_session,
             passenger_id=user.user_id,
@@ -120,6 +151,14 @@ async def book_ride_with_points(
             to_lat=to_lat,
             to_lng=to_lng,
             date_time=normalized_date_time,
+            quoted_points=points_per_ride,
+            quoted_price_cents=int(quote.price_cents),
+            quote_road_km=metrics.road_km if metrics else None,
+            quote_straight_km=metrics.straight_km if metrics else None,
+            quote_circuity=metrics.circuity if metrics else None,
+            quote_duration_min=metrics.duration_min if metrics else None,
+            quote_tier_label=metrics.tier_label if metrics else None,
+            quote_breakdown_json=_quote_breakdown_to_json(quote),
         )
 
         user.points_balance = current_balance - points_per_ride
@@ -128,7 +167,7 @@ async def book_ride_with_points(
             amount=-points_per_ride,
             transaction_type=PointsTransactionType.RIDE_BOOKING_DEBIT,
             reference_id=request.id,
-            eur_amount_cents=points_per_ride * int(pricing.point_price_cents),
+            eur_amount_cents=int(quote.price_cents),
         )
         db_session.add(transaction)
         await db_session.flush()

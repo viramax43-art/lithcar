@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Car, CaretRight, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 
+import RideRatingSheet from '../../components/RideRatingSheet'
 import {
   applyDriverPointAction,
   getDriverCabinet,
@@ -19,6 +20,7 @@ import {
   loginDriverByKey,
   logoutDriverSession,
   notifyPickupChange,
+  rateRideAsDriver,
   resetDriverRidePickup,
   sendDriverLocation,
   setDriverOnlineStatus,
@@ -261,6 +263,8 @@ export default function DriverCabinet() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
   const [roadPolyline, setRoadPolyline] = useState<LatLng[]>([])
+  const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string } | null>(null)
+  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
@@ -399,11 +403,15 @@ export default function DriverCabinet() {
   const performAction = async (point: DriverMapPoint, action: string) => {
     setIsActioning(true)
     setErrorMessage(null)
+    const completesRide = point.pointType === 'dropoff' && point.rideStatus === 'in_progress' && action === 'arrived'
     try {
       await applyDriverPointAction(point.rideId, point.pointType, action)
       hapticImpact('medium')
       setSelectedPointId(null)
       await loadMapData()
+      if (completesRide) {
+        setPendingRating({ rideId: point.rideId, passengerName: point.passengerName })
+      }
     } catch (err) {
       hapticNotification('error')
       setErrorMessage(err instanceof Error ? err.message : 'Не удалось выполнить действие.')
@@ -597,6 +605,32 @@ export default function DriverCabinet() {
         onClose={() => setSelectedPointId(null)}
         onAction={handleAction}
         onNotifyPickup={() => void handleNotifyPickup()}
+      />
+
+      <RideRatingSheet
+        key={pendingRating?.rideId ?? 'closed'}
+        open={pendingRating !== null}
+        title="Оцените пассажира"
+        subtitle={pendingRating ? pendingRating.passengerName : undefined}
+        isSubmitting={isRatingSubmitting}
+        onClose={() => setPendingRating(null)}
+        onSkip={() => setPendingRating(null)}
+        onSubmit={async ({ score, comment }) => {
+          if (!pendingRating) return
+          setIsRatingSubmitting(true)
+          setErrorMessage(null)
+          try {
+            await rateRideAsDriver(pendingRating.rideId, { score, comment })
+            hapticNotification('success')
+            setPendingRating(null)
+            await loadMapData()
+          } catch (err) {
+            hapticNotification('error')
+            setErrorMessage(err instanceof Error ? err.message : 'Не удалось отправить оценку.')
+          } finally {
+            setIsRatingSubmitting(false)
+          }
+        }}
       />
 
       {/* ── Side menu ────────────────────────────────────────────────────── */}

@@ -36,6 +36,13 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     pickupChangedByDriver: item.pickupChangedByDriver,
     pickupConfirmedAt: item.pickupConfirmedAt,
     assignedDriver,
+    rating: item.rating
+      ? {
+        canRate: item.rating.canRate,
+        myScore: item.rating.myScore,
+        myComment: item.rating.myComment,
+      }
+      : null,
     createdAt: item.createdAt,
   }
 }
@@ -49,6 +56,7 @@ export function mapUserCabinetRide(item: UserCabinetRideApi): UserCabinetRideHis
     status: item.status,
     dateTime: item.dateTime,
     createdAt: item.createdAt,
+    canRateDriver: item.canRateDriver,
   }
 }
 
@@ -57,6 +65,8 @@ export function mapUserCabinetData(response: UserCabinetApi): UserCabinetData {
     userId: response.userId,
     username: response.username,
     pointsBalance: response.pointsBalance,
+    rating: response.rating,
+    ratingCount: response.ratingCount,
     rideHistory: response.rideHistory.map(mapUserCabinetRide),
     rideHistoryTotal: response.rideHistoryTotal,
     rideHistoryLimit: response.rideHistoryLimit,

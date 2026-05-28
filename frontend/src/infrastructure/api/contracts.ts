@@ -48,6 +48,8 @@ export interface DriverSessionUser {
   driverId: string
   name: string
   canSellPoints: boolean
+  rating: number
+  ratingCount: number
 }
 
 export interface DriverQrIssueResult {
@@ -133,6 +135,11 @@ export interface RideRequestApi {
     isOnline: boolean
     currentLocation: { lat: number; lng: number } | null
   } | null
+  rating?: {
+    canRate: boolean
+    myScore: number | null
+    myComment: string | null
+  } | null
   createdAt: string
 }
 
@@ -144,12 +151,15 @@ export interface UserCabinetRideApi {
   status: RideRequest['status']
   dateTime: string
   createdAt: string
+  canRateDriver: boolean
 }
 
 export interface UserCabinetApi {
   userId: string
   username: string | null
   pointsBalance: number
+  rating: number
+  ratingCount: number
   rideHistory: UserCabinetRideApi[]
   rideHistoryTotal: number
   rideHistoryLimit: number

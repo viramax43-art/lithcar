@@ -1,4 +1,5 @@
-import type { GroupSuggestion, PricingSettings, RideRequest, ServiceZone, UserCabinetData } from '../../types'
+import { mapPricingSettings } from '../../lib/pricingDefaults'
+import type { GroupSuggestion, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type {
   CurrentUser,
@@ -76,6 +77,17 @@ export async function deleteRequest(requestId: string): Promise<void> {
   await apiRequest<{ success: boolean }>(`/api/ride-requests/${requestId}`, { method: 'DELETE' })
 }
 
+export async function rateRideAsPassenger(
+  requestId: string,
+  payload: { score: number; comment?: string },
+): Promise<RideRequest> {
+  const item = await apiRequest<RideRequestApi>(`/api/ride-requests/${requestId}/rate`, {
+    method: 'POST',
+    body: payload,
+  })
+  return mapRideRequest(item)
+}
+
 export async function listServiceZones(
   authMode: 'bearer' | 'cookie' = 'bearer',
   params?: PaginationParams
@@ -85,14 +97,20 @@ export async function listServiceZones(
 
 export async function getPricing(authMode: 'bearer' | 'cookie' = 'bearer'): Promise<PricingSettings> {
   const result = await apiRequest<PricingSettings>('/api/pricing', { authMode })
-  return {
-    pointsPerRide: result.pointsPerRide,
-    pointPriceCents: result.pointPriceCents,
-    userInfoText: result.userInfoText ?? '',
-    workStartTime: result.workStartTime ?? '06:00',
-    workEndTime: result.workEndTime ?? '19:00',
-    slotIntervalMinutes: result.slotIntervalMinutes ?? 30,
-  }
+  return mapPricingSettings(result)
+}
+
+export async function getRideQuote(
+  params: { fromLat: number; fromLng: number; toLat: number; toLng: number },
+  authMode: 'bearer' | 'cookie' = 'bearer',
+): Promise<RideQuote> {
+  const q = new URLSearchParams({
+    fromLat: String(params.fromLat),
+    fromLng: String(params.fromLng),
+    toLat: String(params.toLat),
+    toLng: String(params.toLng),
+  })
+  return apiRequest<RideQuote>(`/api/ride-quote?${q}`, { authMode })
 }
 
 export async function getUserCabinet(params?: PaginationParams): Promise<UserCabinetData> {

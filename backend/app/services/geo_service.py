@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import dataclass
 from typing import Sequence
 
 import httpx
@@ -79,13 +80,19 @@ async def osrm_distance_matrix_km(
         return None
 
 
-async def osrm_route_distance_km(
-    lat1: float, lng1: float, lat2: float, lng2: float,
-) -> float | None:
-    """Get road distance between two points via OSRM /route (km).
+@dataclass(frozen=True)
+class RouteMetrics:
+    road_km: float
+    duration_min: float
 
-    Returns ``None`` on failure so caller can fall back to haversine.
-    """
+
+async def osrm_route_metrics(
+    lat1: float,
+    lng1: float,
+    lat2: float,
+    lng2: float,
+) -> RouteMetrics | None:
+    """Road distance (km) and duration (min) between two points via OSRM /route."""
     coords = f"{lng1},{lat1};{lng2},{lat2}"
     url = f"{settings.osrm_base_url}/route/v1/driving/{coords}?overview=false"
     try:
@@ -95,10 +102,25 @@ async def osrm_route_distance_km(
             data = resp.json()
         if data.get("code") != "Ok" or not data.get("routes"):
             return None
-        return data["routes"][0]["distance"] / 1000.0
+        route = data["routes"][0]
+        return RouteMetrics(
+            road_km=route["distance"] / 1000.0,
+            duration_min=route["duration"] / 60.0,
+        )
     except Exception:
         logger.warning("OSRM route request failed", exc_info=True)
         return None
+
+
+async def osrm_route_distance_km(
+    lat1: float, lng1: float, lat2: float, lng2: float,
+) -> float | None:
+    """Get road distance between two points via OSRM /route (km).
+
+    Returns ``None`` on failure so caller can fall back to haversine.
+    """
+    metrics = await osrm_route_metrics(lat1, lng1, lat2, lng2)
+    return metrics.road_km if metrics is not None else None
 
 
 def haversine_distance_matrix_km(

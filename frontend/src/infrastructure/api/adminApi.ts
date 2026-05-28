@@ -1,4 +1,5 @@
-import type { Driver, MapDrawing, PricingSettings, RideRequest, ServiceZone } from '../../types'
+import { mapPricingSettings } from '../../lib/pricingDefaults'
+import type { Driver, MapDrawing, PricingSettings, RideQuote, RideRequest, ServiceZone } from '../../types'
 import { apiRequest, uploadMultipart } from '../http/httpClient'
 import type {
   AdminKeyInfo,
@@ -51,7 +52,6 @@ export async function createDriver(payload: {
   seatsCount: number
   licenseNumber?: string
   about: string
-  rating?: number
   isOnline?: boolean
   canSellPoints?: boolean
 }): Promise<{ driver: Driver; key: string }> {
@@ -82,7 +82,6 @@ export async function updateDriver(
     vehicleColor: string
     seatsCount: number
     about: string
-    rating: number
     isOnline: boolean
     canSellPoints: boolean
   }>
@@ -115,21 +114,41 @@ export async function deleteServiceZone(zoneId: string): Promise<void> {
 }
 
 export async function updatePricing(
-  payload: Partial<Pick<PricingSettings, 'pointsPerRide' | 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>
+  payload: Partial<
+    Pick<
+      PricingSettings,
+      | 'pointsPerRide'
+      | 'pointPriceCents'
+      | 'pricingMode'
+      | 'pricingFormula'
+      | 'userInfoText'
+      | 'workStartTime'
+      | 'workEndTime'
+      | 'slotIntervalMinutes'
+    >
+  >,
 ): Promise<PricingSettings> {
   const result = await apiRequest<PricingSettings>('/api/pricing', {
     method: 'PATCH',
     body: payload,
     authMode: 'cookie',
   })
-  return {
-    pointsPerRide: result.pointsPerRide,
-    pointPriceCents: result.pointPriceCents,
-    userInfoText: result.userInfoText ?? '',
-    workStartTime: result.workStartTime ?? '06:00',
-    workEndTime: result.workEndTime ?? '19:00',
-    slotIntervalMinutes: result.slotIntervalMinutes ?? 30,
-  }
+  return mapPricingSettings(result)
+}
+
+export async function getRideQuoteAdmin(params: {
+  fromLat: number
+  fromLng: number
+  toLat: number
+  toLng: number
+}): Promise<RideQuote> {
+  const q = new URLSearchParams({
+    fromLat: String(params.fromLat),
+    fromLng: String(params.fromLng),
+    toLat: String(params.toLat),
+    toLng: String(params.toLng),
+  })
+  return apiRequest(`/api/ride-quote?${q}`, { authMode: 'cookie' })
 }
 
 export async function loginAdminByKey(key: string): Promise<AdminSessionUser> {

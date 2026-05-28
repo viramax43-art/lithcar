@@ -305,15 +305,21 @@ export default function NewRequest() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted px-0.5">
-            <span className="inline-flex items-center gap-1">
-              <Coins size={12} weight="fill" className="text-accent-dark" />
-              Стоимость поездки
-            </span>
-            <span className="font-bold text-black text-xs">
-              {model.pricing.pointsPerRide} pts · €{((model.pricing.pointsPerRide * model.pricing.pointPriceCents) / 100).toFixed(2)}
-            </span>
-          </div>
+          {model.fromPoint && model.toPoint && (
+            <div className="flex items-center justify-between rounded-xl bg-surface/80 px-3 py-2 text-[11px] text-muted">
+              <span className="inline-flex items-center gap-1">
+                <Coins size={12} weight="fill" className="text-accent-dark" />
+                Стоимость поездки
+              </span>
+              <span className="font-bold text-black text-xs">
+                {model.quoteLoading
+                  ? 'Считаем…'
+                  : model.displayPoints != null
+                    ? `${model.displayPoints} поинтов`
+                    : model.quoteError ?? '—'}
+              </span>
+            </div>
+          )}
 
           {model.submitted ? (
             <div className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-accent/10 text-accent-dark font-bold text-sm">

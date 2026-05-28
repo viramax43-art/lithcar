@@ -12,6 +12,12 @@ export type RideStatus =
   | 'in_progress'
   | 'completed'
 
+export interface RideRatingContext {
+  canRate: boolean
+  myScore: number | null
+  myComment: string | null
+}
+
 export interface RideRequest {
   id: string
   rideNumber: number
@@ -25,6 +31,7 @@ export interface RideRequest {
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
   assignedDriver?: Driver | null
+  rating?: RideRatingContext | null
   createdAt: string
 }
 
@@ -74,13 +81,64 @@ export interface MapDrawing {
   createdAt: string
 }
 
+export type PricingMode = 'fixed' | 'dynamic'
+
+export interface PricingFormulaTier {
+  maxCircuity: number
+  distanceMultiplier: number
+  minuteMultiplier: number
+  label: string
+}
+
+export interface PricingFormula {
+  version: number
+  basePriceCents: number
+  pricePerKmCents: number
+  pricePerMinuteCents: number
+  circuityFreeThreshold: number
+  circuityPenaltyPerStepCents: number
+  minPriceCents: number
+  maxPriceCents: number
+  minPoints: number
+  requireOsrm: boolean
+  fallbackSpeedKmh: number
+  tiers: PricingFormulaTier[]
+}
+
 export interface PricingSettings {
   pointsPerRide: number
   pointPriceCents: number
+  pricingMode: PricingMode
+  pricingFormula: PricingFormula
   userInfoText: string
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number
+}
+
+export interface RideQuoteBreakdownLine {
+  key: string
+  label: string
+  amountCents: number
+}
+
+export interface RideQuoteMetrics {
+  straightKm: number
+  roadKm: number
+  durationMin: number
+  circuity: number
+  avgSpeedKmh: number
+  tierLabel: string
+  osrmUsed: boolean
+}
+
+export interface RideQuote {
+  pricingMode: PricingMode
+  points: number
+  priceCents: number
+  priceEur: number
+  metrics: RideQuoteMetrics | null
+  breakdown: RideQuoteBreakdownLine[]
 }
 
 export interface UserCabinetRideHistoryItem {
@@ -91,12 +149,15 @@ export interface UserCabinetRideHistoryItem {
   status: RideStatus
   dateTime: string
   createdAt: string
+  canRateDriver: boolean
 }
 
 export interface UserCabinetData {
   userId: string
   username: string | null
   pointsBalance: number
+  rating: number
+  ratingCount: number
   rideHistory: UserCabinetRideHistoryItem[]
   rideHistoryTotal: number
   rideHistoryLimit: number
@@ -118,6 +179,15 @@ export interface DriverCabinetRide {
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
+  rating?: RideRatingContext | null
+}
+
+export interface DriverSessionInfo {
+  driverId: string
+  name: string
+  canSellPoints: boolean
+  rating: number
+  ratingCount: number
 }
 
 export interface DriverMapLinks {
@@ -147,25 +217,19 @@ export interface DriverMapPoint {
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
+  passengerRating: number
+  passengerRatingCount: number
 }
 
 export interface DriverMapData {
-  session: {
-    driverId: string
-    name: string
-    canSellPoints: boolean
-  }
+  session: DriverSessionInfo
   points: DriverMapPoint[]
   activeRides: number
   totalRides: number
 }
 
 export interface DriverCabinetData {
-  session: {
-    driverId: string
-    name: string
-    canSellPoints: boolean
-  }
+  session: DriverSessionInfo
   rides: DriverCabinetRide[]
   driverDebtEur: number
   recentQrSales: Array<{

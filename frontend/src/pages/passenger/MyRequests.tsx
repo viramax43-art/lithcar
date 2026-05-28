@@ -165,6 +165,11 @@ export default function MyRequests() {
                     {status.label}
                   </span>
                   <span className="text-[11px] font-semibold text-muted whitespace-nowrap">№{req.rideNumber}</span>
+                  {req.rating?.canRate && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-amber-100 text-amber-800">
+                      Оценить
+                    </span>
+                  )}
                 </div>
                 <span className="flex items-center gap-1 text-xs text-muted">
                   <Clock size={12} />

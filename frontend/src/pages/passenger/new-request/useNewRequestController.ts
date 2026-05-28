@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import L from 'leaflet'
-import { createRequest, getCurrentUser, getPricing, listServiceZones } from '../../../lib/backend'
+import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones } from '../../../lib/backend'
+import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import {
   RateLimitedError,
   isRateLimited,
@@ -11,7 +12,7 @@ import {
   type NominatimSearchResult,
 } from '../../../lib/geocode'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
-import type { LatLng, PricingSettings, ServiceZone } from '../../../types'
+import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
 import { isPointInAnyZone } from '../../../utils/geo'
 import { PIN_ANCHOR_Y_FRAC } from './NewRequestMapBinder'
 
@@ -48,14 +49,10 @@ function clearDraft(): void {
 
 export function useNewRequestController() {
   const navigate = useNavigate()
-  const [pricing, setPricing] = useState<PricingSettings>({
-    pointsPerRide: 10,
-    pointPriceCents: 50,
-    userInfoText: '',
-    workStartTime: '06:00',
-    workEndTime: '19:00',
-    slotIntervalMinutes: 30,
-  })
+  const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
+  const [quote, setQuote] = useState<RideQuote | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [passengerName, setPassengerName] = useState('Текущий пользователь')
   const activeZones = serviceZones.filter((z) => z.isActive)
@@ -92,6 +89,7 @@ export function useNewRequestController() {
   const reverseAbort = useRef<AbortController | null>(null)
   const searchAbort = useRef<AbortController | null>(null)
   const reverseSeq = useRef(0)
+  const quoteTimeout = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     let cancelled = false
@@ -332,6 +330,42 @@ export function useNewRequestController() {
   }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint])
 
   useEffect(() => {
+    if (!fromPoint || !toPoint) {
+      setQuote(null)
+      setQuoteError(null)
+      setQuoteLoading(false)
+      return
+    }
+
+    if (quoteTimeout.current) clearTimeout(quoteTimeout.current)
+    setQuoteLoading(true)
+    setQuoteError(null)
+
+    quoteTimeout.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await getRideQuote({
+            fromLat: fromPoint.lat,
+            fromLng: fromPoint.lng,
+            toLat: toPoint.lat,
+            toLng: toPoint.lng,
+          })
+          setQuote(result)
+        } catch (error) {
+          setQuote(null)
+          setQuoteError(error instanceof Error ? error.message : 'Не удалось рассчитать стоимость')
+        } finally {
+          setQuoteLoading(false)
+        }
+      })()
+    }, 500)
+
+    return () => {
+      if (quoteTimeout.current) clearTimeout(quoteTimeout.current)
+    }
+  }, [fromPoint, toPoint, pricing.pricingMode])
+
+  useEffect(() => {
     saveDraft({ fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField })
   }, [fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField])
 
@@ -342,6 +376,7 @@ export function useNewRequestController() {
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
       if (reverseAbort.current) reverseAbort.current.abort()
       if (searchAbort.current) searchAbort.current.abort()
+      if (quoteTimeout.current) clearTimeout(quoteTimeout.current)
     }
   }, [])
 
@@ -350,8 +385,16 @@ export function useNewRequestController() {
   const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
 
+  const displayPoints =
+    quote?.points ??
+    (pricing.pricingMode === 'fixed' ? pricing.pointsPerRide : null)
+
   return {
     pricing,
+    quote,
+    quoteLoading,
+    quoteError,
+    displayPoints,
     passengerName,
     hasZones,
     activeZones,

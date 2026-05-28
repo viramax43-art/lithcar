@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
+
 from sqlalchemy import select
 
 from app.core.security import create_access_token
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
+from app.models.ride_request import RideRequest
 from app.models.user import User, UserRole
+from app.services.geo_service import RouteMetrics
+from app.services.pricing_service import get_or_create_pricing, update_pricing
+from app.services.ride_quote_service import default_pricing_formula_json
 
 
 async def _create_user(
@@ -137,6 +143,94 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
     assert list(tx_result.scalars().all()) == []
 
 
+async def test_ride_quote_fixed_mode(client, db_session):
+    passenger = await _create_user(db_session, user_id="p-quote", role=UserRole.PASSENGER)
+    await _create_zone(client)
+    headers = _headers_for(passenger.user_id, passenger.role)
+
+    response = await client.get(
+        "/api/ride-quote",
+        params={"fromLat": 54.69, "fromLng": 25.27, "toLat": 54.70, "toLng": 25.28},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pricingMode"] == "fixed"
+    assert body["points"] == 10
+
+
+async def test_ride_quote_dynamic_mode_with_mock_osrm(client, db_session):
+    passenger = await _create_user(db_session, user_id="p-dyn", role=UserRole.PASSENGER)
+    await _create_zone(client)
+    await get_or_create_pricing(db_session)
+    await update_pricing(
+        db_session,
+        points_per_ride=None,
+        point_price_cents=None,
+        pricing_mode="dynamic",
+        pricing_formula_json=default_pricing_formula_json(),
+    )
+
+    headers = _headers_for(passenger.user_id, passenger.role)
+    with patch(
+        "app.services.ride_quote_service.osrm_route_metrics",
+        new_callable=AsyncMock,
+        return_value=RouteMetrics(road_km=8.5, duration_min=18.0),
+    ):
+        response = await client.get(
+            "/api/ride-quote",
+            params={"fromLat": 54.69, "fromLng": 25.27, "toLat": 54.70, "toLng": 25.28},
+            headers=headers,
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pricingMode"] == "dynamic"
+    assert body["points"] >= 1
+    assert body["metrics"]["roadKm"] == 8.5
+
+
+async def test_dynamic_booking_saves_quote_snapshot(client, db_session):
+    passenger = await _create_user(
+        db_session,
+        user_id="p-dyn-book",
+        role=UserRole.PASSENGER,
+        points_balance=200,
+    )
+    await _create_zone(client)
+    await update_pricing(
+        db_session,
+        points_per_ride=None,
+        point_price_cents=None,
+        pricing_mode="dynamic",
+        pricing_formula_json=default_pricing_formula_json(),
+    )
+
+    headers = _headers_for(passenger.user_id, passenger.role)
+    with patch(
+        "app.services.ride_quote_service.osrm_route_metrics",
+        new_callable=AsyncMock,
+        return_value=RouteMetrics(road_km=6.0, duration_min=14.0),
+    ):
+        created = await client.post(
+            "/api/ride-requests",
+            json={
+                "passengerName": "Dynamic Rider",
+                "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
+                "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
+                "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
+            },
+            headers=headers,
+        )
+    assert created.status_code == 201
+    request_id = created.json()["id"]
+
+    row = await db_session.get(RideRequest, request_id)
+    assert row is not None
+    assert row.quoted_points is not None
+    assert row.quoted_points >= 1
+    assert row.quote_road_km == 6.0
+
+
 async def test_create_request_writes_debit_transaction(client, db_session):
     passenger = await _create_user(db_session, user_id="p-tx", role=UserRole.PASSENGER, points_balance=40)
     await _create_zone(client)
@@ -248,6 +342,8 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
     )
     assert pricing_update.status_code == 200
     assert pricing_update.json()["ridePriceEur"] == 9.6
+    assert pricing_update.json()["pricingMode"] in ("fixed", "dynamic")
+    assert "pricingFormula" in pricing_update.json()
 
     # Две похожие заявки для подсказки группировки.
     await client.patch(f"/api/service-zones/{zone_id}", json={"isActive": True})

@@ -50,6 +50,7 @@ export {
 
 export {
   applyDriverPointAction,
+  rateRideAsDriver,
   getDriverCabinet,
   getDriverMapData,
   getDriverSession,
@@ -67,10 +68,12 @@ export {
 
 export {
   confirmPickup,
+  rateRideAsPassenger,
   createRequest,
   deleteRequest,
   getCurrentUser,
   getPricing,
+  getRideQuote,
   getRequestById,
   getUserCabinet,
   listGroupSuggestions,

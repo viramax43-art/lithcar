@@ -22,6 +22,14 @@ async def create_ride_request_record(
     to_lat: float,
     to_lng: float,
     date_time: datetime,
+    quoted_points: int | None = None,
+    quoted_price_cents: int | None = None,
+    quote_road_km: float | None = None,
+    quote_straight_km: float | None = None,
+    quote_circuity: float | None = None,
+    quote_duration_min: float | None = None,
+    quote_tier_label: str | None = None,
+    quote_breakdown_json: list[dict] | None = None,
 ) -> RideRequest:
     is_from_allowed = await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng)
     is_to_allowed = await is_point_in_any_active_zone(db_session, lat=to_lat, lng=to_lng)
@@ -39,6 +47,14 @@ async def create_ride_request_record(
         to_lng=to_lng,
         date_time=date_time,
         status=RideRequestStatus.PENDING,
+        quoted_points=quoted_points,
+        quoted_price_cents=quoted_price_cents,
+        quote_road_km=quote_road_km,
+        quote_straight_km=quote_straight_km,
+        quote_circuity=quote_circuity,
+        quote_duration_min=quote_duration_min,
+        quote_tier_label=quote_tier_label,
+        quote_breakdown_json=quote_breakdown_json,
     )
     db_session.add(request)
     await db_session.flush()

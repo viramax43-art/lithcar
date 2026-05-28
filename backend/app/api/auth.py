@@ -12,6 +12,7 @@ from app.core.dependencies import get_db_session
 from app.models.ride_request import RideRequest
 from app.models.user import User, UserRole
 from app.services.auth_service import AuthService
+from app.services.rating_service import can_passenger_rate_driver, get_user_rating_aggregate
 from app.services.ride_request_service import list_passenger_requests
 
 # --- Схемы (DTOs) ---
@@ -56,12 +57,15 @@ class RideHistoryItem(BaseModel):
     status: str
     dateTime: datetime
     createdAt: datetime
+    canRateDriver: bool = False
 
 
 class UserCabinetData(BaseModel):
     userId: str
     username: str | None
     pointsBalance: int
+    rating: float
+    ratingCount: int
     rideHistory: list[RideHistoryItem]
     rideHistoryTotal: int
     rideHistoryLimit: int
@@ -154,7 +158,17 @@ async def update_current_user_role(
     return user
 
 
-def _to_ride_history_item(request: RideRequest) -> RideHistoryItem:
+async def _to_ride_history_item(
+    db_session: AsyncSession,
+    request: RideRequest,
+    *,
+    passenger_id: str,
+) -> RideHistoryItem:
+    can_rate = await can_passenger_rate_driver(
+        db_session,
+        ride=request,
+        passenger_id=passenger_id,
+    )
     return RideHistoryItem(
         id=request.id,
         rideNumber=request.ride_number,
@@ -169,6 +183,7 @@ def _to_ride_history_item(request: RideRequest) -> RideHistoryItem:
         status=request.status,
         dateTime=request.date_time,
         createdAt=request.created_at,
+        canRateDriver=can_rate,
     )
 
 
@@ -185,11 +200,18 @@ async def get_user_cabinet(
         limit=limit,
         offset=offset,
     )
+    rating_aggregate = await get_user_rating_aggregate(db_session, current_user.user_id)
+    history = [
+        await _to_ride_history_item(db_session, item, passenger_id=current_user.user_id)
+        for item in rides
+    ]
     return UserCabinetData(
         userId=current_user.user_id,
         username=current_user.username,
         pointsBalance=current_user.points_balance,
-        rideHistory=[_to_ride_history_item(item) for item in rides],
+        rating=rating_aggregate.rating,
+        ratingCount=rating_aggregate.rating_count,
+        rideHistory=history,
         rideHistoryTotal=total,
         rideHistoryLimit=limit,
         rideHistoryOffset=offset,

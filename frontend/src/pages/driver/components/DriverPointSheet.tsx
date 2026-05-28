@@ -9,6 +9,7 @@ import {
   MapPin,
   NavigationArrow,
   PaperPlaneTilt,
+  Star,
   TelegramLogo,
   Warning,
   X,
@@ -150,6 +151,13 @@ function SheetBody({
           </p>
           <p className="text-lg font-extrabold tracking-tight truncate leading-tight mt-0.5">
             {point.passengerName}
+          </p>
+          <p className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
+            <Star size={11} weight="fill" className="text-amber-400" />
+            {point.passengerRating.toFixed(1)}
+            {point.passengerRatingCount > 0 && (
+              <span className="text-muted/80">({point.passengerRatingCount})</span>
+            )}
           </p>
           {isDone && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700">

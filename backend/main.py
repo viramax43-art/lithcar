@@ -15,6 +15,7 @@ from app.api import (
     points_card,
     points_qr,
     pricing,
+    ride_quote,
     ride_requests,
     service_zones,
 )
@@ -58,6 +59,7 @@ api_router.include_router(points_card.router, tags=["Points Card"])
 api_router.include_router(points_qr.router, tags=["Points QR"])
 api_router.include_router(service_zones.router, tags=["Service Zones"])
 api_router.include_router(pricing.router, tags=["Pricing"])
+api_router.include_router(ride_quote.router, tags=["Ride Quote"])
 api_router.include_router(group_suggestions.router, tags=["Group Suggestions"])
 api_router.include_router(map_drawings.router, tags=["Map Drawings"])
 fastapi_app.include_router(api_router)

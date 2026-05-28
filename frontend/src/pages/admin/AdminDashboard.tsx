@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import {
   assignDriverBulk,
@@ -43,14 +44,7 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([])
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [pricing, setPricing] = useState<PricingSettings>({
-    pointsPerRide: 10,
-    pointPriceCents: 50,
-    userInfoText: '',
-    workStartTime: '06:00',
-    workEndTime: '19:00',
-    slotIntervalMinutes: 30,
-  })
+  const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
   const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -253,7 +247,21 @@ export default function AdminDashboard() {
     }
   }
 
-  const handlePricingChange = async (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => {
+  const handlePricingChange = async (
+    payload: Partial<
+      Pick<
+        PricingSettings,
+        | 'pointsPerRide'
+        | 'pointPriceCents'
+        | 'pricingMode'
+        | 'pricingFormula'
+        | 'userInfoText'
+        | 'workStartTime'
+        | 'workEndTime'
+        | 'slotIntervalMinutes'
+      >
+    >,
+  ) => {
     try {
       const updated = await updatePricing(payload)
       setPricing(updated)

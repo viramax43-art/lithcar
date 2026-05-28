@@ -20,7 +20,13 @@ from app.services.passenger_notification_service import (
 from app.services.ride_booking_service import (
     InsufficientPointsError,
     InvalidRideDateTimeError,
+    RideQuoteUnavailableError,
     book_ride_with_points,
+)
+from app.services.rating_service import (
+    RatingError,
+    get_ride_rating_context_for_passenger,
+    submit_passenger_rating,
 )
 from app.services.ride_request_service import (
     assign_driver,
@@ -74,6 +80,17 @@ class RideStatusUpdatePayload(BaseModel):
     status: str
 
 
+class RideRatingSubmitPayload(BaseModel):
+    score: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=500)
+
+
+class RideRatingOut(BaseModel):
+    canRate: bool
+    myScore: int | None = None
+    myComment: str | None = None
+
+
 class RideRequestUpdate(BaseModel):
     passengerName: str | None = Field(default=None, min_length=1)
     fromPoint: RoutePoint | None = None
@@ -95,6 +112,7 @@ class RideRequestOut(BaseModel):
     pickupChangedByDriver: bool
     pickupConfirmedAt: datetime | None
     assignedDriver: "RideAssignedDriverOut | None" = None
+    rating: RideRatingOut | None = None
     createdAt: datetime
 
 
@@ -119,7 +137,12 @@ class RideRequestPage(BaseModel):
     offset: int
 
 
-def _to_ride_request_out(request, *, assigned_driver: RideAssignedDriverOut | None = None) -> RideRequestOut:
+def _to_ride_request_out(
+    request,
+    *,
+    assigned_driver: RideAssignedDriverOut | None = None,
+    rating: RideRatingOut | None = None,
+) -> RideRequestOut:
     return RideRequestOut(
         id=request.id,
         rideNumber=request.ride_number,
@@ -140,7 +163,35 @@ def _to_ride_request_out(request, *, assigned_driver: RideAssignedDriverOut | No
         pickupChangedByDriver=request.pickup_changed_by_driver,
         pickupConfirmedAt=request.pickup_confirmed_at,
         assignedDriver=assigned_driver,
+        rating=rating,
         createdAt=request.created_at,
+    )
+
+
+def _to_ride_rating_out(ctx) -> RideRatingOut:
+    return RideRatingOut(
+        canRate=ctx.can_rate,
+        myScore=ctx.my_score,
+        myComment=ctx.my_comment,
+    )
+
+
+async def _build_ride_request_out_for_passenger(
+    db_session: AsyncSession,
+    request,
+    *,
+    passenger_id: str,
+    assigned_driver: RideAssignedDriverOut | None = None,
+) -> RideRequestOut:
+    rating_ctx = await get_ride_rating_context_for_passenger(
+        db_session,
+        ride=request,
+        passenger_id=passenger_id,
+    )
+    return _to_ride_request_out(
+        request,
+        assigned_driver=assigned_driver,
+        rating=_to_ride_rating_out(rating_ctx),
     )
 
 
@@ -200,6 +251,8 @@ async def create_request(
                 "currentBalance": exc.current_balance,
             },
         ) from exc
+    except RideQuoteUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return _to_ride_request_out(request)
 
 
@@ -216,8 +269,23 @@ async def list_my_requests(
         limit=limit,
         offset=offset,
     )
+    items = []
+    for request in requests:
+        assigned_driver = None
+        if request.driver_id:
+            driver = await get_driver(db_session, driver_id=request.driver_id)
+            if driver is not None:
+                assigned_driver = _to_assigned_driver_out(driver)
+        items.append(
+            await _build_ride_request_out_for_passenger(
+                db_session,
+                request,
+                passenger_id=current_user.user_id,
+                assigned_driver=assigned_driver,
+            )
+        )
     return RideRequestPage(
-        items=[_to_ride_request_out(request) for request in requests],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
@@ -263,7 +331,48 @@ async def get_request_details(
         driver = await get_driver(db_session, driver_id=request.driver_id)
         if driver is not None:
             assigned_driver = _to_assigned_driver_out(driver)
+    if request.passenger_id == current_user.user_id:
+        return await _build_ride_request_out_for_passenger(
+            db_session,
+            request,
+            passenger_id=current_user.user_id,
+            assigned_driver=assigned_driver,
+        )
     return _to_ride_request_out(request, assigned_driver=assigned_driver)
+
+
+@router.post("/{request_id}/rate", response_model=RideRequestOut)
+async def rate_ride_as_passenger(
+    request_id: str,
+    payload: RideRatingSubmitPayload,
+    current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        await submit_passenger_rating(
+            db_session,
+            ride_id=request_id,
+            passenger_id=current_user.user_id,
+            score=payload.score,
+            comment=payload.comment,
+        )
+    except RatingError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    request = await get_request(db_session, request_id=request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Ride request not found.")
+    assigned_driver = None
+    if request.driver_id:
+        driver = await get_driver(db_session, driver_id=request.driver_id)
+        if driver is not None:
+            assigned_driver = _to_assigned_driver_out(driver)
+    return await _build_ride_request_out_for_passenger(
+        db_session,
+        request,
+        passenger_id=current_user.user_id,
+        assigned_driver=assigned_driver,
+    )
 
 
 @router.patch("/{request_id}/assign", response_model=RideRequestOut)

@@ -34,7 +34,6 @@ async def create_driver(
     seats_count: int,
     license_number: str,
     about: str,
-    rating: float = 5.0,
     is_online: bool = False,
     can_sell_points: bool = False,
 ) -> Driver:
@@ -65,7 +64,6 @@ async def create_driver(
         about=about,
         access_key_hash=hash_admin_key(raw_key),
         key_prefix=raw_key[:20],
-        rating=rating,
         is_online=is_online,
         last_seen_at=datetime.now(timezone.utc) if is_online else None,
         can_sell_points=can_sell_points,
@@ -185,7 +183,6 @@ async def update_driver_profile(
     vehicle_color: str | None = None,
     seats_count: int | None = None,
     about: str | None = None,
-    rating: float | None = None,
     is_online: bool | None = None,
     can_sell_points: bool | None = None,
 ) -> Driver | None:
@@ -208,8 +205,6 @@ async def update_driver_profile(
         driver.seats_count = seats_count
     if about is not None:
         driver.about = about
-    if rating is not None:
-        driver.rating = rating
     if is_online is not None:
         driver.is_online = is_online
         driver.last_seen_at = datetime.now(timezone.utc) if is_online else None

@@ -34,6 +34,13 @@ from app.services.driver_qr_sale_service import (
     list_driver_debts_summary,
 )
 from app.services.pricing_service import get_or_create_pricing
+from app.services.rating_service import (
+    RatingError,
+    get_driver_rating_aggregate,
+    get_ride_rating_context_for_driver,
+    get_user_rating_aggregate,
+    submit_driver_rating,
+)
 from app.services.ride_request_service import (
     apply_driver_point_action,
     get_request,
@@ -56,6 +63,19 @@ class DriverSessionOut(BaseModel):
     driverId: str
     name: str
     canSellPoints: bool
+    rating: float = 5.0
+    ratingCount: int = 0
+
+
+class DriverRideRatingSubmitPayload(BaseModel):
+    score: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=500)
+
+
+class DriverRideRatingOut(BaseModel):
+    canRate: bool
+    myScore: int | None = None
+    myComment: str | None = None
 
 
 class LatLngOut(BaseModel):
@@ -78,6 +98,7 @@ class DriverRideOut(BaseModel):
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
+    rating: DriverRideRatingOut | None = None
 
 
 class DriverRideStatusUpdate(BaseModel):
@@ -121,6 +142,8 @@ class DriverMapPointOut(BaseModel):
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
+    passengerRating: float = 5.0
+    passengerRatingCount: int = 0
 
 
 class DriverMapOut(BaseModel):
@@ -205,7 +228,42 @@ async def get_driver_session(
     return session
 
 
-def _to_driver_ride_out(ride) -> DriverRideOut:
+async def _to_driver_session_out(
+    db_session: AsyncSession,
+    *,
+    driver_id: str,
+    name: str,
+    can_sell_points: bool,
+) -> DriverSessionOut:
+    aggregate = await get_driver_rating_aggregate(db_session, driver_id)
+    return DriverSessionOut(
+        driverId=driver_id,
+        name=name,
+        canSellPoints=can_sell_points,
+        rating=aggregate.rating,
+        ratingCount=aggregate.rating_count,
+    )
+
+
+def _to_driver_ride_rating_out(ctx) -> DriverRideRatingOut:
+    return DriverRideRatingOut(
+        canRate=ctx.can_rate,
+        myScore=ctx.my_score,
+        myComment=ctx.my_comment,
+    )
+
+
+async def _to_driver_ride_out(
+    db_session: AsyncSession,
+    ride,
+    *,
+    driver_id: str,
+) -> DriverRideOut:
+    rating_ctx = await get_ride_rating_context_for_driver(
+        db_session,
+        ride=ride,
+        driver_id=driver_id,
+    )
     return DriverRideOut(
         id=ride.id,
         rideNumber=ride.ride_number,
@@ -221,6 +279,7 @@ def _to_driver_ride_out(ride) -> DriverRideOut:
         pickupChangedByDriver=ride.pickup_changed_by_driver,
         pickupNotifiedAt=ride.pickup_notified_at,
         pickupConfirmedAt=ride.pickup_confirmed_at,
+        rating=_to_driver_ride_rating_out(rating_ctx),
     )
 
 
@@ -316,6 +375,7 @@ def _build_driver_map_points(
     *,
     rides: list,
     username_by_user_id: dict[str, str | None],
+    passenger_rating_by_user_id: dict[str, tuple[float, int]],
     driver_lat: float | None = None,
     driver_lng: float | None = None,
 ) -> list[DriverMapPointOut]:
@@ -330,6 +390,10 @@ def _build_driver_map_points(
             lng = ride.from_lng if is_pickup else ride.to_lng
             address = ride.from_address if is_pickup else ride.to_address
             label = f"#{ride.ride_number} {point_type}"
+            passenger_rating, passenger_rating_count = passenger_rating_by_user_id.get(
+                ride.passenger_id,
+                (5.0, 0),
+            )
             points.append(
                 DriverMapPointOut(
                     id=f"{ride.id}:{point_type}",
@@ -351,6 +415,8 @@ def _build_driver_map_points(
                     pickupChangedByDriver=ride.pickup_changed_by_driver if is_pickup else False,
                     pickupNotifiedAt=ride.pickup_notified_at if is_pickup else None,
                     pickupConfirmedAt=ride.pickup_confirmed_at if is_pickup else None,
+                    passengerRating=passenger_rating,
+                    passengerRatingCount=passenger_rating_count,
                 )
             )
     return points
@@ -379,7 +445,12 @@ async def driver_login_with_key(
         samesite="lax",
         path="/",
     )
-    return DriverSessionOut(driverId=driver.id, name=driver.name, canSellPoints=driver.can_sell_points)
+    return await _to_driver_session_out(
+        db_session,
+        driver_id=driver.id,
+        name=driver.name,
+        can_sell_points=driver.can_sell_points,
+    )
 
 
 @router.post("/session/logout")
@@ -401,8 +472,16 @@ async def driver_logout(
 
 
 @router.get("/session/me", response_model=DriverSessionOut)
-async def driver_session_me(session: DriverSession = Depends(get_driver_session)):
-    return DriverSessionOut(driverId=session.driver_id, name=session.name, canSellPoints=session.can_sell_points)
+async def driver_session_me(
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    return await _to_driver_session_out(
+        db_session,
+        driver_id=session.driver_id,
+        name=session.name,
+        can_sell_points=session.can_sell_points,
+    )
 
 
 @router.get("/cabinet", response_model=DriverCabinetOut)
@@ -423,16 +502,20 @@ async def driver_cabinet(
         driver_id=session.driver_id,
         limit=20,
     )
+    session_out = await _to_driver_session_out(
+        db_session,
+        driver_id=session.driver_id,
+        name=session.name,
+        can_sell_points=session.can_sell_points,
+    )
+    sorted_rides = sorted(rides, key=lambda r: (r.route_order or 9999, r.created_at))
+    ride_outs = [
+        await _to_driver_ride_out(db_session, item, driver_id=session.driver_id)
+        for item in sorted_rides
+    ]
     return DriverCabinetOut(
-        session=DriverSessionOut(
-            driverId=session.driver_id,
-            name=session.name,
-            canSellPoints=session.can_sell_points,
-        ),
-        rides=[
-            _to_driver_ride_out(item)
-            for item in sorted(rides, key=lambda r: (r.route_order or 9999, r.created_at))
-        ],
+        session=session_out,
+        rides=ride_outs,
         driverDebtEur=round(debt_total_cents / 100, 2),
         recentQrSales=[
             DriverDebtSaleOut(
@@ -464,24 +547,34 @@ async def driver_cabinet_map(
     active_rides = [item for item in rides if item.status != "completed"]
     passenger_ids = list({item.passenger_id for item in active_rides})
     username_by_user_id: dict[str, str | None] = {}
+    passenger_rating_by_user_id: dict[str, tuple[float, int]] = {}
     if passenger_ids:
         user_rows = await db_session.execute(select(User).where(User.user_id.in_(passenger_ids)))
         users = user_rows.scalars().all()
         username_by_user_id = {user.user_id: user.username for user in users}
+        for user in users:
+            aggregate = await get_user_rating_aggregate(db_session, user.user_id)
+            passenger_rating_by_user_id[user.user_id] = (
+                aggregate.rating,
+                aggregate.rating_count,
+            )
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
     driver_lat = driver.current_lat if driver else None
     driver_lng = driver.current_lng if driver else None
 
+    session_out = await _to_driver_session_out(
+        db_session,
+        driver_id=session.driver_id,
+        name=session.name,
+        can_sell_points=session.can_sell_points,
+    )
     return DriverMapOut(
-        session=DriverSessionOut(
-            driverId=session.driver_id,
-            name=session.name,
-            canSellPoints=session.can_sell_points,
-        ),
+        session=session_out,
         points=_build_driver_map_points(
             rides=active_rides,
             username_by_user_id=username_by_user_id,
+            passenger_rating_by_user_id=passenger_rating_by_user_id,
             driver_lat=driver_lat,
             driver_lng=driver_lng,
         ),
@@ -509,7 +602,12 @@ async def set_driver_online(
         )
     if updated is None:
         raise HTTPException(status_code=404, detail="Driver profile not found.")
-    return DriverSessionOut(driverId=updated.id, name=updated.name, canSellPoints=updated.can_sell_points)
+    return await _to_driver_session_out(
+        db_session,
+        driver_id=updated.id,
+        name=updated.name,
+        can_sell_points=updated.can_sell_points,
+    )
 
 
 @router.post("/cabinet/qr-sales/issue", response_model=DriverQrSaleIssueOut)
@@ -604,7 +702,31 @@ async def update_cabinet_ride_status(
         previous_status=previous_status,
         driver=driver,
     )
-    return _to_driver_ride_out(ride)
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
+
+
+@router.post("/cabinet/rides/{request_id}/rate", response_model=DriverRideOut)
+async def rate_ride_as_driver(
+    request_id: str,
+    payload: DriverRideRatingSubmitPayload,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        await submit_driver_rating(
+            db_session,
+            ride_id=request_id,
+            driver_id=session.driver_id,
+            score=payload.score,
+            comment=payload.comment,
+        )
+    except RatingError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    ride = await get_request(db_session, request_id=request_id)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
 @router.patch("/cabinet/points/{request_id}/{point_type}/action", response_model=DriverRideOut)
@@ -641,7 +763,7 @@ async def update_cabinet_point_action(
             previous_status=previous_status,
             driver=driver,
         )
-    return _to_driver_ride_out(ride)
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
 @router.patch("/cabinet/rides/{request_id}/pickup", response_model=DriverRideOut)
@@ -663,7 +785,7 @@ async def update_cabinet_ride_pickup(
         raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
-    return _to_driver_ride_out(ride)
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
 @router.post("/cabinet/rides/{request_id}/pickup/reset", response_model=DriverRideOut)
@@ -681,7 +803,7 @@ async def reset_cabinet_ride_pickup(
         raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
-    return _to_driver_ride_out(ride)
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
 @router.post("/cabinet/rides/{request_id}/notify-pickup-change", response_model=DriverRideOut)
@@ -703,4 +825,4 @@ async def notify_pickup_change(
     from app.services.passenger_notification_service import notify_passenger_pickup_changed
     driver = await get_driver(db_session, driver_id=session.driver_id)
     await notify_passenger_pickup_changed(request=ride, driver=driver)
-    return _to_driver_ride_out(ride)
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)

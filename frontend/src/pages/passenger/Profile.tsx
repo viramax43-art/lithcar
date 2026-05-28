@@ -7,6 +7,7 @@ import {
   Coins,
   CreditCard,
   Info,
+  Star,
   LockKey,
   QrCode,
   SealWarning,
@@ -144,6 +145,18 @@ export default function Profile() {
                 <Skeleton width={120} height={14} className="!bg-white/15" rounded="sm" />
               )}
             </div>
+            {cabinet && cabinet.ratingCount > 0 ? (
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-400 shrink-0">
+                <Star size={12} weight="fill" />
+                {cabinet.rating.toFixed(1)}
+                <span className="text-white/50 font-semibold">({cabinet.ratingCount})</span>
+              </span>
+            ) : cabinet ? (
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-400 shrink-0">
+                <Star size={12} weight="fill" />
+                {cabinet.rating.toFixed(1)}
+              </span>
+            ) : null}
             <p className="text-xs text-white/70 shrink-0">Баланс</p>
           </div>
           <div className="flex items-center gap-2">
@@ -230,10 +243,20 @@ export default function Profile() {
           )}
           {cabinet && sortedHistory.length === 0 && <p className="text-xs text-muted">Поездок пока нет.</p>}
           {sortedHistory.map((ride) => (
-            <div key={ride.id} className="rounded-xl bg-surface p-3 space-y-1">
+            <button
+              key={ride.id}
+              type="button"
+              onClick={() => navigate(`/requests/${ride.id}`)}
+              className="w-full text-left rounded-xl bg-surface p-3 space-y-1 active:bg-border/40 transition-colors"
+            >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold truncate min-w-0">{ride.from.address}</p>
                 <div className="flex items-center gap-2 shrink-0">
+                  {ride.canRateDriver && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-amber-100 text-amber-800">
+                      Оценить
+                    </span>
+                  )}
                   <span className="text-[10px] font-semibold text-muted">№{ride.rideNumber}</span>
                   <span className="text-[10px] text-muted">{STATUS_MAP[ride.status] || ride.status}</span>
                 </div>
@@ -242,7 +265,7 @@ export default function Profile() {
               <p className="text-[10px] text-muted">
                 {new Date(ride.dateTime).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </p>
-            </div>
+            </button>
           ))}
           {canLoadMoreHistory && (
             <button

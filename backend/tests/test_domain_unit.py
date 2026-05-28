@@ -3,6 +3,12 @@ from types import SimpleNamespace
 
 from app.services.geo_service import haversine_km, point_in_polygon
 from app.services.pricing_service import ride_price_eur
+from app.services.ride_quote_service import (
+    apply_formula,
+    build_fixed_quote,
+    default_pricing_formula,
+    select_tier,
+)
 from app.services.suggestion_service import _similarity_score_from_distances
 
 
@@ -24,6 +30,61 @@ def test_point_in_polygon_and_haversine():
 def test_pricing_formula():
     assert ride_price_eur(points_per_ride=10, point_price_cents=50) == 5.0
     assert ride_price_eur(points_per_ride=12, point_price_cents=80) == 9.6
+
+
+def test_select_tier_by_circuity():
+    formula = default_pricing_formula()
+    direct = select_tier(formula, 1.08)
+    urban = select_tier(formula, 1.5)
+    assert direct.label == "Прямой"
+    assert urban.label == "Городской"
+
+
+def test_apply_formula_direct_cheaper_than_urban():
+    formula = default_pricing_formula()
+    direct_points, direct_cents, _ = apply_formula(
+        formula,
+        road_km=10.0,
+        duration_min=12.0,
+        circuity=1.08,
+        point_price_cents=50,
+    )
+    urban_points, urban_cents, _ = apply_formula(
+        formula,
+        road_km=10.0,
+        duration_min=12.0,
+        circuity=1.45,
+        point_price_cents=50,
+    )
+    assert direct_cents < urban_cents
+    assert direct_points <= urban_points
+
+
+def test_apply_formula_respects_min_max():
+    formula = default_pricing_formula()
+    _, cents_low, _ = apply_formula(
+        formula,
+        road_km=0.1,
+        duration_min=1.0,
+        circuity=1.0,
+        point_price_cents=50,
+    )
+    _, cents_high, _ = apply_formula(
+        formula,
+        road_km=500.0,
+        duration_min=500.0,
+        circuity=2.0,
+        point_price_cents=50,
+    )
+    assert cents_low == formula.min_price_cents
+    assert cents_high == formula.max_price_cents
+
+
+def test_build_fixed_quote():
+    pricing = SimpleNamespace(points_per_ride=10, point_price_cents=50)
+    quote = build_fixed_quote(pricing)
+    assert quote.points == 10
+    assert quote.price_cents == 500
 
 
 def test_suggestion_similarity():

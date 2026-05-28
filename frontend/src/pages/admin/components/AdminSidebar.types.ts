@@ -47,7 +47,21 @@ export interface AdminSidebarProps {
   pricing: PricingSettings
   qrSales: AdminQrSaleAudit[]
   hasLoadedQrSalesOnce: boolean
-  handlePricingChange: (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => Promise<void>
+  handlePricingChange: (
+    payload: Partial<
+      Pick<
+        PricingSettings,
+        | 'pointsPerRide'
+        | 'pointPriceCents'
+        | 'pricingMode'
+        | 'pricingFormula'
+        | 'userInfoText'
+        | 'workStartTime'
+        | 'workEndTime'
+        | 'slotIntervalMinutes'
+      >
+    >,
+  ) => Promise<void>
   adminSession: AdminSessionUser
   newManagedKeyName: string
   setNewManagedKeyName: (value: string) => void

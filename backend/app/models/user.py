@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, func
 
 from app.models import Base
 
@@ -17,6 +17,7 @@ class User(Base):
     username = Column(String, nullable=True)
     role = Column(String, nullable=False, server_default=UserRole.PASSENGER)
     points_balance = Column(Integer, nullable=False, server_default="0")
+    rating = Column(Float, nullable=False, server_default="5.0")
     onboarding_completed = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

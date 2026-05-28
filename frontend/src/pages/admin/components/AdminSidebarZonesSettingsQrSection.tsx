@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { ZONE_COLORS } from '../constants'
+import { AdminDynamicPricingSection } from './AdminDynamicPricingSection'
 import InlineConfirm from './InlineConfirm'
 import { inputCls } from './AdminSidebarShared'
 import Skeleton from '../../../components/Skeleton'
@@ -170,23 +171,39 @@ export function AdminSidebarZonesSettingsQrSection({
   }
 
   if (activeTab === 'settings') {
+    const displayPoints =
+      pricing.pricingMode === 'dynamic' ? '—' : String(pricing.pointsPerRide)
+    const displayRideEur =
+      pricing.pricingMode === 'dynamic'
+        ? 'по маршруту'
+        : `€${((pricing.pointsPerRide * pricing.pointPriceCents) / 100).toFixed(2)}`
+
     return (
       <div className="space-y-4">
+        <AdminDynamicPricingSection pricing={pricing} onPricingChange={handlePricingChange} />
+
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-              Цена 1 поинта (евроценты)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={pricing.pointPriceCents}
-              onChange={(event) => {
-                const v = parseInt(event.target.value, 10)
-                if (!Number.isNaN(v) && v >= 1) void handlePricingChange({ pointPriceCents: v })
-              }}
-              className={inputCls}
-            />
+            <label className="block text-sm font-bold mb-1">Цена одного поинта</label>
+            <p className="text-[11px] text-muted mb-2">
+              Сколько стоит 1 поинт в евро. Например, 0.50 — это половина евро за поинт.
+            </p>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">€</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                value={(pricing.pointPriceCents / 100).toFixed(2)}
+                onChange={(event) => {
+                  const euro = parseFloat(event.target.value)
+                  if (!Number.isNaN(euro) && euro > 0) {
+                    void handlePricingChange({ pointPriceCents: Math.round(euro * 100) })
+                  }
+                }}
+                className={`${inputCls} pl-7`}
+              />
+            </div>
           </div>
         </div>
 
@@ -257,21 +274,23 @@ export function AdminSidebarZonesSettingsQrSection({
         </div>
 
         <div className="rounded-card bg-black text-white p-5 space-y-3">
-          <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">Расчёт</p>
+          <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">Сейчас в системе</p>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/70">Цена 1 поинта</span>
+            <span className="text-white/70">1 поинт</span>
             <span className="font-semibold">€{(pricing.pointPriceCents / 100).toFixed(2)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-white/70">Поинтов за поездку</span>
-            <span className="font-semibold">{pricing.pointsPerRide}</span>
-          </div>
+          {pricing.pricingMode === 'fixed' && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white/70">За поездку</span>
+              <span className="font-semibold">{displayPoints} поинтов</span>
+            </div>
+          )}
           <div className="h-px bg-white/15" />
           <div className="flex items-center justify-between">
-            <span className="text-sm text-white/70">Стоимость поездки</span>
-            <span className="text-2xl font-extrabold text-accent">
-              €{((pricing.pointsPerRide * pricing.pointPriceCents) / 100).toFixed(2)}
+            <span className="text-sm text-white/70">
+              {pricing.pricingMode === 'dynamic' ? 'Цена поездки' : 'Примерно в евро'}
             </span>
+            <span className="text-2xl font-extrabold text-accent">{displayRideEur}</span>
           </div>
         </div>
       </div>

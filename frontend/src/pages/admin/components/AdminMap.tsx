@@ -542,7 +542,7 @@ export default function AdminMap({
   return (
     <main className="flex-1 relative">
       {/* === Date/Time Filter Bar === */}
-      <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
+      <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
@@ -655,8 +655,8 @@ export default function AdminMap({
         </div>
       </div>
 
-      {/* Search + Geolocation + Optimize controls */}
-      <div className="admin-map-controls absolute top-[156px] md:top-[124px] left-4 z-[1000] flex flex-col gap-2">
+      {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
+      <div className="admin-map-controls absolute top-[200px] left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))]">
         <div className="flex items-center gap-2">
           {searchOpen ? (
             <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-w-[calc(100vw-32px)] max-h-[50vh] overflow-hidden">
@@ -733,7 +733,7 @@ export default function AdminMap({
         </div>
 
         {/* Legend */}
-        <div className="admin-legend-bar flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm">
+        <div className="admin-legend-bar flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm w-fit">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#EF4444]" />
             <span className="text-[10px] text-muted">Едет</span>
@@ -751,94 +751,96 @@ export default function AdminMap({
             <span className="text-[10px] text-muted">Ожид.</span>
           </div>
         </div>
-      </div>
 
-      {/* Map marker drawing panel */}
-      <div className="absolute top-[218px] md:top-[186px] left-4 z-[1000] w-[min(360px,calc(100vw-32px))] bg-white rounded-card shadow-card p-3.5 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-bold">Рисовалка карты</p>
-          <span className="text-[10px] text-muted">{mapDrawings.length} сохранено</span>
-        </div>
-
-        {isMarkerDrawing && (
-          <div className="rounded-xl border border-border p-2.5 space-y-2">
-            <input
-              value={markerTitle}
-              onChange={(event) => setMarkerTitle(event.target.value)}
-              placeholder="Название рисунка"
-              className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
-            />
+        {/* Map marker drawing panel — only when active or there are saved drawings */}
+        {(isMarkerDrawing || mapDrawings.length > 0) && (
+          <div className="bg-white rounded-card shadow-card p-3.5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                {['#DC2626', '#2563EB', '#16A34A', '#7C3AED', '#111827'].map((color) => (
+              <p className="text-xs font-bold">Рисовалка карты</p>
+              <span className="text-[10px] text-muted">{mapDrawings.length} сохранено</span>
+            </div>
+
+            {isMarkerDrawing && (
+              <div className="rounded-xl border border-border p-2.5 space-y-2">
+                <input
+                  value={markerTitle}
+                  onChange={(event) => setMarkerTitle(event.target.value)}
+                  placeholder="Название рисунка"
+                  className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {['#DC2626', '#2563EB', '#16A34A', '#7C3AED', '#111827'].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setMarkerColor(color)}
+                        className={`w-5 h-5 rounded-full ${markerColor === color ? 'ring-2 ring-black ring-offset-1' : ''}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-muted">{markerDrawingPoints.length} точек</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
-                    key={color}
-                    onClick={() => setMarkerColor(color)}
-                    className={`w-5 h-5 rounded-full ${markerColor === color ? 'ring-2 ring-black ring-offset-1' : ''}`}
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
-                ))}
+                    onClick={() => setMarkerDrawingPoints((prev) => prev.slice(0, -1))}
+                    disabled={markerDrawingPoints.length === 0}
+                    className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
+                  >
+                    Назад
+                  </button>
+                  <button
+                    onClick={() => setMarkerDrawingPoints([])}
+                    disabled={markerDrawingPoints.length === 0}
+                    className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
+                  >
+                    Очистить
+                  </button>
+                  <button
+                    onClick={() => void handleSaveMarkerDrawing()}
+                    disabled={markerDrawingPoints.length < 2 || isSavingMarkerDrawing}
+                    className="h-8 rounded-lg bg-black text-white text-[11px] font-bold disabled:opacity-50 inline-flex items-center justify-center gap-1"
+                  >
+                    <FloppyDisk size={12} />
+                    {isSavingMarkerDrawing ? '...' : 'Сохранить'}
+                  </button>
+                </div>
               </div>
-              <span className="text-[10px] text-muted">{markerDrawingPoints.length} точек</span>
+            )}
+
+            <div className="space-y-1.5 max-h-28 overflow-y-auto scroll-smooth-y">
+              {isLoadingMapDrawings && <p className="text-[11px] text-muted">Загрузка рисунков…</p>}
+              {!isLoadingMapDrawings && mapDrawings.length === 0 && (
+                <p className="text-[11px] text-muted">Пока нет сохраненных рисунков.</p>
+              )}
+              {mapDrawings.map((drawing) => (
+                <div
+                  key={drawing.id}
+                  className={`rounded-lg border px-2 py-1.5 flex items-center gap-2 ${
+                    selectedDrawingId === drawing.id ? 'border-black' : 'border-border'
+                  }`}
+                >
+                  <button
+                    onClick={() => setSelectedDrawingId((prev) => (prev === drawing.id ? null : drawing.id))}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <p className="text-[11px] font-semibold truncate">{drawing.title}</p>
+                  </button>
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: drawing.color }} />
+                  <button
+                    onClick={() => void handleDeleteDrawing(drawing.id)}
+                    className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
+                    title="Удалить рисунок"
+                  >
+                    <Trash size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <button
-                onClick={() => setMarkerDrawingPoints((prev) => prev.slice(0, -1))}
-                disabled={markerDrawingPoints.length === 0}
-                className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
-              >
-                Назад
-              </button>
-              <button
-                onClick={() => setMarkerDrawingPoints([])}
-                disabled={markerDrawingPoints.length === 0}
-                className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
-              >
-                Очистить
-              </button>
-              <button
-                onClick={() => void handleSaveMarkerDrawing()}
-                disabled={markerDrawingPoints.length < 2 || isSavingMarkerDrawing}
-                className="h-8 rounded-lg bg-black text-white text-[11px] font-bold disabled:opacity-50 inline-flex items-center justify-center gap-1"
-              >
-                <FloppyDisk size={12} />
-                {isSavingMarkerDrawing ? '...' : 'Сохранить'}
-              </button>
-            </div>
+            {mapDrawingError && <p className="text-[11px] text-red-600">{mapDrawingError}</p>}
           </div>
         )}
-
-        <div className="space-y-1.5 max-h-28 overflow-y-auto scroll-smooth-y">
-          {isLoadingMapDrawings && <p className="text-[11px] text-muted">Загрузка рисунков…</p>}
-          {!isLoadingMapDrawings && mapDrawings.length === 0 && (
-            <p className="text-[11px] text-muted">Пока нет сохраненных рисунков.</p>
-          )}
-          {mapDrawings.map((drawing) => (
-            <div
-              key={drawing.id}
-              className={`rounded-lg border px-2 py-1.5 flex items-center gap-2 ${
-                selectedDrawingId === drawing.id ? 'border-black' : 'border-border'
-              }`}
-            >
-              <button
-                onClick={() => setSelectedDrawingId((prev) => (prev === drawing.id ? null : drawing.id))}
-                className="flex-1 text-left min-w-0"
-              >
-                <p className="text-[11px] font-semibold truncate">{drawing.title}</p>
-              </button>
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: drawing.color }} />
-              <button
-                onClick={() => void handleDeleteDrawing(drawing.id)}
-                className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
-                title="Удалить рисунок"
-              >
-                <Trash size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-        {mapDrawingError && <p className="text-[11px] text-red-600">{mapDrawingError}</p>}
       </div>
 
       {/* Sidebar toggle when collapsed */}
@@ -1189,7 +1191,7 @@ export default function AdminMap({
 
       {/* Selected request detail card */}
       {selectedReq && status && (
-        <div className="admin-map-detail-card absolute top-16 right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden">
+        <div className="admin-map-detail-card absolute top-[200px] right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>
