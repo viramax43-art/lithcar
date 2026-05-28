@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
@@ -40,6 +40,8 @@ export function AdminSidebarRequestsSuggestionsSection({
   setSelectedReqId,
   setAssignModalReqIds,
 }: RequestsSuggestionsProps) {
+  const [manualGroupIds, setManualGroupIds] = useState<string[]>([])
+
   const requestsInDateTimeWindow = useMemo(() => {
     return requests.filter((request) => {
       const reqDate = new Date(request.dateTime)
@@ -89,6 +91,11 @@ export function AdminSidebarRequestsSuggestionsSection({
 
   const canLoadMore = requests.length < requestsTotal
 
+  useEffect(() => {
+    const visibleIds = new Set(filteredRequests.map((r) => r.id))
+    setManualGroupIds((prev) => prev.filter((id) => visibleIds.has(id)))
+  }, [filteredRequests])
+
   if (activeTab !== 'requests') return null
 
   return (
@@ -112,17 +119,42 @@ export function AdminSidebarRequestsSuggestionsSection({
         )}
       </div>
 
+      {manualGroupIds.length > 0 && (
+        <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold text-violet-700">
+              Выбрано в группу: {manualGroupIds.length}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setManualGroupIds([])}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors touch-compact"
+              >
+                Очистить
+              </button>
+              <button
+                onClick={() => setAssignModalReqIds(manualGroupIds)}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-black text-white hover:bg-black/90 transition-colors touch-compact"
+              >
+                Назначить группу
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Requests list */}
       <div className="space-y-2.5">
         {filteredRequests.map((request) => {
           const status = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.pending
           const selected = selectedReqId === request.id
+          const inManualGroup = manualGroupIds.includes(request.id)
           return (
             <button
               key={request.id}
               onClick={() => setSelectedReqId(selected ? null : request.id)}
               className={`w-full text-left p-3.5 rounded-card border-[1.5px] transition-all touch-none ${
-                selected ? 'border-black bg-surface' : 'border-border hover:border-muted'
+                selected ? 'border-black bg-surface' : inManualGroup ? 'border-violet-400 bg-violet-50/30' : 'border-border hover:border-muted'
               }`}
             >
               <div className="flex items-center justify-between mb-2.5 gap-2">
@@ -174,17 +206,32 @@ export function AdminSidebarRequestsSuggestionsSection({
                     minute: '2-digit',
                   })}
                 </span>
-                {!request.driverId && (
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={(event) => {
                       event.stopPropagation()
-                      setAssignModalReqIds([request.id])
+                      setManualGroupIds((prev) => prev.includes(request.id) ? prev.filter((id) => id !== request.id) : [...prev, request.id])
                     }}
-                    className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-1.5 rounded-pill transition-colors touch-compact"
+                    className={`text-[11px] font-bold px-3 py-1.5 rounded-pill transition-colors touch-compact ${
+                      inManualGroup
+                        ? 'text-violet-700 bg-violet-100 border border-violet-300'
+                        : 'text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200'
+                    }`}
                   >
-                    Назначить
+                    {inManualGroup ? 'Убрать' : 'В группу'}
                   </button>
-                )}
+                  {!request.driverId && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setAssignModalReqIds([request.id])
+                      }}
+                      className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-1.5 rounded-pill transition-colors touch-compact"
+                    >
+                      Назначить
+                    </button>
+                  )}
+                </div>
               </div>
             </button>
           )

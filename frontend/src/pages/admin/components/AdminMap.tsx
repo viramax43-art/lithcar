@@ -209,6 +209,9 @@ export default function AdminMap({
     () => similarGroups.find((g) => g.id === selectedSimilarGroupId) ?? null,
     [similarGroups, selectedSimilarGroupId],
   )
+  const isRoutePreviewMode = Boolean(
+    selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -653,68 +656,72 @@ export default function AdminMap({
         <FlyToHelper target={flyTarget} />
         <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
 
-        {/* Clustered active ride markers — one cluster group per color */}
-        {MAP_COLOR_GROUPS.filter((g) => enabledColors.has(g.key)).map((group) => (
-          <MarkerClusterGroup
-            key={group.key}
-            markers={clusterMarkersByColor[group.key]}
-            clusterColor={group.hex}
-          />
-        ))}
-
-        {/* Clustered completed markers (A + green B) — controlled by green toggle */}
-        {enabledColors.has('green') && (
+        {!isRoutePreviewMode && (
           <>
-            <MarkerClusterGroup markers={completedDestinationMarkers} clusterColor="#22C55E" />
-            <MarkerClusterGroup markers={completedPickupMarkers} clusterColor="#22C55E" />
+            {/* Clustered active ride markers — one cluster group per color */}
+            {MAP_COLOR_GROUPS.filter((g) => enabledColors.has(g.key)).map((group) => (
+              <MarkerClusterGroup
+                key={group.key}
+                markers={clusterMarkersByColor[group.key]}
+                clusterColor={group.hex}
+              />
+            ))}
+
+            {/* Clustered completed markers (A + green B) — controlled by green toggle */}
+            {enabledColors.has('green') && (
+              <>
+                <MarkerClusterGroup markers={completedDestinationMarkers} clusterColor="#22C55E" />
+                <MarkerClusterGroup markers={completedPickupMarkers} clusterColor="#22C55E" />
+              </>
+            )}
+
+            {/* Destination markers + route lines for active non-completed rides */}
+            {visibleActiveRequests.map((request) => {
+              const highlighted = request.id === selectedReqId
+              return (
+                <div key={request.id}>
+                  <Marker
+                    position={[request.to.latlng.lat, request.to.latlng.lng]}
+                    icon={makeIcon(highlighted ? 'marker-b' : 'marker-b-sm', highlighted ? 'B' : undefined)}
+                    eventHandlers={{ click: () => onSelectRequest(request.id) }}
+                  />
+                  <Polyline
+                    positions={[
+                      [request.from.latlng.lat, request.from.latlng.lng],
+                      [request.to.latlng.lat, request.to.latlng.lng],
+                    ]}
+                    pathOptions={{
+                      color: '#000',
+                      dashArray: '8, 8',
+                      weight: highlighted ? 3 : 2,
+                      opacity: highlighted ? 0.9 : 0.35,
+                    }}
+                  />
+                </div>
+              )
+            })}
+
+            {/* Completed routes dashed A→B — controlled by green toggle */}
+            {enabledColors.has('green') && visibleCompletedRequests.map((request) => {
+              const highlighted = request.id === selectedReqId
+              return (
+                <Polyline
+                  key={`completed-line-${request.id}`}
+                  positions={[
+                    [request.from.latlng.lat, request.from.latlng.lng],
+                    [request.to.latlng.lat, request.to.latlng.lng],
+                  ]}
+                  pathOptions={{
+                    color: '#16A34A',
+                    dashArray: '8, 8',
+                    weight: highlighted ? 3 : 2,
+                    opacity: highlighted ? 0.9 : 0.35,
+                  }}
+                />
+              )
+            })}
           </>
         )}
-
-        {/* Destination markers + route lines for active non-completed rides */}
-        {visibleActiveRequests.map((request) => {
-          const highlighted = request.id === selectedReqId
-          return (
-            <div key={request.id}>
-              <Marker
-                position={[request.to.latlng.lat, request.to.latlng.lng]}
-                icon={makeIcon(highlighted ? 'marker-b' : 'marker-b-sm', highlighted ? 'B' : undefined)}
-                eventHandlers={{ click: () => onSelectRequest(request.id) }}
-              />
-              <Polyline
-                positions={[
-                  [request.from.latlng.lat, request.from.latlng.lng],
-                  [request.to.latlng.lat, request.to.latlng.lng],
-                ]}
-                pathOptions={{
-                  color: '#000',
-                  dashArray: '8, 8',
-                  weight: highlighted ? 3 : 2,
-                  opacity: highlighted ? 0.9 : 0.35,
-                }}
-              />
-            </div>
-          )
-        })}
-
-        {/* Completed routes dashed A→B — controlled by green toggle */}
-        {enabledColors.has('green') && visibleCompletedRequests.map((request) => {
-          const highlighted = request.id === selectedReqId
-          return (
-            <Polyline
-              key={`completed-line-${request.id}`}
-              positions={[
-                [request.from.latlng.lat, request.from.latlng.lng],
-                [request.to.latlng.lat, request.to.latlng.lng],
-              ]}
-              pathOptions={{
-                color: '#16A34A',
-                dashArray: '8, 8',
-                weight: highlighted ? 3 : 2,
-                opacity: highlighted ? 0.9 : 0.35,
-              }}
-            />
-          )
-        })}
 
         {/* Selected similar-group route overlay */}
         {selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1 && (
@@ -788,7 +795,7 @@ export default function AdminMap({
         )}
         {isDrawing && <DrawingClickHandler onPoint={onDrawPoint} />}
 
-        {drivers
+        {!isRoutePreviewMode && drivers
           .filter((driver) => driver.isOnline && driver.currentLocation)
           .map((driver) => (
             <Marker
@@ -829,7 +836,16 @@ export default function AdminMap({
               <Lightning size={16} weight="bold" className="text-amber-500" />
               <span className="text-sm font-bold">Похожие поездки</span>
             </div>
-            <button onClick={() => setShowSimilarPanel(false)} className="p-1.5 hover:bg-surface rounded-xl transition-colors">
+            <button
+              onClick={() => {
+                setShowSimilarPanel(false)
+                setSelectedSimilarGroupId(null)
+                setSelectedSimilarStepKey(null)
+                setSelectedSimilarRoadPolyline(null)
+                setSimilarRoadError(null)
+              }}
+              className="p-1.5 hover:bg-surface rounded-xl transition-colors"
+            >
               <X size={14} />
             </button>
           </div>
@@ -856,6 +872,13 @@ export default function AdminMap({
                     </div>
                     <button
                       onClick={() => {
+                        if (selectedSimilarGroupId === group.id) {
+                          setSelectedSimilarGroupId(null)
+                          setSelectedSimilarStepKey(null)
+                          setSelectedSimilarRoadPolyline(null)
+                          setSimilarRoadError(null)
+                          return
+                        }
                         setSelectedSimilarGroupId(group.id)
                         setSelectedSimilarStepKey(null)
                       }}
@@ -865,7 +888,7 @@ export default function AdminMap({
                           : 'bg-surface text-muted hover:text-black'
                       }`}
                     >
-                      {selectedSimilarGroupId === group.id ? 'Маршрут показан на карте' : 'Показать маршрут на карте'}
+                      {selectedSimilarGroupId === group.id ? 'Скрыть маршрут' : 'Показать маршрут на карте'}
                     </button>
                     {selectedSimilarGroupId === group.id && similarRoadError && (
                       <p className="text-[11px] text-muted">{similarRoadError}</p>
