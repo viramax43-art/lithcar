@@ -122,7 +122,7 @@ export default function AdminDashboard() {
     setErrorMessage(null)
     try {
       const [req, drv, sug, zones, price, qrSalesPage] = await Promise.all([
-        listAdminRequests(filterStatus, { limit: ADMIN_PAGE_SIZE, offset: 0 }),
+        listAdminRequests('all', { limit: ADMIN_PAGE_SIZE, offset: 0 }),
         listDrivers(false, { limit: 200, offset: 0 }),
         listGroupSuggestions({ limit: 100, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
@@ -143,13 +143,13 @@ export default function AdminDashboard() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить админ-данные.')
     }
-  }, [adminSession, filterStatus, loadManagedKeys])
+  }, [adminSession, loadManagedKeys])
 
   const loadMoreRequests = useCallback(async () => {
     if (isLoadingMoreRequests || requests.length >= requestsTotal) return
     setIsLoadingMoreRequests(true)
     try {
-      const page = await listAdminRequests(filterStatus, { limit: ADMIN_PAGE_SIZE, offset: requests.length })
+      const page = await listAdminRequests('all', { limit: ADMIN_PAGE_SIZE, offset: requests.length })
       setRequests((prev) => [...prev, ...page.items])
       setRequestsTotal(page.total)
     } catch (error) {
@@ -157,7 +157,7 @@ export default function AdminDashboard() {
     } finally {
       setIsLoadingMoreRequests(false)
     }
-  }, [filterStatus, isLoadingMoreRequests, requests.length, requestsTotal])
+  }, [isLoadingMoreRequests, requests.length, requestsTotal])
 
   const ensureAdminSession = useCallback(async () => {
     try {

@@ -232,11 +232,11 @@ body {
   pointer-events: none;
   position: absolute;
   left: 50%;
-  top: 42%;
+  top: 35%;
   transform: translate(-50%, -100%);
   z-index: 400;
-  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.25s ease-in-out;
+  will-change: transform, top;
 }
 .center-pin .pin-body {
   width: 36px;
@@ -263,7 +263,7 @@ body {
   pointer-events: none;
   position: absolute;
   left: 50%;
-  top: 42%;
+  top: 35%;
   transform: translate(-50%, -50%);
   width: 14px;
   height: 6px;
@@ -271,14 +271,16 @@ body {
   background: rgba(0, 0, 0, 0.28);
   filter: blur(2px);
   z-index: 399;
-  transition: width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s;
+  transition: width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s, top 0.25s ease-in-out;
 }
 
 .center-pin.is-panning {
+  top: 42%;
   transform: translate(-50%, -100%) translateY(-8px);
 }
 .center-pin.is-panning + .center-pin-shadow,
 .is-panning .center-pin-shadow {
+  top: 42%;
   width: 20px;
   opacity: 0.5;
 }

@@ -1,5 +1,6 @@
-import { Calendar, CaretRight, Clock, Coins, Crosshair, MagnifyingGlass, NavigationArrow, Warning, X } from '@phosphor-icons/react'
+import { Calendar, CaretRight, Clock, Coins, Crosshair, Info, MagnifyingGlass, NavigationArrow, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet'
+import { useState } from 'react'
 import BottomNav from '../../components/BottomNav'
 import { hapticSelection } from '../../lib/telegram'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
@@ -14,6 +15,14 @@ export default function NewRequest() {
   const passengerSession = useEnsurePassengerSession()
   const todayDate = new Date().toISOString().split('T')[0]
   const maxDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [infoDismissed, setInfoDismissed] = useState(() => {
+    try { return sessionStorage.getItem('ride_info_dismissed') === '1' } catch { return false }
+  })
+  const dismissInfo = () => {
+    try { sessionStorage.setItem('ride_info_dismissed', '1') } catch { /* ignore */ }
+    setInfoDismissed(true)
+  }
+  const hasInfo = Boolean(model.pricing.userInfoText.trim()) && !infoDismissed
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
@@ -91,7 +100,10 @@ export default function NewRequest() {
       </header>
 
       {model.isPinLive && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]" style={{ top: 'calc(42% - 88px)' }}>
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw] transition-[top] duration-[250ms] ease-in-out"
+          style={{ top: model.isPanning ? 'calc(42% - 88px)' : 'calc(35% - 88px)' }}
+        >
           {model.pinOutOfZone ? (
             <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
               <Warning size={12} weight="fill" />
@@ -129,14 +141,28 @@ export default function NewRequest() {
         </div>
       )}
 
-      <div className="absolute left-0 right-0 z-20 px-3" style={{ bottom: 'calc(var(--app-safe-area-bottom-total) + 64px + 8px)' }}>
-        <div className="bg-white rounded-card shadow-card p-3 space-y-2.5 animate-slide-up">
-          {model.pricing.userInfoText.trim() && (
-            <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Информация от сервиса</p>
-              <p className="text-xs text-black mt-1 whitespace-pre-wrap">{model.pricing.userInfoText}</p>
-            </div>
-          )}
+      <div
+        className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out"
+        style={{
+          bottom: 'calc(var(--app-safe-area-bottom-total) + 64px)',
+          transform: model.isPanning ? 'translateY(110%)' : 'translateY(0)',
+        }}
+      >
+        {/* Info banner — separate from card */}
+        {hasInfo && (
+          <div className="mx-3 mb-2 flex items-start gap-2.5 bg-white/95 backdrop-blur-sm border border-border rounded-card shadow-card px-3 py-2.5">
+            <Info size={15} weight="bold" className="text-muted flex-shrink-0 mt-0.5" />
+            <p className="flex-1 text-xs text-black leading-snug">{model.pricing.userInfoText}</p>
+            <button
+              onClick={dismissInfo}
+              className="flex-shrink-0 w-6 h-6 flex items-center justify-center hover:bg-surface rounded-lg transition-colors touch-none"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        <div className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 pb-3 space-y-3">
           <div className="flex flex-col gap-1.5">
             <FieldRow
               dotClass="bg-point-a"
@@ -181,7 +207,7 @@ export default function NewRequest() {
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-1.5 border-t border-surface">
+          <div className="flex items-center gap-2 border-t border-surface pt-2.5">
             <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
               <Calendar size={14} className="text-muted flex-shrink-0" />
               <input

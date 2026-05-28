@@ -4,6 +4,7 @@ import {
   CheckCircle,
   Coins,
   CreditCard,
+  Info,
   LockKey,
   QrCode,
   SealWarning,
@@ -204,9 +205,9 @@ export default function Profile() {
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">История поездок</p>
           {pricing.userInfoText.trim() && (
-            <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Информация от сервиса</p>
-              <p className="text-xs text-black mt-1 whitespace-pre-wrap">{pricing.userInfoText}</p>
+            <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
+              <Info size={14} weight="bold" className="text-muted flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-black leading-snug">{pricing.userInfoText}</p>
             </div>
           )}
           {!cabinet && (

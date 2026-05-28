@@ -90,16 +90,21 @@ export function AdminSidebarRequestsSuggestionsSection({
   }, [requests, filterDate, filterDateEnd, filterTime, filterTimeEnd])
 
   const filteredRequests = useMemo(() => {
-    if (!searchQuery.trim()) return requestsInDateTimeWindow
+    const byStatus =
+      filterStatus === 'all'
+        ? requestsInDateTimeWindow
+        : requestsInDateTimeWindow.filter((request) => request.status === filterStatus)
+
+    if (!searchQuery.trim()) return byStatus
     const q = searchQuery.toLowerCase()
-    return requestsInDateTimeWindow.filter(
+    return byStatus.filter(
       (r) =>
         String(r.rideNumber).includes(q) ||
         r.passengerName.toLowerCase().includes(q) ||
         r.from.address.toLowerCase().includes(q) ||
         r.to.address.toLowerCase().includes(q)
     )
-  }, [requestsInDateTimeWindow, searchQuery])
+  }, [requestsInDateTimeWindow, filterStatus, searchQuery])
 
   const canLoadMore = requests.length < requestsTotal
 
