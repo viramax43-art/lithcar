@@ -45,7 +45,9 @@ export {
 } from '../infrastructure/api/adminApi'
 
 export {
+  applyDriverPointAction,
   getDriverCabinet,
+  getDriverMapData,
   getDriverSession,
   issueDriverQrSale,
   loginDriverByKey,

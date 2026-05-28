@@ -1,4 +1,4 @@
-import type { DriverCabinetData, DriverCabinetRide, RideStatus } from '../../types'
+import type { DriverCabinetData, DriverCabinetRide, DriverMapData, RideStatus } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type { DriverQrIssueResult, DriverSessionUser, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
@@ -63,6 +63,22 @@ export async function updateDriverRidePickup(
 export async function notifyPickupChange(rideId: string): Promise<DriverCabinetRide> {
   return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/notify-pickup-change`, {
     method: 'POST',
+    authMode: 'cookie',
+  })
+}
+
+export async function getDriverMapData(): Promise<DriverMapData> {
+  return apiRequest<DriverMapData>('/api/driver/cabinet/map', { authMode: 'cookie' })
+}
+
+export async function applyDriverPointAction(
+  rideId: string,
+  pointType: 'pickup' | 'dropoff',
+  action: string,
+): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/points/${rideId}/${pointType}/action`, {
+    method: 'PATCH',
+    body: { action },
     authMode: 'cookie',
   })
 }

@@ -261,6 +261,53 @@ async def update_driver_ride_status(
     return request, None
 
 
+_DRIVER_POINT_ACTION_TARGET_STATUS: dict[tuple[str, str], str] = {
+    ("pickup", "start"): RideRequestStatus.EN_ROUTE_TO_PICKUP,
+    ("pickup", "arrived"): RideRequestStatus.AWAITING_PASSENGER,
+    ("pickup", "complete"): RideRequestStatus.IN_PROGRESS,
+    ("dropoff", "start"): RideRequestStatus.IN_PROGRESS,
+    ("dropoff", "arrived"): RideRequestStatus.COMPLETED,
+    ("dropoff", "complete"): RideRequestStatus.COMPLETED,
+}
+
+
+async def apply_driver_point_action(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+    point_type: str,
+    action: str,
+) -> tuple[RideRequest | None, str | None, str | None]:
+    """Apply a point action from the driver app.
+
+    Returns: (request, previous_status, error_message)
+    """
+    request = await get_request(db_session, request_id=request_id)
+    if request is None:
+        return None, None, "Поездка не найдена."
+    if request.driver_id != driver_id:
+        return None, None, "Эта поездка не назначена вам."
+
+    key = (point_type, action)
+    target_status = _DRIVER_POINT_ACTION_TARGET_STATUS.get(key)
+    if target_status is None:
+        return request, request.status, "Неизвестное действие по точке."
+
+    previous_status = request.status
+    if target_status == previous_status:
+        return request, previous_status, None
+    if not RideRequestStatus.can_driver_transition(previous_status, target_status):
+        return request, previous_status, (
+            f"Невозможное действие для текущего статуса: {previous_status} → {target_status}."
+        )
+
+    request.status = target_status
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request, previous_status, None
+
+
 async def update_ride_request(
     db_session: AsyncSession,
     *,

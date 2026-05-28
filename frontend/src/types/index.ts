@@ -109,6 +109,46 @@ export interface DriverCabinetRide {
   pickupConfirmedAt: string | null
 }
 
+export interface DriverMapLinks {
+  google: string
+  apple: string
+  yandex: string
+  geo: string
+}
+
+export interface DriverMapPoint {
+  id: string
+  rideId: string
+  rideNumber: number
+  pointType: 'pickup' | 'dropoff'
+  passengerName: string
+  passengerTelegramId: string
+  passengerTelegramUsername: string | null
+  address: string
+  latLng: LatLng
+  rideStatus: RideStatus
+  pointStatus: 'pending' | 'en_route' | 'done'
+  recommendedOrder: number | null
+  canEdit: boolean
+  availableActions: string[]
+  mapLinks: DriverMapLinks
+  dateTime: string
+  pickupChangedByDriver: boolean
+  pickupNotifiedAt: string | null
+  pickupConfirmedAt: string | null
+}
+
+export interface DriverMapData {
+  session: {
+    driverId: string
+    name: string
+    canSellPoints: boolean
+  }
+  points: DriverMapPoint[]
+  activeRides: number
+  totalRides: number
+}
+
 export interface DriverCabinetData {
   session: {
     driverId: string
