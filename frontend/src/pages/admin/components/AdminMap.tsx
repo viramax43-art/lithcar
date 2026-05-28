@@ -40,6 +40,7 @@ interface AdminMapProps {
   onFilterDateEndChange: (v: string) => void
   onFilterTimeChange: (v: string) => void
   onFilterTimeEndChange: (v: string) => void
+  slotIntervalMinutes?: number
 }
 
 /** Map ride status to marker color class */
@@ -126,6 +127,7 @@ export default function AdminMap({
   onFilterDateEndChange,
   onFilterTimeChange,
   onFilterTimeEndChange,
+  slotIntervalMinutes,
 }: AdminMapProps) {
   // --- Date/time filtering ---
   const filteredRequests = useMemo(() => {
@@ -289,32 +291,65 @@ export default function AdminMap({
   }, [activeRequests, drivers])
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
+  const timeSlotStepMinutes = useMemo(() => {
+    if (!slotIntervalMinutes || slotIntervalMinutes <= 0) return 30
+    return slotIntervalMinutes
+  }, [slotIntervalMinutes])
 
-  const applyTodayWholeDay = useCallback(() => {
-    const today = toDateInputValue(new Date())
-    onFilterDateChange(today)
-    onFilterDateEndChange(today)
-    onFilterTimeChange('00:00')
-    onFilterTimeEndChange('23:59')
-  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
-
-  const applyTodayTimeRange = useCallback((start: string, end: string) => {
-    const today = toDateInputValue(new Date())
-    onFilterDateChange(today)
-    onFilterDateEndChange(today)
-    onFilterTimeChange(start)
-    onFilterTimeEndChange(end)
-  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
-
-  const applyNowPlusTwoHours = useCallback(() => {
+  const dayOptions = useMemo(() => {
     const now = new Date()
-    const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000)
-    const today = toDateInputValue(now)
-    onFilterDateChange(today)
-    onFilterDateEndChange(today)
-    onFilterTimeChange(toTimeInputValue(now))
-    onFilterTimeEndChange(toTimeInputValue(twoHoursLater))
+    const tomorrow = new Date(now)
+    tomorrow.setDate(now.getDate() + 1)
+    const dayAfterTomorrow = new Date(now)
+    dayAfterTomorrow.setDate(now.getDate() + 2)
+    return {
+      today: toDateInputValue(now),
+      tomorrow: toDateInputValue(tomorrow),
+      dayAfterTomorrow: toDateInputValue(dayAfterTomorrow),
+    }
+  }, [])
+
+  const applySingleDay = useCallback((dayValue: string) => {
+    onFilterDateChange(dayValue)
+    onFilterDateEndChange(dayValue)
+  }, [onFilterDateChange, onFilterDateEndChange])
+
+  const showAllTrips = useCallback(() => {
+    onFilterDateChange('')
+    onFilterDateEndChange('')
+    onFilterTimeChange('')
+    onFilterTimeEndChange('')
   }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
+
+  const timeSlots = useMemo(() => {
+    const toLabel = (totalMinutes: number): string => {
+      const normalized = Math.max(0, Math.min(totalMinutes, 24 * 60))
+      const hours = String(Math.floor(normalized / 60)).padStart(2, '0')
+      const minutes = String(normalized % 60).padStart(2, '0')
+      return `${hours}:${minutes}`
+    }
+
+    const slots: Array<{ value: string; start: string; end: string; label: string }> = []
+    for (let from = 0; from < 24 * 60; from += timeSlotStepMinutes) {
+      const to = Math.min(from + timeSlotStepMinutes, 24 * 60)
+      const start = toLabel(from)
+      const end = toLabel(to)
+      slots.push({
+        value: `${start}-${end}`,
+        start,
+        end,
+        label: `${start} - ${end}`,
+      })
+    }
+    return slots
+  }, [timeSlotStepMinutes])
+
+  const selectedTimeSlotValue = useMemo(() => {
+    if (!filterTime && !filterTimeEnd) return 'all'
+    if (filterTime === '00:00' && filterTimeEnd === '23:59') return 'full-day'
+    const matched = timeSlots.find((slot) => slot.start === filterTime && slot.end === filterTimeEnd)
+    return matched ? matched.value : 'custom'
+  }, [filterTime, filterTimeEnd, timeSlots])
 
   return (
     <main className="flex-1 relative">
@@ -326,99 +361,89 @@ export default function AdminMap({
             <span className="text-[11px] font-semibold text-muted whitespace-nowrap">Фильтр периода</span>
             <span className="text-[11px] text-muted/70 whitespace-nowrap">· {filteredRequests.length} заявок</span>
           </div>
-          {hasAnyFilter && (
-            <button
-              onClick={() => { onFilterDateChange(''); onFilterDateEndChange(''); onFilterTimeChange(''); onFilterTimeEndChange('') }}
-              className="h-8 px-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:bg-surface rounded-lg transition-colors touch-none"
-              title="Сбросить фильтр"
-            >
-              <X size={13} />
-              Сброс
-            </button>
-          )}
+          {hasAnyFilter ? <span className="text-[11px] text-muted">Фильтр активен</span> : <span className="text-[11px] text-muted">Показываем всё</span>}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
-            <span className="text-[11px] text-muted whitespace-nowrap">Дата от</span>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => onFilterDateChange(e.target.value)}
-              className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title="Дата начала"
-            />
-          </label>
-          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
-            <span className="text-[11px] text-muted whitespace-nowrap">Дата до</span>
-            <input
-              type="date"
-              value={filterDateEnd}
-              onChange={(e) => onFilterDateEndChange(e.target.value)}
-              className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title="Дата конца"
-            />
-          </label>
+        <div className="grid grid-cols-1 gap-2">
           <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
             <Clock size={15} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] text-muted whitespace-nowrap">Время от</span>
-            <input
-              type="time"
-              value={filterTime}
-              onChange={(e) => onFilterTimeChange(e.target.value)}
+            <span className="text-[11px] text-muted whitespace-nowrap">Таймслот</span>
+            <select
+              value={selectedTimeSlotValue}
+              onChange={(event) => {
+                const value = event.target.value
+                if (value === 'all') {
+                  onFilterTimeChange('')
+                  onFilterTimeEndChange('')
+                  return
+                }
+                if (value === 'full-day') {
+                  onFilterTimeChange('00:00')
+                  onFilterTimeEndChange('23:59')
+                  return
+                }
+                const selectedSlot = timeSlots.find((slot) => slot.value === value)
+                if (!selectedSlot) return
+                onFilterTimeChange(selectedSlot.start)
+                onFilterTimeEndChange(selectedSlot.end)
+              }}
               className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title="Время от"
-            />
-          </label>
-          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
-            <Clock size={15} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] text-muted whitespace-nowrap">Время до</span>
-            <input
-              type="time"
-              value={filterTimeEnd}
-              onChange={(e) => onFilterTimeEndChange(e.target.value)}
-              className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title="Время до"
-            />
+              title="Таймслот"
+            >
+              <option value="all">Все время</option>
+              <option value="full-day">Весь день (00:00-23:59)</option>
+              {selectedTimeSlotValue === 'custom' && <option value="custom">Произвольный диапазон</option>}
+              {timeSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
           <button
-            onClick={applyTodayWholeDay}
-            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+            onClick={() => applySingleDay(dayOptions.today)}
+            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+              filterDate === dayOptions.today && filterDateEnd === dayOptions.today
+                ? 'border-black bg-black text-white'
+                : 'border-border hover:bg-surface'
+            }`}
           >
-            Сегодня 00:00-23:59
+            Сегодня
           </button>
           <button
-            onClick={applyNowPlusTwoHours}
-            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+            onClick={() => applySingleDay(dayOptions.tomorrow)}
+            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+              filterDate === dayOptions.tomorrow && filterDateEnd === dayOptions.tomorrow
+                ? 'border-black bg-black text-white'
+                : 'border-border hover:bg-surface'
+            }`}
           >
-            Сейчас +2 часа
+            Завтра
           </button>
           <button
-            onClick={() => applyTodayTimeRange('06:00', '12:00')}
-            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+            onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
+            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+              filterDate === dayOptions.dayAfterTomorrow && filterDateEnd === dayOptions.dayAfterTomorrow
+                ? 'border-black bg-black text-white'
+                : 'border-border hover:bg-surface'
+            }`}
           >
-            Утро
+            Послезавтра
           </button>
           <button
-            onClick={() => applyTodayTimeRange('12:00', '18:00')}
+            onClick={showAllTrips}
             className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
           >
-            День
-          </button>
-          <button
-            onClick={() => applyTodayTimeRange('18:00', '23:59')}
-            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
-          >
-            Вечер
+            Все поездки
           </button>
         </div>
       </div>
 
       {/* Search + Geolocation + Optimize controls */}
-      <div className="admin-map-controls absolute top-[164px] md:top-[132px] left-4 z-[1000] flex flex-col gap-2">
+      <div className="admin-map-controls absolute top-[156px] md:top-[124px] left-4 z-[1000] flex flex-col gap-2">
         <div className="flex items-center gap-2">
           {searchOpen ? (
             <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-w-[calc(100vw-32px)] max-h-[50vh] overflow-hidden">
@@ -535,20 +560,18 @@ export default function AdminMap({
                 icon={makeIcon(highlighted ? 'marker-b' : 'marker-b-sm', highlighted ? 'B' : undefined)}
                 eventHandlers={{ click: () => onSelectRequest(request.id) }}
               />
-              {highlighted && (
-                <Polyline
-                  positions={[
-                    [request.from.latlng.lat, request.from.latlng.lng],
-                    [request.to.latlng.lat, request.to.latlng.lng],
-                  ]}
-                  pathOptions={{
-                    color: '#000',
-                    dashArray: '8, 8',
-                    weight: 3,
-                    opacity: 0.9,
-                  }}
-                />
-              )}
+              <Polyline
+                positions={[
+                  [request.from.latlng.lat, request.from.latlng.lng],
+                  [request.to.latlng.lat, request.to.latlng.lng],
+                ]}
+                pathOptions={{
+                  color: '#000',
+                  dashArray: '8, 8',
+                  weight: highlighted ? 3 : 2,
+                  opacity: highlighted ? 0.9 : 0.35,
+                }}
+              />
             </div>
           )
         })}

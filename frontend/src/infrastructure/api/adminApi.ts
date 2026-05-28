@@ -115,7 +115,7 @@ export async function deleteServiceZone(zoneId: string): Promise<void> {
 }
 
 export async function updatePricing(
-  payload: Partial<Pick<PricingSettings, 'pointsPerRide' | 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>
+  payload: Partial<Pick<PricingSettings, 'pointsPerRide' | 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>
 ): Promise<PricingSettings> {
   const result = await apiRequest<PricingSettings>('/api/pricing', {
     method: 'PATCH',
@@ -125,6 +125,7 @@ export async function updatePricing(
   return {
     pointsPerRide: result.pointsPerRide,
     pointPriceCents: result.pointPriceCents,
+    userInfoText: result.userInfoText ?? '',
     workStartTime: result.workStartTime ?? '06:00',
     workEndTime: result.workEndTime ?? '19:00',
     slotIntervalMinutes: result.slotIntervalMinutes ?? 30,

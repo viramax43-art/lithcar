@@ -37,7 +37,14 @@ type CardReceipt = {
   eurAmount: number
 }
 
-const DEFAULT_PRICING: PricingSettings = { pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 }
+const DEFAULT_PRICING: PricingSettings = {
+  pointsPerRide: 10,
+  pointPriceCents: 50,
+  userInfoText: '',
+  workStartTime: '06:00',
+  workEndTime: '19:00',
+  slotIntervalMinutes: 30,
+}
 
 export default function Profile() {
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
@@ -196,6 +203,12 @@ export default function Profile() {
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">История поездок</p>
+          {pricing.userInfoText.trim() && (
+            <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Информация от сервиса</p>
+              <p className="text-xs text-black mt-1 whitespace-pre-wrap">{pricing.userInfoText}</p>
+            </div>
+          )}
           {!cabinet && (
             <div className="space-y-2">
               {[0, 1, 2].map((index) => (

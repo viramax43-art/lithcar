@@ -9,6 +9,10 @@ export interface AdminSidebarProps {
   setActiveTab: (tab: AdminTab) => void
   filterStatus: string
   setFilterStatus: (status: string) => void
+  filterDate: string
+  filterDateEnd: string
+  filterTime: string
+  filterTimeEnd: string
   requests: RideRequest[]
   requestsTotal: number
   isLoadingMoreRequests: boolean
@@ -42,7 +46,7 @@ export interface AdminSidebarProps {
   pricing: PricingSettings
   qrSales: AdminQrSaleAudit[]
   hasLoadedQrSalesOnce: boolean
-  handlePricingChange: (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => Promise<void>
+  handlePricingChange: (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => Promise<void>
   adminSession: AdminSessionUser
   newManagedKeyName: string
   setNewManagedKeyName: (value: string) => void

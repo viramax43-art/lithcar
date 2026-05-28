@@ -131,6 +131,12 @@ export default function NewRequest() {
 
       <div className="absolute left-0 right-0 z-20 px-3" style={{ bottom: 'calc(var(--app-safe-area-bottom-total) + 64px + 8px)' }}>
         <div className="bg-white rounded-card shadow-card p-3 space-y-2.5 animate-slide-up">
+          {model.pricing.userInfoText.trim() && (
+            <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Информация от сервиса</p>
+              <p className="text-xs text-black mt-1 whitespace-pre-wrap">{model.pricing.userInfoText}</p>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <FieldRow
               dotClass="bg-point-a"

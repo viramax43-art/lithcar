@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import { ZONE_COLORS } from '../constants'
 import InlineConfirm from './InlineConfirm'
 import { inputCls } from './AdminSidebarShared'
@@ -48,6 +50,12 @@ export function AdminSidebarZonesSettingsQrSection({
   qrSales,
   hasLoadedQrSalesOnce,
 }: ZonesSettingsQrSectionProps) {
+  const [userInfoDraft, setUserInfoDraft] = useState(pricing.userInfoText ?? '')
+
+  useEffect(() => {
+    setUserInfoDraft(pricing.userInfoText ?? '')
+  }, [pricing.userInfoText])
+
   if (activeTab === 'zones') {
     return (
       <div className="space-y-3">
@@ -179,6 +187,29 @@ export function AdminSidebarZonesSettingsQrSection({
               }}
               className={inputCls}
             />
+          </div>
+        </div>
+
+        <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
+          <p className="text-sm font-bold">Информация для пользователей</p>
+          <textarea
+            value={userInfoDraft}
+            onChange={(event) => setUserInfoDraft(event.target.value)}
+            rows={4}
+            placeholder="Например: Сегодня возможны задержки из-за погоды..."
+            className={`${inputCls} resize-y min-h-[92px]`}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-muted">
+              Этот текст будет показан пассажирам в приложении.
+            </p>
+            <button
+              onClick={() => void handlePricingChange({ userInfoText: userInfoDraft.trim() })}
+              disabled={userInfoDraft.trim() === (pricing.userInfoText ?? '').trim()}
+              className="px-3 py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
+            >
+              Сохранить
+            </button>
           </div>
         </div>
 

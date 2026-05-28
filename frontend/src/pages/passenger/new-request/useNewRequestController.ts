@@ -48,7 +48,14 @@ function clearDraft(): void {
 
 export function useNewRequestController() {
   const navigate = useNavigate()
-  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 })
+  const [pricing, setPricing] = useState<PricingSettings>({
+    pointsPerRide: 10,
+    pointPriceCents: 50,
+    userInfoText: '',
+    workStartTime: '06:00',
+    workEndTime: '19:00',
+    slotIntervalMinutes: 30,
+  })
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [passengerName, setPassengerName] = useState('Текущий пользователь')
   const activeZones = serviceZones.filter((z) => z.isActive)

@@ -27,6 +27,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     setActiveTab,
     filterStatus,
     setFilterStatus,
+    filterDate,
+    filterDateEnd,
+    filterTime,
+    filterTimeEnd,
     requests,
     requestsTotal,
     isLoadingMoreRequests,
@@ -216,6 +220,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               activeTab={activeTab}
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
+              filterDate={filterDate}
+              filterDateEnd={filterDateEnd}
+              filterTime={filterTime}
+              filterTimeEnd={filterTimeEnd}
               requests={requests}
               requestsTotal={requestsTotal}
               isLoadingMoreRequests={isLoadingMoreRequests}

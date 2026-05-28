@@ -88,6 +88,7 @@ export async function getPricing(authMode: 'bearer' | 'cookie' = 'bearer'): Prom
   return {
     pointsPerRide: result.pointsPerRide,
     pointPriceCents: result.pointPriceCents,
+    userInfoText: result.userInfoText ?? '',
     workStartTime: result.workStartTime ?? '06:00',
     workEndTime: result.workEndTime ?? '19:00',
     slotIntervalMinutes: result.slotIntervalMinutes ?? 30,

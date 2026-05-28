@@ -44,7 +44,14 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([])
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [pricing, setPricing] = useState<PricingSettings>({ pointsPerRide: 10, pointPriceCents: 50, workStartTime: '06:00', workEndTime: '19:00', slotIntervalMinutes: 30 })
+  const [pricing, setPricing] = useState<PricingSettings>({
+    pointsPerRide: 10,
+    pointPriceCents: 50,
+    userInfoText: '',
+    workStartTime: '06:00',
+    workEndTime: '19:00',
+    slotIntervalMinutes: 30,
+  })
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
   const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -237,7 +244,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const handlePricingChange = async (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => {
+  const handlePricingChange = async (payload: Partial<Pick<PricingSettings, 'pointPriceCents' | 'userInfoText' | 'workStartTime' | 'workEndTime' | 'slotIntervalMinutes'>>) => {
     try {
       const updated = await updatePricing(payload)
       setPricing(updated)
@@ -415,6 +422,10 @@ export default function AdminDashboard() {
           setActiveTab={setActiveTab}
           filterStatus={filterStatus}
           setFilterStatus={setFilterStatus}
+          filterDate={filterDate}
+          filterDateEnd={filterDateEnd}
+          filterTime={filterTime}
+          filterTimeEnd={filterTimeEnd}
           requests={requests}
           requestsTotal={requestsTotal}
           isLoadingMoreRequests={isLoadingMoreRequests}
@@ -516,6 +527,7 @@ export default function AdminDashboard() {
           onFilterDateEndChange={setFilterDateEnd}
           onFilterTimeChange={setFilterTime}
           onFilterTimeEndChange={setFilterTimeEnd}
+          slotIntervalMinutes={pricing.slotIntervalMinutes}
         />
       </div>
 

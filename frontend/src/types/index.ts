@@ -66,6 +66,7 @@ export interface ServiceZone {
 export interface PricingSettings {
   pointsPerRide: number
   pointPriceCents: number
+  userInfoText: string
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number

@@ -9,6 +9,10 @@ type RequestsSuggestionsProps = Pick<
   | 'activeTab'
   | 'filterStatus'
   | 'setFilterStatus'
+  | 'filterDate'
+  | 'filterDateEnd'
+  | 'filterTime'
+  | 'filterTimeEnd'
   | 'requests'
   | 'requestsTotal'
   | 'isLoadingMoreRequests'
@@ -38,6 +42,10 @@ export function AdminSidebarRequestsSuggestionsSection({
   activeTab,
   filterStatus,
   setFilterStatus,
+  filterDate,
+  filterDateEnd,
+  filterTime,
+  filterTimeEnd,
   requests,
   requestsTotal,
   isLoadingMoreRequests,
@@ -52,17 +60,46 @@ export function AdminSidebarRequestsSuggestionsSection({
   setSelectedGroupId,
   groupColorMap,
 }: RequestsSuggestionsProps) {
+  const requestsInDateTimeWindow = useMemo(() => {
+    return requests.filter((request) => {
+      const reqDate = new Date(request.dateTime)
+
+      if (filterDate) {
+        const startDate = new Date(`${filterDate}T00:00:00`)
+        const endDate = filterDateEnd
+          ? new Date(`${filterDateEnd}T23:59:59`)
+          : new Date(`${filterDate}T23:59:59`)
+        if (reqDate < startDate || reqDate > endDate) return false
+      }
+
+      if (filterTime) {
+        const [startH, startM] = filterTime.split(':').map(Number)
+        const reqMinutes = reqDate.getHours() * 60 + reqDate.getMinutes()
+        const startMinutes = startH * 60 + startM
+        if (filterTimeEnd) {
+          const [endH, endM] = filterTimeEnd.split(':').map(Number)
+          const endMinutes = endH * 60 + endM
+          if (reqMinutes < startMinutes || reqMinutes > endMinutes) return false
+        } else if (reqMinutes < startMinutes || reqMinutes > startMinutes + 30) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [requests, filterDate, filterDateEnd, filterTime, filterTimeEnd])
+
   const filteredRequests = useMemo(() => {
-    if (!searchQuery.trim()) return requests
+    if (!searchQuery.trim()) return requestsInDateTimeWindow
     const q = searchQuery.toLowerCase()
-    return requests.filter(
+    return requestsInDateTimeWindow.filter(
       (r) =>
         String(r.rideNumber).includes(q) ||
         r.passengerName.toLowerCase().includes(q) ||
         r.from.address.toLowerCase().includes(q) ||
         r.to.address.toLowerCase().includes(q)
     )
-  }, [requests, searchQuery])
+  }, [requestsInDateTimeWindow, searchQuery])
 
   const canLoadMore = requests.length < requestsTotal
 
@@ -188,7 +225,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                 selected ? 'border-black bg-surface' : 'border-border hover:border-muted'
               }`}
             >
-              <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center justify-between mb-2.5 gap-2">
                 <span className="text-sm font-bold truncate">{request.passengerName}</span>
                 <span
                   className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0 ml-2"
@@ -198,6 +235,11 @@ export function AdminSidebarRequestsSuggestionsSection({
                 </span>
               </div>
               <p className="text-[11px] text-muted -mt-1 mb-2">Поездка №{request.rideNumber}</p>
+              {request.driverId && request.status !== 'completed' && (
+                <p className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-pill px-2 py-1 inline-flex mb-2">
+                  Водитель назначен
+                </p>
+              )}
               <div className="flex gap-2.5">
                 <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
                   <div className="w-2 h-2 rounded-full bg-point-a" />
