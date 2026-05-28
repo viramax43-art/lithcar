@@ -202,8 +202,8 @@ export default function NewRequest() {
       >
         {/* Service info (persistent, non-dismissible) */}
         {hasInfo && (
-          <div className="mx-3 mb-2 flex items-start gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
-            <Info size={15} weight="fill" className="text-muted flex-shrink-0 mt-0.5" />
+          <div className="mx-3 mb-2 flex items-center gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
+            <Info size={15} weight="fill" className="text-muted flex-shrink-0" />
             <p className="flex-1 text-xs text-black leading-snug">{model.pricing.userInfoText}</p>
           </div>
         )}

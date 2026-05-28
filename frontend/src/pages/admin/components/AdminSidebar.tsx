@@ -219,8 +219,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
           <div className="flex-1 overflow-y-auto p-4 scroll-smooth-y gpu-scroll">
             <AdminSidebarRequestsSuggestionsSection
               activeTab={activeTab}
-              filterStatus={filterStatus}
-              setFilterStatus={setFilterStatus}
               filterDate={filterDate}
               filterDateEnd={filterDateEnd}
               filterTime={filterTime}

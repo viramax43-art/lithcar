@@ -7,8 +7,6 @@ import type { AdminSidebarProps } from './AdminSidebar.types'
 type RequestsSuggestionsProps = Pick<
   AdminSidebarProps,
   | 'activeTab'
-  | 'filterStatus'
-  | 'setFilterStatus'
   | 'filterDate'
   | 'filterDateEnd'
   | 'filterTime'
@@ -29,20 +27,8 @@ type RequestsSuggestionsProps = Pick<
   | 'groupColorMap'
 >
 
-const REQUEST_STATUSES = [
-  'all',
-  'pending',
-  'assigned',
-  'en_route_to_pickup',
-  'awaiting_passenger',
-  'in_progress',
-  'completed',
-]
-
 export function AdminSidebarRequestsSuggestionsSection({
   activeTab,
-  filterStatus,
-  setFilterStatus,
   filterDate,
   filterDateEnd,
   filterTime,
@@ -98,21 +84,16 @@ export function AdminSidebarRequestsSuggestionsSection({
     )
     const byColor = requestsInDateTimeWindow.filter((r) => enabledStatuses.has(r.status))
 
-    const byStatus =
-      filterStatus === 'all'
-        ? byColor
-        : byColor.filter((request) => request.status === filterStatus)
-
-    if (!searchQuery.trim()) return byStatus
+    if (!searchQuery.trim()) return byColor
     const q = searchQuery.toLowerCase()
-    return byStatus.filter(
+    return byColor.filter(
       (r) =>
         String(r.rideNumber).includes(q) ||
         r.passengerName.toLowerCase().includes(q) ||
         r.from.address.toLowerCase().includes(q) ||
         r.to.address.toLowerCase().includes(q)
     )
-  }, [requestsInDateTimeWindow, filterStatus, enabledColors, searchQuery])
+  }, [requestsInDateTimeWindow, enabledColors, searchQuery])
 
   const canLoadMore = requests.length < requestsTotal
 
@@ -208,21 +189,6 @@ export function AdminSidebarRequestsSuggestionsSection({
             <X size={14} />
           </button>
         )}
-      </div>
-
-      {/* Status filter pills */}
-      <div className="flex items-center gap-2 mb-3 scroll-x-hide pb-1 -mx-1 px-1">
-        {REQUEST_STATUSES.map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-3 py-2 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors touch-compact ${
-              filterStatus === status ? 'bg-black text-white' : 'bg-surface text-muted hover:text-black'
-            }`}
-          >
-            {status === 'all' ? 'Все' : STATUS_CONFIG[status]?.label ?? status}
-          </button>
-        ))}
       </div>
 
       {/* Requests list */}
