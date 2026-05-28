@@ -16,6 +16,7 @@ import {
 } from '@phosphor-icons/react'
 import Skeleton from '../../components/Skeleton'
 import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard } from '../../lib/backend'
+import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
@@ -37,19 +38,10 @@ type CardReceipt = {
   eurAmount: number
 }
 
-const DEFAULT_PRICING: PricingSettings = {
-  pointsPerRide: 10,
-  pointPriceCents: 50,
-  userInfoText: '',
-  workStartTime: '06:00',
-  workEndTime: '19:00',
-  slotIntervalMinutes: 30,
-}
-
 export default function Profile() {
   const navigate = useNavigate()
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
-  const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
+  const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [historyItems, setHistoryItems] = useState<UserCabinetRideHistoryItem[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)

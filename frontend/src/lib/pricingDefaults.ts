@@ -30,8 +30,8 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   slotIntervalMinutes: 30,
 }
 
-export function mapPricingSettings(raw: Partial<PricingSettings> & Record<string, unknown>): PricingSettings {
-  const formula = (raw.pricingFormula as PricingFormula | undefined) ?? DEFAULT_PRICING_FORMULA
+export function mapPricingSettings(raw: Partial<PricingSettings>): PricingSettings {
+  const formula = raw.pricingFormula ?? DEFAULT_PRICING_FORMULA
   return {
     pointsPerRide: Number(raw.pointsPerRide ?? 10),
     pointPriceCents: Number(raw.pointPriceCents ?? 50),
