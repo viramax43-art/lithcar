@@ -4,7 +4,7 @@ const OSRM_BASE = 'https://router.project-osrm.org'
 
 /**
  * Get NxN road-distance matrix (km) via OSRM /table endpoint.
- * Returns null on failure so caller can fall back to haversine.
+ * Returns null on failure.
  */
 export async function osrmDistanceMatrixKm(
   points: LatLng[],
@@ -26,38 +26,11 @@ export async function osrmDistanceMatrixKm(
 }
 
 /**
- * Haversine fallback — straight-line distance matrix.
- */
-function haversineKm(a: LatLng, b: LatLng): number {
-  const R = 6371
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinLat = Math.sin(dLat / 2)
-  const sinLng = Math.sin(dLng / 2)
-  const h =
-    sinLat * sinLat +
-    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-}
-
-function haversineMatrix(points: LatLng[]): number[][] {
-  const n = points.length
-  const m: number[][] = Array.from({ length: n }, () => Array(n).fill(0))
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const d = haversineKm(points[i], points[j])
-      m[i][j] = d
-      m[j][i] = d
-    }
-  }
-  return m
-}
-
-/**
- * Get distance matrix — tries OSRM, falls back to haversine.
+ * Get distance matrix from OSRM only.
+ * Throws when routing service is unavailable.
  */
 export async function getDistanceMatrixKm(points: LatLng[]): Promise<number[][]> {
   const osrm = await osrmDistanceMatrixKm(points)
   if (osrm) return osrm
-  return haversineMatrix(points)
+  throw new Error('Сейчас не получается рассчитать оптимальный маршрут: сервис маршрутизации недоступен.')
 }

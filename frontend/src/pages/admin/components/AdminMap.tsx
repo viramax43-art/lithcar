@@ -290,8 +290,19 @@ export default function AdminMap({
       return
     }
     const driverLoc = drivers.find((d) => d.isOnline && d.currentLocation)?.currentLocation
-    const result = await optimizeRoute(pendingRequests, driverLoc)
-    setOptimizedRoute(result)
+    try {
+      const result = await optimizeRoute(pendingRequests, driverLoc)
+      setOptimizedRoute(result)
+    } catch (error) {
+      setOptimizedRoute({
+        steps: [],
+        totalDistanceKm: 0,
+        savedDistanceKm: 0,
+        explanation: error instanceof Error
+          ? error.message
+          : 'Сейчас не получается рассчитать оптимальный маршрут.',
+      })
+    }
     setShowRoutePanel(true)
   }, [activeRequests, drivers])
 

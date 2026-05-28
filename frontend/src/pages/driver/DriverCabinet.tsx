@@ -223,9 +223,19 @@ export default function DriverCabinet() {
         toLatLng: r.toLatLng,
         toAddress: r.toAddress,
       })),
-    ).then((steps) => {
-      if (!cancelled) setOptimizedSteps(steps)
-    })
+    )
+      .then((steps) => {
+        if (!cancelled) setOptimizedSteps(steps)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setOptimizedSteps([])
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Сейчас не получается рассчитать оптимальный маршрут.',
+        )
+      })
     return () => { cancelled = true }
   }, [activeRides])
 
