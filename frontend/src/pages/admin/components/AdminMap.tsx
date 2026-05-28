@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
-import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, Lightning, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, PenNib, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
-import type { Driver, LatLng, RideRequest, RideStatus, ServiceZone } from '../../../types'
+import type { Driver, LatLng, MapDrawing, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
+import { createMapDrawing, deleteMapDrawing, listMapDrawings } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
@@ -66,6 +67,47 @@ function DrawingClickHandler({ onPoint }: { onPoint: (latlng: LatLng) => void })
       onPoint({ lat: event.latlng.lat, lng: event.latlng.lng })
     },
   })
+  return null
+}
+
+function MarkerBrushHandler({
+  enabled,
+  onPoint,
+}: {
+  enabled: boolean
+  onPoint: (latlng: LatLng) => void
+}) {
+  const isPaintingRef = useRef(false)
+  const lastPointRef = useRef<LatLng | null>(null)
+  const minDelta = 0.00006
+
+  useMapEvents({
+    mousedown(event) {
+      if (!enabled) return
+      const p = { lat: event.latlng.lat, lng: event.latlng.lng }
+      isPaintingRef.current = true
+      lastPointRef.current = p
+      onPoint(p)
+    },
+    mousemove(event) {
+      if (!enabled || !isPaintingRef.current) return
+      const p = { lat: event.latlng.lat, lng: event.latlng.lng }
+      const prev = lastPointRef.current
+      if (!prev || Math.abs(prev.lat - p.lat) > minDelta || Math.abs(prev.lng - p.lng) > minDelta) {
+        lastPointRef.current = p
+        onPoint(p)
+      }
+    },
+    mouseup() {
+      isPaintingRef.current = false
+      lastPointRef.current = null
+    },
+    mouseout() {
+      isPaintingRef.current = false
+      lastPointRef.current = null
+    },
+  })
+
   return null
 }
 
@@ -203,6 +245,15 @@ export default function AdminMap({
   const [selectedSimilarStepKey, setSelectedSimilarStepKey] = useState<string | null>(null)
   const [selectedSimilarRoadPolyline, setSelectedSimilarRoadPolyline] = useState<LatLng[] | null>(null)
   const [similarRoadError, setSimilarRoadError] = useState<string | null>(null)
+  const [mapDrawings, setMapDrawings] = useState<MapDrawing[]>([])
+  const [isLoadingMapDrawings, setIsLoadingMapDrawings] = useState(false)
+  const [isMarkerDrawing, setIsMarkerDrawing] = useState(false)
+  const [markerDrawingPoints, setMarkerDrawingPoints] = useState<LatLng[]>([])
+  const [markerColor, setMarkerColor] = useState('#DC2626')
+  const [markerTitle, setMarkerTitle] = useState('')
+  const [isSavingMarkerDrawing, setIsSavingMarkerDrawing] = useState(false)
+  const [mapDrawingError, setMapDrawingError] = useState<string | null>(null)
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const selectedSimilarGroup = useMemo(
@@ -212,6 +263,56 @@ export default function AdminMap({
   const isRoutePreviewMode = Boolean(
     selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
   )
+
+  const loadMapDrawings = useCallback(async () => {
+    setIsLoadingMapDrawings(true)
+    try {
+      const page = await listMapDrawings({ limit: 400, offset: 0 })
+      setMapDrawings(page.items)
+      setMapDrawingError(null)
+    } catch (error) {
+      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось загрузить рисунки.')
+    } finally {
+      setIsLoadingMapDrawings(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMapDrawings()
+  }, [loadMapDrawings])
+
+  const handleSaveMarkerDrawing = useCallback(async () => {
+    if (markerDrawingPoints.length < 2 || isSavingMarkerDrawing) return
+    setIsSavingMarkerDrawing(true)
+    try {
+      const drawing = await createMapDrawing({
+        title: markerTitle.trim() || `Рисунок ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+        color: markerColor,
+        strokeWidth: 4,
+        points: markerDrawingPoints,
+      })
+      setMapDrawings((prev) => [drawing, ...prev])
+      setSelectedDrawingId(drawing.id)
+      setMarkerDrawingPoints([])
+      setMarkerTitle('')
+      setIsMarkerDrawing(false)
+      setMapDrawingError(null)
+    } catch (error) {
+      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось сохранить рисунок.')
+    } finally {
+      setIsSavingMarkerDrawing(false)
+    }
+  }, [isSavingMarkerDrawing, markerColor, markerDrawingPoints, markerTitle])
+
+  const handleDeleteDrawing = useCallback(async (drawingId: string) => {
+    try {
+      await deleteMapDrawing(drawingId)
+      setMapDrawings((prev) => prev.filter((drawing) => drawing.id !== drawingId))
+      if (selectedDrawingId === drawingId) setSelectedDrawingId(null)
+    } catch (error) {
+      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось удалить рисунок.')
+    }
+  }, [selectedDrawingId])
 
   useEffect(() => {
     let cancelled = false
@@ -613,6 +714,22 @@ export default function AdminMap({
             <Lightning size={16} weight="bold" className="text-amber-500" />
             <span className="text-xs font-bold">Похожие поездки</span>
           </button>
+          <button
+            onClick={() => {
+              setIsMarkerDrawing((prev) => {
+                const next = !prev
+                if (!next) setMarkerDrawingPoints([])
+                return next
+              })
+              setMapDrawingError(null)
+            }}
+            className={`w-11 h-11 rounded-xl shadow-card flex items-center justify-center transition-colors touch-none ${
+              isMarkerDrawing ? 'bg-black text-white' : 'bg-white hover:bg-surface'
+            }`}
+            title="Рисовать на карте"
+          >
+            <PenNib size={18} weight={isMarkerDrawing ? 'fill' : 'bold'} />
+          </button>
         </div>
 
         {/* Legend */}
@@ -634,6 +751,94 @@ export default function AdminMap({
             <span className="text-[10px] text-muted">Ожид.</span>
           </div>
         </div>
+      </div>
+
+      {/* Map marker drawing panel */}
+      <div className="absolute top-[218px] md:top-[186px] left-4 z-[1000] w-[min(360px,calc(100vw-32px))] bg-white rounded-card shadow-card p-3.5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold">Рисовалка карты</p>
+          <span className="text-[10px] text-muted">{mapDrawings.length} сохранено</span>
+        </div>
+
+        {isMarkerDrawing && (
+          <div className="rounded-xl border border-border p-2.5 space-y-2">
+            <input
+              value={markerTitle}
+              onChange={(event) => setMarkerTitle(event.target.value)}
+              placeholder="Название рисунка"
+              className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                {['#DC2626', '#2563EB', '#16A34A', '#7C3AED', '#111827'].map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setMarkerColor(color)}
+                    className={`w-5 h-5 rounded-full ${markerColor === color ? 'ring-2 ring-black ring-offset-1' : ''}`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] text-muted">{markerDrawingPoints.length} точек</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => setMarkerDrawingPoints((prev) => prev.slice(0, -1))}
+                disabled={markerDrawingPoints.length === 0}
+                className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <button
+                onClick={() => setMarkerDrawingPoints([])}
+                disabled={markerDrawingPoints.length === 0}
+                className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
+              >
+                Очистить
+              </button>
+              <button
+                onClick={() => void handleSaveMarkerDrawing()}
+                disabled={markerDrawingPoints.length < 2 || isSavingMarkerDrawing}
+                className="h-8 rounded-lg bg-black text-white text-[11px] font-bold disabled:opacity-50 inline-flex items-center justify-center gap-1"
+              >
+                <FloppyDisk size={12} />
+                {isSavingMarkerDrawing ? '...' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1.5 max-h-28 overflow-y-auto scroll-smooth-y">
+          {isLoadingMapDrawings && <p className="text-[11px] text-muted">Загрузка рисунков…</p>}
+          {!isLoadingMapDrawings && mapDrawings.length === 0 && (
+            <p className="text-[11px] text-muted">Пока нет сохраненных рисунков.</p>
+          )}
+          {mapDrawings.map((drawing) => (
+            <div
+              key={drawing.id}
+              className={`rounded-lg border px-2 py-1.5 flex items-center gap-2 ${
+                selectedDrawingId === drawing.id ? 'border-black' : 'border-border'
+              }`}
+            >
+              <button
+                onClick={() => setSelectedDrawingId((prev) => (prev === drawing.id ? null : drawing.id))}
+                className="flex-1 text-left min-w-0"
+              >
+                <p className="text-[11px] font-semibold truncate">{drawing.title}</p>
+              </button>
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: drawing.color }} />
+              <button
+                onClick={() => void handleDeleteDrawing(drawing.id)}
+                className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
+                title="Удалить рисунок"
+              >
+                <Trash size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        {mapDrawingError && <p className="text-[11px] text-red-600">{mapDrawingError}</p>}
       </div>
 
       {/* Sidebar toggle when collapsed */}
@@ -782,6 +987,35 @@ export default function AdminMap({
           />
         ))}
 
+        {/* Saved admin map drawings */}
+        {mapDrawings.map((drawing) => {
+          const highlighted = selectedDrawingId === drawing.id
+          return (
+            <Polyline
+              key={`map-drawing-${drawing.id}`}
+              positions={drawing.points.map((point) => [point.lat, point.lng] as [number, number])}
+              pathOptions={{
+                color: drawing.color,
+                weight: highlighted ? drawing.strokeWidth + 2 : drawing.strokeWidth,
+                opacity: highlighted ? 0.95 : 0.72,
+              }}
+              eventHandlers={{ click: () => setSelectedDrawingId(drawing.id) }}
+            />
+          )
+        })}
+
+        {/* Temporary marker drawing preview */}
+        {markerDrawingPoints.length > 1 && (
+          <Polyline
+            positions={markerDrawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
+            pathOptions={{
+              color: markerColor,
+              weight: 4,
+              opacity: 0.9,
+            }}
+          />
+        )}
+
         {isDrawing && drawingPoints.length >= 2 && (
           <Polygon
             positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
@@ -794,6 +1028,12 @@ export default function AdminMap({
           />
         )}
         {isDrawing && <DrawingClickHandler onPoint={onDrawPoint} />}
+        <MarkerBrushHandler
+          enabled={isMarkerDrawing}
+          onPoint={(point) => {
+            setMarkerDrawingPoints((prev) => [...prev, point])
+          }}
+        />
 
         {!isRoutePreviewMode && drivers
           .filter((driver) => driver.isOnline && driver.currentLocation)
@@ -825,6 +1065,11 @@ export default function AdminMap({
       {isDrawing && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           Кликайте по карте, чтобы добавить вершины зоны ({drawingPoints.length})
+        </div>
+      )}
+      {isMarkerDrawing && (
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
+          Зажмите левую кнопку мыши и ведите по карте ({markerDrawingPoints.length})
         </div>
       )}
 

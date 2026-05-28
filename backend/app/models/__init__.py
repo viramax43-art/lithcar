@@ -13,6 +13,7 @@ from app.models.admin_api_key import AdminApiKey
 from app.models.points_transaction import PointsTransaction
 from app.models.driver_qr_sale import DriverQrSale
 from app.models.admin_audit_event import AdminAuditEvent
+from app.models.map_drawing import MapDrawing
 
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "PointsTransaction",
     "DriverQrSale",
     "AdminAuditEvent",
+    "MapDrawing",
 ]

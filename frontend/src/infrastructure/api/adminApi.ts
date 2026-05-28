@@ -1,4 +1,4 @@
-import type { Driver, PricingSettings, RideRequest, ServiceZone } from '../../types'
+import type { Driver, MapDrawing, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import { apiRequest, uploadMultipart } from '../http/httpClient'
 import type {
   AdminKeyInfo,
@@ -197,4 +197,25 @@ export async function listAdminQrSales(params?: {
   search.set('limit', String(params?.limit ?? 100))
   search.set('offset', String(params?.offset ?? 0))
   return apiRequest<PaginatedResult<AdminQrSaleAudit>>(`/api/admin/qr-sales?${search.toString()}`, { authMode: 'cookie' })
+}
+
+export async function listMapDrawings(params?: PaginationParams): Promise<PaginatedResult<MapDrawing>> {
+  return apiRequest<PaginatedResult<MapDrawing>>(`/api/map-drawings?${toPageQuery(params)}`, { authMode: 'cookie' })
+}
+
+export async function createMapDrawing(payload: {
+  title: string
+  color: string
+  strokeWidth: number
+  points: { lat: number; lng: number }[]
+}): Promise<MapDrawing> {
+  return apiRequest<MapDrawing>('/api/map-drawings', {
+    method: 'POST',
+    body: payload,
+    authMode: 'cookie',
+  })
+}
+
+export async function deleteMapDrawing(drawingId: string): Promise<void> {
+  await apiRequest<{ success: boolean }>(`/api/map-drawings/${drawingId}`, { method: 'DELETE', authMode: 'cookie' })
 }

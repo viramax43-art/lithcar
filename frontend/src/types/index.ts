@@ -64,6 +64,16 @@ export interface ServiceZone {
   createdAt: string
 }
 
+export interface MapDrawing {
+  id: string
+  title: string
+  color: string
+  strokeWidth: number
+  points: LatLng[]
+  createdByRole: string
+  createdAt: string
+}
+
 export interface PricingSettings {
   pointsPerRide: number
   pointPriceCents: number
