@@ -129,6 +129,7 @@ export function RideDraftCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold truncate">{request.passengerName}</p>
+          <p className="text-[11px] text-muted truncate">Поездка №{request.rideNumber}</p>
         </div>
         {edited && (
           <button

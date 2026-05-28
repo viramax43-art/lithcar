@@ -40,6 +40,7 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/70 mb-1">
             Активная поездка
           </p>
+          <p className="text-[11px] font-semibold text-white/75 mb-1">№{ride.rideNumber}</p>
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold"
             style={{ color: statusColors.color, background: 'rgba(255,255,255,0.08)' }}

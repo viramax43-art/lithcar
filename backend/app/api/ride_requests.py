@@ -82,6 +82,7 @@ class RideRequestUpdate(BaseModel):
 
 class RideRequestOut(BaseModel):
     id: str
+    rideNumber: int
     passengerId: str
     passengerName: str
     fromPoint: RoutePoint
@@ -105,6 +106,7 @@ class RideRequestPage(BaseModel):
 def _to_ride_request_out(request) -> RideRequestOut:
     return RideRequestOut(
         id=request.id,
+        rideNumber=request.ride_number,
         passengerId=request.passenger_id,
         passengerName=request.passenger_name,
         fromPoint=RoutePoint(

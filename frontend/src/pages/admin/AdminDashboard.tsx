@@ -58,16 +58,21 @@ export default function AdminDashboard() {
   const [lastCreatedAdminKey, setLastCreatedAdminKey] = useState<string | null>(null)
   const [rotatedAdminKeys, setRotatedAdminKeys] = useState<Record<string, string>>({})
 
-  const [filterStatus, setFilterStatus] = useState('all')
+  const now = new Date()
+  const toDateInput = (value: Date) =>
+    `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+  const todayDate = toDateInput(now)
+
+  const [filterStatus, setFilterStatus] = useState('pending')
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [filterDate, setFilterDate] = useState<string>('')
-  const [filterDateEnd, setFilterDateEnd] = useState<string>('')
-  const [filterTime, setFilterTime] = useState<string>('')
-  const [filterTimeEnd, setFilterTimeEnd] = useState<string>('')
+  const [filterDate, setFilterDate] = useState<string>(() => todayDate)
+  const [filterDateEnd, setFilterDateEnd] = useState<string>(() => todayDate)
+  const [filterTime, setFilterTime] = useState<string>(() => '00:00')
+  const [filterTimeEnd, setFilterTimeEnd] = useState<string>(() => '23:59')
   const [requestsTotal, setRequestsTotal] = useState(0)
   const [isLoadingMoreRequests, setIsLoadingMoreRequests] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')

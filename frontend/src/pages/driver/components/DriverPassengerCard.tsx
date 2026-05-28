@@ -60,7 +60,10 @@ export default function DriverPassengerCard({
           {index + 1}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+            <span className="text-[10px] font-semibold text-muted flex-shrink-0">№{ride.rideNumber}</span>
+          </div>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-pill touch-compact"

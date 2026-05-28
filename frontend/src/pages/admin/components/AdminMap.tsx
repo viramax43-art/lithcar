@@ -12,6 +12,12 @@ import { optimizeRoute, type OptimizedRoute } from '../utils/routeOptimizer'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 
+const toDateInputValue = (value: Date): string =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+
+const toTimeInputValue = (value: Date): string =>
+  `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
+
 interface AdminMapProps {
   requests: RideRequest[]
   serviceZones: ServiceZone[]
@@ -206,7 +212,7 @@ export default function AdminMap({
         position: [req.from.latlng.lat, req.from.latlng.lng],
         icon,
         onClick: () => onSelectRequest(req.id),
-        tooltipText: `${req.passengerName} → ${req.from.address}`,
+        tooltipText: `№${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
       })
     })
 
@@ -225,7 +231,7 @@ export default function AdminMap({
         iconAnchor: [14, 14] as [number, number],
       }),
       onClick: () => onSelectRequest(req.id),
-      tooltipText: `✓ ${req.passengerName} → ${req.to.address}`,
+      tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} → ${req.to.address}`,
     }))
   }, [completedRequests, onSelectRequest])
 
@@ -282,58 +288,137 @@ export default function AdminMap({
     setShowRoutePanel(true)
   }, [activeRequests, drivers])
 
+  const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
+
+  const applyTodayWholeDay = useCallback(() => {
+    const today = toDateInputValue(new Date())
+    onFilterDateChange(today)
+    onFilterDateEndChange(today)
+    onFilterTimeChange('00:00')
+    onFilterTimeEndChange('23:59')
+  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
+
+  const applyTodayTimeRange = useCallback((start: string, end: string) => {
+    const today = toDateInputValue(new Date())
+    onFilterDateChange(today)
+    onFilterDateEndChange(today)
+    onFilterTimeChange(start)
+    onFilterTimeEndChange(end)
+  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
+
+  const applyNowPlusTwoHours = useCallback(() => {
+    const now = new Date()
+    const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const today = toDateInputValue(now)
+    onFilterDateChange(today)
+    onFilterDateEndChange(today)
+    onFilterTimeChange(toTimeInputValue(now))
+    onFilterTimeEndChange(toTimeInputValue(twoHoursLater))
+  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
+
   return (
     <main className="flex-1 relative">
       {/* === Date/Time Filter Bar === */}
-      <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 bg-white rounded-card shadow-card px-4 py-2.5">
-        <Calendar size={16} className="text-muted flex-shrink-0" />
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => onFilterDateChange(e.target.value)}
-          className="text-xs bg-transparent outline-none border-none w-[110px] h-8 touch-none"
-          title="Дата начала"
-        />
-        <span className="text-muted text-xs">—</span>
-        <input
-          type="date"
-          value={filterDateEnd}
-          onChange={(e) => onFilterDateEndChange(e.target.value)}
-          className="text-xs bg-transparent outline-none border-none w-[110px] h-8 touch-none"
-          title="Дата конца"
-        />
-        <div className="w-px h-5 bg-border mx-1" />
-        <Clock size={16} className="text-muted flex-shrink-0" />
-        <input
-          type="time"
-          value={filterTime}
-          onChange={(e) => onFilterTimeChange(e.target.value)}
-          className="text-xs bg-transparent outline-none border-none w-[75px] h-8 touch-none"
-          title="Время от"
-        />
-        <span className="text-muted text-xs">—</span>
-        <input
-          type="time"
-          value={filterTimeEnd}
-          onChange={(e) => onFilterTimeEndChange(e.target.value)}
-          className="text-xs bg-transparent outline-none border-none w-[75px] h-8 touch-none"
-          title="Время до"
-        />
-        {(filterDate || filterTime) && (
+      <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Calendar size={16} className="text-muted flex-shrink-0" />
+            <span className="text-[11px] font-semibold text-muted whitespace-nowrap">Фильтр периода</span>
+            <span className="text-[11px] text-muted/70 whitespace-nowrap">· {filteredRequests.length} заявок</span>
+          </div>
+          {hasAnyFilter && (
+            <button
+              onClick={() => { onFilterDateChange(''); onFilterDateEndChange(''); onFilterTimeChange(''); onFilterTimeEndChange('') }}
+              className="h-8 px-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:bg-surface rounded-lg transition-colors touch-none"
+              title="Сбросить фильтр"
+            >
+              <X size={13} />
+              Сброс
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
+            <span className="text-[11px] text-muted whitespace-nowrap">Дата от</span>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => onFilterDateChange(e.target.value)}
+              className="w-full text-sm bg-transparent outline-none border-none touch-none"
+              title="Дата начала"
+            />
+          </label>
+          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
+            <span className="text-[11px] text-muted whitespace-nowrap">Дата до</span>
+            <input
+              type="date"
+              value={filterDateEnd}
+              onChange={(e) => onFilterDateEndChange(e.target.value)}
+              className="w-full text-sm bg-transparent outline-none border-none touch-none"
+              title="Дата конца"
+            />
+          </label>
+          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
+            <Clock size={15} className="text-muted flex-shrink-0" />
+            <span className="text-[11px] text-muted whitespace-nowrap">Время от</span>
+            <input
+              type="time"
+              value={filterTime}
+              onChange={(e) => onFilterTimeChange(e.target.value)}
+              className="w-full text-sm bg-transparent outline-none border-none touch-none"
+              title="Время от"
+            />
+          </label>
+          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
+            <Clock size={15} className="text-muted flex-shrink-0" />
+            <span className="text-[11px] text-muted whitespace-nowrap">Время до</span>
+            <input
+              type="time"
+              value={filterTimeEnd}
+              onChange={(e) => onFilterTimeEndChange(e.target.value)}
+              className="w-full text-sm bg-transparent outline-none border-none touch-none"
+              title="Время до"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
           <button
-            onClick={() => { onFilterDateChange(''); onFilterDateEndChange(''); onFilterTimeChange(''); onFilterTimeEndChange('') }}
-            className="ml-1 w-8 h-8 flex items-center justify-center hover:bg-surface rounded-lg transition-colors touch-none"
-            title="Сбросить фильтр"
+            onClick={applyTodayWholeDay}
+            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
           >
-            <X size={14} />
+            Сегодня 00:00-23:59
           </button>
-        )}
-        <div className="w-px h-5 bg-border mx-1" />
-        <span className="text-[11px] text-muted font-semibold whitespace-nowrap">{filteredRequests.length} заявок</span>
+          <button
+            onClick={applyNowPlusTwoHours}
+            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+          >
+            Сейчас +2 часа
+          </button>
+          <button
+            onClick={() => applyTodayTimeRange('06:00', '12:00')}
+            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+          >
+            Утро
+          </button>
+          <button
+            onClick={() => applyTodayTimeRange('12:00', '18:00')}
+            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+          >
+            День
+          </button>
+          <button
+            onClick={() => applyTodayTimeRange('18:00', '23:59')}
+            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+          >
+            Вечер
+          </button>
+        </div>
       </div>
 
       {/* Search + Geolocation + Optimize controls */}
-      <div className="admin-map-controls absolute top-[72px] left-4 z-[1000] flex flex-col gap-2">
+      <div className="admin-map-controls absolute top-[164px] md:top-[132px] left-4 z-[1000] flex flex-col gap-2">
         <div className="flex items-center gap-2">
           {searchOpen ? (
             <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-w-[calc(100vw-32px)] max-h-[50vh] overflow-hidden">
@@ -591,6 +676,7 @@ export default function AdminMap({
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>
+              <p className="text-[11px] text-muted mt-0.5">Поездка №{selectedReq.rideNumber}</p>
             </div>
             <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0"

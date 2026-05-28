@@ -60,6 +60,7 @@ class LatLngOut(BaseModel):
 
 class DriverRideOut(BaseModel):
     id: str
+    rideNumber: int
     fromAddress: str
     toAddress: str
     fromLatLng: LatLngOut
@@ -235,6 +236,7 @@ async def driver_cabinet(
         rides=[
             DriverRideOut(
                 id=item.id,
+                rideNumber=item.ride_number,
                 fromAddress=item.from_address,
                 toAddress=item.to_address,
                 fromLatLng=LatLngOut(lat=item.from_lat, lng=item.from_lng),
@@ -383,6 +385,7 @@ async def update_cabinet_ride_status(
     )
     return DriverRideOut(
         id=ride.id,
+        rideNumber=ride.ride_number,
         fromAddress=ride.from_address,
         toAddress=ride.to_address,
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
@@ -418,6 +421,7 @@ async def update_cabinet_ride_pickup(
         raise HTTPException(status_code=400, detail=error)
     return DriverRideOut(
         id=ride.id,
+        rideNumber=ride.ride_number,
         fromAddress=ride.from_address,
         toAddress=ride.to_address,
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
@@ -453,6 +457,7 @@ async def notify_pickup_change(
     await notify_passenger_pickup_changed(request=ride, driver=driver)
     return DriverRideOut(
         id=ride.id,
+        rideNumber=ride.ride_number,
         fromAddress=ride.from_address,
         toAddress=ride.to_address,
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),

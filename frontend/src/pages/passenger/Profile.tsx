@@ -215,7 +215,10 @@ export default function Profile() {
             <div key={ride.id} className="rounded-xl bg-surface p-3 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold truncate min-w-0">{ride.from.address}</p>
-                <span className="text-[10px] text-muted shrink-0">{STATUS_MAP[ride.status] || ride.status}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] font-semibold text-muted">№{ride.rideNumber}</span>
+                  <span className="text-[10px] text-muted">{STATUS_MAP[ride.status] || ride.status}</span>
+                </div>
               </div>
               <p className="text-xs text-muted truncate">{ride.to.address}</p>
               <p className="text-[10px] text-muted">

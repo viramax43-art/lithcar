@@ -10,6 +10,7 @@ export function toPageQuery(params?: PaginationParams): string {
 export function mapRideRequest(item: RideRequestApi): RideRequest {
   return {
     id: item.id,
+    rideNumber: item.rideNumber,
     passengerName: item.passengerName,
     from: item.fromPoint,
     to: item.toPoint,
@@ -26,6 +27,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
 export function mapUserCabinetRide(item: UserCabinetRideApi): UserCabinetRideHistoryItem {
   return {
     id: item.id,
+    rideNumber: item.rideNumber,
     from: item.fromPoint,
     to: item.toPoint,
     status: item.status,

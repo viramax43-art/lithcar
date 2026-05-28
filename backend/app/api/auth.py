@@ -50,6 +50,7 @@ class RoutePoint(BaseModel):
 
 class RideHistoryItem(BaseModel):
     id: str
+    rideNumber: int
     fromPoint: RoutePoint
     toPoint: RoutePoint
     status: str
@@ -156,6 +157,7 @@ async def update_current_user_role(
 def _to_ride_history_item(request: RideRequest) -> RideHistoryItem:
     return RideHistoryItem(
         id=request.id,
+        rideNumber=request.ride_number,
         fromPoint=RoutePoint(
             address=request.from_address,
             latlng=LatLng(lat=request.from_lat, lng=request.from_lng),

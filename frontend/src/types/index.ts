@@ -14,6 +14,7 @@ export type RideStatus =
 
 export interface RideRequest {
   id: string
+  rideNumber: number
   passengerName: string
   from: { address: string; latlng: LatLng }
   to: { address: string; latlng: LatLng }
@@ -72,6 +73,7 @@ export interface PricingSettings {
 
 export interface UserCabinetRideHistoryItem {
   id: string
+  rideNumber: number
   from: { address: string; latlng: LatLng }
   to: { address: string; latlng: LatLng }
   status: RideStatus
@@ -91,6 +93,7 @@ export interface UserCabinetData {
 
 export interface DriverCabinetRide {
   id: string
+  rideNumber: number
   fromAddress: string
   toAddress: string
   fromLatLng: LatLng

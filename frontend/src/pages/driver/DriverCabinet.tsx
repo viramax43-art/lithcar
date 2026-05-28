@@ -713,7 +713,7 @@ function RideRow({ ride, dim }: { ride: DriverCabinetRide; dim?: boolean }) {
         <div className="w-1.5 h-1.5 rounded-full bg-point-b" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold truncate">{ride.fromAddress}</p>
+        <p className="text-xs font-semibold truncate">№{ride.rideNumber} · {ride.fromAddress}</p>
         <p className="text-xs text-muted truncate">{ride.toAddress}</p>
         <p className="text-[10px] text-muted mt-1">
           {dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ·{' '}

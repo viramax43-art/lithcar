@@ -99,6 +99,7 @@ export interface RidePointOverride {
 
 export interface RideRequestApi {
   id: string
+  rideNumber: number
   passengerId: string
   passengerName: string
   fromPoint: { address: string; latlng: { lat: number; lng: number } }
@@ -114,6 +115,7 @@ export interface RideRequestApi {
 
 export interface UserCabinetRideApi {
   id: string
+  rideNumber: number
   fromPoint: { address: string; latlng: { lat: number; lng: number } }
   toPoint: { address: string; latlng: { lat: number; lng: number } }
   status: RideRequest['status']

@@ -125,7 +125,7 @@ export default function RequestDetail() {
           <button onClick={() => navigate('/requests')} className="p-1">
             <ArrowLeft size={22} weight="bold" />
           </button>
-          <h1 className="text-base font-bold flex-1">Заявка</h1>
+          <h1 className="text-base font-bold flex-1">Заявка №{request.rideNumber}</h1>
           <span
             className="text-xs font-bold px-3 py-1 rounded-pill"
             style={{ color: status.color, background: status.bg }}
@@ -394,6 +394,7 @@ export default function RequestDetail() {
         <div className="bg-surface rounded-card p-4 space-y-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Пассажир</p>
           <p className="text-sm font-semibold">{request.passengerName}</p>
+          <p className="text-xs text-muted">Номер поездки: {request.rideNumber}</p>
         </div>
       </div>
     </div>

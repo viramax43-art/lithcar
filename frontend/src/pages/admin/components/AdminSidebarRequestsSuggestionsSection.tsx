@@ -57,6 +57,7 @@ export function AdminSidebarRequestsSuggestionsSection({
     const q = searchQuery.toLowerCase()
     return requests.filter(
       (r) =>
+        String(r.rideNumber).includes(q) ||
         r.passengerName.toLowerCase().includes(q) ||
         r.from.address.toLowerCase().includes(q) ||
         r.to.address.toLowerCase().includes(q)
@@ -196,6 +197,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                   {status.label}
                 </span>
               </div>
+              <p className="text-[11px] text-muted -mt-1 mb-2">Поездка №{request.rideNumber}</p>
               <div className="flex gap-2.5">
                 <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
                   <div className="w-2 h-2 rounded-full bg-point-a" />

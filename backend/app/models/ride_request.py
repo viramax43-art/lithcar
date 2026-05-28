@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Sequence, String, func
 
 from app.models import Base
 
@@ -29,7 +29,17 @@ class RideRequestStatus:
 class RideRequest(Base):
     __tablename__ = "ride_requests"
 
+    ride_number_seq = Sequence("ride_requests_ride_number_seq")
+
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    ride_number = Column(
+        Integer,
+        ride_number_seq,
+        server_default=ride_number_seq.next_value(),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     passenger_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     passenger_name = Column(String, nullable=False)
     from_address = Column(String, nullable=False)

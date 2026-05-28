@@ -153,12 +153,15 @@ export default function MyRequests() {
             >
               {/* Top row: status + time */}
               <div className="flex items-center justify-between">
-                <span
-                  className="text-xs font-bold px-3 py-1 rounded-pill"
-                  style={{ color: status.color, background: status.bg }}
-                >
-                  {status.label}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="text-xs font-bold px-3 py-1 rounded-pill"
+                    style={{ color: status.color, background: status.bg }}
+                  >
+                    {status.label}
+                  </span>
+                  <span className="text-[11px] font-semibold text-muted whitespace-nowrap">№{req.rideNumber}</span>
+                </div>
                 <span className="flex items-center gap-1 text-xs text-muted">
                   <Clock size={12} />
                   {dateStr}, {timeStr}
