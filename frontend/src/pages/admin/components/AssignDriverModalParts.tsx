@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import { Check, MapPin } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import type { LatLng, RideRequest } from '../../../types'
 
@@ -120,6 +121,7 @@ export function RideDraftCard({
   onChangeAddress: (point: ActivePoint, value: string) => void
   onReset: () => void
 }) {
+  const { t } = useTranslation()
   const edited = isOverridden(draft)
   return (
     <div className="bg-white rounded-card border border-border overflow-hidden">
@@ -129,14 +131,16 @@ export function RideDraftCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold truncate">{request.passengerName}</p>
-          <p className="text-[11px] text-muted truncate">Поездка №{request.rideNumber}</p>
+          <p className="text-[11px] text-muted truncate">
+            {t('common.rideShort', { number: request.rideNumber })}
+          </p>
         </div>
         {edited && (
           <button
             onClick={onReset}
             className="text-[10px] font-semibold px-2.5 py-1 rounded-pill bg-surface hover:bg-border transition-colors flex-shrink-0"
           >
-            Сбросить
+            {t('common.reset')}
           </button>
         )}
       </div>
@@ -150,7 +154,7 @@ export function RideDraftCard({
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-point-a" />
-            Откуда (A)
+            {t('driver.fromPointA')}
           </button>
           <button
             onClick={() => onSetActive('to')}
@@ -159,10 +163,10 @@ export function RideDraftCard({
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-point-b" />
-            Куда (B)
+            {t('driver.toPointB')}
           </button>
         </div>
-        <p className="text-[10px] text-muted mt-2 mb-2 px-1">Клик по карте перемещает активную точку. Маркер можно перетаскивать.</p>
+        <p className="text-[10px] text-muted mt-2 mb-2 px-1">{t('admin.assignModal.mapHint')}</p>
       </div>
 
       <div className="px-4">
@@ -219,7 +223,7 @@ export function RideDraftCard({
 
           {edited && (
             <span className="absolute top-2 left-2 z-[500] px-2 py-1 rounded-pill bg-amber-100 text-amber-800 text-[10px] font-bold shadow">
-              Изменено
+              {t('common.changed')}
             </span>
           )}
         </div>
@@ -228,7 +232,7 @@ export function RideDraftCard({
       <div className="p-4 space-y-3">
         <AddressField
           color="point-a"
-          label="Откуда"
+          label={t('passenger.fromLabel')}
           active={draft.active === 'from'}
           value={draft.fromAddress}
           latlng={draft.fromLatLng}
@@ -237,7 +241,7 @@ export function RideDraftCard({
         />
         <AddressField
           color="point-b"
-          label="Куда"
+          label={t('passenger.toLabel')}
           active={draft.active === 'to'}
           value={draft.toAddress}
           latlng={draft.toLatLng}

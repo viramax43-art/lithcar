@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Car, CaretLeft, CaretRight, CreditCard, Gear, MapPin, PenNib, Plus, Users, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -12,14 +13,15 @@ import EditStaffModal from './EditStaffModal'
 import type { CopyState } from './AdminSidebarShared'
 
 const TAB_DEFS = [
-  { id: 'requests' as AdminTab, icon: MapPin, label: 'Заявки' },
-  { id: 'drivers' as AdminTab, icon: Car, label: 'Водители' },
-  { id: 'zones' as AdminTab, icon: PenNib, label: 'Зоны' },
-  { id: 'settings' as AdminTab, icon: Gear, label: 'Цены' },
-  { id: 'qrSales' as AdminTab, icon: CreditCard, label: 'Платежи' },
+  { id: 'requests' as AdminTab, icon: MapPin, labelKey: 'admin.tabs.requests' },
+  { id: 'drivers' as AdminTab, icon: Car, labelKey: 'admin.tabs.drivers' },
+  { id: 'zones' as AdminTab, icon: PenNib, labelKey: 'admin.tabs.zones' },
+  { id: 'settings' as AdminTab, icon: Gear, labelKey: 'admin.tabs.settings' },
+  { id: 'qrSales' as AdminTab, icon: CreditCard, labelKey: 'admin.tabs.qrSales' },
 ]
 
 export default function AdminSidebar(props: AdminSidebarProps) {
+  const { t } = useTranslation()
   const {
     collapsed,
     onToggleCollapse,
@@ -127,7 +129,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   const tabs = useMemo(() => {
     if (adminSession.role !== 'chief_admin') return TAB_DEFS
-    return [...TAB_DEFS, { id: 'staff' as AdminTab, icon: Users, label: 'Персонал' }]
+    return [...TAB_DEFS, { id: 'staff' as AdminTab, icon: Users, labelKey: 'admin.tabs.staff' }]
   }, [adminSession.role])
 
   const copyText = async (value: string, token: string) => {
@@ -151,7 +153,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
           onClick={onToggleCollapse}
           className="hidden md:flex absolute top-1/2 -right-4 z-[1001] w-9 h-9 bg-white border border-border rounded-full shadow-card items-center justify-center hover:bg-surface transition-colors"
           style={{ transform: 'translateY(-50%)' }}
-          title={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+          title={collapsed ? t('admin.sidebar.expandPanel') : t('admin.sidebar.collapsePanel')}
         >
           {collapsed ? <CaretRight size={14} weight="bold" /> : <CaretLeft size={14} weight="bold" />}
         </button>
@@ -165,10 +167,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                 className={`w-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all touch-none ${
                   active ? 'bg-black text-white' : 'text-muted hover:bg-white hover:text-black'
                 }`}
-                title={tab.label}
+                title={t(tab.labelKey)}
               >
                 <tab.icon size={20} weight={active ? 'fill' : 'regular'} />
-                <span className="text-[9px] font-medium leading-none">{tab.label}</span>
+                <span className="text-[9px] font-medium leading-none">{t(tab.labelKey)}</span>
               </button>
             )
           })}
@@ -177,14 +179,27 @@ export default function AdminSidebar(props: AdminSidebarProps) {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
             <div>
-              <h2 className="text-base font-extrabold tracking-tight">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
+              <h2 className="text-base font-extrabold tracking-tight">
+                {tabs.find((tab) => tab.id === activeTab) ? t(tabs.find((tab) => tab.id === activeTab)!.labelKey) : ''}
+              </h2>
               <p className="text-[11px] text-muted mt-0.5">
-                {activeTab === 'requests' && `${requests.length}${requestsTotal > requests.length ? ` из ${requestsTotal}` : ''} заявок`}
-                {activeTab === 'drivers' && `${drivers.length} водителей · ${drivers.filter((driver) => driver.isOnline).length} онлайн`}
-                {activeTab === 'zones' && `${serviceZones.length} зон`}
-                {activeTab === 'settings' && 'Тарификация поездок'}
-                {activeTab === 'qrSales' && `${qrSales.length} ${qrSales.length === 1 ? 'платёж' : 'платежей'}`}
-                {activeTab === 'staff' && `${managedAdminKeys.length} аккаунтов`}
+                {activeTab === 'requests' &&
+                  t('admin.sidebar.requestsCount', {
+                    loaded: requests.length,
+                    suffix:
+                      requestsTotal > requests.length
+                        ? t('admin.sidebar.requestsCountSuffix', { total: requestsTotal })
+                        : '',
+                  })}
+                {activeTab === 'drivers' &&
+                  t('admin.sidebar.driversCount', {
+                    count: drivers.length,
+                    online: drivers.filter((driver) => driver.isOnline).length,
+                  })}
+                {activeTab === 'zones' && t('admin.sidebar.zonesCount', { count: serviceZones.length })}
+                {activeTab === 'settings' && t('admin.sidebar.pricingTitle')}
+                {activeTab === 'qrSales' && t('admin.sidebar.paymentsCount', { count: qrSales.length })}
+                {activeTab === 'staff' && t('admin.sidebar.accountsCount', { count: managedAdminKeys.length })}
               </p>
             </div>
             {activeTab === 'drivers' && (
@@ -193,7 +208,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
               >
                 {showDriverForm ? <X size={14} /> : <Plus size={14} />}
-                {showDriverForm ? 'Закрыть' : 'Создать'}
+                {showDriverForm ? t('common.close') : t('common.create')}
               </button>
             )}
             {activeTab === 'staff' && adminSession.role === 'chief_admin' && (
@@ -202,7 +217,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
               >
                 {showStaffForm ? <X size={14} /> : <Plus size={14} />}
-                {showStaffForm ? 'Закрыть' : 'Создать'}
+                {showStaffForm ? t('common.close') : t('common.create')}
               </button>
             )}
             {activeTab === 'zones' && !isDrawing && (
@@ -211,7 +226,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
               >
                 <Plus size={14} />
-                Новая зона
+                {t('admin.sidebar.newZone')}
               </button>
             )}
           </div>

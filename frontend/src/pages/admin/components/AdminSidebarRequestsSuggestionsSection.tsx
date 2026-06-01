@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import { formatDateTime } from '../../../i18n/dateTime'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
@@ -41,6 +42,7 @@ export function AdminSidebarRequestsSuggestionsSection({
   setSelectedReqId,
   setAssignModalReqIds,
 }: RequestsSuggestionsProps) {
+  const { t } = useTranslation()
   const [manualGroupIds, setManualGroupIds] = useState<string[]>([])
 
   const requestsInDateTimeWindow = useMemo(() => {
@@ -107,7 +109,7 @@ export function AdminSidebarRequestsSuggestionsSection({
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Поиск по имени или адресу…"
+          placeholder={t('admin.requests.searchPlaceholder', { defaultValue: 'Search by name or address...' })}
           className="w-full pl-9 pr-9 py-2.5 rounded-xl border-[1.5px] border-border bg-surface text-sm outline-none focus:border-black focus:bg-white transition-colors"
         />
         {searchQuery && (
@@ -124,20 +126,20 @@ export function AdminSidebarRequestsSuggestionsSection({
         <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-semibold text-violet-700">
-              Выбрано в группу: {manualGroupIds.length}
+              {t('admin.requests.groupSelected', { count: manualGroupIds.length, defaultValue: `Selected in group: ${manualGroupIds.length}` })}
             </p>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setManualGroupIds([])}
                 className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors touch-compact"
               >
-                Очистить
+                {t('common.clear', { defaultValue: 'Clear' })}
               </button>
               <button
                 onClick={() => setAssignModalReqIds(manualGroupIds)}
                 className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-black text-white hover:bg-black/90 transition-colors touch-compact"
               >
-                Назначить группу
+                {t('admin.requests.assignGroup', { defaultValue: 'Assign group' })}
               </button>
             </div>
           </div>
@@ -167,7 +169,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                       <span
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white shadow-sm"
                         style={{ backgroundColor: colorGroup.hex }}
-                        title={colorGroup.label}
+                        title={t(colorGroup.labelKey, { defaultValue: colorGroup.labelKey })}
                       />
                     ) : null
                   })()}
@@ -177,13 +179,13 @@ export function AdminSidebarRequestsSuggestionsSection({
                   className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0 ml-2"
                   style={{ color: status.color, background: status.bg }}
                 >
-                  {status.label}
+                  {t(status.labelKey, { defaultValue: status.labelKey })}
                 </span>
               </div>
-              <p className="text-[11px] text-muted -mt-1 mb-2">Поездка №{request.rideNumber}</p>
+              <p className="text-[11px] text-muted -mt-1 mb-2">{t('passenger.rideNumber', { rideNumber: request.rideNumber, defaultValue: `Ride number: ${request.rideNumber}` })}</p>
               {request.driverId && request.status !== 'completed' && (
                 <p className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-pill px-2 py-1 inline-flex mb-2">
-                  Водитель назначен
+                  {t('passenger.driverAssigned', { defaultValue: 'Driver assigned' })}
                 </p>
               )}
               <div className="flex gap-2.5">
@@ -219,7 +221,9 @@ export function AdminSidebarRequestsSuggestionsSection({
                         : 'text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200'
                     }`}
                   >
-                    {inManualGroup ? 'Убрать' : 'В группу'}
+                    {inManualGroup
+                      ? t('common.remove', { defaultValue: 'Remove' })
+                      : t('admin.requests.toGroup', { defaultValue: 'To group' })}
                   </button>
                   {!request.driverId && (
                     <button
@@ -229,7 +233,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                       }}
                       className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-1.5 rounded-pill transition-colors touch-compact"
                     >
-                      Назначить
+                      {t('admin.requests.assign', { defaultValue: 'Assign' })}
                     </button>
                   )}
                 </div>
@@ -238,7 +242,7 @@ export function AdminSidebarRequestsSuggestionsSection({
           )
         })}
         {filteredRequests.length === 0 && (
-          <p className="text-xs text-muted text-center py-12">Заявок не найдено</p>
+          <p className="text-xs text-muted text-center py-12">{t('admin.requests.empty', { defaultValue: 'No requests found' })}</p>
         )}
 
         {/* Load more button */}
@@ -251,10 +255,14 @@ export function AdminSidebarRequestsSuggestionsSection({
             {isLoadingMoreRequests ? (
               <span className="inline-flex items-center gap-2">
                 <span className="w-3.5 h-3.5 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
-                Загружаем…
+                {t('common.loading', { defaultValue: 'Loading...' })}
               </span>
             ) : (
-              `Показать ещё (${requests.length} из ${requestsTotal})`
+              t('common.showMoreWithCount', {
+                loaded: requests.length,
+                total: requestsTotal,
+                defaultValue: `Show more (${requests.length} of ${requestsTotal})`,
+              })
             )}
           </button>
         )}

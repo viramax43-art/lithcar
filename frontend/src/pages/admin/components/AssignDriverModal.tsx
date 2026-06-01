@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Car, CaretRight, Check, MagnifyingGlass, Star, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { Driver, LatLng, RideRequest } from '../../../types'
 import { reverseGeocode } from '../../../lib/geocode'
@@ -28,6 +29,7 @@ export default function AssignDriverModal({
   onClose,
   onSubmit,
 }: AssignDriverModalProps) {
+  const { t } = useTranslation()
   const [step, setStep] = useState<1 | 2>(1)
   const [query, setQuery] = useState('')
 
@@ -146,9 +148,9 @@ export default function AssignDriverModal({
               </button>
             )}
             <div className="min-w-0">
-              <h2 className="text-base font-bold">Назначить водителя</h2>
+              <h2 className="text-base font-bold">{t('admin.assignModal.title')}</h2>
               <p className="text-xs text-muted mt-0.5 truncate">
-                {drafts.length} {drafts.length === 1 ? 'заявка' : drafts.length < 5 ? 'заявки' : 'заявок'}
+                {t('admin.assignModal.requestCount', { count: drafts.length })}
               </p>
             </div>
           </div>
@@ -159,9 +161,9 @@ export default function AssignDriverModal({
 
         {/* Stepper */}
         <div className="px-5 py-3 border-b border-border flex-shrink-0 flex items-center gap-3">
-          <StepBadge n={1} label="Точки маршрута" active={step === 1} done={step > 1} />
+          <StepBadge n={1} label={t('admin.assignModal.stepRoutePoints')} active={step === 1} done={step > 1} />
           <CaretRight size={14} weight="bold" className="text-border flex-shrink-0" />
-          <StepBadge n={2} label="Выбор водителя" active={step === 2} done={false} />
+          <StepBadge n={2} label={t('admin.assignModal.stepSelectDriver')} active={step === 2} done={false} />
         </div>
 
         {/* Body */}
@@ -210,7 +212,7 @@ export default function AssignDriverModal({
                     autoFocus
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Поиск по имени, машине, номеру"
+                    placeholder={t('admin.assignModal.searchPlaceholder')}
                     className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted"
                   />
                 </div>
@@ -218,7 +220,9 @@ export default function AssignDriverModal({
               <div className="px-4 pb-4 space-y-2">
                 {filteredDrivers.length === 0 && (
                   <p className="text-xs text-muted text-center py-12">
-                    {drivers.length === 0 ? 'Нет водителей' : 'Никто не найден'}
+                    {drivers.length === 0
+                      ? t('admin.assignModal.noDrivers')
+                      : t('admin.assignModal.noMatch')}
                   </p>
                 )}
                 {filteredDrivers.map((driver) => {
@@ -249,7 +253,7 @@ export default function AssignDriverModal({
                             className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                               driver.isOnline ? 'bg-accent' : 'bg-border'
                             }`}
-                            title={driver.isOnline ? 'Онлайн' : 'Офлайн'}
+                            title={driver.isOnline ? t('common.online') : t('common.offline')}
                           />
                         </div>
                         <p className="text-[11px] text-muted truncate">
@@ -261,7 +265,11 @@ export default function AssignDriverModal({
                             <Star size={11} weight="fill" /> {driver.rating.toFixed(1)}
                           </span>
                           <span className="text-border">·</span>
-                          <span className="text-[10px] text-muted">{driver.seatsCount ?? '—'} мест</span>
+                          <span className="text-[10px] text-muted">
+                            {driver.seatsCount != null
+                              ? t('admin.drivers.seatsCount', { count: driver.seatsCount })
+                              : '—'}
+                          </span>
                         </div>
                       </div>
                       {selected && (
@@ -285,13 +293,13 @@ export default function AssignDriverModal({
                 onClick={onClose}
                 className="flex-1 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]"
               >
-                Отмена
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => setStep(2)}
                 className="flex-[2] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] inline-flex items-center justify-center gap-2"
               >
-                Далее: выбрать водителя
+                {t('admin.assignModal.nextSelectDriver')}
                 <CaretRight size={16} weight="bold" />
               </button>
             </div>
@@ -302,7 +310,7 @@ export default function AssignDriverModal({
                 className="px-4 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97] inline-flex items-center gap-1.5"
               >
                 <ArrowLeft size={14} />
-                Назад
+                {t('common.back')}
               </button>
               <button
                 onClick={handleConfirm}
@@ -310,10 +318,10 @@ export default function AssignDriverModal({
                 className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
               >
                 {isAssigning
-                  ? 'Назначаем…'
+                  ? t('common.assigning')
                   : selectedDriver
-                    ? `Назначить ${selectedDriver.name.split(' ')[0]}`
-                    : 'Назначить'}
+                    ? t('admin.assignModal.assignNamed', { name: selectedDriver.name.split(' ')[0] })
+                    : t('admin.requests.assign')}
               </button>
             </div>
           )}

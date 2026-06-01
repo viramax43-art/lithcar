@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface QrScannerProps {
   onTokenRead: (token: string) => void
@@ -10,6 +11,7 @@ const SCANNER_REGION_ID = 'points-qr-scanner-region'
 type ScannerState = 'idle' | 'starting' | 'running' | 'denied' | 'error'
 
 export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerProps) {
+  const { t } = useTranslation()
   const [state, setState] = useState<ScannerState>('idle')
   const [errorText, setErrorText] = useState<string | null>(null)
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null)
@@ -60,7 +62,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
         setState('denied')
       } else {
         setState('error')
-        setErrorText(error instanceof Error ? error.message : 'Не удалось открыть камеру.')
+        setErrorText(error instanceof Error ? error.message : t('qr.openCameraFailed', { defaultValue: 'Failed to open camera.' }))
       }
     }
   }
@@ -95,7 +97,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
             {state === 'starting' && (
               <>
                 <div className="w-7 h-7 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                <p className="text-xs font-medium text-white/80">Запускаем камеру…</p>
+                <p className="text-xs font-medium text-white/80">{t('qr.startingCamera', { defaultValue: 'Starting camera...' })}</p>
               </>
             )}
             {state === 'idle' && (
@@ -103,14 +105,14 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
                 onClick={() => void start()}
                 className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold active:scale-[0.97] transition-transform"
               >
-                Включить камеру
+                {t('qr.enableCamera', { defaultValue: 'Enable camera' })}
               </button>
             )}
             {state === 'denied' && (
               <>
-                <p className="text-xs font-semibold">Нет доступа к камере</p>
+                <p className="text-xs font-semibold">{t('qr.noCameraAccess', { defaultValue: 'No camera access' })}</p>
                 <p className="text-[11px] text-white/70 leading-snug">
-                  Разрешите доступ к камере в настройках браузера и попробуйте снова.
+                  {t('qr.allowCameraHint', { defaultValue: 'Allow camera access in browser settings and try again.' })}
                 </p>
                 <button
                   onClick={() => {
@@ -119,13 +121,13 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
                   }}
                   className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold"
                 >
-                  Попробовать снова
+                  {t('common.tryAgain', { defaultValue: 'Try again' })}
                 </button>
               </>
             )}
             {state === 'error' && (
               <>
-                <p className="text-xs font-semibold">Не удалось открыть камеру</p>
+                <p className="text-xs font-semibold">{t('qr.openCameraFailedTitle', { defaultValue: 'Failed to open camera' })}</p>
                 {errorText && <p className="text-[11px] text-white/70 leading-snug break-words">{errorText}</p>}
                 <button
                   onClick={() => {
@@ -134,7 +136,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
                   }}
                   className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold"
                 >
-                  Повторить
+                  {t('common.retry', { defaultValue: 'Retry' })}
                 </button>
               </>
             )}

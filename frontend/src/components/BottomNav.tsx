@@ -1,16 +1,18 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MapPin, ClipboardText, UserCircle } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../lib/telegram'
 
 const tabs = [
-  { path: '/', icon: MapPin, label: 'Новая заявка' },
-  { path: '/requests', icon: ClipboardText, label: 'Мои поездки' },
-  { path: '/profile', icon: UserCircle, label: 'Профиль' },
+  { path: '/', icon: MapPin, key: 'nav.newRequest' },
+  { path: '/requests', icon: ClipboardText, key: 'nav.requests' },
+  { path: '/profile', icon: UserCircle, key: 'nav.profile' },
 ]
 
 export default function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border flex items-center justify-around z-50"
@@ -29,7 +31,7 @@ export default function BottomNav() {
             }`}
           >
             <tab.icon size={22} weight={active ? 'fill' : 'regular'} />
-            <span className="text-[10px] font-medium">{tab.label}</span>
+            <span className="text-[10px] font-medium">{t(tab.key)}</span>
           </button>
         )
       })}

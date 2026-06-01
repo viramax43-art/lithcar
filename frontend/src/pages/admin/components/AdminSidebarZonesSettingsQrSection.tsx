@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { ZONE_COLORS } from '../constants'
 import { AdminDynamicPricingSection } from './AdminDynamicPricingSection'
@@ -52,6 +53,7 @@ export function AdminSidebarZonesSettingsQrSection({
   qrSales,
   hasLoadedQrSalesOnce,
 }: ZonesSettingsQrSectionProps) {
+  const { t } = useTranslation()
   const [userInfoDraft, setUserInfoDraft] = useState(pricing.userInfoText ?? '')
 
   useEffect(() => {
@@ -63,15 +65,17 @@ export function AdminSidebarZonesSettingsQrSection({
       <div className="space-y-3">
         {isDrawing && (
           <div className="rounded-card border-[1.5px] border-black p-4 space-y-3 bg-surface/50">
-            <p className="text-sm font-bold">Новая зона</p>
+            <p className="text-sm font-bold">{t('admin.zones.newZone')}</p>
             <input
               value={newZoneName}
               onChange={(event) => setNewZoneName(event.target.value)}
-              placeholder="Название зоны"
+              placeholder={t('admin.zones.zoneNamePlaceholder')}
               className={inputCls}
             />
             <div>
-              <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Цвет</p>
+              <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                {t('admin.zones.color')}
+              </p>
               <div className="flex gap-2">
                 {ZONE_COLORS.map((color) => (
                   <button
@@ -86,7 +90,7 @@ export function AdminSidebarZonesSettingsQrSection({
               </div>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted">Точек на карте</span>
+              <span className="text-muted">{t('admin.zones.mapPoints')}</span>
               <span className="font-bold">{drawingPoints.length}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -95,7 +99,7 @@ export function AdminSidebarZonesSettingsQrSection({
                 disabled={drawingPoints.length === 0}
                 className="py-2 rounded-xl bg-surface text-xs font-semibold disabled:opacity-50 transition-all active:scale-[0.97]"
               >
-                Отменить точку
+                {t('admin.zones.undoPoint')}
               </button>
               <button
                 onClick={() => {
@@ -104,7 +108,7 @@ export function AdminSidebarZonesSettingsQrSection({
                 }}
                 className="py-2 rounded-xl bg-surface text-xs font-semibold transition-all active:scale-[0.97]"
               >
-                Отмена
+                {t('common.cancel')}
               </button>
             </div>
             <button
@@ -112,7 +116,7 @@ export function AdminSidebarZonesSettingsQrSection({
               disabled={drawingPoints.length < 3 || !newZoneName.trim()}
               className="w-full py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
             >
-              Сохранить зону
+              {t('admin.zones.saveZone')}
             </button>
           </div>
         )}
@@ -138,7 +142,7 @@ export function AdminSidebarZonesSettingsQrSection({
                       zone.isActive ? 'bg-accent/15 text-accent-dark' : 'bg-surface text-muted'
                     }`}
                   >
-                    {zone.isActive ? 'Активна' : 'Отключена'}
+                    {zone.isActive ? t('common.active') : t('common.inactive')}
                   </span>
                 </div>
               </button>
@@ -148,11 +152,11 @@ export function AdminSidebarZonesSettingsQrSection({
                     onClick={() => void handleToggleZone(zone)}
                     className="flex-1 py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors"
                   >
-                    {zone.isActive ? 'Отключить' : 'Включить'}
+                    {zone.isActive ? t('common.disable') : t('common.enable')}
                   </button>
                   <InlineConfirm
-                    label="Удалить"
-                    confirmLabel="Точно удалить?"
+                    label={t('common.delete')}
+                    confirmLabel={t('common.confirmDelete')}
                     onConfirm={() => void handleDeleteZone(zone.id)}
                     className="flex-1 !text-xs !py-2"
                   />
@@ -163,20 +167,16 @@ export function AdminSidebarZonesSettingsQrSection({
         })}
 
         {serviceZones.length === 0 && !isDrawing && (
-          <p className="text-xs text-muted text-center py-12">
-            Зон пока нет. Создайте первую — кликами по карте.
-          </p>
+          <p className="text-xs text-muted text-center py-12">{t('admin.zones.empty')}</p>
         )}
       </div>
     )
   }
 
   if (activeTab === 'settings') {
-    const displayPoints =
-      pricing.pricingMode === 'dynamic' ? '—' : String(pricing.pointsPerRide)
     const displayRideEur =
       pricing.pricingMode === 'dynamic'
-        ? 'по маршруту'
+        ? t('admin.settings.byRoute')
         : `€${((pricing.pointsPerRide * pricing.pointPriceCents) / 100).toFixed(2)}`
 
     return (
@@ -185,10 +185,8 @@ export function AdminSidebarZonesSettingsQrSection({
 
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
           <div>
-            <label className="block text-sm font-bold mb-1">Цена одного поинта</label>
-            <p className="text-[11px] text-muted mb-2">
-              Сколько стоит 1 поинт в евро. Например, 0.50 — это половина евро за поинт.
-            </p>
+            <label className="block text-sm font-bold mb-1">{t('admin.settings.pointPrice')}</label>
+            <p className="text-[11px] text-muted mb-2">{t('admin.settings.pointPriceHint')}</p>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">€</span>
               <input
@@ -209,33 +207,33 @@ export function AdminSidebarZonesSettingsQrSection({
         </div>
 
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
-          <p className="text-sm font-bold">Информация для пользователей</p>
+          <p className="text-sm font-bold">{t('admin.settings.userInfo')}</p>
           <textarea
             value={userInfoDraft}
             onChange={(event) => setUserInfoDraft(event.target.value)}
             rows={4}
-            placeholder="Например: Сегодня возможны задержки из-за погоды..."
+            placeholder={t('admin.settings.userInfoPlaceholder')}
             className={`${inputCls} resize-y min-h-[92px]`}
           />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] text-muted">
-              Этот текст будет показан пассажирам в приложении.
-            </p>
+            <p className="text-[11px] text-muted">{t('admin.settings.userInfoHint')}</p>
             <button
               onClick={() => void handlePricingChange({ userInfoText: userInfoDraft.trim() })}
               disabled={userInfoDraft.trim() === (pricing.userInfoText ?? '').trim()}
               className="px-3 py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
             >
-              Сохранить
+              {t('common.save')}
             </button>
           </div>
         </div>
 
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
-          <p className="text-sm font-bold">Рабочие часы и слоты</p>
+          <p className="text-sm font-bold">{t('admin.settings.workHours')}</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Начало</label>
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                {t('admin.settings.workStart')}
+              </label>
               <input
                 type="time"
                 value={pricing.workStartTime}
@@ -244,7 +242,9 @@ export function AdminSidebarZonesSettingsQrSection({
               />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Конец</label>
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                {t('admin.settings.workEnd')}
+              </label>
               <input
                 type="time"
                 value={pricing.workEndTime}
@@ -254,42 +254,56 @@ export function AdminSidebarZonesSettingsQrSection({
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Интервал слотов (мин)</label>
+            <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+              {t('admin.settings.slotInterval')}
+            </label>
             <select
               value={pricing.slotIntervalMinutes}
               onChange={(event) => void handlePricingChange({ slotIntervalMinutes: parseInt(event.target.value, 10) })}
               className={inputCls}
             >
               {[15, 30, 45, 60].map((v) => (
-                <option key={v} value={v}>{v} мин</option>
+                <option key={v} value={v}>
+                  {t('admin.settings.slotIntervalOption', { value: v })}
+                </option>
               ))}
             </select>
           </div>
           <p className="text-[11px] text-muted">
-            Пассажиры смогут выбирать время поездки только из слотов: {pricing.workStartTime}, {(() => {
-              const [h, m] = pricing.workStartTime.split(':').map(Number)
-              const next = h * 60 + m + pricing.slotIntervalMinutes
-              return `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`
-            })()}, … до {pricing.workEndTime}
+            {t('admin.settings.slotsHint', {
+              start: pricing.workStartTime,
+              next: (() => {
+                const [h, m] = pricing.workStartTime.split(':').map(Number)
+                const next = h * 60 + m + pricing.slotIntervalMinutes
+                return `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`
+              })(),
+              end: pricing.workEndTime,
+            })}
           </p>
         </div>
 
         <div className="rounded-card bg-black text-white p-5 space-y-3">
-          <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">Сейчас в системе</p>
+          <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">
+            {t('admin.settings.currentSystem')}
+          </p>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/70">1 поинт</span>
+            <span className="text-white/70">{t('admin.settings.onePoint')}</span>
             <span className="font-semibold">€{(pricing.pointPriceCents / 100).toFixed(2)}</span>
           </div>
           {pricing.pricingMode === 'fixed' && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">За поездку</span>
-              <span className="font-semibold">{displayPoints} поинтов</span>
+              <span className="text-white/70">{t('admin.settings.perRide')}</span>
+              <span className="font-semibold">
+                {t('admin.settings.pointsCount', { count: pricing.pointsPerRide })}
+              </span>
             </div>
           )}
           <div className="h-px bg-white/15" />
           <div className="flex items-center justify-between">
             <span className="text-sm text-white/70">
-              {pricing.pricingMode === 'dynamic' ? 'Цена поездки' : 'Примерно в евро'}
+              {pricing.pricingMode === 'dynamic'
+                ? t('admin.settings.ridePrice')
+                : t('admin.settings.approxEur')}
             </span>
             <span className="text-2xl font-extrabold text-accent">{displayRideEur}</span>
           </div>
@@ -342,19 +356,24 @@ export function AdminSidebarZonesSettingsQrSection({
       {qrSales.length > 0 && (
         <div className="rounded-card bg-black text-white p-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Всего получено</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">
+              {t('admin.qrSales.totalReceived')}
+            </p>
             <p className="text-2xl font-extrabold mt-0.5">€{totalEur.toFixed(2)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Поинтов выдано</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">
+              {t('admin.qrSales.pointsIssued')}
+            </p>
             <p className="text-lg font-bold mt-0.5">{totalPoints} pts</p>
           </div>
         </div>
       )}
 
       {qrSales.map((sale) => {
-        const passengerLabel = sale.username?.trim() || 'Пассажир'
-        const driverLabel = sale.driverName?.trim() || 'Водитель'
+        const passengerLabel = sale.username?.trim() || t('passenger.passengerLabel')
+        const driverFallback = t('admin.qrSales.driverLabel').replace(/:\s*$/, '')
+        const driverLabel = sale.driverName?.trim() || driverFallback
         const when = sale.redeemedAt ? formatPaymentDate(sale.redeemedAt) : null
 
         return (
@@ -362,14 +381,16 @@ export function AdminSidebarZonesSettingsQrSection({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-bold truncate">{passengerLabel}</p>
-                <p className="text-[11px] text-muted mt-0.5">купил {sale.pointsAmount} pts</p>
+                <p className="text-[11px] text-muted mt-0.5">
+                  {t('admin.qrSales.boughtPoints', { count: sale.pointsAmount })}
+                </p>
               </div>
               <p className="text-base font-extrabold whitespace-nowrap">€{sale.eurAmount.toFixed(2)}</p>
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
               <p className="text-[11px] text-muted truncate">
-                <span className="text-muted">Водитель: </span>
+                <span className="text-muted">{t('admin.qrSales.driverLabel')} </span>
                 <span className="font-semibold text-black/80">{driverLabel}</span>
               </p>
               {when && <p className="text-[11px] text-muted whitespace-nowrap">{when}</p>}
@@ -379,7 +400,7 @@ export function AdminSidebarZonesSettingsQrSection({
       })}
 
       {qrSales.length === 0 && (
-        <p className="text-xs text-muted text-center py-12">Платежей пока нет</p>
+        <p className="text-xs text-muted text-center py-12">{t('admin.qrSales.empty')}</p>
       )}
     </div>
   )

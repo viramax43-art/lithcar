@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Crosshair } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { DriverMapPoint, LatLng } from '../../../types'
 
@@ -81,6 +82,7 @@ function FlyToSelected({ points, selectedPointId }: { points: DriverMapPoint[]; 
 }
 
 function LocateButton() {
+  const { t } = useTranslation()
   const map = useMap()
   return (
     <button
@@ -93,7 +95,7 @@ function LocateButton() {
         )
       }}
       className="absolute bottom-6 right-4 z-[1000] w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform touch-none"
-      title="Моё местоположение"
+      title={t('common.myLocation', { defaultValue: 'My location' })}
     >
       <Crosshair size={22} weight="bold" />
     </button>

@@ -1,9 +1,11 @@
 import { Check } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { RideStatus } from '../../../types'
 import { DRIVER_FLOW_STEPS } from '../constants'
 
 export default function RideStepper({ status }: { status: RideStatus }) {
+  const { t } = useTranslation()
   const currentIndex = DRIVER_FLOW_STEPS.findIndex((s) => s.key === status)
 
   return (
@@ -30,7 +32,7 @@ export default function RideStepper({ status }: { status: RideStatus }) {
                   active ? 'text-white' : done ? 'text-white/85' : 'text-white/65'
                 }`}
               >
-                {step.short}
+                {t(step.shortKey, { defaultValue: step.shortKey })}
               </span>
             </div>
             {idx < DRIVER_FLOW_STEPS.length - 1 && (

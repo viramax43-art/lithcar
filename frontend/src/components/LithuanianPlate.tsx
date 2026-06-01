@@ -3,6 +3,7 @@
  * Format: blue EU strip on the left (12 stars + "LT") + white plate body with bold black text.
  */
 import { Star } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 interface LithuanianPlateProps {
   value: string
@@ -53,12 +54,16 @@ function formatPlate(raw: string): string {
 }
 
 export default function LithuanianPlate({ value, size = 'md', className = '' }: LithuanianPlateProps) {
+  const { t } = useTranslation()
   const s = SIZES[size]
   const formatted = formatPlate(value)
   return (
     <div
       className={`inline-flex items-stretch rounded-md overflow-hidden bg-white border-[1.5px] border-zinc-900 shadow-sm ${s.height} ${className}`}
-      aria-label={`Литовский номерной знак ${formatted}`}
+      aria-label={t('vehicle.plateAria', {
+        value: formatted,
+        defaultValue: `Lithuanian plate ${formatted}`,
+      })}
     >
       {/* EU blue strip with circle of stars + LT */}
       <div

@@ -1,6 +1,12 @@
 import type { LatLng } from '../types'
 
 const OSRM_BASE = import.meta.env.VITE_OSRM_BASE_URL || 'https://router.project-osrm.org'
+
+export const OSRM_ERROR_KEYS = {
+  optimizeRouteUnavailable: 'errors.osrmOptimizeRouteUnavailable',
+  similarTripsUnavailable: 'errors.osrmSimilarTripsUnavailable',
+  roadRouteFailed: 'errors.osrmRoadRouteFailed',
+} as const
 export interface DistanceDurationMatrix {
   distanceKm: number[][]
   durationMin: number[][]
@@ -59,7 +65,7 @@ export async function osrmDistanceDurationMatrix(
 export async function getDistanceMatrixKm(points: LatLng[]): Promise<number[][]> {
   const osrm = await osrmDistanceMatrixKm(points)
   if (osrm) return osrm
-  throw new Error('Сейчас не получается рассчитать оптимальный маршрут: сервис маршрутизации недоступен.')
+  throw new Error(OSRM_ERROR_KEYS.optimizeRouteUnavailable)
 }
 
 /**
@@ -69,7 +75,7 @@ export async function getDistanceMatrixKm(points: LatLng[]): Promise<number[][]>
 export async function getDistanceDurationMatrix(points: LatLng[]): Promise<DistanceDurationMatrix> {
   const osrm = await osrmDistanceDurationMatrix(points)
   if (osrm) return osrm
-  throw new Error('Сейчас не получается подобрать похожие поездки: сервис маршрутизации недоступен.')
+  throw new Error(OSRM_ERROR_KEYS.similarTripsUnavailable)
 }
 
 /**
@@ -90,6 +96,6 @@ export async function getRoadRoutePolyline(points: LatLng[]): Promise<LatLng[]> 
     const coordinates = data.routes[0].geometry.coordinates as [number, number][]
     return coordinates.map(([lng, lat]) => ({ lat, lng }))
   } catch {
-    throw new Error('Не удалось построить дорожный маршрут для выбранной группы.')
+    throw new Error(OSRM_ERROR_KEYS.roadRouteFailed)
   }
 }

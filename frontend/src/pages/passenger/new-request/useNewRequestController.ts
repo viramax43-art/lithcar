@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones } from '../../../lib/backend'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
@@ -48,13 +49,16 @@ function clearDraft(): void {
 }
 
 export function useNewRequestController() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [quote, setQuote] = useState<RideQuote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState<string | null>(null)
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [passengerName, setPassengerName] = useState('Текущий пользователь')
+  const [passengerName, setPassengerName] = useState(() =>
+    t('passenger.defaultUserName', { defaultValue: 'Current user' }),
+  )
   const activeZones = serviceZones.filter((z) => z.isActive)
   const hasZones = activeZones.length > 0
 
@@ -106,13 +110,13 @@ export function useNewRequestController() {
         setPassengerName(me.username || me.user_id)
       } catch (error) {
         if (cancelled) return
-        setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить данные.')
+        setErrorMessage(error instanceof Error ? error.message : t('errors.loadDataFailed', { defaultValue: 'Failed to load data.' }))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t])
 
   const showZoneWarning = useCallback((msg: string) => {
     setZoneWarning(msg)
@@ -141,7 +145,12 @@ export function useNewRequestController() {
       reverseTimer.current = setTimeout(async () => {
         if (isRateLimited()) {
           setIsResolving(false)
-          showZoneWarning(`Слишком много запросов к карте. Повтор через ~${Math.ceil(rateLimitRetryInMs() / 1000)} сек.`)
+          showZoneWarning(
+            t('geo.rateLimitRetry', {
+              seconds: Math.ceil(rateLimitRetryInMs() / 1000),
+              defaultValue: `Too many map requests. Retry in ~${Math.ceil(rateLimitRetryInMs() / 1000)} sec.`,
+            }),
+          )
           return
         }
         const controller = new AbortController()
@@ -156,19 +165,19 @@ export function useNewRequestController() {
           if (seq !== reverseSeq.current) return
           setIsResolving(false)
           if (err instanceof RateLimitedError) {
-            showZoneWarning('Слишком много запросов к карте. Повторите через 30 сек.')
+            showZoneWarning(t('geo.rateLimitRetry30', { defaultValue: 'Too many map requests. Retry in 30 sec.' }))
           }
           setPinAddress(`${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`)
         }
       }, 700)
     },
-    [activeZones, hasZones, showSearch, showZoneWarning, fromPoint, toPoint],
+    [activeZones, hasZones, showSearch, showZoneWarning, fromPoint, toPoint, t],
   )
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
     if (hasZones && !isPointInAnyZone(pinLatLng, activeZones)) {
-      showZoneWarning('Точка вне зоны обслуживания')
+      showZoneWarning(t('geo.pointOutOfZone', { defaultValue: 'Point is outside service area' }))
       return
     }
     const resolved = pinAddress || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`
@@ -192,7 +201,7 @@ export function useNewRequestController() {
       reverseAbort.current.abort()
       reverseAbort.current = null
     }
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning, t])
 
   const armPinFromMapCenter = useCallback(() => {
     const map = mapRef.current
@@ -230,7 +239,12 @@ export function useNewRequestController() {
       }
       searchTimeout.current = setTimeout(async () => {
         if (isRateLimited()) {
-          showZoneWarning(`Слишком много запросов к карте. Повтор через ~${Math.ceil(rateLimitRetryInMs() / 1000)} сек.`)
+          showZoneWarning(
+            t('geo.rateLimitRetry', {
+              seconds: Math.ceil(rateLimitRetryInMs() / 1000),
+              defaultValue: `Too many map requests. Retry in ~${Math.ceil(rateLimitRetryInMs() / 1000)} sec.`,
+            }),
+          )
           return
         }
         setIsSearching(true)
@@ -243,21 +257,21 @@ export function useNewRequestController() {
           if ((err as Error)?.name === 'AbortError') return
           setSearchResults([])
           if (err instanceof RateLimitedError) {
-            showZoneWarning('Слишком много запросов к карте. Повторите через 30 сек.')
+            showZoneWarning(t('geo.rateLimitRetry30', { defaultValue: 'Too many map requests. Retry in 30 sec.' }))
           }
         } finally {
           setIsSearching(false)
         }
       }, 600)
     },
-    [showZoneWarning],
+    [showZoneWarning, t],
   )
 
   const handleSelectSearchResult = useCallback(
     (result: NominatimSearchResult) => {
       const latlng: LatLng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
       if (hasZones && !isPointInAnyZone(latlng, activeZones)) {
-        showZoneWarning('Этот адрес вне зоны обслуживания.')
+        showZoneWarning(t('geo.addressOutOfZone', { defaultValue: 'This address is outside the service area.' }))
         return
       }
       const shortName = result.display_name.split(',').slice(0, 3).join(',')
@@ -284,12 +298,12 @@ export function useNewRequestController() {
       setSearchResults([])
       panMapToTarget(latlng)
     },
-    [activeField, activeZones, fromPoint, toPoint, hasZones, panMapToTarget, showZoneWarning],
+    [activeField, activeZones, fromPoint, toPoint, hasZones, panMapToTarget, showZoneWarning, t],
   )
 
   const handleLocateMe = useCallback(() => {
     if (!navigator.geolocation) {
-      showZoneWarning('Геолокация не поддерживается.')
+      showZoneWarning(t('geo.geolocationUnsupported', { defaultValue: 'Geolocation is not supported.' }))
       return
     }
     setIsLocating(true)
@@ -300,11 +314,11 @@ export function useNewRequestController() {
       },
       () => {
         setIsLocating(false)
-        showZoneWarning('Не удалось определить локацию.')
+        showZoneWarning(t('geo.locationFailed', { defaultValue: 'Could not determine location.' }))
       },
       { enableHighAccuracy: true, timeout: 8000 },
     )
-  }, [panMapToTarget, showZoneWarning])
+  }, [panMapToTarget, showZoneWarning, t])
 
   const handleSubmit = useCallback(async () => {
     if (!fromPoint || !toPoint || !dateTime) return
@@ -323,11 +337,11 @@ export function useNewRequestController() {
       setTimeout(() => navigate('/requests'), 1200)
     } catch (error) {
       hapticNotification('error')
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось отправить заявку.')
+      setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
     } finally {
       setSubmitting(false)
     }
-  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint])
+  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint, t])
 
   useEffect(() => {
     if (!fromPoint || !toPoint) {
@@ -353,7 +367,7 @@ export function useNewRequestController() {
           setQuote(result)
         } catch (error) {
           setQuote(null)
-          setQuoteError(error instanceof Error ? error.message : 'Не удалось рассчитать стоимость')
+          setQuoteError(error instanceof Error ? error.message : t('errors.quoteFailed', { defaultValue: 'Failed to calculate price.' }))
         } finally {
           setQuoteLoading(false)
         }
@@ -363,7 +377,7 @@ export function useNewRequestController() {
     return () => {
       if (quoteTimeout.current) clearTimeout(quoteTimeout.current)
     }
-  }, [fromPoint, toPoint, pricing.pricingMode])
+  }, [fromPoint, toPoint, pricing.pricingMode, t])
 
   useEffect(() => {
     saveDraft({ fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField })

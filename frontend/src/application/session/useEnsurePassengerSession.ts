@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAppDependencies } from '../../bootstrap/AppProviders'
 import { useAppStore } from '../../store/appStore'
 
 export function useEnsurePassengerSession() {
+  const { t } = useTranslation()
   const { auth } = useAppDependencies()
   const setSessionStatus = useAppStore((state) => state.setPassengerSessionStatus)
   const setSessionError = useAppStore((state) => state.setPassengerSessionError)
@@ -24,7 +26,7 @@ export function useEnsurePassengerSession() {
         }
       } catch (err) {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Не удалось инициализировать сессию.'
+          const message = err instanceof Error ? err.message : t('errors.sessionInitFailed', { defaultValue: 'Failed to initialize session.' })
           setError(message)
           setSessionStatus('error')
           setSessionError(message)
@@ -34,7 +36,7 @@ export function useEnsurePassengerSession() {
     return () => {
       cancelled = true
     }
-  }, [auth, setSessionError, setSessionStatus])
+  }, [auth, setSessionError, setSessionStatus, t])
 
   return { isReady, error }
 }

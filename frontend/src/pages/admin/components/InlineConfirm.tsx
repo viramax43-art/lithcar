@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface InlineConfirmProps {
   label: string
@@ -13,10 +14,12 @@ interface InlineConfirmProps {
  */
 export default function InlineConfirm({
   label,
-  confirmLabel = 'Подтвердить',
+  confirmLabel = undefined,
   onConfirm,
   className = '',
 }: InlineConfirmProps) {
+  const { t } = useTranslation()
+  const resolvedConfirmLabel = confirmLabel ?? t('common.confirm')
   const [armed, setArmed] = useState(false)
   const timerRef = useRef<number | null>(null)
 
@@ -43,7 +46,7 @@ export default function InlineConfirm({
         onClick={handleClick}
         className={`text-[10px] font-bold px-2.5 py-1 rounded-pill bg-red-600 text-white transition-all active:scale-[0.97] ${className}`}
       >
-        {confirmLabel}
+        {resolvedConfirmLabel}
       </button>
     )
   }

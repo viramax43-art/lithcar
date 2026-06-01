@@ -13,9 +13,9 @@ export const DEFAULT_PRICING_FORMULA: PricingFormula = {
   requireOsrm: false,
   fallbackSpeedKmh: 35,
   tiers: [
-    { maxCircuity: 1.12, distanceMultiplier: 1, minuteMultiplier: 1, label: 'Прямой путь' },
-    { maxCircuity: 1.3, distanceMultiplier: 1.15, minuteMultiplier: 1.1, label: 'Обычная поездка' },
-    { maxCircuity: 999, distanceMultiplier: 1.35, minuteMultiplier: 1.25, label: 'Город и объезды' },
+    { maxCircuity: 1.12, distanceMultiplier: 1, minuteMultiplier: 1, label: 'Direct route' },
+    { maxCircuity: 1.3, distanceMultiplier: 1.15, minuteMultiplier: 1.1, label: 'Typical ride' },
+    { maxCircuity: 999, distanceMultiplier: 1.35, minuteMultiplier: 1.25, label: 'City & detours' },
   ],
 }
 

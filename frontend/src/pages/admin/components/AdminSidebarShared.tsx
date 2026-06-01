@@ -1,5 +1,6 @@
 import { Copy } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export type CopyState = 'idle' | 'ok' | 'error'
 
@@ -25,26 +26,27 @@ export function Section({ title, children }: { title: string; children: ReactNod
   )
 }
 
+/** Russian/LT color name aliases for legacy vehicle color strings (not UI labels). */
 const COLOR_NAME_TO_HEX: Record<string, string> = {
-  чёрный: '#000000',
-  черный: '#000000',
-  белый: '#ffffff',
-  серый: '#9ca3af',
-  серебристый: '#c0c0c0',
-  серебряный: '#c0c0c0',
-  красный: '#ef4444',
-  синий: '#3b82f6',
-  голубой: '#60a5fa',
-  зелёный: '#22c55e',
-  зеленый: '#22c55e',
-  жёлтый: '#eab308',
-  желтый: '#eab308',
-  оранжевый: '#f97316',
-  коричневый: '#92400e',
-  фиолетовый: '#a855f7',
-  розовый: '#ec4899',
-  бордовый: '#7f1d1d',
-  бежевый: '#d6b88e',
+  '\u0447\u0451\u0440\u043d\u044b\u0439': '#000000',
+  '\u0447\u0435\u0440\u043d\u044b\u0439': '#000000',
+  '\u0431\u0435\u043b\u044b\u0439': '#ffffff',
+  '\u0441\u0435\u0440\u044b\u0439': '#9ca3af',
+  '\u0441\u0435\u0440\u0435\u0431\u0440\u0438\u0441\u0442\u044b\u0439': '#c0c0c0',
+  '\u0441\u0435\u0440\u0435\u0431\u0440\u044f\u043d\u044b\u0439': '#c0c0c0',
+  '\u043a\u0440\u0430\u0441\u043d\u044b\u0439': '#ef4444',
+  '\u0441\u0438\u043d\u0438\u0439': '#3b82f6',
+  '\u0433\u043e\u043b\u0443\u0431\u043e\u0439': '#60a5fa',
+  '\u0437\u0435\u043b\u0451\u043d\u044b\u0439': '#22c55e',
+  '\u0437\u0435\u043b\u0435\u043d\u044b\u0439': '#22c55e',
+  '\u0436\u0451\u043b\u0442\u044b\u0439': '#eab308',
+  '\u0436\u0435\u043b\u0442\u044b\u0439': '#eab308',
+  '\u043e\u0440\u0430\u043d\u0436\u0435\u0432\u044b\u0439': '#f97316',
+  '\u043a\u043e\u0440\u0438\u0447\u043d\u0435\u0432\u044b\u0439': '#92400e',
+  '\u0444\u0438\u043e\u043b\u0435\u0442\u043e\u0432\u044b\u0439': '#a855f7',
+  '\u0440\u043e\u0437\u043e\u0432\u044b\u0439': '#ec4899',
+  '\u0431\u043e\u0440\u0434\u043e\u0432\u044b\u0439': '#7f1d1d',
+  '\u0431\u0435\u0436\u0435\u0432\u044b\u0439': '#d6b88e',
   golden: '#daa520',
   gold: '#daa520',
 }
@@ -80,6 +82,7 @@ export function KeyReveal({
   copied: boolean
   copyError: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-2">
       <p className="text-[11px] text-amber-800 font-semibold">{title}</p>
@@ -89,10 +92,10 @@ export function KeyReveal({
         className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-pill bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"
       >
         <Copy size={12} />
-        Скопировать
+        {t('common.copy')}
       </button>
-      {copied && <p className="text-[10px] text-emerald-700">Ключ скопирован.</p>}
-      {copyError && <p className="text-[10px] text-red-600">Не удалось скопировать.</p>}
+      {copied && <p className="text-[10px] text-emerald-700">{t('common.keyCopied')}</p>}
+      {copyError && <p className="text-[10px] text-red-600">{t('common.copyFailed')}</p>}
     </div>
   )
 }

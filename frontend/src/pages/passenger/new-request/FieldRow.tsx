@@ -1,4 +1,5 @@
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 interface FieldRowProps {
   dotClass: string
@@ -12,6 +13,8 @@ interface FieldRowProps {
 }
 
 export function FieldRow({ dotClass, label, value, placeholder, active, onClick, onClear, onSearch }: FieldRowProps) {
+  const { t } = useTranslation()
+
   return (
     <div
       onClick={onClick}
@@ -32,7 +35,7 @@ export function FieldRow({ dotClass, label, value, placeholder, active, onClick,
           onSearch()
         }}
         className="p-1.5 -mr-1 rounded-lg hover:bg-surface transition-colors flex-shrink-0"
-        title="Найти адрес"
+        title={t('common.searchAddress', { defaultValue: 'Search address' })}
       >
         <MagnifyingGlass size={14} className="text-muted" />
       </button>
@@ -43,7 +46,7 @@ export function FieldRow({ dotClass, label, value, placeholder, active, onClick,
             onClear()
           }}
           className="p-1.5 rounded-lg hover:bg-surface transition-colors flex-shrink-0"
-          title="Очистить"
+          title={t('common.clear', { defaultValue: 'Clear' })}
         >
           <X size={14} className="text-muted" />
         </button>

@@ -14,6 +14,7 @@ import {
   UserCircle,
   X,
 } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
@@ -22,14 +23,6 @@ import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { AppLanguage } from '../../i18n/languages'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
-
-const STATUS_MAP: Record<string, string> = {
-  pending: 'Ожидает',
-  grouped: 'В группе',
-  assigned: 'Назначена',
-  in_progress: 'В пути',
-  completed: 'Завершена',
-}
 
 type RedeemReceipt = {
   pointsRequested: number
@@ -42,6 +35,7 @@ type CardReceipt = {
 }
 
 export default function Profile() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
@@ -64,7 +58,7 @@ export default function Profile() {
       setHistoryTotal(response.rideHistoryTotal)
       setHistoryItems((prev) => (append ? [...prev, ...response.rideHistory] : response.rideHistory))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить личный кабинет.')
+      setErrorMessage(error instanceof Error ? error.message : t('errors.loadProfileFailed', { defaultValue: 'Failed to load profile.' }))
     } finally {
       setIsHistoryLoading(false)
     }
@@ -122,7 +116,7 @@ export default function Profile() {
           >
             <ArrowLeft size={20} weight="bold" />
           </button>
-          <h1 className="text-base font-extrabold tracking-tight flex-1">Личный кабинет</h1>
+          <h1 className="text-base font-extrabold tracking-tight flex-1">{t('profile.title', { defaultValue: 'Profile' })}</h1>
         </div>
       </header>
 
@@ -135,7 +129,7 @@ export default function Profile() {
             <div className="flex items-center gap-2 min-w-0">
               <UserCircle size={22} weight="fill" />
               {cabinet ? (
-                <p className="text-sm font-semibold truncate">{cabinet.username || cabinet.userId || 'Пользователь'}</p>
+                <p className="text-sm font-semibold truncate">{cabinet.username || cabinet.userId || t('profile.defaultUser', { defaultValue: 'User' })}</p>
               ) : (
                 <Skeleton width={120} height={14} className="!bg-white/15" rounded="sm" />
               )}
@@ -152,7 +146,7 @@ export default function Profile() {
                 {cabinet.rating.toFixed(1)}
               </span>
             ) : null}
-            <p className="text-xs text-white/70 shrink-0">Баланс</p>
+            <p className="text-xs text-white/70 shrink-0">{t('profile.balance', { defaultValue: 'Balance' })}</p>
           </div>
           <div className="flex items-center gap-2">
             <Coins size={22} weight="fill" className="text-accent" />
@@ -171,8 +165,8 @@ export default function Profile() {
               <CreditCard size={22} weight="bold" />
             </span>
             <span className="flex-1 text-left min-w-0">
-              <span className="block text-sm font-bold">Купить поинты</span>
-              <span className="block text-[11px] text-muted truncate">Оплата картой · мгновенно</span>
+              <span className="block text-sm font-bold">{t('profile.buyPoints', { defaultValue: 'Buy points' })}</span>
+              <span className="block text-[11px] text-muted truncate">{t('profile.buyPointsCardDesc', { defaultValue: 'Card payment · instant' })}</span>
             </span>
             <CaretRight size={16} weight="bold" className="text-muted flex-shrink-0" />
           </button>
@@ -185,8 +179,8 @@ export default function Profile() {
               <QrCode size={18} weight="bold" />
             </span>
             <span className="flex-1 text-left min-w-0">
-              <span className="block text-[13px] font-semibold">Создать QR для водителя</span>
-              <span className="block text-[11px] text-white/60 truncate">Водитель сканирует и начисляет поинты</span>
+              <span className="block text-[13px] font-semibold">{t('profile.createQrForDriver', { defaultValue: 'Create QR for driver' })}</span>
+              <span className="block text-[11px] text-white/60 truncate">{t('profile.qrScanDesc', { defaultValue: 'Driver scans and credits points' })}</span>
             </span>
             <CaretRight size={14} weight="bold" className="text-white/50 flex-shrink-0" />
           </button>
@@ -197,7 +191,7 @@ export default function Profile() {
               <p className="text-[11px] leading-snug text-white/90 min-w-0">
                 <span className="font-bold">+{lastCardReceipt.pointsAdded} pts</span>
                 {' · '}
-                <span className="text-white/70">оплачено картой €{lastCardReceipt.eurAmount.toFixed(2)}</span>
+                <span className="text-white/70">{t('profile.paidByCard', { amount: lastCardReceipt.eurAmount.toFixed(2), defaultValue: `paid by card €${lastCardReceipt.eurAmount.toFixed(2)}` })}</span>
               </p>
             </div>
           )}
@@ -206,16 +200,16 @@ export default function Profile() {
             <div className="mt-1 rounded-2xl bg-white/10 border border-white/15 px-3 py-2.5 flex items-center gap-2.5">
               <CheckCircle size={18} weight="fill" className="text-accent flex-shrink-0" />
               <p className="text-[11px] leading-snug text-white/90 min-w-0">
-                <span className="font-bold">Запрошено {lastReceipt.pointsRequested} pts</span>
+                <span className="font-bold">{t('profile.qrRequested', { points: lastReceipt.pointsRequested, defaultValue: `Requested ${lastReceipt.pointsRequested} pts` })}</span>
                 {' · '}
-                <span className="text-white/70">водитель начислит по QR · €{lastReceipt.eurAmount.toFixed(2)}</span>
+                <span className="text-white/70">{t('profile.driverWillCreditByQr', { amount: lastReceipt.eurAmount.toFixed(2), defaultValue: `driver will credit via QR · €${lastReceipt.eurAmount.toFixed(2)}` })}</span>
               </p>
             </div>
           )}
         </section>
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
-          <p className="text-sm font-bold">История поездок</p>
+          <p className="text-sm font-bold">{t('profile.rideHistory', { defaultValue: 'Ride history' })}</p>
           {pricing.userInfoText.trim() && (
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
               <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
@@ -236,7 +230,7 @@ export default function Profile() {
               ))}
             </div>
           )}
-          {cabinet && sortedHistory.length === 0 && <p className="text-xs text-muted">Поездок пока нет.</p>}
+          {cabinet && sortedHistory.length === 0 && <p className="text-xs text-muted">{t('profile.noRides', { defaultValue: 'No rides yet.' })}</p>}
           {sortedHistory.map((ride) => (
             <button
               key={ride.id}
@@ -249,11 +243,11 @@ export default function Profile() {
                 <div className="flex items-center gap-2 shrink-0">
                   {ride.canRateDriver && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-amber-100 text-amber-800">
-                      Оценить
+                      {t('rating.rate', { defaultValue: 'Rate' })}
                     </span>
                   )}
                   <span className="text-[10px] font-semibold text-muted">№{ride.rideNumber}</span>
-                  <span className="text-[10px] text-muted">{STATUS_MAP[ride.status] || ride.status}</span>
+                  <span className="text-[10px] text-muted">{t(`status.${ride.status}`, { defaultValue: ride.status })}</span>
                 </div>
               </div>
               <p className="text-xs text-muted truncate">{ride.to.address}</p>
@@ -270,7 +264,7 @@ export default function Profile() {
                 !isHistoryLoading ? 'bg-surface text-black' : 'bg-surface text-muted'
               }`}
             >
-              {isHistoryLoading ? 'Загрузка...' : 'Показать еще'}
+              {isHistoryLoading ? t('common.loading', { defaultValue: 'Loading...' }) : t('profile.showMore', { defaultValue: 'Show more' })}
             </button>
           )}
         </section>
@@ -313,6 +307,7 @@ function QrIssueSheet({
   onClose: () => void
   onIssued: (receipt: RedeemReceipt) => void
 }) {
+  const { t } = useTranslation()
   const [points, setPoints] = useState<number>(100)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -373,7 +368,7 @@ function QrIssueSheet({
       })
     } catch (err) {
       hapticNotification('error')
-      setError(err instanceof Error ? err.message : 'Не удалось создать QR.')
+      setError(err instanceof Error ? err.message : t('profile.qrCreateFailed', { defaultValue: 'Failed to create QR.' }))
     } finally {
       setIsCreating(false)
     }
@@ -387,13 +382,13 @@ function QrIssueSheet({
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
-            <p className="text-base font-extrabold tracking-tight">QR на получение поинтов</p>
-            <p className="text-[11px] text-muted">Покажите QR водителю для сканирования</p>
+            <p className="text-base font-extrabold tracking-tight">{t('profile.qrPointsTitle', { defaultValue: 'QR to receive points' })}</p>
+            <p className="text-[11px] text-muted">{t('profile.qrShowToDriver', { defaultValue: 'Show QR to driver for scanning' })}</p>
           </div>
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-pill bg-surface flex items-center justify-center active:scale-[0.95] transition-transform"
-            aria-label="Закрыть"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <X size={16} weight="bold" />
           </button>
@@ -403,7 +398,7 @@ function QrIssueSheet({
           {!issue ? (
             <>
               <div className="space-y-2">
-                <label className="text-[11px] font-semibold text-muted">Сколько поинтов нужно</label>
+                <label className="text-[11px] font-semibold text-muted">{t('profile.qrPointsNeeded', { defaultValue: 'How many points do you need' })}</label>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -420,7 +415,7 @@ function QrIssueSheet({
                   !isCreating && points >= 1 ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted'
                 }`}
               >
-                {isCreating ? 'Создаем QR…' : 'Создать QR'}
+                {isCreating ? t('profile.creatingQr', { defaultValue: 'Creating QR…' }) : t('profile.createQr', { defaultValue: 'Create QR' })}
               </button>
               {error && <p className="text-xs text-red-600">{error}</p>}
             </>
@@ -428,18 +423,18 @@ function QrIssueSheet({
             <div className="space-y-3">
               <div className="rounded-2xl bg-surface p-3 flex items-center justify-center">
                 {qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR на получение поинтов" className="w-full max-w-[240px] aspect-square object-contain" />
+                  <img src={qrDataUrl} alt={t('profile.qrImageAlt', { defaultValue: 'QR to receive points' })} className="w-full max-w-[240px] aspect-square object-contain" />
                 ) : (
                   <div className="w-[240px] h-[240px] rounded-xl bg-border animate-pulse" />
                 )}
               </div>
               <p className="text-center text-sm font-bold">{issue.points} pts</p>
-              <p className="text-center text-xs text-muted">К оплате наличными: €{issue.eurAmount.toFixed(2)}</p>
+              <p className="text-center text-xs text-muted">{t('profile.cashDue', { amount: issue.eurAmount.toFixed(2), defaultValue: `Cash due: €${issue.eurAmount.toFixed(2)}` })}</p>
               <button
                 onClick={() => setIssue(null)}
                 className="w-full h-11 rounded-2xl bg-surface text-sm font-semibold"
               >
-                Создать другой QR
+                {t('profile.createAnotherQr', { defaultValue: 'Create another QR' })}
               </button>
             </div>
           )}
@@ -460,6 +455,7 @@ function BuyPointsSheet({
   onClose: () => void
   onPurchased: (points: number, newBalance: number, eurAmount: number) => void
 }) {
+  const { t } = useTranslation()
   const [points, setPoints] = useState<number>(100)
   const [stage, setStage] = useState<'form' | 'processing' | 'success'>('form')
 
@@ -494,7 +490,11 @@ function BuyPointsSheet({
   }
 
   const headerTitle =
-    stage === 'success' ? 'Оплата прошла' : stage === 'processing' ? 'Оплата картой' : 'Купить поинты'
+    stage === 'success'
+      ? t('profile.paymentSuccess', { defaultValue: 'Payment successful' })
+      : stage === 'processing'
+        ? t('profile.cardPayment', { defaultValue: 'Card payment' })
+        : t('profile.buyPoints', { defaultValue: 'Buy points' })
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
@@ -506,14 +506,14 @@ function BuyPointsSheet({
           <div className="min-w-0">
             <p className="text-base font-extrabold tracking-tight">{headerTitle}</p>
             {stage === 'form' && (
-              <p className="text-[11px] text-muted">Поинты зачислятся сразу после оплаты</p>
+              <p className="text-[11px] text-muted">{t('profile.pointsCreditedAfterPay', { defaultValue: 'Points will be credited right after payment' })}</p>
             )}
           </div>
           <button
             onClick={onClose}
             disabled={stage === 'processing'}
             className="w-9 h-9 rounded-pill bg-surface flex items-center justify-center active:scale-[0.95] transition-transform disabled:opacity-40"
-            aria-label="Закрыть"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <X size={16} weight="bold" />
           </button>
@@ -527,13 +527,19 @@ function BuyPointsSheet({
           ) : (
             <div className="space-y-4">
               <div className="rounded-2xl bg-black text-white p-5 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">К оплате</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">{t('profile.amountDue', { defaultValue: 'Amount due' })}</p>
                 <p className="text-3xl font-extrabold tracking-tight">€{eurAmount.toFixed(2)}</p>
-                <p className="text-xs text-white/70">{points} pts · {(pricing.pointPriceCents / 100).toFixed(2)} € за pt</p>
+                <p className="text-xs text-white/70">
+                  {t('profile.pricePerPoint', {
+                    points,
+                    price: (pricing.pointPriceCents / 100).toFixed(2),
+                    defaultValue: `${points} pts · ${(pricing.pointPriceCents / 100).toFixed(2)} € per pt`,
+                  })}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-semibold text-muted">Сколько поинтов</label>
+                <label className="text-[11px] font-semibold text-muted">{t('profile.howManyPoints', { defaultValue: 'How many points' })}</label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -591,12 +597,12 @@ function BuyPointsSheet({
                 }`}
               >
                 <CreditCard size={16} weight="bold" />
-                Оплатить картой · €{eurAmount.toFixed(2)}
+                {t('profile.payByCard', { amount: eurAmount.toFixed(2), defaultValue: `Pay by card · €${eurAmount.toFixed(2)}` })}
               </button>
 
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
                 <LockKey size={11} weight="bold" />
-                Безопасная оплата · Visa · Mastercard · Apple Pay
+                {t('profile.securePayment', { defaultValue: 'Secure payment · Visa · Mastercard · Apple Pay' })}
               </div>
             </div>
           )}
@@ -613,6 +619,7 @@ function CardProcessingView({
   points: number
   eurAmount: number
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center text-center gap-4 py-6">
       <div className="relative w-16 h-16 flex items-center justify-center">
@@ -620,11 +627,17 @@ function CardProcessingView({
         <CreditCard size={26} weight="bold" className="text-black" />
       </div>
       <div>
-        <p className="text-base font-bold">Подтверждаем оплату…</p>
-        <p className="text-xs text-muted mt-1">€{eurAmount.toFixed(2)} за {points} pts</p>
+        <p className="text-base font-bold">{t('profile.confirmingPayment', { defaultValue: 'Confirming payment…' })}</p>
+        <p className="text-xs text-muted mt-1">
+          {t('profile.paymentForPoints', {
+            amount: eurAmount.toFixed(2),
+            points,
+            defaultValue: `€${eurAmount.toFixed(2)} for ${points} pts`,
+          })}
+        </p>
       </div>
       <p className="text-[11px] text-muted leading-snug max-w-xs">
-        Не закрывайте окно — это займёт пару секунд.
+        {t('profile.dontCloseWindow', { defaultValue: 'Do not close this window — it will take a few seconds.' })}
       </p>
     </div>
   )
@@ -639,6 +652,7 @@ function CardSuccessView({
   eurAmount: number
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center text-center gap-3 py-2">
       <div className="w-16 h-16 rounded-full bg-accent/15 flex items-center justify-center">
@@ -646,15 +660,15 @@ function CardSuccessView({
       </div>
       <div>
         <p className="text-3xl font-extrabold tracking-tight">+{points} pts</p>
-        <p className="text-xs text-muted mt-1">Зачислено на ваш баланс</p>
+        <p className="text-xs text-muted mt-1">{t('profile.creditedToBalance', { defaultValue: 'Credited to your balance' })}</p>
       </div>
       <div className="w-full rounded-2xl bg-surface px-4 py-3 mt-1 space-y-1.5">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted">Способ оплаты</span>
-          <span className="text-xs font-semibold">Карта · •••• 4242</span>
+          <span className="text-[11px] text-muted">{t('profile.paymentMethod', { defaultValue: 'Payment method' })}</span>
+          <span className="text-xs font-semibold">{t('profile.cardMasked', { defaultValue: 'Card · •••• 4242' })}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted">Списано</span>
+          <span className="text-[11px] text-muted">{t('profile.charged', { defaultValue: 'Charged' })}</span>
           <span className="text-xs font-bold">€{eurAmount.toFixed(2)}</span>
         </div>
       </div>
@@ -662,7 +676,7 @@ function CardSuccessView({
         onClick={onClose}
         className="w-full mt-2 py-3 rounded-2xl bg-black text-white text-sm font-bold active:scale-[0.98] transition-transform"
       >
-        Готово
+        {t('common.done', { defaultValue: 'Done' })}
       </button>
     </div>
   )

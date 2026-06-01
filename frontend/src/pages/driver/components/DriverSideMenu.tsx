@@ -7,6 +7,7 @@ import {
   SteeringWheel,
   X,
 } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { DriverCabinetData } from '../../../types'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
@@ -30,6 +31,7 @@ export default function DriverSideMenu({
   onClose,
   onLogout,
 }: DriverSideMenuProps) {
+  const { t } = useTranslation()
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [isRedeeming, setIsRedeeming] = useState(false)
 
@@ -62,7 +64,7 @@ export default function DriverSideMenu({
               <p className="text-sm font-extrabold truncate">{session.name}</p>
               <p className="text-[11px] text-muted mt-0.5 flex items-center gap-1">
                 <Star size={11} weight="fill" className="text-amber-400" />
-                Ваш рейтинг {session.rating.toFixed(1)}
+                {t('driver.yourRating', { rating: session.rating.toFixed(1), defaultValue: `Your rating ${session.rating.toFixed(1)}` })}
                 {session.ratingCount > 0 && <span>({session.ratingCount})</span>}
               </p>
             </div>
@@ -86,8 +88,8 @@ export default function DriverSideMenu({
                 <QrCode size={16} weight="bold" />
               </div>
               <div>
-                <p className="text-sm font-bold">Сканировать QR пассажира</p>
-                <p className="text-[11px] text-muted">После скана пассажиру начислятся поинты</p>
+                <p className="text-sm font-bold">{t('driver.scanPassengerQr', { defaultValue: 'Scan passenger QR' })}</p>
+                <p className="text-[11px] text-muted">{t('driver.scanPassengerQrHint', { defaultValue: 'After scan, points will be credited to passenger' })}</p>
               </div>
             </div>
 
@@ -100,11 +102,15 @@ export default function DriverSideMenu({
                     const result = await redeemPassengerQrSale(token)
                     hapticNotification('success')
                     setScanMessage(
-                      `Начислено ${result.pointsAdded} pts пассажиру (${result.passengerId}).`,
+                      t('driver.qrPointsCredited', {
+                        points: result.pointsAdded,
+                        passengerId: result.passengerId,
+                        defaultValue: `Credited ${result.pointsAdded} pts to passenger (${result.passengerId}).`,
+                      }),
                     )
                   } catch (error) {
                     hapticNotification('error')
-                    setScanMessage(error instanceof Error ? error.message : 'Не удалось обработать QR.')
+                    setScanMessage(error instanceof Error ? error.message : t('errors.processQrFailed', { defaultValue: 'Failed to process QR.' }))
                   } finally {
                     setIsRedeeming(false)
                   }
@@ -112,7 +118,7 @@ export default function DriverSideMenu({
               }}
             />
             {isRedeeming && (
-              <p className="mt-3 text-xs text-muted">Подтверждаем QR…</p>
+              <p className="mt-3 text-xs text-muted">{t('driver.confirmingQr', { defaultValue: 'Confirming QR...' })}</p>
             )}
             {scanMessage && (
               <div className="mt-3 rounded-xl bg-surface px-3 py-2.5 text-xs font-medium text-black">
@@ -129,7 +135,7 @@ export default function DriverSideMenu({
             className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-surface text-sm font-semibold text-muted active:bg-border transition-colors"
           >
             <SignOut size={16} weight="bold" />
-            Выйти из аккаунта
+            {t('driver.logoutAccount', { defaultValue: 'Sign out' })}
           </button>
         </div>
       </div>

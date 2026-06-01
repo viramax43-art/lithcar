@@ -1,3 +1,4 @@
+import i18n from '../../../i18n'
 import type { LatLng, RideRequest } from '../../../types'
 import { getDistanceMatrixKm } from '../../../lib/osrm'
 
@@ -26,7 +27,7 @@ export async function optimizeRoute(
   driverLocation?: LatLng,
 ): Promise<OptimizedRoute> {
   if (requests.length === 0) {
-    return { steps: [], totalDistanceKm: 0, savedDistanceKm: 0, explanation: 'Нет заявок для оптимизации.' }
+    return { steps: [], totalDistanceKm: 0, savedDistanceKm: 0, explanation: i18n.t('admin.routeOptimizer.noRequests') }
   }
 
   if (requests.length === 1) {
@@ -38,7 +39,7 @@ export async function optimizeRoute(
     const pts: LatLng[] = [r.from.latlng, r.to.latlng]
     const m = await getDistanceMatrixKm(pts)
     const dist = m[0][1]
-    return { steps, totalDistanceKm: dist, savedDistanceKm: 0, explanation: 'Одна заявка — оптимизация не требуется.' }
+    return { steps, totalDistanceKm: dist, savedDistanceKm: 0, explanation: i18n.t('admin.routeOptimizer.singleRequest') }
   }
 
   // Build points: [start, pickup_0, dropoff_0, pickup_1, dropoff_1, ...]
@@ -132,8 +133,8 @@ export async function optimizeRoute(
   const saved = Math.max(0, naiveDist - totalDist)
   const explanation =
     saved > 0.5
-      ? `Оптимальный маршрут экономит ~${saved.toFixed(1)} км по дороге.`
-      : 'Маршрут близок к оптимальному, значительной экономии нет.'
+      ? i18n.t('admin.routeOptimizer.saved', { km: saved.toFixed(1) })
+      : i18n.t('admin.routeOptimizer.almostOptimal')
 
   return { steps, totalDistanceKm: totalDist, savedDistanceKm: saved, explanation }
 }

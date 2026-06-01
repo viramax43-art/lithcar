@@ -1,6 +1,6 @@
 /**
  * Bottom sheet shown when driver taps a map point.
- * Redesigned around two core actions: "Еду на точку" and "Прибыл".
+ * Redesigned around two core actions: go to point and arrived.
  */
 import {
   CaretRight,
@@ -14,6 +14,7 @@ import {
   Warning,
   X,
 } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { DriverMapPoint } from '../../../types'
 import { directionsHref } from '../../../lib/navigation'
@@ -22,8 +23,8 @@ import { formatDate, formatTime } from '../../../i18n/dateTime'
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
 interface ActionDef {
-  label: string
-  sublabel?: string
+  labelKey: string
+  sublabelKey?: string
   variant: 'black' | 'green' | 'blue' | 'amber'
   action: string
 }
@@ -32,17 +33,17 @@ function getMainAction(pt: DriverMapPoint): ActionDef | null {
   const { pointType, rideStatus } = pt
   if (pointType === 'pickup') {
     if (rideStatus === 'assigned')
-      return { label: 'Еду на точку', sublabel: 'Забрать пассажира', variant: 'black', action: 'start' }
+      return { labelKey: 'driver.actionGoToPoint', sublabelKey: 'driver.sublabelPickupPassenger', variant: 'black', action: 'start' }
     if (rideStatus === 'en_route_to_pickup')
-      return { label: 'Прибыл', sublabel: 'Жду пассажира', variant: 'blue', action: 'arrived' }
+      return { labelKey: 'driver.actionArrived', sublabelKey: 'driver.sublabelWaitingPassenger', variant: 'blue', action: 'arrived' }
     if (rideStatus === 'awaiting_passenger')
-      return { label: 'Пассажир сел — едем!', variant: 'green', action: 'complete' }
+      return { labelKey: 'driver.actionPassengerOnBoard', variant: 'green', action: 'complete' }
   }
   if (pointType === 'dropoff') {
     if (rideStatus === 'awaiting_passenger')
-      return { label: 'Везу пассажира', sublabel: 'Едем к точке назначения', variant: 'black', action: 'start' }
+      return { labelKey: 'driver.actionDrivingPassenger', sublabelKey: 'driver.sublabelToDestination', variant: 'black', action: 'start' }
     if (rideStatus === 'in_progress')
-      return { label: 'Прибыл — завершить', sublabel: 'Пассажир высажен', variant: 'green', action: 'arrived' }
+      return { labelKey: 'driver.actionArrivedFinish', sublabelKey: 'driver.sublabelPassengerDropped', variant: 'green', action: 'arrived' }
   }
   return null
 }
@@ -113,6 +114,7 @@ function SheetBody({
   onAction,
   onNotifyPickup,
 }: DriverPointSheetProps & { point: DriverMapPoint }) {
+  const { t } = useTranslation()
   const mainAction = getMainAction(point)
   const isPickup = point.pointType === 'pickup'
   const isDone = point.pointStatus === 'done'
@@ -148,7 +150,9 @@ function SheetBody({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
-            {isPickup ? '🚶 Забрать пассажира' : '🏁 Высадить пассажира'} · №{point.rideNumber}
+            {isPickup
+              ? t('driver.pickupPassenger', { defaultValue: 'Pickup passenger' })
+              : t('driver.dropoffPassenger', { defaultValue: 'Dropoff passenger' })} · №{point.rideNumber}
           </p>
           <p className="text-lg font-extrabold tracking-tight truncate leading-tight mt-0.5">
             {point.passengerName}
@@ -162,7 +166,7 @@ function SheetBody({
           </p>
           {isDone && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700">
-              <Check size={10} weight="bold" /> Выполнено
+              <Check size={10} weight="bold" /> {t('common.done', { defaultValue: 'Done' })}
             </span>
           )}
         </div>
@@ -190,7 +194,7 @@ function SheetBody({
           <div className="flex items-start gap-1.5 pt-1">
             <Warning size={12} weight="fill" className="text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-[11px] font-semibold text-amber-700">
-              Точка изменена — уведомите пассажира
+              {t('driver.pickupChangedNotifyHint', { defaultValue: 'Point changed - notify passenger' })}
             </p>
           </div>
         )}
@@ -198,7 +202,7 @@ function SheetBody({
           <div className="flex items-start gap-1.5 pt-1">
             <Warning size={12} weight="fill" className="text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-[11px] font-semibold text-amber-600">
-              Ждём подтверждения от пассажира
+              {t('driver.waitingPassengerConfirmation', { defaultValue: 'Waiting for passenger confirmation' })}
             </p>
           </div>
         )}
@@ -206,7 +210,7 @@ function SheetBody({
           <div className="flex items-start gap-1.5 pt-1">
             <Check size={12} weight="bold" className="text-green-600 flex-shrink-0 mt-0.5" />
             <p className="text-[11px] font-semibold text-green-700">
-              Пассажир подтвердил точку
+              {t('driver.passengerConfirmedPoint', { defaultValue: 'Passenger confirmed point' })}
             </p>
           </div>
         )}
@@ -221,7 +225,7 @@ function SheetBody({
           className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-black text-white text-sm font-bold active:bg-zinc-800 transition-colors touch-none"
         >
           <NavigationArrow size={16} weight="fill" />
-          Показать в навигаторе
+          {t('driver.openInNavigator', { defaultValue: 'Open in navigator' })}
         </a>
         <a
           href={tgLink}
@@ -231,7 +235,7 @@ function SheetBody({
           style={{ background: '#2AABEE' }}
         >
           <TelegramLogo size={16} weight="fill" />
-          Написать
+          {t('common.message', { defaultValue: 'Message' })}
         </a>
       </div>
 
@@ -247,12 +251,12 @@ function SheetBody({
             {isNotifying ? (
               <>
                 <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                Отправляем…
+                {t('common.sending', { defaultValue: 'Sending...' })}
               </>
             ) : (
               <>
                 <PaperPlaneTilt size={16} weight="fill" />
-                Уведомить об изменении точки
+                {t('driver.notifyPointChanged', { defaultValue: 'Notify about point change' })}
               </>
             )}
           </button>
@@ -271,16 +275,20 @@ function SheetBody({
             {isActioning ? (
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full border-2 border-current/30 border-t-current animate-spin" />
-                <span className="text-base font-extrabold">Обновляем…</span>
+                <span className="text-base font-extrabold">{t('common.updating', { defaultValue: 'Updating...' })}</span>
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-extrabold tracking-tight">{mainAction.label}</span>
+                  <span className="text-[17px] font-extrabold tracking-tight">
+                    {t(mainAction.labelKey, { defaultValue: mainAction.labelKey })}
+                  </span>
                   <CaretRight size={17} weight="bold" />
                 </div>
-                {mainAction.sublabel && (
-                  <span className="text-[11px] font-semibold opacity-70">{mainAction.sublabel}</span>
+                {mainAction.sublabelKey && (
+                  <span className="text-[11px] font-semibold opacity-70">
+                    {t(mainAction.sublabelKey, { defaultValue: mainAction.sublabelKey })}
+                  </span>
                 )}
               </>
             )}

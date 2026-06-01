@@ -77,7 +77,7 @@ export default function NewRequest() {
         <button
           onClick={() => { hapticSelection(); setMenuOpen(true) }}
           className="w-10 h-10 rounded-pill bg-white/95 shadow-card backdrop-blur-sm flex items-center justify-center active:scale-95 transition-transform"
-          title="Меню"
+          title={t('common.menu', { defaultValue: 'Menu' })}
         >
           <List size={20} weight="bold" />
         </button>
@@ -89,7 +89,7 @@ export default function NewRequest() {
             }}
             disabled={model.isLocating}
             className="w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
-            title="Моя локация"
+            title={t('common.myLocation', { defaultValue: 'My location' })}
           >
             {model.isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
@@ -101,7 +101,7 @@ export default function NewRequest() {
               model.setSearchResults([])
             }}
             className="w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
-            title="Поиск адреса"
+            title={t('common.searchAddress', { defaultValue: 'Search address' })}
           >
             <MagnifyingGlass size={18} weight="bold" />
           </button>
@@ -138,7 +138,7 @@ export default function NewRequest() {
                 </div>
                 <div>
                   <p className="text-sm font-bold">{t('nav.requests')}</p>
-                  <p className="text-[11px] text-muted">{t('passenger.requestsHistory', { defaultValue: 'История заявок' })}</p>
+                  <p className="text-[11px] text-muted">{t('passenger.requestsHistory')}</p>
                 </div>
               </button>
               <button
@@ -150,7 +150,7 @@ export default function NewRequest() {
                 </div>
                 <div>
                   <p className="text-sm font-bold">{t('nav.profile')}</p>
-                  <p className="text-[11px] text-muted">{t('passenger.profileMenuDesc', { defaultValue: 'Баланс, история, QR' })}</p>
+                  <p className="text-[11px] text-muted">{t('passenger.profileMenuDesc')}</p>
                 </div>
               </button>
               <div className="px-3 pt-2">
@@ -177,13 +177,13 @@ export default function NewRequest() {
           {model.pinOutOfZone ? (
             <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
               <Warning size={12} weight="fill" />
-              Вне зоны обслуживания
+              {t('passenger.outOfServiceZone', { defaultValue: 'Out of service zone' })}
             </div>
           ) : model.isResolving ? (
             <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-fade-in">
               <span className={`w-3 h-3 rounded-full border-[2px] border-border animate-spin ${model.activeIsFrom ? 'border-t-point-a' : 'border-t-point-b'}`} />
               <span className="inline-flex items-center gap-0.5">
-                Определяем адрес
+                {t('passenger.resolvingAddress', { defaultValue: 'Resolving address' })}
                 <span className="dot-pulse" style={{ animationDelay: '0ms' }}>.</span>
                 <span className="dot-pulse" style={{ animationDelay: '150ms' }}>.</span>
                 <span className="dot-pulse" style={{ animationDelay: '300ms' }}>.</span>
@@ -195,7 +195,9 @@ export default function NewRequest() {
             </div>
           ) : (
             <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
-              {model.activeIsFrom ? 'Куда подать машину?' : 'Куда поедем?'}
+              {model.activeIsFrom
+                ? t('passenger.pinHintPickup', { defaultValue: 'Where should the car arrive?' })
+                : t('passenger.pinHintDestination', { defaultValue: 'Where are you going?' })}
             </div>
           )}
         </div>
@@ -236,9 +238,9 @@ export default function NewRequest() {
           <div className="flex flex-col gap-1.5">
             <FieldRow
               dotClass="bg-point-a"
-              label="Откуда"
+              label={t('passenger.fromLabel', { defaultValue: 'From' })}
               value={model.fromAddress}
-              placeholder="Двигайте карту или нажмите для поиска"
+              placeholder={t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })}
               active={model.activeIsFrom}
               onClick={() => model.setActiveField('from')}
               onClear={model.fromPoint ? () => {
@@ -257,9 +259,11 @@ export default function NewRequest() {
             <div className="ml-[18px] w-px h-2 bg-border" />
             <FieldRow
               dotClass="bg-point-b"
-              label="Куда"
+              label={t('passenger.toLabel', { defaultValue: 'To' })}
               value={model.toAddress}
-              placeholder={model.fromPoint ? 'Двигайте карту или нажмите для поиска' : 'Сначала выберите точку A'}
+              placeholder={model.fromPoint
+                ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+                : t('passenger.pickPointAFirst', { defaultValue: 'Pick point A first' })}
               active={!model.activeIsFrom}
               onClick={() => model.setActiveField('to')}
               onClear={model.toPoint ? () => {
@@ -302,7 +306,7 @@ export default function NewRequest() {
                 }}
                 className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
               >
-                <option value="">Выберите время</option>
+                <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
                 {(() => {
                   const slots: string[] = []
                   const [sh, sm] = (model.pricing.workStartTime || '06:00').split(':').map(Number)
@@ -325,13 +329,13 @@ export default function NewRequest() {
             <div className="flex items-center justify-between rounded-xl bg-surface/80 px-3 py-2 text-[11px] text-muted">
               <span className="inline-flex items-center gap-1">
                 <Coins size={12} weight="fill" className="text-accent-dark" />
-                Стоимость поездки
+                {t('passenger.rideCost', { defaultValue: 'Ride cost' })}
               </span>
               <span className="font-bold text-black text-xs">
                 {model.quoteLoading
-                  ? 'Считаем…'
+                  ? t('common.calculating', { defaultValue: 'Calculating...' })
                   : model.displayPoints != null
-                    ? `${model.displayPoints} поинтов`
+                    ? t('passenger.pointsAmount', { count: model.displayPoints, defaultValue: `${model.displayPoints} points` })
                     : model.quoteError ?? '—'}
               </span>
             </div>
@@ -343,7 +347,7 @@ export default function NewRequest() {
                 <circle cx="10" cy="10" r="10" fill="#22EA36" />
                 <path d="M6 10l3 3 5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Заявка отправлена!
+              {t('passenger.requestSent', { defaultValue: 'Request sent!' })}
             </div>
           ) : !model.fromPoint ? (
             <button
@@ -351,7 +355,9 @@ export default function NewRequest() {
               disabled={!model.pinLatLng || model.pinOutOfZone}
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${model.pinLatLng && !model.pinOutOfZone ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
             >
-              {model.pinOutOfZone ? 'Точка A вне зоны' : 'Подтвердить точку A'}
+              {model.pinOutOfZone
+                ? t('passenger.pointAOutOfZone', { defaultValue: 'Point A is outside service area' })
+                : t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })}
               <CaretRight size={14} weight="bold" />
             </button>
           ) : !model.toPoint ? (
@@ -360,7 +366,9 @@ export default function NewRequest() {
               disabled={!model.pinLatLng || model.pinOutOfZone}
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${model.pinLatLng && !model.pinOutOfZone ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
             >
-              {model.pinOutOfZone ? 'Точка B вне зоны' : 'Подтвердить точку B'}
+              {model.pinOutOfZone
+                ? t('passenger.pointBOutOfZone', { defaultValue: 'Point B is outside service area' })
+                : t('passenger.confirmPointB', { defaultValue: 'Confirm point B' })}
               <CaretRight size={14} weight="bold" />
             </button>
           ) : (
@@ -369,7 +377,9 @@ export default function NewRequest() {
               disabled={!model.canSubmit}
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${model.canSubmit ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
             >
-              {model.submitting ? 'Отправка…' : 'Заказать поездку'}
+              {model.submitting
+                ? t('common.sending', { defaultValue: 'Sending...' })
+                : t('passenger.bookRide', { defaultValue: 'Book ride' })}
               <CaretRight size={14} weight="bold" />
             </button>
           )}
@@ -405,7 +415,9 @@ export default function NewRequest() {
                 type="text"
                 value={model.searchQuery}
                 onChange={(e) => model.handleSearch(e.target.value)}
-                placeholder={model.activeIsFrom ? 'Откуда?' : 'Куда?'}
+                placeholder={model.activeIsFrom
+                  ? t('passenger.fromShort', { defaultValue: 'From?' })
+                  : t('passenger.toShort', { defaultValue: 'To?' })}
                 className="flex-1 text-sm font-medium outline-none bg-transparent placeholder:text-muted min-w-0"
               />
               {model.searchQuery && (
@@ -432,13 +444,16 @@ export default function NewRequest() {
                 <NavigationArrow size={16} weight="fill" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-bold text-black">Выбрать точку на карте</p>
-                <p className="text-[11px] text-muted">Двигайте карту, чтобы поставить точку {model.activeIsFrom ? 'A' : 'B'}</p>
+                <p className="text-sm font-bold text-black">{t('passenger.pickOnMap', { defaultValue: 'Pick point on map' })}</p>
+                <p className="text-[11px] text-muted">{t('passenger.moveMapToSetPoint', {
+                  point: model.activeIsFrom ? 'A' : 'B',
+                  defaultValue: `Move map to set point ${model.activeIsFrom ? 'A' : 'B'}`,
+                })}</p>
               </div>
               <CaretRight size={14} weight="bold" className="text-muted" />
             </button>
 
-            {model.isSearching && <p className="px-4 py-3 text-sm text-muted">Ищем…</p>}
+            {model.isSearching && <p className="px-4 py-3 text-sm text-muted">{t('common.searching', { defaultValue: 'Searching...' })}</p>}
             {model.searchResults.map((r) => (
               <button
                 key={r.place_id}
@@ -451,8 +466,8 @@ export default function NewRequest() {
                 <span className="text-sm text-black flex-1 truncate">{r.display_name}</span>
               </button>
             ))}
-            {!model.isSearching && model.searchQuery.length >= 3 && model.searchResults.length === 0 && <p className="px-4 py-3 text-sm text-muted">Ничего не найдено.</p>}
-            {model.searchQuery.length < 3 && !model.isSearching && <p className="px-4 py-3 text-sm text-muted">Начните вводить адрес — минимум 3 символа.</p>}
+            {!model.isSearching && model.searchQuery.length >= 3 && model.searchResults.length === 0 && <p className="px-4 py-3 text-sm text-muted">{t('common.notFound', { defaultValue: 'Nothing found.' })}</p>}
+            {model.searchQuery.length < 3 && !model.isSearching && <p className="px-4 py-3 text-sm text-muted">{t('passenger.searchMinChars', { defaultValue: 'Start typing address - minimum 3 characters.' })}</p>}
           </div>
         </div>
       )}

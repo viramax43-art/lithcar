@@ -1,4 +1,5 @@
 import { getEnvTelegramInitData, isBrowserTestAuthEnabled } from '../../config/env'
+import i18n from '../../i18n'
 import { cacheInitData, readCachedInitData } from './tokenStorage'
 
 type TelegramGlobal = {
@@ -66,6 +67,9 @@ export async function getRequiredTelegramInitData(): Promise<string> {
   const initData = await waitForTelegramInitData()
   if (initData) return initData
   throw new Error(
-    'Не найден Telegram initData. Откройте приложение через Telegram или запишите initData в localStorage (ride_init_data).'
+    i18n.t('errors.telegramInitDataMissing', {
+      defaultValue:
+        'Telegram initData not found. Open the app via Telegram or save initData to localStorage (ride_init_data).',
+    }),
   )
 }

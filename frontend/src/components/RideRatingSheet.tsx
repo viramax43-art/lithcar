@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import StarRatingInput from './StarRatingInput'
 
 interface RideRatingSheetProps {
@@ -21,6 +22,7 @@ export default function RideRatingSheet({
   onSubmit,
   onSkip,
 }: RideRatingSheetProps) {
+  const { t } = useTranslation()
   const [score, setScore] = useState(0)
   const [comment, setComment] = useState('')
 
@@ -58,7 +60,7 @@ export default function RideRatingSheet({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={isSubmitting}
-            placeholder="Комментарий (необязательно)"
+            placeholder={t('rating.commentPlaceholder', { defaultValue: 'Comment (optional)' })}
             rows={3}
             maxLength={500}
             className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"
@@ -71,7 +73,7 @@ export default function RideRatingSheet({
                 disabled={isSubmitting}
                 className="flex-1 h-12 rounded-2xl border border-border text-sm font-bold text-muted active:bg-surface"
               >
-                Пропустить
+                {t('common.skip', { defaultValue: 'Skip' })}
               </button>
             )}
             <button
@@ -80,7 +82,9 @@ export default function RideRatingSheet({
               disabled={isSubmitting || score < 1}
               className="flex-1 h-12 rounded-2xl bg-black text-white text-sm font-extrabold disabled:opacity-40 active:bg-zinc-900"
             >
-              {isSubmitting ? 'Отправка…' : 'Отправить'}
+              {isSubmitting
+                ? t('common.sending', { defaultValue: 'Sending...' })
+                : t('common.send', { defaultValue: 'Send' })}
             </button>
           </div>
         </div>

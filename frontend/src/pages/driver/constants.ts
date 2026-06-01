@@ -1,13 +1,13 @@
 import type { RideStatus } from '../../types'
 
-export const DRIVER_STATUS_LABEL: Record<RideStatus, string> = {
-  pending: 'Ожидает',
-  grouped: 'В группе',
-  assigned: 'Назначен',
-  en_route_to_pickup: 'Еду за пассажиром',
-  awaiting_passenger: 'На месте, ожидаю',
-  in_progress: 'В пути',
-  completed: 'Завершена',
+export const DRIVER_STATUS_LABEL_KEY: Record<RideStatus, string> = {
+  pending: 'status.pending',
+  grouped: 'status.grouped',
+  assigned: 'status.assigned',
+  en_route_to_pickup: 'status.en_route_to_pickup',
+  awaiting_passenger: 'status.awaiting_passenger',
+  in_progress: 'status.in_progress',
+  completed: 'status.completed',
 }
 
 export const DRIVER_STATUS_COLOR: Record<RideStatus, { color: string; bg: string }> = {
@@ -28,12 +28,12 @@ export const ACTIVE_RIDE_STATUSES: RideStatus[] = [
 ]
 
 /** Steps shown in the driver flow stepper. */
-export const DRIVER_FLOW_STEPS: { key: RideStatus; label: string; short: string }[] = [
-  { key: 'assigned', label: 'Назначена', short: 'Старт' },
-  { key: 'en_route_to_pickup', label: 'Еду за пассажиром', short: 'К пасс.' },
-  { key: 'awaiting_passenger', label: 'На месте, ожидаю', short: 'Ожид.' },
-  { key: 'in_progress', label: 'В пути', short: 'В пути' },
-  { key: 'completed', label: 'Завершена', short: 'Готово' },
+export const DRIVER_FLOW_STEPS: { key: RideStatus; shortKey: string }[] = [
+  { key: 'assigned', shortKey: 'driver.step.start' },
+  { key: 'en_route_to_pickup', shortKey: 'driver.step.toPassenger' },
+  { key: 'awaiting_passenger', shortKey: 'driver.step.waiting' },
+  { key: 'in_progress', shortKey: 'driver.step.inProgress' },
+  { key: 'completed', shortKey: 'driver.step.done' },
 ]
 
 /** Returns the next status the driver can transition to, or null if terminal. */
@@ -52,16 +52,16 @@ export function nextStatus(current: RideStatus): RideStatus | null {
   }
 }
 
-export function ctaLabel(current: RideStatus): string | null {
+export function ctaLabelKey(current: RideStatus): string | null {
   switch (current) {
     case 'assigned':
-      return 'Принять и выехать к пассажиру'
+      return 'driver.cta.acceptAndGo'
     case 'en_route_to_pickup':
-      return 'Я на месте, ожидаю пассажира'
+      return 'driver.cta.arrivedWaiting'
     case 'awaiting_passenger':
-      return 'Пассажир в машине — едем'
+      return 'driver.cta.passengerOnBoard'
     case 'in_progress':
-      return 'Завершить поездку'
+      return 'driver.cta.finishRide'
     default:
       return null
   }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import type { RideRequest } from '../../types'
 import StarRatingInput from '../../components/StarRatingInput'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
@@ -10,14 +11,14 @@ import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 import { formatDate, formatTime } from '../../i18n/dateTime'
 
-const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Ожидает подтверждения', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
-  grouped: { label: 'Группировка', color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)' },
-  assigned: { label: 'Водитель назначен', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
-  en_route_to_pickup: { label: 'Водитель едет к вам', color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)' },
-  awaiting_passenger: { label: 'Водитель на месте', color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
-  in_progress: { label: 'В пути', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
-  completed: { label: 'Поездка завершена', color: '#858585', bg: 'rgba(133,133,133,0.1)' },
+const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
+  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  grouped: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)' },
+  assigned: { color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
+  en_route_to_pickup: { color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)' },
+  awaiting_passenger: { color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
+  in_progress: { color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
+  completed: { color: '#858585', bg: 'rgba(133,133,133,0.1)' },
 }
 
 const REQUEST_POLL_MS = 10_000
@@ -27,6 +28,7 @@ const iconB = L.divIcon({ className: '', html: '<div class="marker-b">B</div>', 
 const iconDriver = L.divIcon({ className: '', html: '<div class="marker-driver"></div>', iconSize: [24, 24], iconAnchor: [12, 12] })
 
 export default function RequestDetail() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [request, setRequest] = useState<RideRequest | null>(null)
@@ -47,7 +49,11 @@ export default function RequestDetail() {
         const requestData = await getRequestById(id)
         if (!cancelled) setRequest(requestData)
       } catch (error) {
-        if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить заявку.')
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error ? error.message : t('errors.loadRequestFailed', { defaultValue: 'Failed to load request.' }),
+          )
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -55,7 +61,7 @@ export default function RequestDetail() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, t])
 
   // Live polling while ride is active.
   useEffect(() => {
@@ -77,7 +83,7 @@ export default function RequestDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[100dvh]">
-        <p className="text-muted">Загрузка...</p>
+        <p className="text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
       </div>
     )
   }
@@ -85,7 +91,7 @@ export default function RequestDetail() {
   if (!request) {
     return (
       <div className="flex items-center justify-center h-[100dvh]">
-        <p className="text-muted">{errorMessage || 'Заявка не найдена'}</p>
+        <p className="text-muted">{errorMessage || t('errors.requestNotFound', { defaultValue: 'Request not found.' })}</p>
       </div>
     )
   }
@@ -95,7 +101,7 @@ export default function RequestDetail() {
     request.status,
   )
   const shouldShowAssignedFallback = Boolean(request.driverId) || hasAssignedDriverStatus
-  const status = STATUS_MAP[request.status] || STATUS_MAP.pending
+  const status = STATUS_COLOR_MAP[request.status] || STATUS_COLOR_MAP.pending
   const dt = new Date(request.dateTime)
   const dateStr = formatDate(dt, { day: 'numeric', month: 'long', year: 'numeric' })
   const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
@@ -121,12 +127,14 @@ export default function RequestDetail() {
           <button onClick={() => navigate('/requests')} className="p-1">
             <ArrowLeft size={22} weight="bold" />
           </button>
-          <h1 className="text-base font-bold flex-1">Заявка №{request.rideNumber}</h1>
+          <h1 className="text-base font-bold flex-1">
+            {t('passenger.requestTitle', { number: request.rideNumber, defaultValue: `Request #${request.rideNumber}` })}
+          </h1>
           <span
             className="text-xs font-bold px-3 py-1 rounded-pill"
             style={{ color: status.color, background: status.bg }}
           >
-            {status.label}
+            {t(`status.${request.status}`, { defaultValue: request.status })}
           </span>
         </div>
       </header>
@@ -170,9 +178,15 @@ export default function RequestDetail() {
           <div className="flex gap-2">
             <button
               onClick={async () => {
-                const nextName = window.prompt('Имя пассажира', request.passengerName)
+                const nextName = window.prompt(
+                  t('passenger.promptPassengerName', { defaultValue: 'Passenger name' }),
+                  request.passengerName,
+                )
                 if (!nextName || !nextName.trim()) return
-                const nextDateTime = window.prompt('Дата и время (ISO, YYYY-MM-DDTHH:mm)', request.dateTime.slice(0, 16))
+                const nextDateTime = window.prompt(
+                  t('passenger.promptDateTimeIso', { defaultValue: 'Date and time (ISO, YYYY-MM-DDTHH:mm)' }),
+                  request.dateTime.slice(0, 16),
+                )
                 if (!nextDateTime || !nextDateTime.trim()) return
                 setIsSaving(true)
                 setErrorMessage(null)
@@ -185,7 +199,9 @@ export default function RequestDetail() {
                   })
                   setRequest(updated)
                 } catch (error) {
-                  setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить заявку.')
+                  setErrorMessage(
+                    error instanceof Error ? error.message : t('errors.updateRequestFailed', { defaultValue: 'Failed to update request.' }),
+                  )
                 } finally {
                   setIsSaving(false)
                 }
@@ -193,11 +209,15 @@ export default function RequestDetail() {
               disabled={isSaving}
               className="flex-1 py-2 rounded-xl border border-border text-sm font-semibold"
             >
-              {isSaving ? 'Сохраняем...' : 'Редактировать'}
+              {isSaving
+                ? t('common.saving', { defaultValue: 'Saving...' })
+                : t('passenger.editRequest', { defaultValue: 'Edit' })}
             </button>
             <button
               onClick={async () => {
-                const confirmed = window.confirm('Удалить заявку?')
+                const confirmed = window.confirm(
+                  t('passenger.deleteRequestConfirm', { defaultValue: 'Delete request?' }),
+                )
                 if (!confirmed) return
                 setIsSaving(true)
                 setErrorMessage(null)
@@ -205,7 +225,9 @@ export default function RequestDetail() {
                   await deleteRequest(request.id)
                   navigate('/requests')
                 } catch (error) {
-                  setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить заявку.')
+                  setErrorMessage(
+                    error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),
+                  )
                 } finally {
                   setIsSaving(false)
                 }
@@ -213,7 +235,7 @@ export default function RequestDetail() {
               disabled={isSaving}
               className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold"
             >
-              Удалить
+              {t('common.delete', { defaultValue: 'Delete' })}
             </button>
           </div>
         )}
@@ -227,12 +249,15 @@ export default function RequestDetail() {
                 <Warning size={18} weight="fill" className="text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-amber-900">Водитель изменил точку подачи</p>
+                <p className="text-sm font-bold text-amber-900">
+                  {t('passenger.pickupChangedByDriver', { defaultValue: 'Driver changed pickup point' })}
+                </p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Новая точка: <span className="font-semibold">{request.from.address}</span>
+                  {t('passenger.newPickupPoint', { defaultValue: 'New point:' })}{' '}
+                  <span className="font-semibold">{request.from.address}</span>
                 </p>
                 <p className="text-[11px] text-amber-600 mt-0.5">
-                  Пожалуйста, подтвердите, что вы видите новую точку посадки.
+                  {t('passenger.confirmPickupPrompt', { defaultValue: 'Please confirm you see the new pickup point.' })}
                 </p>
               </div>
             </div>
@@ -244,7 +269,9 @@ export default function RequestDetail() {
                   const updated = await confirmPickup(request.id)
                   setRequest(updated)
                 } catch (error) {
-                  setErrorMessage(error instanceof Error ? error.message : 'Не удалось подтвердить точку.')
+                  setErrorMessage(
+                    error instanceof Error ? error.message : t('errors.confirmPickupFailed', { defaultValue: 'Failed to confirm pickup point.' }),
+                  )
                 } finally {
                   setIsConfirmingPickup(false)
                 }
@@ -253,11 +280,11 @@ export default function RequestDetail() {
               className="w-full py-3 rounded-xl bg-amber-500 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
             >
               {isConfirmingPickup ? (
-                'Подтверждаем…'
+                t('passenger.confirmingPickup', { defaultValue: 'Confirming…' })
               ) : (
                 <>
                   <Check size={16} weight="bold" />
-                  Подтвердить точку посадки
+                  {t('passenger.confirmPickupButton', { defaultValue: 'Confirm pickup point' })}
                 </>
               )}
             </button>
@@ -271,7 +298,9 @@ export default function RequestDetail() {
               <MapPin size={14} weight="fill" className="text-green-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-green-800">Точка подачи подтверждена</p>
+              <p className="text-xs font-bold text-green-800">
+                {t('passenger.pickupConfirmed', { defaultValue: 'Pickup point confirmed' })}
+              </p>
               <p className="text-[11px] text-green-600">{request.from.address}</p>
             </div>
             <Check size={16} weight="bold" className="text-green-600 flex-shrink-0" />
@@ -287,9 +316,9 @@ export default function RequestDetail() {
               <div className="w-3 h-3 rounded-full bg-point-b" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted mb-0.5">Откуда</p>
+              <p className="text-xs text-muted mb-0.5">{t('passenger.fromLabel', { defaultValue: 'From' })}</p>
               <p className="text-sm font-semibold text-black mb-3">{request.from.address}</p>
-              <p className="text-xs text-muted mb-0.5">Куда</p>
+              <p className="text-xs text-muted mb-0.5">{t('passenger.toLabel', { defaultValue: 'To' })}</p>
               <p className="text-sm font-semibold text-black">{request.to.address}</p>
             </div>
           </div>
@@ -324,7 +353,9 @@ export default function RequestDetail() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Ваш водитель</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  {t('passenger.yourDriver', { defaultValue: 'Your driver' })}
+                </p>
                 <p className="text-lg font-extrabold truncate">{driver.name}</p>
                 <div className="flex items-center gap-2 mt-0.5 text-xs">
                   <span className="inline-flex items-center gap-0.5 font-bold text-amber-400">
@@ -332,7 +363,11 @@ export default function RequestDetail() {
                   </span>
                   <span className="text-white/30">·</span>
                   <span className="text-white/60 inline-flex items-center gap-1">
-                    <Users size={12} /> {driver.seatsCount ?? 4} мест
+                    <Users size={12} />{' '}
+                    {t('passenger.seatsCount', {
+                      count: driver.seatsCount ?? 4,
+                      defaultValue: `${driver.seatsCount ?? 4} seats`,
+                    })}
                   </span>
                 </div>
               </div>
@@ -341,7 +376,9 @@ export default function RequestDetail() {
             {/* Vehicle band — car info + plate */}
             <div className="mx-5 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Автомобиль</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  {t('passenger.vehicle', { defaultValue: 'Vehicle' })}
+                </p>
                 <p className="text-sm font-bold truncate">
                   {[driver.carBrand, driver.carModel].filter(Boolean).join(' ')}
                 </p>
@@ -355,12 +392,15 @@ export default function RequestDetail() {
             <div className="px-5 pb-5 flex gap-3">
               {driver.currentLocation && (
                 <a
-                  href={showOnMapHref(driver.currentLocation, `Водитель · ${driver.name}`)}
+                  href={showOnMapHref(
+                    driver.currentLocation,
+                    t('passenger.driverOnMapLabel', { name: driver.name, defaultValue: `Driver · ${driver.name}` }),
+                  )}
                   target="_blank"
                   rel="noreferrer"
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-accent text-black rounded-xl text-sm font-extrabold hover:bg-accent/90 transition-colors active:scale-[0.98]"
                 >
-                  <NavigationArrow size={16} weight="fill" /> На карте
+                  <NavigationArrow size={16} weight="fill" /> {t('common.showOnMap', { defaultValue: 'Show on map' })}
                 </a>
               )}
             </div>
@@ -368,7 +408,9 @@ export default function RequestDetail() {
             {driver.isOnline && driver.currentLocation && (
               <div className="px-5 pb-4 -mt-2 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                <span className="text-[11px] text-white/60">Водитель онлайн · геолокация доступна</span>
+                <span className="text-[11px] text-white/60">
+                  {t('passenger.driverOnlineWithGeo', { defaultValue: 'Driver online · location available' })}
+                </span>
               </div>
             )}
           </div>
@@ -377,11 +419,19 @@ export default function RequestDetail() {
             <div className="w-12 h-12 rounded-full bg-white border border-border flex items-center justify-center mx-auto mb-3">
               <Car size={20} weight="fill" className="text-zinc-700" />
             </div>
-            <p className="text-sm font-bold">{shouldShowAssignedFallback ? 'Водитель назначен' : 'Ищем водителя'}</p>
+            <p className="text-sm font-bold">
+              {shouldShowAssignedFallback
+                ? t('passenger.driverAssigned', { defaultValue: 'Driver assigned' })
+                : t('passenger.searchingDriver', { defaultValue: 'Looking for a driver' })}
+            </p>
             <p className="text-xs text-muted mt-1">
               {shouldShowAssignedFallback
-                ? 'Данные о водителе обновляются. Обновите экран через несколько секунд.'
-                : 'Мы уведомим вас, как только водитель будет назначен'}
+                ? t('passenger.driverDataUpdating', {
+                    defaultValue: 'Driver info is updating. Refresh the screen in a few seconds.',
+                  })
+                : t('passenger.driverAssignNotify', {
+                    defaultValue: 'We will notify you when a driver is assigned',
+                  })}
             </p>
           </div>
         )}
@@ -391,9 +441,14 @@ export default function RequestDetail() {
             {request.rating.canRate ? (
               <>
                 <div>
-                  <p className="text-sm font-extrabold">Оцените поездку</p>
+                  <p className="text-sm font-extrabold">{t('rating.rateRide', { defaultValue: 'Rate your ride' })}</p>
                   <p className="text-xs text-muted mt-0.5">
-                    {driver ? `Как вам поездка с ${driver.name}?` : 'Ваша оценка поможет другим пассажирам'}
+                    {driver
+                      ? t('rating.howWasRideWith', {
+                          name: driver.name,
+                          defaultValue: `How was your ride with ${driver.name}?`,
+                        })
+                      : t('rating.helpOthers', { defaultValue: 'Your rating helps other passengers' })}
                   </p>
                 </div>
                 <StarRatingInput value={ratingScore} onChange={setRatingScore} disabled={isRatingSubmitting} />
@@ -401,7 +456,7 @@ export default function RequestDetail() {
                   value={ratingComment}
                   onChange={(e) => setRatingComment(e.target.value)}
                   disabled={isRatingSubmitting}
-                  placeholder="Комментарий (необязательно)"
+                  placeholder={t('rating.commentOptional', { defaultValue: 'Comment (optional)' })}
                   rows={3}
                   maxLength={500}
                   className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"
@@ -421,7 +476,9 @@ export default function RequestDetail() {
                         })
                         setRequest(updated)
                       } catch (error) {
-                        setErrorMessage(error instanceof Error ? error.message : 'Не удалось отправить оценку.')
+                        setErrorMessage(
+                          error instanceof Error ? error.message : t('errors.submitRatingFailed', { defaultValue: 'Failed to submit rating.' }),
+                        )
                       } finally {
                         setIsRatingSubmitting(false)
                       }
@@ -429,12 +486,14 @@ export default function RequestDetail() {
                   }}
                   className="w-full h-12 rounded-xl bg-black text-white text-sm font-extrabold disabled:opacity-40"
                 >
-                  {isRatingSubmitting ? 'Отправка…' : 'Отправить оценку'}
+                  {isRatingSubmitting
+                    ? t('common.submitting', { defaultValue: 'Submitting...' })
+                    : t('rating.submitRating', { defaultValue: 'Submit rating' })}
                 </button>
               </>
             ) : request.rating.myScore ? (
               <div className="text-center space-y-2">
-                <p className="text-sm font-extrabold">Спасибо за оценку!</p>
+                <p className="text-sm font-extrabold">{t('rating.thanks', { defaultValue: 'Thanks for your rating!' })}</p>
                 <div className="flex items-center justify-center gap-1">
                   {Array.from({ length: request.rating.myScore }).map((_, i) => (
                     <Star key={i} size={20} weight="fill" className="text-amber-400" />
@@ -450,9 +509,13 @@ export default function RequestDetail() {
 
         {/* Passenger info */}
         <div className="bg-surface rounded-card p-4 space-y-2">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Пассажир</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">
+            {t('passenger.passengerLabel', { defaultValue: 'Passenger' })}
+          </p>
           <p className="text-sm font-semibold">{request.passengerName}</p>
-          <p className="text-xs text-muted">Номер поездки: {request.rideNumber}</p>
+          <p className="text-xs text-muted">
+            {t('passenger.rideNumber', { number: request.rideNumber, defaultValue: `Ride number: ${request.rideNumber}` })}
+          </p>
         </div>
       </div>
     </div>

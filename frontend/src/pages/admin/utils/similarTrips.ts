@@ -1,3 +1,4 @@
+import i18n from '../../../i18n'
 import type { RideRequest } from '../../../types'
 import { getDistanceDurationMatrix, type DistanceDurationMatrix } from '../../../lib/osrm'
 
@@ -124,8 +125,10 @@ function evaluateBestInterleaved(stops: Stop[], matrix: DistanceDurationMatrix):
 function buildReason(size: number, savingsKm: number, savingsMin: number): string {
   const km = savingsKm.toFixed(1)
   const min = Math.round(savingsMin)
-  if (size === 2) return `Пара поездок: экономия ~${km} км и ~${min} мин при оптимальном порядке точек.`
-  return `Группа из ${size} поездок: экономия ~${km} км и ~${min} мин при оптимальном порядке точек.`
+  if (size === 2) {
+    return i18n.t('admin.similarTrips.reasonPair', { km, min })
+  }
+  return i18n.t('admin.similarTrips.reasonGroup', { size, km, min })
 }
 
 function scoreGroup(savingsKm: number, savingsMin: number, totalMin: number): number {

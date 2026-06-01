@@ -8,11 +8,12 @@ import {
   PaperPlaneTilt,
   Warning,
 } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { DriverCabinetRide } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
-import { ctaLabel, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from '../constants'
+import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
 
 interface DriverPassengerCardProps {
   ride: DriverCabinetRide
@@ -35,9 +36,10 @@ export default function DriverPassengerCard({
   onAdvance,
   onNotifyPickup,
 }: DriverPassengerCardProps) {
+  const { t } = useTranslation()
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
   const nextSt = nextStatus(ride.status)
-  const cta = ctaLabel(ride.status)
+  const ctaKey = ctaLabelKey(ride.status)
   const dt = new Date(ride.dateTime)
   const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
   const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
@@ -70,24 +72,24 @@ export default function DriverPassengerCard({
               className="text-[10px] font-bold px-2 py-0.5 rounded-pill touch-compact"
               style={{ color: statusColors.color, background: statusColors.bg }}
             >
-              {DRIVER_STATUS_LABEL[ride.status]}
+              {t(DRIVER_STATUS_LABEL_KEY[ride.status], { defaultValue: ride.status })}
             </span>
             {pickupChangedNotNotified && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-blue-50 text-blue-600 text-[10px] font-bold touch-compact">
                 <Warning size={10} weight="fill" />
-                Подтвердите
+                {t('driver.confirm', { defaultValue: 'Confirm' })}
               </span>
             )}
             {needsPassengerConfirm && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-amber-50 text-amber-600 text-[10px] font-bold touch-compact">
                 <Warning size={10} weight="fill" />
-                Ждём
+                {t('driver.waiting', { defaultValue: 'Waiting' })}
               </span>
             )}
             {confirmed && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-green-50 text-green-600 text-[10px] font-bold touch-compact">
                 <Check size={10} weight="bold" />
-                ОК
+                {t('common.ok', { defaultValue: 'OK' })}
               </span>
             )}
           </div>
@@ -106,7 +108,7 @@ export default function DriverPassengerCard({
               <MapPin size={11} weight="fill" className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Точка подачи</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">{t('driver.pickupPoint', { defaultValue: 'Pickup point' })}</p>
               <p className="text-xs font-semibold mt-0.5">{ride.fromAddress}</p>
               <p className="text-[10px] font-mono text-muted mt-0.5">
                 {ride.fromLatLng.lat.toFixed(5)}, {ride.fromLatLng.lng.toFixed(5)}
@@ -114,10 +116,10 @@ export default function DriverPassengerCard({
               {ride.pickupChangedByDriver && (
                 <p className="text-[10px] mt-1 font-semibold text-amber-600">
                   {pickupChangedNotNotified
-                    ? '📝 Точка изменена — нажмите «Подтвердить» чтобы уведомить пассажира'
+                    ? t('driver.pickupChangedNotifyHint', { defaultValue: 'Point changed - press confirm to notify passenger' })
                     : needsPassengerConfirm
-                    ? '⏳ Уведомление отправлено — пассажир ещё не подтвердил'
-                    : '✅ Точка изменена — пассажир подтвердил'}
+                    ? t('driver.pickupChangedWaitingConfirm', { defaultValue: 'Notification sent - passenger has not confirmed yet' })
+                    : t('driver.pickupChangedConfirmed', { defaultValue: 'Point changed - passenger confirmed' })}
                 </p>
               )}
             </div>
@@ -129,7 +131,7 @@ export default function DriverPassengerCard({
               <MapPin size={11} weight="fill" className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Куда</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">{t('passenger.toLabel', { defaultValue: 'To' })}</p>
               <p className="text-xs font-semibold mt-0.5">{ride.toAddress}</p>
             </div>
           </div>
@@ -143,44 +145,44 @@ export default function DriverPassengerCard({
           {/* Navigation buttons — open in any navigator */}
           <div className="flex gap-2">
             <a
-              href={directionsHref(ride.fromLatLng, 'Подача')}
+              href={directionsHref(ride.fromLatLng, t('driver.pickup', { defaultValue: 'Pickup' }))}
               target="_blank"
               rel="noreferrer"
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-black text-white text-sm font-bold btn-press touch-none"
             >
               <NavigationArrow size={15} weight="fill" />
-              Подача
+              {t('driver.pickup', { defaultValue: 'Pickup' })}
             </a>
             <a
-              href={directionsHref(ride.toLatLng, 'Конечная')}
+              href={directionsHref(ride.toLatLng, t('driver.dropoff', { defaultValue: 'Dropoff' }))}
               target="_blank"
               rel="noreferrer"
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-700 text-white text-sm font-bold btn-press touch-none"
             >
               <NavigationArrow size={15} weight="fill" />
-              Конечная
+              {t('driver.dropoff', { defaultValue: 'Dropoff' })}
             </a>
           </div>
 
           {/* Show on map links */}
           <div className="flex gap-2">
             <a
-              href={showOnMapHref(ride.fromLatLng, `Подача · ${ride.passengerName}`)}
+              href={showOnMapHref(ride.fromLatLng, t('driver.pickupWithName', { name: ride.passengerName, defaultValue: `Pickup · ${ride.passengerName}` }))}
               target="_blank"
               rel="noreferrer"
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors touch-none"
             >
               <MapPin size={12} weight="fill" />
-              Точка A
+              {t('driver.pointA', { defaultValue: 'Point A' })}
             </a>
             <a
-              href={showOnMapHref(ride.toLatLng, `Конечная · ${ride.passengerName}`)}
+              href={showOnMapHref(ride.toLatLng, t('driver.dropoffWithName', { name: ride.passengerName, defaultValue: `Dropoff · ${ride.passengerName}` }))}
               target="_blank"
               rel="noreferrer"
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors touch-none"
             >
               <MapPin size={12} weight="fill" />
-              Точка B
+              {t('driver.pointB', { defaultValue: 'Point B' })}
             </a>
           </div>
 
@@ -192,24 +194,26 @@ export default function DriverPassengerCard({
               className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isNotifying ? (
-                'Отправляем…'
+                t('common.sending', { defaultValue: 'Sending...' })
               ) : (
                 <>
                   <PaperPlaneTilt size={15} weight="fill" />
-                  Подтвердить и уведомить пассажира
+                  {t('driver.confirmAndNotifyPassenger', { defaultValue: 'Confirm and notify passenger' })}
                 </>
               )}
             </button>
           )}
 
           {/* Status advance CTA */}
-          {cta && nextSt && (
+          {ctaKey && nextSt && (
             <button
               onClick={onAdvance}
               disabled={isAdvancing}
               className="w-full py-3.5 rounded-xl bg-black text-white text-sm font-bold inline-flex items-center justify-center gap-2 btn-press disabled:opacity-60 disabled:cursor-not-allowed touch-none"
             >
-              {isAdvancing ? 'Обновляем…' : cta}
+              {isAdvancing
+                ? t('common.updating', { defaultValue: 'Updating...' })
+                : t(ctaKey, { defaultValue: ctaKey })}
               {!isAdvancing && <CaretRight size={14} weight="bold" />}
             </button>
           )}

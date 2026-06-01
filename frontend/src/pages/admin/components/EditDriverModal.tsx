@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { Driver } from '../../../types'
 
@@ -23,6 +24,7 @@ const inputCls =
   'w-full px-3 py-2.5 rounded-xl border-[1.5px] border-border bg-surface text-sm outline-none focus:border-black focus:bg-white transition-colors'
 
 export default function EditDriverModal({ driver, onClose, onSubmit }: EditDriverModalProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState(driver.name)
   const [carBrand, setCarBrand] = useState(driver.carBrand ?? '')
   const [carModel, setCarModel] = useState(driver.carModel)
@@ -67,7 +69,7 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
       <div className="bg-white rounded-card shadow-card w-full max-w-md max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold">Редактировать водителя</h2>
+            <h2 className="text-base font-bold">{t('admin.editDriver.title')}</h2>
             <p className="text-xs text-muted mt-0.5">{driver.keyPrefix}…</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors">
@@ -77,31 +79,31 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted">Имя</label>
+            <label className="text-xs font-semibold text-muted">{t('common.name')}</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted">Марка</label>
+              <label className="text-xs font-semibold text-muted">{t('common.brand')}</label>
               <input value={carBrand} onChange={(e) => setCarBrand(e.target.value)} className={inputCls} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted">Модель</label>
+              <label className="text-xs font-semibold text-muted">{t('common.model')}</label>
               <input value={carModel} onChange={(e) => setCarModel(e.target.value)} className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted">Номер</label>
+              <label className="text-xs font-semibold text-muted">{t('common.plate')}</label>
               <input value={carPlate} onChange={(e) => setCarPlate(e.target.value)} className={inputCls} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted">Цвет</label>
+              <label className="text-xs font-semibold text-muted">{t('common.color')}</label>
               <input value={vehicleColor} onChange={(e) => setVehicleColor(e.target.value)} className={inputCls} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted">Мест</label>
+            <label className="text-xs font-semibold text-muted">{t('common.seats')}</label>
             <input
               type="number"
               min={1}
@@ -112,7 +114,7 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted">О водителе</label>
+            <label className="text-xs font-semibold text-muted">{t('common.about')}</label>
             <textarea
               value={about}
               onChange={(e) => setAbout(e.target.value)}
@@ -125,20 +127,20 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
               checked={canSellPoints}
               onChange={(e) => setCanSellPoints(e.target.checked)}
             />
-            <span className="text-xs font-semibold">Разрешить продажу поинтов через QR</span>
+            <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
           </label>
         </div>
 
         <div className="flex gap-3 px-5 py-4 border-t border-border flex-shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
-            Отмена
+            {t('common.cancel')}
           </button>
           <button
             onClick={() => void handleSubmit()}
             disabled={submitting}
             className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            {submitting ? 'Сохраняем…' : 'Сохранить'}
+            {submitting ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>

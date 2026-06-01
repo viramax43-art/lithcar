@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
@@ -8,23 +9,24 @@ import { formatDate, formatTime } from '../../i18n/dateTime'
 
 const PAGE_SIZE = 20
 
-const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Ожидает', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
-  grouped: { label: 'В группе', color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)' },
-  assigned: { label: 'Водитель назначен', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
-  en_route_to_pickup: { label: 'Водитель едет', color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)' },
-  awaiting_passenger: { label: 'Ожидает вас', color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
-  in_progress: { label: 'В пути', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
-  completed: { label: 'Завершена', color: '#858585', bg: 'rgba(133,133,133,0.1)' },
+const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
+  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  grouped: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)' },
+  assigned: { color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
+  en_route_to_pickup: { color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)' },
+  awaiting_passenger: { color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
+  in_progress: { color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
+  completed: { color: '#858585', bg: 'rgba(133,133,133,0.1)' },
 }
 
 const STATUS_TABS = [
-  { key: 'active', label: 'Активные' },
-  { key: 'completed', label: 'Завершённые' },
-  { key: 'all', label: 'Все' },
+  { key: 'active' },
+  { key: 'completed' },
+  { key: 'all' },
 ]
 
 export default function MyRequests() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [requests, setRequests] = useState<RideRequest[]>([])
   const [total, setTotal] = useState(0)
@@ -44,10 +46,10 @@ export default function MyRequests() {
           setTotal(requestsData.total)
         }
       } catch (error) {
-        if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить заявки.')
+        if (!cancelled) setErrorMessage(error instanceof Error ? error.message : t('errors.loadRequestsFailed', { defaultValue: 'Failed to load requests.' }))
       }
       try {
-        // Для пассажира endpoint может вернуть 403, это допустимо.
+        // Passenger endpoint may return 403 — that is acceptable.
         const driversData = await listDrivers(false, { limit: 200, offset: 0 })
         if (!cancelled) setDrivers(driversData.items)
       } catch {
@@ -69,7 +71,7 @@ export default function MyRequests() {
       setRequests((prev) => [...prev, ...page.items])
       setTotal(page.total)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подгрузить заявки.')
+      setErrorMessage(error instanceof Error ? error.message : t('errors.loadMoreRequestsFailed', { defaultValue: 'Failed to load more requests.' }))
     } finally {
       setIsLoadingMore(false)
     }
@@ -102,19 +104,23 @@ export default function MyRequests() {
           >
             <ArrowLeft size={20} weight="bold" />
           </button>
-          <h1 className="text-base font-extrabold tracking-tight flex-1">Мои поездки</h1>
+          <h1 className="text-base font-extrabold tracking-tight flex-1">{t('passenger.myRidesTitle', { defaultValue: 'My rides' })}</h1>
         </div>
         {/* Status tabs */}
         <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto">
-          {STATUS_TABS.map((t) => (
+          {STATUS_TABS.map((tabItem) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key as typeof tab)}
+              key={tabItem.key}
+              onClick={() => setTab(tabItem.key as typeof tab)}
               className={`px-3 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors ${
-                tab === t.key ? 'bg-black text-white' : 'bg-surface text-muted'
+                tab === tabItem.key ? 'bg-black text-white' : 'bg-surface text-muted'
               }`}
             >
-              {t.label}
+              {tabItem.key === 'active'
+                ? t('passenger.activeRides', { defaultValue: 'Active' })
+                : tabItem.key === 'completed'
+                  ? t('passenger.completedRides', { defaultValue: 'Completed' })
+                  : t('common.all', { defaultValue: 'All' })}
             </button>
           ))}
         </div>
@@ -144,7 +150,7 @@ export default function MyRequests() {
             </div>
           ))}
         {!isLoading && sorted.map((req) => {
-          const status = STATUS_MAP[req.status] || STATUS_MAP.pending
+          const status = STATUS_COLOR_MAP[req.status] || STATUS_COLOR_MAP.pending
           const driver = req.driverId ? drivers.find((d) => d.id === req.driverId) : null
           const dt = new Date(req.dateTime)
           const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
@@ -163,12 +169,12 @@ export default function MyRequests() {
                     className="text-xs font-bold px-3 py-1 rounded-pill"
                     style={{ color: status.color, background: status.bg }}
                   >
-                    {status.label}
+                    {t(`status.${req.status}`, { defaultValue: req.status })}
                   </span>
                   <span className="text-[11px] font-semibold text-muted whitespace-nowrap">№{req.rideNumber}</span>
                   {req.rating?.canRate && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-amber-100 text-amber-800">
-                      Оценить
+                      {t('rating.rate', { defaultValue: 'Rate' })}
                     </span>
                   )}
                 </div>
@@ -221,10 +227,14 @@ export default function MyRequests() {
             {isLoadingMore ? (
               <span className="inline-flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
-                Загружаем…
+                {t('common.loading', { defaultValue: 'Loading...' })}
               </span>
             ) : (
-              `Показать ещё (${requests.length} из ${total})`
+              t('common.showMoreWithCount', {
+                loaded: requests.length,
+                total,
+                defaultValue: `Show more (${requests.length} of ${total})`,
+              })
             )}
           </button>
         )}
@@ -233,13 +243,17 @@ export default function MyRequests() {
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <MapPin size={48} className="text-border mb-4" weight="regular" />
             <p className="text-muted text-sm">
-              {tab === 'active' ? 'Нет активных поездок' : tab === 'completed' ? 'Нет завершённых поездок' : 'У вас пока нет заявок'}
+              {tab === 'active'
+                ? t('passenger.noActiveRides', { defaultValue: 'No active rides' })
+                : tab === 'completed'
+                  ? t('passenger.noCompletedRides', { defaultValue: 'No completed rides' })
+                  : t('passenger.noRequestsYet', { defaultValue: 'No requests yet' })}
             </p>
             <button
               onClick={() => navigate('/')}
               className="mt-4 px-6 py-2.5 bg-black text-white text-sm font-bold rounded-pill"
             >
-              Создать заявку
+              {t('passenger.createRequest', { defaultValue: 'Create request' })}
             </button>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from '../../config/env'
+import i18n from '../../i18n'
 import { clearAccessToken, getAccessToken, saveAccessToken } from './tokenStorage'
 import { getRequiredTelegramInitData } from './telegramInitDataProvider'
 
@@ -15,7 +16,7 @@ async function loginWithTelegramInitData(initData: string): Promise<string> {
     body: JSON.stringify({ initData }),
   })
   if (!response.ok) {
-    throw new Error('Не удалось выполнить авторизацию через Telegram initData.')
+    throw new Error(i18n.t('errors.telegramAuthFailed', { defaultValue: 'Failed to authenticate via Telegram initData.' }))
   }
   const body: TokenResponse = await response.json()
   saveAccessToken(body.access_token)

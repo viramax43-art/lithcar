@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Car, CaretRight, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
 import {
@@ -43,16 +44,16 @@ const LOCATION_INTERVAL_MS = 6_000
 
 // ─── Action label helpers (same mapping as sheet) ────────────────────────────
 
-function getQuickActionLabel(pt: DriverMapPoint): string | null {
+function getQuickActionLabelKey(pt: DriverMapPoint): string | null {
   const { pointType, rideStatus } = pt
   if (pointType === 'pickup') {
-    if (rideStatus === 'assigned') return 'Еду на точку'
-    if (rideStatus === 'en_route_to_pickup') return 'Прибыл'
-    if (rideStatus === 'awaiting_passenger') return 'Пассажир сел — едем!'
+    if (rideStatus === 'assigned') return 'driver.actionGoToPoint'
+    if (rideStatus === 'en_route_to_pickup') return 'driver.actionArrived'
+    if (rideStatus === 'awaiting_passenger') return 'driver.actionPassengerOnBoard'
   }
   if (pointType === 'dropoff') {
-    if (rideStatus === 'awaiting_passenger') return 'Везу пассажира'
-    if (rideStatus === 'in_progress') return 'Прибыл — завершить'
+    if (rideStatus === 'awaiting_passenger') return 'driver.actionDrivingPassenger'
+    if (rideStatus === 'in_progress') return 'driver.actionArrivedFinish'
   }
   return null
 }
@@ -74,6 +75,7 @@ function getQuickAction(pt: DriverMapPoint): string | null {
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
+  const { t } = useTranslation()
   const [key, setKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,7 +88,7 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
       const session = await loginDriverByKey(key.trim())
       onLogin(session)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось войти.')
+      setError(err instanceof Error ? err.message : t('errors.loginFailed', { defaultValue: 'Login failed.' }))
     } finally {
       setLoading(false)
     }
@@ -107,10 +109,10 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
           </div>
           <div>
             <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
-            <p className="text-xs text-muted">Кабинет водителя</p>
+            <p className="text-xs text-muted">{t('driver.cabinet', { defaultValue: 'Driver cabinet' })}</p>
           </div>
         </div>
-        <p className="text-sm text-muted">Введите персональный ключ водителя.</p>
+        <p className="text-sm text-muted">{t('driver.loginByKey', { defaultValue: 'Enter driver key.' })}</p>
         <input
           type="password"
           value={key}
@@ -130,7 +132,9 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
           }`}
           style={{ height: 52 }}
         >
-          {loading ? 'Проверяем ключ…' : 'Войти'}
+          {loading
+            ? t('driver.verifyingKey', { defaultValue: 'Verifying key...' })
+            : t('driver.login', { defaultValue: 'Sign in' })}
         </button>
         {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
       </div>
@@ -159,7 +163,8 @@ function NextStopBar({
   onNotifyPickup: () => void
   onResetPickup: () => void
 }) {
-  const actionLabel = getQuickActionLabel(point)
+  const { t } = useTranslation()
+  const actionLabelKey = getQuickActionLabelKey(point)
   const action = getQuickAction(point)
   const isPickup = point.pointType === 'pickup'
   const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
@@ -200,7 +205,9 @@ function NextStopBar({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
-              {isPickup ? 'Точка подачи' : 'Точка назначения'}
+              {isPickup
+                ? t('driver.pickupPoint', { defaultValue: 'Pickup point' })
+                : t('driver.destinationPoint', { defaultValue: 'Destination point' })}
             </p>
             <p className="text-sm font-bold truncate">{point.address}</p>
             <p className="text-[11px] text-muted truncate mt-0.5">{point.passengerName}</p>
@@ -209,7 +216,7 @@ function NextStopBar({
         </button>
 
         {/* One-tap action button */}
-        {action && actionLabel && (
+        {action && actionLabelKey && (
           <button
             onClick={onQuickAction}
             disabled={isActioning}
@@ -220,7 +227,7 @@ function NextStopBar({
               <div className="w-5 h-5 rounded-full border-2 border-current/30 border-t-current animate-spin" />
             ) : (
               <>
-                <span>{actionLabel}</span>
+                <span>{t(actionLabelKey, { defaultValue: actionLabelKey })}</span>
                 <CaretRight size={12} weight="bold" className="opacity-70" />
               </>
             )}
@@ -234,14 +241,20 @@ function NextStopBar({
             disabled={isResetting}
             className="flex-1 h-11 rounded-xl border border-border bg-surface text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {isResetting ? 'Сбрасываем…' : 'Сбросить'}
+            {isResetting
+              ? t('common.resetting', { defaultValue: 'Resetting...' })
+              : t('common.reset', { defaultValue: 'Reset' })}
           </button>
           <button
             onClick={onNotifyPickup}
             disabled={isNotifying || !canNotifyPickup}
             className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {isNotifying ? 'Отправляем…' : canNotifyPickup ? 'Уведомить пассажира' : 'Уже уведомлен'}
+            {isNotifying
+              ? t('common.sending', { defaultValue: 'Sending...' })
+              : canNotifyPickup
+                ? t('driver.notifyPassenger', { defaultValue: 'Notify passenger' })
+                : t('driver.alreadyNotified', { defaultValue: 'Already notified' })}
           </button>
         </div>
       )}
@@ -252,6 +265,7 @@ function NextStopBar({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function DriverCabinet() {
+  const { t } = useTranslation()
   const [session, setSession] = useState<DriverSessionUser | null>(null)
   const [mapData, setMapData] = useState<DriverMapData | null>(null)
   const [cabinetData, setCabinetData] = useState<DriverCabinetData | null>(null)
@@ -393,7 +407,11 @@ export default function DriverCabinet() {
       .catch((error) => {
         if (cancelled) return
         setRoadPolyline([])
-        setErrorMessage(error instanceof Error ? error.message : 'Не удалось построить маршрут по дороге.')
+        setErrorMessage(
+          error instanceof Error
+            ? t(error.message, { defaultValue: 'Failed to build road route.' })
+            : t('errors.buildRouteFailed', { defaultValue: 'Failed to build road route.' }),
+        )
       })
     return () => { cancelled = true }
   }, [routeWaypoints])
@@ -414,7 +432,7 @@ export default function DriverCabinet() {
       }
     } catch (err) {
       hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : 'Не удалось выполнить действие.')
+      setErrorMessage(err instanceof Error ? err.message : t('errors.driverActionFailed', { defaultValue: 'Failed to perform action.' }))
     } finally {
       setIsActioning(false)
     }
@@ -443,7 +461,7 @@ export default function DriverCabinet() {
       await loadMapData()
     } catch (err) {
       hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : 'Не удалось уведомить пассажира.')
+      setErrorMessage(err instanceof Error ? err.message : t('errors.notifyPassengerFailed', { defaultValue: 'Failed to notify passenger.' }))
     } finally {
       setIsNotifying(false)
     }
@@ -460,7 +478,7 @@ export default function DriverCabinet() {
       await loadMapData()
     } catch (err) {
       hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : 'Не удалось сбросить точку подачи.')
+      setErrorMessage(err instanceof Error ? err.message : t('errors.resetPickupFailed', { defaultValue: 'Failed to reset pickup point.' }))
     } finally {
       setIsResettingPickup(false)
     }
@@ -479,7 +497,7 @@ export default function DriverCabinet() {
       await loadMapData()
     } catch (err) {
       hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : 'Не удалось обновить точку подачи.')
+      setErrorMessage(err instanceof Error ? err.message : t('errors.updatePickupFailed', { defaultValue: 'Failed to update pickup point.' }))
     }
   }
 
@@ -552,10 +570,10 @@ export default function DriverCabinet() {
                 <span className="text-xs font-semibold text-muted flex-shrink-0">
                   {mapData.activeRides}{' '}
                   {mapData.activeRides === 1
-                    ? 'поездка'
+                    ? t('driver.rideSingular', { defaultValue: 'ride' })
                     : mapData.activeRides < 5
-                    ? 'поездки'
-                    : 'поездок'}
+                      ? t('driver.rideFew', { defaultValue: 'rides' })
+                      : t('driver.rideMany', { defaultValue: 'rides' })}
                 </span>
               </>
             )}
@@ -575,9 +593,9 @@ export default function DriverCabinet() {
             <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
               <Car size={22} className="text-muted" weight="fill" />
             </div>
-            <p className="text-sm font-bold">Нет активных поездок</p>
+            <p className="text-sm font-bold">{t('driver.noActiveRides', { defaultValue: 'No active rides' })}</p>
             <p className="text-xs text-muted mt-1 leading-snug">
-              Как только вам назначат заказ — точки появятся здесь
+              {t('driver.noActiveRidesHint', { defaultValue: 'As soon as a ride is assigned, points will appear here' })}
             </p>
           </div>
         </div>
@@ -610,7 +628,7 @@ export default function DriverCabinet() {
       <RideRatingSheet
         key={pendingRating?.rideId ?? 'closed'}
         open={pendingRating !== null}
-        title="Оцените пассажира"
+        title={t('driver.ratePassenger', { defaultValue: 'Rate passenger' })}
         subtitle={pendingRating ? pendingRating.passengerName : undefined}
         isSubmitting={isRatingSubmitting}
         onClose={() => setPendingRating(null)}
@@ -626,7 +644,7 @@ export default function DriverCabinet() {
             await loadMapData()
           } catch (err) {
             hapticNotification('error')
-            setErrorMessage(err instanceof Error ? err.message : 'Не удалось отправить оценку.')
+            setErrorMessage(err instanceof Error ? err.message : t('errors.submitRatingFailed', { defaultValue: 'Failed to submit rating.' }))
           } finally {
             setIsRatingSubmitting(false)
           }
@@ -652,7 +670,7 @@ export default function DriverCabinet() {
             <X size={15} className="text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-red-900">Ошибка</p>
+            <p className="text-xs font-bold text-red-900">{t('common.error', { defaultValue: 'Error' })}</p>
             <p className="text-xs text-red-700 mt-0.5 break-words">{errorMessage}</p>
           </div>
           <button

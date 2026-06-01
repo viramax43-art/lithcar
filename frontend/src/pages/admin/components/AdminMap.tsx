@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, PenNib, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
@@ -167,6 +168,8 @@ export default function AdminMap({
   enabledColors,
   onToggleColor,
 }: AdminMapProps) {
+  const { t } = useTranslation()
+
   // --- Date/time filtering ---
   const filteredRequests = useMemo(() => {
     return requests.filter((req) => {
@@ -272,11 +275,15 @@ export default function AdminMap({
       setMapDrawings(page.items)
       setMapDrawingError(null)
     } catch (error) {
-      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось загрузить рисунки.')
+      setMapDrawingError(
+        error instanceof Error
+          ? t(error.message, { defaultValue: 'Failed to load drawings.' })
+          : t('admin.errors.loadDrawingsFailed'),
+      )
     } finally {
       setIsLoadingMapDrawings(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadMapDrawings()
@@ -287,7 +294,9 @@ export default function AdminMap({
     setIsSavingMarkerDrawing(true)
     try {
       const drawing = await createMapDrawing({
-        title: markerTitle.trim() || `Рисунок ${formatTime(new Date(), { hour: '2-digit', minute: '2-digit' })}`,
+        title: markerTitle.trim() || t('admin.map.drawingDefaultTitle', {
+          time: formatTime(new Date(), { hour: '2-digit', minute: '2-digit' }),
+        }),
         color: markerColor,
         strokeWidth: 4,
         points: markerDrawingPoints,
@@ -299,11 +308,15 @@ export default function AdminMap({
       setIsMarkerDrawing(false)
       setMapDrawingError(null)
     } catch (error) {
-      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось сохранить рисунок.')
+      setMapDrawingError(
+        error instanceof Error
+          ? t(error.message, { defaultValue: 'Failed to save drawing.' })
+          : t('admin.errors.saveDrawingFailed'),
+      )
     } finally {
       setIsSavingMarkerDrawing(false)
     }
-  }, [isSavingMarkerDrawing, markerColor, markerDrawingPoints, markerTitle])
+  }, [isSavingMarkerDrawing, markerColor, markerDrawingPoints, markerTitle, t])
 
   const handleDeleteDrawing = useCallback(async (drawingId: string) => {
     try {
@@ -311,9 +324,13 @@ export default function AdminMap({
       setMapDrawings((prev) => prev.filter((drawing) => drawing.id !== drawingId))
       if (selectedDrawingId === drawingId) setSelectedDrawingId(null)
     } catch (error) {
-      setMapDrawingError(error instanceof Error ? error.message : 'Не удалось удалить рисунок.')
+      setMapDrawingError(
+        error instanceof Error
+          ? t(error.message, { defaultValue: 'Failed to delete drawing.' })
+          : t('admin.errors.deleteDrawingFailed'),
+      )
     }
-  }, [selectedDrawingId])
+  }, [selectedDrawingId, t])
 
   useEffect(() => {
     let cancelled = false
@@ -332,7 +349,11 @@ export default function AdminMap({
       } catch (error) {
         if (!cancelled) {
           setSelectedSimilarRoadPolyline(null)
-          setSimilarRoadError(error instanceof Error ? error.message : 'Не удалось построить маршрут по дорогам.')
+          setSimilarRoadError(
+            error instanceof Error
+              ? t(error.message, { defaultValue: 'Failed to build road route for the selected group.' })
+              : t('errors.osrmRoadRouteFailed'),
+          )
         }
       }
     }
@@ -340,7 +361,7 @@ export default function AdminMap({
     return () => {
       cancelled = true
     }
-  }, [selectedSimilarGroup])
+  }, [selectedSimilarGroup, t])
 
   // Build cluster markers grouped by color
   type ClusterMarker = { id: string; position: [number, number]; icon: L.DivIcon; onClick?: () => void; tooltipText?: string }
@@ -448,7 +469,7 @@ export default function AdminMap({
       setSimilarGroups([])
       setSelectedSimilarGroupId(null)
       setSelectedSimilarRoadPolyline(null)
-      setSimilarError('Недостаточно заявок для поиска похожих поездок (нужно минимум 2).')
+      setSimilarError(t('admin.similarTrips.notEnough'))
       return
     }
     setIsFindingSimilar(true)
@@ -461,7 +482,7 @@ export default function AdminMap({
       setSelectedSimilarStepKey(null)
       setSelectedSimilarRoadPolyline(null)
       if (groups.length === 0) {
-        setSimilarError('Похожих и действительно выгодных групп не найдено в текущем фильтре.')
+        setSimilarError(t('admin.similarTrips.noneFound'))
       }
     } catch (error) {
       setSimilarGroups([])
@@ -470,13 +491,13 @@ export default function AdminMap({
       setSelectedSimilarRoadPolyline(null)
       setSimilarError(
         error instanceof Error
-          ? error.message
-          : 'Сейчас не получается подобрать похожие поездки.',
+          ? t(error.message, { defaultValue: 'Unable to find similar trips.' })
+          : t('errors.osrmSimilarTripsUnavailable'),
       )
     } finally {
       setIsFindingSimilar(false)
     }
-  }, [visibleActiveRequests, slotIntervalMinutes])
+  }, [visibleActiveRequests, slotIntervalMinutes, t])
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
@@ -547,16 +568,16 @@ export default function AdminMap({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] font-semibold text-muted whitespace-nowrap">Фильтр периода</span>
-            <span className="text-[11px] text-muted/70 whitespace-nowrap">· {visibleRequests.length} заявок</span>
+            <span className="text-[11px] font-semibold text-muted whitespace-nowrap">{t('common.periodFilter')}</span>
+            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
           </div>
-          {hasAnyFilter ? <span className="text-[11px] text-muted">Фильтр активен</span> : <span className="text-[11px] text-muted">Показываем всё</span>}
+          {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
         </div>
 
         <div className="grid grid-cols-1 gap-2">
           <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
             <Clock size={15} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] text-muted whitespace-nowrap">Таймслот</span>
+            <span className="text-[11px] text-muted whitespace-nowrap">{t('common.timeslot')}</span>
             <select
               value={selectedTimeSlotValue}
               onChange={(event) => {
@@ -577,11 +598,11 @@ export default function AdminMap({
                 onFilterTimeEndChange(selectedSlot.end)
               }}
               className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title="Таймслот"
+              title={t('common.timeslot')}
             >
-              <option value="all">Все время</option>
-              <option value="full-day">Весь день (00:00-23:59)</option>
-              {selectedTimeSlotValue === 'custom' && <option value="custom">Произвольный диапазон</option>}
+              <option value="all">{t('common.allTime')}</option>
+              <option value="full-day">{t('common.fullDay')}</option>
+              {selectedTimeSlotValue === 'custom' && <option value="custom">{t('common.customRange')}</option>}
               {timeSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
                   {slot.label}
@@ -600,7 +621,7 @@ export default function AdminMap({
                 : 'border-border hover:bg-surface'
             }`}
           >
-            Сегодня
+            {t('common.today')}
           </button>
           <button
             onClick={() => applySingleDay(dayOptions.tomorrow)}
@@ -610,7 +631,7 @@ export default function AdminMap({
                 : 'border-border hover:bg-surface'
             }`}
           >
-            Завтра
+            {t('common.tomorrow')}
           </button>
           <button
             onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
@@ -620,19 +641,19 @@ export default function AdminMap({
                 : 'border-border hover:bg-surface'
             }`}
           >
-            Послезавтра
+            {t('common.dayAfterTomorrow')}
           </button>
           <button
             onClick={showAllTrips}
             className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
           >
-            Все поездки
+            {t('common.allTrips')}
           </button>
         </div>
 
         {/* Color (status) filter */}
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-border/40">
-          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider mr-0.5">Цвет:</span>
+          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider mr-0.5">{t('common.colorFilter')}</span>
           {MAP_COLOR_GROUPS.map((group) => {
             const active = enabledColors.has(group.key)
             return (
@@ -643,13 +664,13 @@ export default function AdminMap({
                   active ? 'border-transparent text-white' : 'border-border text-muted bg-white'
                 }`}
                 style={active ? { backgroundColor: group.hex, borderColor: group.hex } : {}}
-                title={group.label}
+                title={t(group.labelKey)}
               >
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/50"
                   style={{ backgroundColor: active ? '#fff' : group.hex }}
                 />
-                {group.label}
+                {t(group.labelKey)}
               </button>
             )
           })}
@@ -667,7 +688,7 @@ export default function AdminMap({
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => handleSearchInput(e.target.value)}
-                  placeholder="Поиск адреса…"
+                  placeholder={t('common.searchAddressPlaceholder')}
                   className="flex-1 text-sm outline-none bg-transparent min-w-0 h-6"
                 />
                 <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]) }} className="w-8 h-8 flex items-center justify-center hover:bg-surface rounded-lg touch-none">
@@ -675,7 +696,7 @@ export default function AdminMap({
                 </button>
               </div>
               <div className="overflow-y-auto max-h-60 scroll-smooth-y">
-                {isSearching && <p className="px-3 py-3 text-xs text-muted">Ищем…</p>}
+                {isSearching && <p className="px-3 py-3 text-xs text-muted">{t('common.searching')}</p>}
                 {searchResults.map((r) => (
                   <button
                     key={r.place_id}
@@ -686,7 +707,7 @@ export default function AdminMap({
                   </button>
                 ))}
                 {!isSearching && searchQuery.length >= 3 && searchResults.length === 0 && (
-                  <p className="px-3 py-3 text-xs text-muted">Ничего не найдено.</p>
+                  <p className="px-3 py-3 text-xs text-muted">{t('common.notFound', { defaultValue: 'Nothing found.' })}</p>
                 )}
               </div>
             </div>
@@ -694,7 +715,7 @@ export default function AdminMap({
             <button
               onClick={() => setSearchOpen(true)}
               className="w-11 h-11 bg-white rounded-xl shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
-              title="Поиск адреса"
+              title={t('common.searchAddress')}
             >
               <MagnifyingGlass size={18} weight="bold" />
             </button>
@@ -703,17 +724,17 @@ export default function AdminMap({
             onClick={handleLocateMe}
             disabled={isLocating}
             className="w-11 h-11 bg-white rounded-xl shadow-card flex items-center justify-center hover:bg-surface transition-colors disabled:opacity-60 touch-none"
-            title="Моё местоположение"
+            title={t('common.myLocation', { defaultValue: 'My location' })}
           >
             {isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
           <button
             onClick={() => void handleFindSimilarTrips()}
             className="h-11 px-4 bg-white rounded-xl shadow-card flex items-center gap-2 hover:bg-surface transition-colors touch-none"
-            title="Подобрать похожие поездки"
+            title={t('admin.map.findSimilarTrips')}
           >
             <Lightning size={16} weight="bold" className="text-amber-500" />
-            <span className="text-xs font-bold">Похожие поездки</span>
+            <span className="text-xs font-bold">{t('admin.map.similarTrips')}</span>
           </button>
           <button
             onClick={() => {
@@ -727,7 +748,7 @@ export default function AdminMap({
             className={`w-11 h-11 rounded-xl shadow-card flex items-center justify-center transition-colors touch-none ${
               isMarkerDrawing ? 'bg-black text-white' : 'bg-white hover:bg-surface'
             }`}
-            title="Рисовать на карте"
+            title={t('admin.map.drawOnMap')}
           >
             <PenNib size={18} weight={isMarkerDrawing ? 'fill' : 'bold'} />
           </button>
@@ -737,19 +758,19 @@ export default function AdminMap({
         <div className="admin-legend-bar flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm w-fit">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#EF4444]" />
-            <span className="text-[10px] text-muted">Едет</span>
+            <span className="text-[10px] text-muted">{t('admin.map.legendEnRoute')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#3B82F6]" />
-            <span className="text-[10px] text-muted">Везёт</span>
+            <span className="text-[10px] text-muted">{t('admin.map.legendInProgress')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#22C55E]" />
-            <span className="text-[10px] text-muted">Готово</span>
+            <span className="text-[10px] text-muted">{t('admin.map.legendDone')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#F59E0B]" />
-            <span className="text-[10px] text-muted">Ожид.</span>
+            <span className="text-[10px] text-muted">{t('admin.map.legendWaiting')}</span>
           </div>
         </div>
 
@@ -757,8 +778,8 @@ export default function AdminMap({
         {(isMarkerDrawing || mapDrawings.length > 0) && (
           <div className="bg-white rounded-card shadow-card p-3.5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold">Рисовалка карты</p>
-              <span className="text-[10px] text-muted">{mapDrawings.length} сохранено</span>
+              <p className="text-xs font-bold">{t('admin.map.drawingPanel')}</p>
+              <span className="text-[10px] text-muted">{mapDrawings.length} {t('common.saved')}</span>
             </div>
 
             {isMarkerDrawing && (
@@ -766,7 +787,7 @@ export default function AdminMap({
                 <input
                   value={markerTitle}
                   onChange={(event) => setMarkerTitle(event.target.value)}
-                  placeholder="Название рисунка"
+                  placeholder={t('admin.map.drawingTitlePlaceholder')}
                   className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
                 />
                 <div className="flex items-center justify-between gap-2">
@@ -781,7 +802,7 @@ export default function AdminMap({
                       />
                     ))}
                   </div>
-                  <span className="text-[10px] text-muted">{markerDrawingPoints.length} точек</span>
+                  <span className="text-[10px] text-muted">{t('admin.map.pointsCount', { count: markerDrawingPoints.length })}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
@@ -789,14 +810,14 @@ export default function AdminMap({
                     disabled={markerDrawingPoints.length === 0}
                     className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
                   >
-                    Назад
+                    {t('common.back')}
                   </button>
                   <button
                     onClick={() => setMarkerDrawingPoints([])}
                     disabled={markerDrawingPoints.length === 0}
                     className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
                   >
-                    Очистить
+                    {t('common.clear')}
                   </button>
                   <button
                     onClick={() => void handleSaveMarkerDrawing()}
@@ -804,16 +825,16 @@ export default function AdminMap({
                     className="h-8 rounded-lg bg-black text-white text-[11px] font-bold disabled:opacity-50 inline-flex items-center justify-center gap-1"
                   >
                     <FloppyDisk size={12} />
-                    {isSavingMarkerDrawing ? '...' : 'Сохранить'}
+                    {isSavingMarkerDrawing ? '...' : t('common.save')}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="space-y-1.5 max-h-28 overflow-y-auto scroll-smooth-y">
-              {isLoadingMapDrawings && <p className="text-[11px] text-muted">Загрузка рисунков…</p>}
+              {isLoadingMapDrawings && <p className="text-[11px] text-muted">{t('admin.map.loadingDrawings')}</p>}
               {!isLoadingMapDrawings && mapDrawings.length === 0 && (
-                <p className="text-[11px] text-muted">Пока нет сохраненных рисунков.</p>
+                <p className="text-[11px] text-muted">{t('admin.map.noDrawings')}</p>
               )}
               {mapDrawings.map((drawing) => (
                 <div
@@ -832,7 +853,7 @@ export default function AdminMap({
                   <button
                     onClick={() => void handleDeleteDrawing(drawing.id)}
                     className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
-                    title="Удалить рисунок"
+                    title={t('admin.map.deleteDrawing')}
                   >
                     <Trash size={12} />
                   </button>
@@ -849,7 +870,7 @@ export default function AdminMap({
         <button
           onClick={onToggleSidebar}
           className="absolute top-1/2 left-2 -translate-y-1/2 z-[1000] w-10 h-10 bg-white border border-border rounded-full shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
-          title="Развернуть панель"
+          title={t('admin.sidebar.expandPanel')}
         >
           <CaretLeft size={16} weight="bold" className="rotate-180" />
         </button>
@@ -964,11 +985,11 @@ export default function AdminMap({
                 })}
               >
                 <Tooltip direction="top" offset={[0, -12]} className="marker-driver-label">
-                  {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
+                  {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}
                 </Tooltip>
                 <Popup autoPan className="marker-driver-label">
                   <div className="text-xs">
-                    <p className="font-bold">{idx + 1}. {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}</p>
+                    <p className="font-bold">{idx + 1}. {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}</p>
                     <p className="mt-1">{step.address}</p>
                   </div>
                 </Popup>
@@ -1067,12 +1088,12 @@ export default function AdminMap({
       {/* Drawing hint banner */}
       {isDrawing && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
-          Кликайте по карте, чтобы добавить вершины зоны ({drawingPoints.length})
+          {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
         </div>
       )}
       {isMarkerDrawing && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
-          Зажмите левую кнопку мыши и ведите по карте ({markerDrawingPoints.length})
+          {t('admin.map.markerDrawingHint', { count: markerDrawingPoints.length })}
         </div>
       )}
 
@@ -1082,7 +1103,7 @@ export default function AdminMap({
           <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               <Lightning size={16} weight="bold" className="text-amber-500" />
-              <span className="text-sm font-bold">Похожие поездки</span>
+              <span className="text-sm font-bold">{t('admin.map.similarTrips')}</span>
             </div>
             <button
               onClick={() => {
@@ -1099,11 +1120,11 @@ export default function AdminMap({
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isFindingSimilar ? (
-              <p className="text-xs text-muted">Подбираем похожие поездки по дорогам…</p>
+              <p className="text-xs text-muted">{t('admin.map.findingSimilar')}</p>
             ) : similarError ? (
               <p className="text-xs text-muted">{similarError}</p>
             ) : similarGroups.length === 0 ? (
-              <p className="text-xs text-muted">Похожих групп не найдено.</p>
+              <p className="text-xs text-muted">{t('admin.map.noSimilarGroups')}</p>
             ) : (
               <div className="space-y-3">
                 {similarGroups.map((group) => (
@@ -1115,8 +1136,8 @@ export default function AdminMap({
                   >
                     <p className="text-[11px] text-muted leading-snug">{group.reason}</p>
                     <div className="text-[11px] flex items-center gap-3">
-                      <span className="font-semibold">Путь: {group.totalKm.toFixed(1)} км · ~{Math.round(group.totalMin)} мин</span>
-                      <span className="text-green-600 font-semibold">Выгода: {group.savingsKm.toFixed(1)} км · {Math.round(group.savingsMin)} мин</span>
+                      <span className="font-semibold">{t('admin.map.routeStats', { km: group.totalKm.toFixed(1), min: Math.round(group.totalMin) })}</span>
+                      <span className="text-green-600 font-semibold">{t('admin.map.savingsStats', { km: group.savingsKm.toFixed(1), min: Math.round(group.savingsMin) })}</span>
                     </div>
                     <button
                       onClick={() => {
@@ -1136,7 +1157,7 @@ export default function AdminMap({
                           : 'bg-surface text-muted hover:text-black'
                       }`}
                     >
-                      {selectedSimilarGroupId === group.id ? 'Скрыть маршрут' : 'Показать маршрут на карте'}
+                      {selectedSimilarGroupId === group.id ? t('admin.map.hideRoute') : t('admin.map.showRoute')}
                     </button>
                     {selectedSimilarGroupId === group.id && similarRoadError && (
                       <p className="text-[11px] text-muted">{similarRoadError}</p>
@@ -1166,7 +1187,7 @@ export default function AdminMap({
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-semibold text-muted uppercase">
-                              {step.type === 'pickup' ? 'Забрать' : 'Высадить'}: {step.passengerName}
+                              {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}
                             </p>
                             <p className="text-xs truncate">{step.address}</p>
                           </div>
@@ -1180,7 +1201,7 @@ export default function AdminMap({
                       }}
                       className="w-full py-2.5 bg-black text-white rounded-xl text-xs font-bold transition-all active:scale-[0.97]"
                     >
-                      Назначить водителя на группу ({group.requestIds.length})
+                      {t('admin.map.assignGroup', { count: group.requestIds.length })}
                     </button>
                   </div>
                 ))}
@@ -1196,13 +1217,13 @@ export default function AdminMap({
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>
-              <p className="text-[11px] text-muted mt-0.5">Поездка №{selectedReq.rideNumber}</p>
+              <p className="text-[11px] text-muted mt-0.5">{t('common.rideShort', { number: selectedReq.rideNumber })}</p>
             </div>
             <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0"
               style={{ color: status.color, background: status.bg }}
             >
-              {status.label}
+              {t(status.labelKey)}
             </span>
             <button
               onClick={() => onSelectRequest(null)}
@@ -1221,26 +1242,26 @@ export default function AdminMap({
               </div>
               <div className="flex-1 min-w-0 text-xs space-y-2.5">
                 <a
-                  href={showOnMapHref(selectedReq.from.latlng, 'Подача')}
+                  href={showOnMapHref(selectedReq.from.latlng, t('admin.map.navPickup'))}
                   target="_blank"
                   rel="noreferrer"
                   className="block group"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Откуда</p>
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">{t('passenger.fromLabel')}</p>
                   <p className="font-medium group-hover:underline inline-flex items-center gap-1">
                     {selectedReq.from.address}
                     <ArrowSquareOut size={10} className="opacity-50 group-hover:opacity-100" />
                   </p>
                 </a>
                 <a
-                  href={showOnMapHref(selectedReq.to.latlng, 'Конечная')}
+                  href={showOnMapHref(selectedReq.to.latlng, t('admin.map.navDestination'))}
                   target="_blank"
                   rel="noreferrer"
                   className="block group"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Куда</p>
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">{t('passenger.toLabel')}</p>
                   <p className="font-medium group-hover:underline inline-flex items-center gap-1">
                     {selectedReq.to.address}
                     <ArrowSquareOut size={10} className="opacity-50 group-hover:opacity-100" />
@@ -1282,7 +1303,7 @@ export default function AdminMap({
                 onClick={() => onOpenAssignModal([selectedReq.id])}
                 className="w-full py-2.5 bg-black text-white rounded-xl text-xs font-bold transition-all active:scale-[0.97]"
               >
-                Назначить водителя
+                {t('admin.requests.assignDriver')}
               </button>
             </div>
           )}

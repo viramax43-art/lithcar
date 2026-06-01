@@ -6,12 +6,13 @@ import {
   NavigationArrow,
   User,
 } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 
 import type { DriverCabinetRide } from '../../../types'
 import type { LatLng } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
-import { ctaLabel, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from '../constants'
+import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
 import RideStepper from './RideStepper'
 
 interface ActiveRideCardProps {
@@ -21,8 +22,9 @@ interface ActiveRideCardProps {
 }
 
 export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveRideCardProps) {
+  const { t } = useTranslation()
   const nextSt = nextStatus(ride.status)
-  const cta = ctaLabel(ride.status)
+  const ctaKey = ctaLabelKey(ride.status)
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
 
   const dt = new Date(ride.dateTime)
@@ -31,7 +33,9 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
 
   const headingToPickup = ride.status === 'en_route_to_pickup' || ride.status === 'assigned'
   const navTarget = headingToPickup ? ride.fromLatLng : ride.toLatLng
-  const navLabel = headingToPickup ? 'Маршрут к пассажиру' : 'Маршрут до точки B'
+  const navLabel = headingToPickup
+    ? t('driver.routeToPassenger', { defaultValue: 'Route to passenger' })
+    : t('driver.routeToPointB', { defaultValue: 'Route to point B' })
 
   return (
     <section className="bg-black text-white rounded-card overflow-hidden shadow-card">
@@ -39,7 +43,7 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
       <div className="px-4 py-3.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/70 mb-1">
-            Активная поездка
+            {t('driver.activeRide', { defaultValue: 'Active ride' })}
           </p>
           <p className="text-[11px] font-semibold text-white/75 mb-1">№{ride.rideNumber}</p>
           <span
@@ -50,7 +54,7 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
               className="w-1.5 h-1.5 rounded-full animate-pulse"
               style={{ background: statusColors.color }}
             />
-            {DRIVER_STATUS_LABEL[ride.status]}
+            {t(DRIVER_STATUS_LABEL_KEY[ride.status], { defaultValue: ride.status })}
           </span>
         </div>
         <div className="text-right flex-shrink-0">
@@ -78,7 +82,9 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
           </div>
           <div className="flex-1 min-w-0 text-left">
             <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-              {headingToPickup ? 'Едем за пассажиром' : 'Везём пассажира'}
+              {headingToPickup
+                ? t('driver.goingToPassenger', { defaultValue: 'Heading to passenger' })
+                : t('driver.drivingPassenger', { defaultValue: 'Driving passenger' })}
             </p>
             <p className="text-sm font-extrabold truncate">{navLabel}</p>
           </div>
@@ -86,24 +92,26 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
         </a>
       </div>
 
-      {/* Address blocks (geo-метки): tap → open in navigator */}
+      {/* Address blocks: tap to open in navigator */}
       <div className="px-4 py-4 space-y-2">
         <AddressBlock
           point="A"
           colorClass="bg-point-a"
-          label="Откуда (точка A)"
+          label={t('driver.fromPointA', { defaultValue: 'From (point A)' })}
           address={ride.fromAddress}
           latlng={ride.fromLatLng}
-          openLabel="Подача"
+          openLabel={t('driver.pickup', { defaultValue: 'Pickup' })}
+          showOnMapLabel={t('common.showOnMap', { defaultValue: 'Show on map' })}
           highlighted={headingToPickup}
         />
         <AddressBlock
           point="B"
           colorClass="bg-point-b"
-          label="Куда (точка B)"
+          label={t('driver.toPointB', { defaultValue: 'To (point B)' })}
           address={ride.toAddress}
           latlng={ride.toLatLng}
-          openLabel="Конечная"
+          openLabel={t('driver.dropoff', { defaultValue: 'Dropoff' })}
+          showOnMapLabel={t('common.showOnMap', { defaultValue: 'Show on map' })}
           highlighted={!headingToPickup}
         />
       </div>
@@ -124,19 +132,21 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
       </div>
 
       {/* CTA */}
-      {cta && nextSt && (
+      {ctaKey && nextSt && (
         <div className="px-4 pb-4 pt-1">
           <button
             onClick={onAdvance}
             disabled={isAdvancing}
             className="w-full py-3.5 rounded-card bg-white text-black text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-card"
           >
-            {isAdvancing ? 'Обновляем…' : cta}
+            {isAdvancing
+              ? t('common.updating', { defaultValue: 'Updating...' })
+              : t(ctaKey, { defaultValue: ctaKey })}
             {!isAdvancing && <CaretRight size={16} weight="bold" />}
           </button>
           <p className="text-[10px] text-white/60 text-center mt-2 flex items-center justify-center gap-1">
             <MapPin size={9} weight="fill" />
-            Следующий статус: {DRIVER_STATUS_LABEL[nextSt]}
+            {t('driver.nextStatus', { defaultValue: 'Next status' })}: {t(DRIVER_STATUS_LABEL_KEY[nextSt], { defaultValue: nextSt })}
           </p>
         </div>
       )}
@@ -151,10 +161,11 @@ interface AddressBlockProps {
   address: string
   latlng: LatLng
   openLabel: string
+  showOnMapLabel: string
   highlighted: boolean
 }
 
-function AddressBlock({ point, colorClass, label, address, latlng, openLabel, highlighted }: AddressBlockProps) {
+function AddressBlock({ point, colorClass, label, address, latlng, openLabel, showOnMapLabel, highlighted }: AddressBlockProps) {
   return (
     <div
       className={`rounded-card p-3 transition-colors ${
@@ -176,7 +187,7 @@ function AddressBlock({ point, colorClass, label, address, latlng, openLabel, hi
         </div>
       </div>
 
-      {/* Geo-метка: показать точку на карте (маршрут строится верхним CTA) */}
+      {/* Map pin: show point on map (route is built by top CTA) */}
       <div className="mt-3">
         <a
           href={showOnMapHref(latlng, openLabel)}
@@ -185,7 +196,7 @@ function AddressBlock({ point, colorClass, label, address, latlng, openLabel, hi
           className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-pill bg-white/10 hover:bg-white/20 text-[11px] font-bold transition-colors active:scale-[0.97]"
         >
           <MapPin size={12} weight="fill" />
-          Показать на карте
+          {showOnMapLabel}
         </a>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
@@ -39,6 +40,7 @@ import { GROUP_COLORS, MAP_COLOR_GROUPS, ZONE_COLORS, type AdminTab, type MapCol
 const ADMIN_DASHBOARD_POLL_MS = 10_000
 
 export default function AdminDashboard() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<AdminTab>('requests')
   const [requests, setRequests] = useState<RideRequest[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
@@ -115,7 +117,7 @@ export default function AdminDashboard() {
       const page = await listAdminKeys({ limit: 100, offset: 0 })
       setManagedAdminKeys(page.items.filter((item) => item.role !== 'chief_admin' && item.isActive))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить список ключей.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadKeysFailed'))
     }
   }, [adminSession?.role])
 
@@ -144,7 +146,7 @@ export default function AdminDashboard() {
         await loadManagedKeys()
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить админ-данные.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadAdminDataFailed'))
     }
   }, [adminSession, loadManagedKeys])
 
@@ -156,7 +158,7 @@ export default function AdminDashboard() {
       setRequests((prev) => [...prev, ...page.items])
       setRequestsTotal(page.total)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подгрузить заявки.')
+      setErrorMessage(error instanceof Error ? error.message : t('errors.loadMoreRequestsFailed'))
     } finally {
       setIsLoadingMoreRequests(false)
     }
@@ -204,7 +206,7 @@ export default function AdminDashboard() {
       setAssignModalReqIds(null)
       setAssignDriverId('')
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось назначить водителя.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.assignDriverFailed'))
     } finally {
       setIsAssigning(false)
     }
@@ -224,7 +226,7 @@ export default function AdminDashboard() {
       setDrawingPoints([])
       setNewZoneName('')
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось создать зону.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createZoneFailed'))
     }
   }
 
@@ -233,7 +235,7 @@ export default function AdminDashboard() {
       const updated = await updateServiceZone(zone.id, { isActive: !zone.isActive })
       setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось изменить состояние зоны.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.toggleZoneFailed'))
     }
   }
 
@@ -243,7 +245,7 @@ export default function AdminDashboard() {
       setServiceZones((prev) => prev.filter((zone) => zone.id !== zoneId))
       setSelectedZoneId(null)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить зону.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.deleteZoneFailed'))
     }
   }
 
@@ -266,7 +268,7 @@ export default function AdminDashboard() {
       const updated = await updatePricing(payload)
       setPricing(updated)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить тариф.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updatePricingFailed'))
     }
   }
 
@@ -279,7 +281,7 @@ export default function AdminDashboard() {
       setAdminSession(session)
       setAdminKeyInput('')
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось войти по ключу.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loginFailed'))
     } finally {
       setIsAdminAuthorizing(false)
     }
@@ -309,7 +311,7 @@ export default function AdminDashboard() {
       setNewManagedKeyName('')
       await loadManagedKeys()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось создать ключ.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createKeyFailed'))
     }
   }
 
@@ -319,7 +321,7 @@ export default function AdminDashboard() {
       await deleteAdminKey(keyId)
       await loadManagedKeys()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить аккаунт персонала.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.deleteStaffFailed'))
     }
   }
 
@@ -330,7 +332,7 @@ export default function AdminDashboard() {
       setRotatedAdminKeys((prev) => ({ ...prev, [keyId]: result.key }))
       await loadManagedKeys()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось выпустить новый ключ персонала.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.rotateStaffKeyFailed'))
     }
   }
 
@@ -340,7 +342,7 @@ export default function AdminDashboard() {
       await updateAdminKey(keyId, payload)
       await loadManagedKeys()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось изменить аккаунт персонала.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updateStaffFailed'))
     }
   }
 
@@ -379,7 +381,7 @@ export default function AdminDashboard() {
       setNewDriverCanSellPoints(false)
       await loadAll()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось создать водителя.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createDriverFailed'))
     }
   }
 
@@ -389,7 +391,7 @@ export default function AdminDashboard() {
       setRotatedDriverKeys((prev) => ({ ...prev, [driverId]: result.key }))
       setDrivers((prev) => prev.map((d) => (d.id === result.driver.id ? result.driver : d)))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось выпустить новый ключ водителя.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.rotateDriverKeyFailed'))
     }
   }
 
@@ -398,7 +400,7 @@ export default function AdminDashboard() {
       const updated = await updateDriver(driverId, payload)
       setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить карточку водителя.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updateDriverFailed'))
     }
   }
 
@@ -407,7 +409,7 @@ export default function AdminDashboard() {
       await deleteDriver(driverId)
       setDrivers((prev) => prev.filter((d) => d.id !== driverId))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить водителя.')
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.deleteDriverFailed'))
     }
   }
 

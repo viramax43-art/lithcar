@@ -1,5 +1,6 @@
 import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
 import type { MutableRefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 import { showOnMapHref } from '../../../lib/navigation'
 import { formatDate } from '../../../i18n/dateTime'
 import LithuanianPlate from '../../../components/LithuanianPlate'
@@ -82,6 +83,8 @@ export function AdminSidebarDriversSection({
   copyText,
   driverCardRefs,
 }: DriversSectionProps) {
+  const { t } = useTranslation()
+
   if (activeTab !== 'drivers') {
     return null
   }
@@ -90,24 +93,24 @@ export function AdminSidebarDriversSection({
     <div className="space-y-3">
       {showDriverForm && (
         <div className="rounded-card border-[1.5px] border-black p-4 space-y-2.5 bg-surface/50">
-          <p className="text-sm font-bold">Новый водитель</p>
+          <p className="text-sm font-bold">{t('admin.drivers.newDriver')}</p>
           <input
             value={newDriverName}
             onChange={(event) => setNewDriverName(event.target.value)}
-            placeholder="Имя"
+            placeholder={t('common.name')}
             className={inputCls}
           />
           <div className="grid grid-cols-2 gap-2">
             <input
               value={newDriverCarBrand}
               onChange={(event) => setNewDriverCarBrand(event.target.value)}
-              placeholder="Марка"
+              placeholder={t('common.brand')}
               className={inputCls}
             />
             <input
               value={newDriverCarModel}
               onChange={(event) => setNewDriverCarModel(event.target.value)}
-              placeholder="Модель"
+              placeholder={t('common.model')}
               className={inputCls}
             />
           </div>
@@ -115,18 +118,18 @@ export function AdminSidebarDriversSection({
             <input
               value={newDriverCarPlate}
               onChange={(event) => setNewDriverCarPlate(event.target.value)}
-              placeholder="Номер"
+              placeholder={t('common.plate')}
               className={inputCls}
             />
             <input
               value={newDriverVehicleColor}
               onChange={(event) => setNewDriverVehicleColor(event.target.value)}
-              placeholder="Цвет"
+              placeholder={t('common.color')}
               className={inputCls}
             />
           </div>
           <div className="grid grid-cols-2 gap-2 items-center">
-            <label className="text-xs font-semibold text-muted">Мест в авто</label>
+            <label className="text-xs font-semibold text-muted">{t('admin.drivers.seatsInCar')}</label>
             <input
               type="number"
               min={1}
@@ -139,7 +142,7 @@ export function AdminSidebarDriversSection({
           <textarea
             value={newDriverAbout}
             onChange={(event) => setNewDriverAbout(event.target.value)}
-            placeholder="О водителе (опционально)"
+            placeholder={t('admin.drivers.aboutOptional')}
             className={`${inputCls} min-h-16 resize-none`}
           />
           <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
@@ -148,10 +151,10 @@ export function AdminSidebarDriversSection({
               checked={newDriverCanSellPoints}
               onChange={(event) => setNewDriverCanSellPoints(event.target.checked)}
             />
-            <span className="text-xs font-semibold">Разрешить продажу поинтов через QR</span>
+            <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
           </label>
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted">Фото водителя</label>
+            <label className="text-xs font-semibold text-muted">{t('admin.drivers.driverPhoto')}</label>
             <input
               type="file"
               accept="image/*"
@@ -179,11 +182,11 @@ export function AdminSidebarDriversSection({
             onClick={() => void handleCreateDriver()}
             className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97]"
           >
-            Создать водителя
+            {t('admin.drivers.createDriver')}
           </button>
           {lastCreatedDriverKey && (
             <KeyReveal
-              title="Ключ водителя (показывается один раз):"
+              title={t('admin.drivers.driverKeyOnce')}
               value={lastCreatedDriverKey}
               onCopy={() => void copyText(lastCreatedDriverKey, 'driver:lastCreated')}
               copied={copiedToken === 'driver:lastCreated' && copyState === 'ok'}
@@ -240,13 +243,13 @@ export function AdminSidebarDriversSection({
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[10px] font-bold text-accent-dark">
-                    {driver.canSellPoints ? 'QR-продажи включены' : 'QR-продажи отключены'}
+                    {driver.canSellPoints ? t('admin.drivers.qrSalesOn') : t('admin.drivers.qrSalesOff')}
                   </span>
                   <span className="text-border">·</span>
                   <span
                     className={`text-[10px] font-semibold ${driver.isOnline ? 'text-accent-dark' : 'text-muted'}`}
                   >
-                    {driver.isOnline ? 'Онлайн' : 'Офлайн'}
+                    {driver.isOnline ? t('common.online') : t('common.offline')}
                   </span>
                 </div>
               </div>
@@ -287,18 +290,18 @@ export function AdminSidebarDriversSection({
                 <div className="grid grid-cols-2 divide-x divide-border border-b border-border bg-white">
                   <Stat
                     icon={<Key size={14} className="text-accent-dark" />}
-                    value={driver.canSellPoints ? 'Да' : 'Нет'}
-                    label="QR-продажа"
+                    value={driver.canSellPoints ? t('common.yes') : t('common.no')}
+                    label={t('admin.drivers.qrSalesLabel')}
                   />
                   <Stat
                     icon={<Users size={14} className="text-zinc-700" />}
                     value={String(driver.seatsCount ?? '—')}
-                    label="Мест"
+                    label={t('common.seats')}
                   />
                 </div>
 
                 <div className="p-4 space-y-4 bg-surface/40">
-                  <Section title="Автомобиль">
+                  <Section title={t('admin.drivers.vehicle')}>
                     <div className="rounded-xl bg-white border border-border p-3 space-y-2">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
@@ -309,7 +312,10 @@ export function AdminSidebarDriversSection({
                             {[driver.carBrand, driver.carModel].filter(Boolean).join(' ') || '—'}
                           </p>
                           <p className="text-[11px] text-muted">
-                            {driver.vehicleColor || '—'} · {driver.seatsCount ?? '—'} мест
+                            {driver.vehicleColor || '—'} ·{' '}
+                            {driver.seatsCount != null
+                              ? t('admin.drivers.seatsCount', { count: driver.seatsCount })
+                              : '—'}
                           </p>
                         </div>
                       </div>
@@ -326,28 +332,30 @@ export function AdminSidebarDriversSection({
                     </div>
                   </Section>
 
-                  <Section title="Ключ">
+                  <Section title={t('admin.drivers.key')}>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-border">
                         <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
                           <Key size={13} className="text-amber-700" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Ключ</p>
+                          <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+                            {t('admin.drivers.key')}
+                          </p>
                           <p className="text-xs font-mono font-semibold truncate">{driver.keyPrefix}…</p>
                         </div>
                         <button
                           onClick={() => void handleRotateDriverKey(driver.id)}
                           className="text-[10px] font-bold px-2.5 py-1 rounded-pill bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"
                         >
-                          Обновить
+                          {t('admin.drivers.rotateKey')}
                         </button>
                       </div>
                     </div>
                   </Section>
 
                   {driver.about && (
-                    <Section title="О водителе">
+                    <Section title={t('admin.drivers.aboutSection')}>
                       <p className="text-xs leading-relaxed bg-white border border-border rounded-xl p-3">
                         {driver.about}
                       </p>
@@ -355,14 +363,14 @@ export function AdminSidebarDriversSection({
                   )}
 
                   {driver.isOnline && driver.currentLocation && (
-                    <Section title="Геолокация">
+                    <Section title={t('admin.drivers.geolocation')}>
                       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-border">
                         <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
                           <MapPin size={13} className="text-accent-dark" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">
-                            Текущие координаты
+                            {t('admin.drivers.currentCoords')}
                           </p>
                           <p className="text-xs font-mono truncate">
                             {driver.currentLocation.lat.toFixed(6)}, {driver.currentLocation.lng.toFixed(6)}
@@ -373,9 +381,9 @@ export function AdminSidebarDriversSection({
                           target="_blank"
                           rel="noreferrer"
                           className="text-[10px] font-bold px-2.5 py-1 rounded-pill bg-accent/15 hover:bg-accent/25 text-accent-dark transition-colors flex-shrink-0"
-                          title="Открыть в навигаторе"
+                          title={t('driver.openInNavigator')}
                         >
-                          Открыть
+                          {t('common.open')}
                         </a>
                       </div>
                     </Section>
@@ -384,7 +392,7 @@ export function AdminSidebarDriversSection({
                   {createdDate && (
                     <div className="flex items-center gap-2 text-[11px] text-muted pt-2 border-t border-border">
                       <Calendar size={11} />
-                      <span>Зарегистрирован {createdDate}</span>
+                      <span>{t('common.registered', { date: createdDate })}</span>
                     </div>
                   )}
 
@@ -393,17 +401,17 @@ export function AdminSidebarDriversSection({
                       onClick={() => setEditingDriver(driver)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-black text-white hover:bg-zinc-800 transition-colors"
                     >
-                      <PencilSimple size={12} /> Редактировать
+                      <PencilSimple size={12} /> {t('common.edit')}
                     </button>
                     <button
                       onClick={() => void handleRotateDriverKey(driver.id)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-white border border-border hover:bg-surface transition-colors"
                     >
-                      <Key size={12} /> Новый ключ
+                      <Key size={12} /> {t('common.newKey')}
                     </button>
                     <InlineConfirm
-                      label="Удалить"
-                      confirmLabel="Точно удалить?"
+                      label={t('common.delete')}
+                      confirmLabel={t('common.confirmDelete')}
                       onConfirm={() => void handleDeleteDriver(driver.id)}
                       className="ml-auto !text-xs !px-3 !py-1.5"
                     />
@@ -411,7 +419,7 @@ export function AdminSidebarDriversSection({
 
                   {rotatedDriverKeys[driver.id] && (
                     <KeyReveal
-                      title="Новый ключ водителя:"
+                      title={t('admin.drivers.newDriverKey')}
                       value={rotatedDriverKeys[driver.id]}
                       onCopy={() => void copyText(rotatedDriverKeys[driver.id], `driver:${driver.id}`)}
                       copied={copiedToken === `driver:${driver.id}` && copyState === 'ok'}
@@ -426,7 +434,7 @@ export function AdminSidebarDriversSection({
       })}
 
       {drivers.length === 0 && !showDriverForm && (
-        <p className="text-xs text-muted text-center py-12">Водителей нет</p>
+        <p className="text-xs text-muted text-center py-12">{t('admin.drivers.empty')}</p>
       )}
     </div>
   )
