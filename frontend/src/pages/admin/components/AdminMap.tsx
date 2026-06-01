@@ -1188,7 +1188,7 @@ export default function AdminMap({
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 36px)' }}
           >
             <X size={18} />
           </button>

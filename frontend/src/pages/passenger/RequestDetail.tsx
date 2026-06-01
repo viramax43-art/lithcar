@@ -547,7 +547,7 @@ export default function RequestDetail() {
               }
             }}
             className="absolute top-4 right-4 rounded-full w-11 h-11 bg-black/70 text-white flex items-center justify-center"
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 36px)' }}
             aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <ArrowLeft size={18} weight="bold" />

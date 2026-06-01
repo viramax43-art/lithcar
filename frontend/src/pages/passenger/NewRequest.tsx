@@ -554,7 +554,7 @@ export default function NewRequest() {
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 36px)' }}
           >
             <X size={18} />
           </button>
@@ -578,7 +578,7 @@ export default function NewRequest() {
               }
             }}
             className="absolute top-4 right-4 rounded-full w-11 h-11 bg-black/70 text-white flex items-center justify-center"
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 36px)' }}
             aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <X size={18} />
