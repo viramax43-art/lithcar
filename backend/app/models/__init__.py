@@ -14,6 +14,7 @@ from app.models.points_transaction import PointsTransaction
 from app.models.driver_qr_sale import DriverQrSale
 from app.models.admin_audit_event import AdminAuditEvent
 from app.models.map_drawing import MapDrawing
+from app.models.map_mark import MapMark
 from app.models.ride_rating import RideRating
 
 
@@ -28,5 +29,6 @@ __all__ = [
     "DriverQrSale",
     "AdminAuditEvent",
     "MapDrawing",
+    "MapMark",
     "RideRating",
 ]

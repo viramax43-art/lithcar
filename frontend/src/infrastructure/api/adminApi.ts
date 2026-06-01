@@ -1,5 +1,5 @@
 import { mapPricingSettings } from '../../lib/pricingDefaults'
-import type { Driver, MapDrawing, PricingSettings, RideQuote, RideRequest, ServiceZone } from '../../types'
+import type { Driver, MapMark, PricingSettings, RideQuote, RideRequest, ServiceZone } from '../../types'
 import { apiRequest, uploadMultipart } from '../http/httpClient'
 import type {
   AdminKeyInfo,
@@ -218,23 +218,29 @@ export async function listAdminQrSales(params?: {
   return apiRequest<PaginatedResult<AdminQrSaleAudit>>(`/api/admin/qr-sales?${search.toString()}`, { authMode: 'cookie' })
 }
 
-export async function listMapDrawings(params?: PaginationParams): Promise<PaginatedResult<MapDrawing>> {
-  return apiRequest<PaginatedResult<MapDrawing>>(`/api/map-drawings?${toPageQuery(params)}`, { authMode: 'cookie' })
+export async function listMapMarks(params?: PaginationParams): Promise<PaginatedResult<MapMark>> {
+  return apiRequest<PaginatedResult<MapMark>>(`/api/map-marks?${toPageQuery(params)}`, { authMode: 'cookie' })
 }
 
-export async function createMapDrawing(payload: {
+export async function createMapMark(payload: {
   title: string
-  color: string
-  strokeWidth: number
-  points: { lat: number; lng: number }[]
-}): Promise<MapDrawing> {
-  return apiRequest<MapDrawing>('/api/map-drawings', {
+  position: { lat: number; lng: number }
+  visibility: 'admin_only' | 'public'
+  photoKey?: string
+}): Promise<MapMark> {
+  return apiRequest<MapMark>('/api/map-marks', {
     method: 'POST',
     body: payload,
     authMode: 'cookie',
   })
 }
 
-export async function deleteMapDrawing(drawingId: string): Promise<void> {
-  await apiRequest<{ success: boolean }>(`/api/map-drawings/${drawingId}`, { method: 'DELETE', authMode: 'cookie' })
+export async function deleteMapMark(markId: string): Promise<void> {
+  await apiRequest<{ success: boolean }>(`/api/map-marks/${markId}`, { method: 'DELETE', authMode: 'cookie' })
+}
+
+export async function uploadMapMarkPhoto(file: File): Promise<{ photoKey: string; photoUrl: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return uploadMultipart('/api/map-marks/photo', formData)
 }

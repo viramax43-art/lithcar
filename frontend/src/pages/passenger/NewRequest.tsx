@@ -1,23 +1,25 @@
 import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet'
-import { useState } from 'react'
+import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
-import { updateCurrentUserLanguage } from '../../lib/backend'
+import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import type { AppLanguage } from '../../i18n/languages'
+import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
 import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
+import type { MapMark } from '../../types'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 const toLocalDateInput = (value: Date): string =>
   `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 
 export default function NewRequest() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
@@ -27,7 +29,24 @@ export default function NewRequest() {
   maxDateObj.setDate(maxDateObj.getDate() + 2)
   const maxDate = toLocalDateInput(maxDateObj)
   const [menuOpen, setMenuOpen] = useState(false)
-  const hasInfo = Boolean(model.pricing.userInfoText.trim())
+  const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
+  const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
+  const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const page = await listPublicMapMarks('bearer', { limit: 300, offset: 0 })
+        if (!cancelled) setPublicMapMarks(page.items)
+      } catch {
+        if (!cancelled) setPublicMapMarks([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
@@ -47,6 +66,22 @@ export default function NewRequest() {
 
           {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
           {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
+          {publicMapMarks.map((mark) => (
+            <Marker key={mark.id} position={[mark.position.lat, mark.position.lng]}>
+              <Popup>
+                <div className="text-xs space-y-2 min-w-[160px]">
+                  <p className="font-bold">{mark.title}</p>
+                  {mark.photoUrl && (
+                    <img
+                      src={mark.photoUrl}
+                      alt={mark.title}
+                      className="w-full max-h-24 object-cover rounded-lg border border-border"
+                    />
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
           {model.fromPoint && model.toPoint && (
             <Polyline
               positions={[
@@ -227,7 +262,7 @@ export default function NewRequest() {
         {hasInfo && (
           <div className="mx-3 mb-2 flex items-center gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
             <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
-            <p className="flex-1 text-xs text-black leading-none">{model.pricing.userInfoText}</p>
+            <p className="flex-1 text-xs text-black leading-none">{userInfoMessage}</p>
           </div>
         )}
 

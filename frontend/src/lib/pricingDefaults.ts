@@ -1,4 +1,5 @@
 import type { PricingFormula, PricingSettings } from '../types'
+import { EMPTY_USER_INFO_TEXT, normalizeUserInfoText } from './userInfoText'
 
 export const DEFAULT_PRICING_FORMULA: PricingFormula = {
   version: 1,
@@ -24,7 +25,7 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   pointPriceCents: 50,
   pricingMode: 'fixed',
   pricingFormula: DEFAULT_PRICING_FORMULA,
-  userInfoText: '',
+  userInfoText: { ...EMPTY_USER_INFO_TEXT },
   workStartTime: '06:00',
   workEndTime: '19:00',
   slotIntervalMinutes: 30,
@@ -41,7 +42,7 @@ export function mapPricingSettings(raw: Partial<PricingSettings>): PricingSettin
       ...formula,
       tiers: formula.tiers?.length ? formula.tiers : DEFAULT_PRICING_FORMULA.tiers,
     },
-    userInfoText: String(raw.userInfoText ?? ''),
+    userInfoText: normalizeUserInfoText(raw.userInfoText),
     workStartTime: String(raw.workStartTime ?? '06:00'),
     workEndTime: String(raw.workEndTime ?? '19:00'),
     slotIntervalMinutes: Number(raw.slotIntervalMinutes ?? 30),

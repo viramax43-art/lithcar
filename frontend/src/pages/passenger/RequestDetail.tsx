@@ -124,7 +124,7 @@ export default function RequestDetail() {
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
         <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate('/requests')} className="p-1">
+          <button onClick={() => navigate(-1)} className="p-1">
             <ArrowLeft size={22} weight="bold" />
           </button>
           <h1 className="text-base font-bold flex-1">
@@ -223,7 +223,7 @@ export default function RequestDetail() {
                 setErrorMessage(null)
                 try {
                   await deleteRequest(request.id)
-                  navigate('/requests')
+                  navigate('/requests', { replace: true })
                 } catch (error) {
                   setErrorMessage(
                     error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),

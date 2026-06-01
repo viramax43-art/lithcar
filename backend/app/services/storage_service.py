@@ -47,3 +47,23 @@ def download_driver_photo(*, object_key: str) -> tuple[bytes, str]:
     content_type = response.get("ContentType", "application/octet-stream")
     body = response["Body"].read()
     return body, content_type
+
+
+def upload_mark_photo(*, filename: str, content_type: str, content: bytes) -> str:
+    key = f"marks/{uuid4().hex}_{filename}"
+    client = _build_s3_client()
+    client.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=key,
+        Body=content,
+        ContentType=content_type,
+    )
+    return key
+
+
+def download_mark_photo(*, object_key: str) -> tuple[bytes, str]:
+    client = _build_s3_client()
+    response = client.get_object(Bucket=settings.s3_bucket_name, Key=object_key)
+    content_type = response.get("ContentType", "application/octet-stream")
+    body = response["Body"].read()
+    return body, content_type

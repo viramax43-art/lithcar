@@ -81,6 +81,19 @@ export interface MapDrawing {
   createdAt: string
 }
 
+export type MapMarkVisibility = 'admin_only' | 'public'
+
+export interface MapMark {
+  id: string
+  title: string
+  position: LatLng
+  visibility: MapMarkVisibility
+  photoKey?: string | null
+  photoUrl?: string | null
+  createdByRole: string
+  createdAt: string
+}
+
 export type PricingMode = 'fixed' | 'dynamic'
 
 export interface PricingFormulaTier {
@@ -105,12 +118,19 @@ export interface PricingFormula {
   tiers: PricingFormulaTier[]
 }
 
+export interface UserInfoTextI18n {
+  lt: string
+  pl: string
+  en: string
+  ru: string
+}
+
 export interface PricingSettings {
   pointsPerRide: number
   pointPriceCents: number
   pricingMode: PricingMode
   pricingFormula: PricingFormula
-  userInfoText: string
+  userInfoText: UserInfoTextI18n
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number

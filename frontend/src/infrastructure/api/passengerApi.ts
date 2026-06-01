@@ -1,5 +1,5 @@
 import { mapPricingSettings } from '../../lib/pricingDefaults'
-import type { GroupSuggestion, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
+import type { GroupSuggestion, MapMark, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type {
   CurrentUser,
@@ -100,6 +100,13 @@ export async function listServiceZones(
   params?: PaginationParams
 ): Promise<PaginatedResult<ServiceZone>> {
   return apiRequest<PaginatedResult<ServiceZone>>(`/api/service-zones?${toPageQuery(params)}`, { authMode })
+}
+
+export async function listPublicMapMarks(
+  authMode: 'bearer' | 'cookie' = 'bearer',
+  params?: PaginationParams
+): Promise<PaginatedResult<MapMark>> {
+  return apiRequest<PaginatedResult<MapMark>>(`/api/map-marks/public?${toPageQuery(params)}`, { authMode })
 }
 
 export async function getPricing(authMode: 'bearer' | 'cookie' = 'bearer'): Promise<PricingSettings> {

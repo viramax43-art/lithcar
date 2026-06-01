@@ -20,6 +20,7 @@ import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatDateTime } from '../../i18n/dateTime'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
+import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { AppLanguage } from '../../i18n/languages'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
@@ -35,10 +36,11 @@ type CardReceipt = {
 }
 
 export default function Profile() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [cabinet, setCabinet] = useState<UserCabinetData | null>(null)
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
+  const userInfoMessage = resolveUserInfoText(pricing.userInfoText, i18n.language)
   const [historyItems, setHistoryItems] = useState<UserCabinetRideHistoryItem[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
@@ -210,10 +212,10 @@ export default function Profile() {
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">{t('profile.rideHistory', { defaultValue: 'Ride history' })}</p>
-          {pricing.userInfoText.trim() && (
+          {hasUserInfoText(pricing.userInfoText) && userInfoMessage && (
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
               <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
-              <p className="text-xs text-black leading-none">{pricing.userInfoText}</p>
+              <p className="text-xs text-black leading-none">{userInfoMessage}</p>
             </div>
           )}
           {!cabinet && (

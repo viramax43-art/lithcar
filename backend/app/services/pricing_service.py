@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.pricing_settings import PricingSettings
+from app.core.i18n_text import EMPTY_USER_INFO_TEXT, normalize_user_info_text_i18n
 from app.services.ride_quote_service import (
     PRICING_MODE_FIXED,
     default_pricing_formula_json,
@@ -14,7 +15,6 @@ from app.services.ride_quote_service import (
 
 DEFAULT_POINTS_PER_RIDE = 10
 DEFAULT_POINT_PRICE_CENTS = 50
-DEFAULT_USER_INFO_TEXT = ""
 DEFAULT_WORK_START_TIME = "06:00"
 DEFAULT_WORK_END_TIME = "19:00"
 DEFAULT_SLOT_INTERVAL_MINUTES = 30
@@ -32,7 +32,7 @@ async def get_or_create_pricing(db_session: AsyncSession) -> PricingSettings:
         point_price_cents=DEFAULT_POINT_PRICE_CENTS,
         pricing_mode=DEFAULT_PRICING_MODE,
         pricing_formula_json=default_pricing_formula_json(),
-        user_info_text=DEFAULT_USER_INFO_TEXT,
+        user_info_text_i18n=dict(EMPTY_USER_INFO_TEXT),
         work_start_time=DEFAULT_WORK_START_TIME,
         work_end_time=DEFAULT_WORK_END_TIME,
         slot_interval_minutes=DEFAULT_SLOT_INTERVAL_MINUTES,
@@ -54,7 +54,7 @@ async def update_pricing(
     point_price_cents: int | None,
     pricing_mode: str | None = None,
     pricing_formula_json: dict[str, Any] | None = None,
-    user_info_text: str | None = None,
+    user_info_text_i18n: dict[str, str] | None = None,
     work_start_time: str | None = None,
     work_end_time: str | None = None,
     slot_interval_minutes: int | None = None,
@@ -68,8 +68,8 @@ async def update_pricing(
         pricing.pricing_mode = pricing_mode
     if pricing_formula_json is not None:
         pricing.pricing_formula_json = normalize_pricing_formula(pricing_formula_json)
-    if user_info_text is not None:
-        pricing.user_info_text = user_info_text
+    if user_info_text_i18n is not None:
+        pricing.user_info_text_i18n = normalize_user_info_text_i18n(user_info_text_i18n)
     if work_start_time is not None:
         pricing.work_start_time = work_start_time
     if work_end_time is not None:

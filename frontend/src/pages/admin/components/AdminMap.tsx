@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, PenNib, Trash, X } from '@phosphor-icons/react'
+import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
-import type { Driver, LatLng, MapDrawing, RideRequest, RideStatus, ServiceZone } from '../../../types'
+import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
-import { createMapDrawing, deleteMapDrawing, listMapDrawings } from '../../../lib/backend'
+import { createMapMark, deleteMapMark, listMapMarks, uploadMapMarkPhoto } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
@@ -72,44 +72,19 @@ function DrawingClickHandler({ onPoint }: { onPoint: (latlng: LatLng) => void })
   return null
 }
 
-function MarkerBrushHandler({
+function MapMarkPlacementHandler({
   enabled,
-  onPoint,
+  onPlace,
 }: {
   enabled: boolean
-  onPoint: (latlng: LatLng) => void
+  onPlace: (latlng: LatLng) => void
 }) {
-  const isPaintingRef = useRef(false)
-  const lastPointRef = useRef<LatLng | null>(null)
-  const minDelta = 0.00006
-
   useMapEvents({
-    mousedown(event) {
+    click(event) {
       if (!enabled) return
-      const p = { lat: event.latlng.lat, lng: event.latlng.lng }
-      isPaintingRef.current = true
-      lastPointRef.current = p
-      onPoint(p)
-    },
-    mousemove(event) {
-      if (!enabled || !isPaintingRef.current) return
-      const p = { lat: event.latlng.lat, lng: event.latlng.lng }
-      const prev = lastPointRef.current
-      if (!prev || Math.abs(prev.lat - p.lat) > minDelta || Math.abs(prev.lng - p.lng) > minDelta) {
-        lastPointRef.current = p
-        onPoint(p)
-      }
-    },
-    mouseup() {
-      isPaintingRef.current = false
-      lastPointRef.current = null
-    },
-    mouseout() {
-      isPaintingRef.current = false
-      lastPointRef.current = null
+      onPlace({ lat: event.latlng.lat, lng: event.latlng.lng })
     },
   })
-
   return null
 }
 
@@ -249,15 +224,17 @@ export default function AdminMap({
   const [selectedSimilarStepKey, setSelectedSimilarStepKey] = useState<string | null>(null)
   const [selectedSimilarRoadPolyline, setSelectedSimilarRoadPolyline] = useState<LatLng[] | null>(null)
   const [similarRoadError, setSimilarRoadError] = useState<string | null>(null)
-  const [mapDrawings, setMapDrawings] = useState<MapDrawing[]>([])
-  const [isLoadingMapDrawings, setIsLoadingMapDrawings] = useState(false)
-  const [isMarkerDrawing, setIsMarkerDrawing] = useState(false)
-  const [markerDrawingPoints, setMarkerDrawingPoints] = useState<LatLng[]>([])
-  const [markerColor, setMarkerColor] = useState('#DC2626')
-  const [markerTitle, setMarkerTitle] = useState('')
-  const [isSavingMarkerDrawing, setIsSavingMarkerDrawing] = useState(false)
-  const [mapDrawingError, setMapDrawingError] = useState<string | null>(null)
-  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null)
+  const [mapMarks, setMapMarks] = useState<MapMark[]>([])
+  const [isLoadingMapMarks, setIsLoadingMapMarks] = useState(false)
+  const [isMarkModeEnabled, setIsMarkModeEnabled] = useState(false)
+  const [draftMarkPosition, setDraftMarkPosition] = useState<LatLng | null>(null)
+  const [markTitle, setMarkTitle] = useState('')
+  const [markVisibility, setMarkVisibility] = useState<MapMarkVisibility>('admin_only')
+  const [markPhotoFile, setMarkPhotoFile] = useState<File | null>(null)
+  const [markPhotoPreviewUrl, setMarkPhotoPreviewUrl] = useState<string | null>(null)
+  const [isSavingMapMark, setIsSavingMapMark] = useState(false)
+  const [mapMarkError, setMapMarkError] = useState<string | null>(null)
+  const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const selectedSimilarGroup = useMemo(
@@ -268,69 +245,86 @@ export default function AdminMap({
     selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
   )
 
-  const loadMapDrawings = useCallback(async () => {
-    setIsLoadingMapDrawings(true)
+  const loadMapMarks = useCallback(async () => {
+    setIsLoadingMapMarks(true)
     try {
-      const page = await listMapDrawings({ limit: 400, offset: 0 })
-      setMapDrawings(page.items)
-      setMapDrawingError(null)
+      const page = await listMapMarks({ limit: 400, offset: 0 })
+      setMapMarks(page.items)
+      setMapMarkError(null)
     } catch (error) {
-      setMapDrawingError(
+      setMapMarkError(
         error instanceof Error
-          ? t(error.message, { defaultValue: 'Failed to load drawings.' })
-          : t('admin.errors.loadDrawingsFailed'),
+          ? t(error.message, { defaultValue: 'Failed to load marks.' })
+          : t('admin.errors.loadMapMarksFailed'),
       )
     } finally {
-      setIsLoadingMapDrawings(false)
+      setIsLoadingMapMarks(false)
     }
   }, [t])
 
   useEffect(() => {
-    void loadMapDrawings()
-  }, [loadMapDrawings])
+    void loadMapMarks()
+  }, [loadMapMarks])
 
-  const handleSaveMarkerDrawing = useCallback(async () => {
-    if (markerDrawingPoints.length < 2 || isSavingMarkerDrawing) return
-    setIsSavingMarkerDrawing(true)
+  useEffect(() => {
+    if (!markPhotoFile) {
+      setMarkPhotoPreviewUrl(null)
+      return
+    }
+    const localUrl = URL.createObjectURL(markPhotoFile)
+    setMarkPhotoPreviewUrl(localUrl)
+    return () => URL.revokeObjectURL(localUrl)
+  }, [markPhotoFile])
+
+  const handleSaveMapMark = useCallback(async () => {
+    if (!draftMarkPosition || isSavingMapMark) return
+    setIsSavingMapMark(true)
     try {
-      const drawing = await createMapDrawing({
-        title: markerTitle.trim() || t('admin.map.drawingDefaultTitle', {
+      let photoKey: string | undefined
+      if (markPhotoFile) {
+        const uploadResult = await uploadMapMarkPhoto(markPhotoFile)
+        photoKey = uploadResult.photoKey
+      }
+      const mark = await createMapMark({
+        title: markTitle.trim() || t('admin.map.markDefaultTitle', {
           time: formatTime(new Date(), { hour: '2-digit', minute: '2-digit' }),
         }),
-        color: markerColor,
-        strokeWidth: 4,
-        points: markerDrawingPoints,
+        position: draftMarkPosition,
+        visibility: markVisibility,
+        ...(photoKey ? { photoKey } : {}),
       })
-      setMapDrawings((prev) => [drawing, ...prev])
-      setSelectedDrawingId(drawing.id)
-      setMarkerDrawingPoints([])
-      setMarkerTitle('')
-      setIsMarkerDrawing(false)
-      setMapDrawingError(null)
+      setMapMarks((prev) => [mark, ...prev])
+      setSelectedMarkId(mark.id)
+      setDraftMarkPosition(null)
+      setMarkTitle('')
+      setMarkVisibility('admin_only')
+      setMarkPhotoFile(null)
+      setIsMarkModeEnabled(false)
+      setMapMarkError(null)
     } catch (error) {
-      setMapDrawingError(
+      setMapMarkError(
         error instanceof Error
-          ? t(error.message, { defaultValue: 'Failed to save drawing.' })
-          : t('admin.errors.saveDrawingFailed'),
+          ? t(error.message, { defaultValue: 'Failed to save mark.' })
+          : t('admin.errors.saveMapMarkFailed'),
       )
     } finally {
-      setIsSavingMarkerDrawing(false)
+      setIsSavingMapMark(false)
     }
-  }, [isSavingMarkerDrawing, markerColor, markerDrawingPoints, markerTitle, t])
+  }, [draftMarkPosition, isSavingMapMark, markPhotoFile, markTitle, markVisibility, t])
 
-  const handleDeleteDrawing = useCallback(async (drawingId: string) => {
+  const handleDeleteMapMark = useCallback(async (markId: string) => {
     try {
-      await deleteMapDrawing(drawingId)
-      setMapDrawings((prev) => prev.filter((drawing) => drawing.id !== drawingId))
-      if (selectedDrawingId === drawingId) setSelectedDrawingId(null)
+      await deleteMapMark(markId)
+      setMapMarks((prev) => prev.filter((mark) => mark.id !== markId))
+      if (selectedMarkId === markId) setSelectedMarkId(null)
     } catch (error) {
-      setMapDrawingError(
+      setMapMarkError(
         error instanceof Error
-          ? t(error.message, { defaultValue: 'Failed to delete drawing.' })
-          : t('admin.errors.deleteDrawingFailed'),
+          ? t(error.message, { defaultValue: 'Failed to delete mark.' })
+          : t('admin.errors.deleteMapMarkFailed'),
       )
     }
-  }, [selectedDrawingId, t])
+  }, [selectedMarkId, t])
 
   useEffect(() => {
     let cancelled = false
@@ -738,19 +732,22 @@ export default function AdminMap({
           </button>
           <button
             onClick={() => {
-              setIsMarkerDrawing((prev) => {
+              setIsMarkModeEnabled((prev) => {
                 const next = !prev
-                if (!next) setMarkerDrawingPoints([])
+                if (!next) {
+                  setDraftMarkPosition(null)
+                  setMarkPhotoFile(null)
+                }
                 return next
               })
-              setMapDrawingError(null)
+              setMapMarkError(null)
             }}
             className={`w-11 h-11 rounded-xl shadow-card flex items-center justify-center transition-colors touch-none ${
-              isMarkerDrawing ? 'bg-black text-white' : 'bg-white hover:bg-surface'
+              isMarkModeEnabled ? 'bg-black text-white' : 'bg-white hover:bg-surface'
             }`}
-            title={t('admin.map.drawOnMap')}
+            title={t('admin.map.placeMark')}
           >
-            <PenNib size={18} weight={isMarkerDrawing ? 'fill' : 'bold'} />
+            <MapPin size={18} weight={isMarkModeEnabled ? 'fill' : 'bold'} />
           </button>
         </div>
 
@@ -774,93 +771,114 @@ export default function AdminMap({
           </div>
         </div>
 
-        {/* Map marker drawing panel — only when active or there are saved drawings */}
-        {(isMarkerDrawing || mapDrawings.length > 0) && (
+        {/* Map marker panel — only when active or there are saved marks */}
+        {(isMarkModeEnabled || mapMarks.length > 0) && (
           <div className="bg-white rounded-card shadow-card p-3.5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold">{t('admin.map.drawingPanel')}</p>
-              <span className="text-[10px] text-muted">{mapDrawings.length} {t('common.saved')}</span>
+              <p className="text-xs font-bold">{t('admin.map.marksPanel')}</p>
+              <span className="text-[10px] text-muted">{mapMarks.length} {t('common.saved')}</span>
             </div>
 
-            {isMarkerDrawing && (
+            {isMarkModeEnabled && (
               <div className="rounded-xl border border-border p-2.5 space-y-2">
                 <input
-                  value={markerTitle}
-                  onChange={(event) => setMarkerTitle(event.target.value)}
-                  placeholder={t('admin.map.drawingTitlePlaceholder')}
+                  value={markTitle}
+                  onChange={(event) => setMarkTitle(event.target.value)}
+                  placeholder={t('admin.map.markTitlePlaceholder')}
                   className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
                 />
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    {['#DC2626', '#2563EB', '#16A34A', '#7C3AED', '#111827'].map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setMarkerColor(color)}
-                        className={`w-5 h-5 rounded-full ${markerColor === color ? 'ring-2 ring-black ring-offset-1' : ''}`}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-muted">{t('admin.map.pointsCount', { count: markerDrawingPoints.length })}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setMarkerDrawingPoints((prev) => prev.slice(0, -1))}
-                    disabled={markerDrawingPoints.length === 0}
+                    onClick={() => setMarkVisibility('admin_only')}
+                    className={`h-8 rounded-lg border text-[11px] font-semibold ${
+                      markVisibility === 'admin_only' ? 'border-black bg-black text-white' : 'border-border bg-surface'
+                    }`}
+                  >
+                    {t('admin.map.visibleForAdminsOnly')}
+                  </button>
+                  <button
+                    onClick={() => setMarkVisibility('public')}
+                    className={`h-8 rounded-lg border text-[11px] font-semibold ${
+                      markVisibility === 'public' ? 'border-black bg-black text-white' : 'border-border bg-surface'
+                    }`}
+                  >
+                    {t('admin.map.visibleForEveryone')}
+                  </button>
+                </div>
+                <label className="block">
+                  <span className="text-[10px] text-muted">{t('admin.map.markPhotoLabel')}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setMarkPhotoFile(event.target.files?.[0] ?? null)}
+                    className="mt-1 block w-full text-[11px] text-muted"
+                  />
+                </label>
+                {markPhotoPreviewUrl && (
+                  <img
+                    src={markPhotoPreviewUrl}
+                    alt={t('admin.map.markPhotoPreviewAlt')}
+                    className="w-full h-28 object-cover rounded-lg border border-border"
+                  />
+                )}
+                <div className="text-[10px] text-muted">
+                  {draftMarkPosition
+                    ? t('admin.map.markPositionReady')
+                    : t('admin.map.markPositionMissing')}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => {
+                      setDraftMarkPosition(null)
+                      setMarkPhotoFile(null)
+                    }}
+                    disabled={!draftMarkPosition && !markPhotoFile && !markTitle}
                     className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
                   >
                     {t('common.back')}
                   </button>
                   <button
-                    onClick={() => setMarkerDrawingPoints([])}
-                    disabled={markerDrawingPoints.length === 0}
-                    className="h-8 rounded-lg bg-surface text-[11px] font-semibold disabled:opacity-50"
-                  >
-                    {t('common.clear')}
-                  </button>
-                  <button
-                    onClick={() => void handleSaveMarkerDrawing()}
-                    disabled={markerDrawingPoints.length < 2 || isSavingMarkerDrawing}
+                    onClick={() => void handleSaveMapMark()}
+                    disabled={!draftMarkPosition || isSavingMapMark}
                     className="h-8 rounded-lg bg-black text-white text-[11px] font-bold disabled:opacity-50 inline-flex items-center justify-center gap-1"
                   >
                     <FloppyDisk size={12} />
-                    {isSavingMarkerDrawing ? '...' : t('common.save')}
+                    {isSavingMapMark ? '...' : t('common.save')}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="space-y-1.5 max-h-28 overflow-y-auto scroll-smooth-y">
-              {isLoadingMapDrawings && <p className="text-[11px] text-muted">{t('admin.map.loadingDrawings')}</p>}
-              {!isLoadingMapDrawings && mapDrawings.length === 0 && (
-                <p className="text-[11px] text-muted">{t('admin.map.noDrawings')}</p>
+              {isLoadingMapMarks && <p className="text-[11px] text-muted">{t('admin.map.loadingMapMarks')}</p>}
+              {!isLoadingMapMarks && mapMarks.length === 0 && (
+                <p className="text-[11px] text-muted">{t('admin.map.noMapMarks')}</p>
               )}
-              {mapDrawings.map((drawing) => (
+              {mapMarks.map((mark) => (
                 <div
-                  key={drawing.id}
+                  key={mark.id}
                   className={`rounded-lg border px-2 py-1.5 flex items-center gap-2 ${
-                    selectedDrawingId === drawing.id ? 'border-black' : 'border-border'
+                    selectedMarkId === mark.id ? 'border-black' : 'border-border'
                   }`}
                 >
                   <button
-                    onClick={() => setSelectedDrawingId((prev) => (prev === drawing.id ? null : drawing.id))}
+                    onClick={() => setSelectedMarkId((prev) => (prev === mark.id ? null : mark.id))}
                     className="flex-1 text-left min-w-0"
                   >
-                    <p className="text-[11px] font-semibold truncate">{drawing.title}</p>
+                    <p className="text-[11px] font-semibold truncate">{mark.title}</p>
+                    <p className="text-[10px] text-muted">{mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}</p>
                   </button>
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: drawing.color }} />
                   <button
-                    onClick={() => void handleDeleteDrawing(drawing.id)}
+                    onClick={() => void handleDeleteMapMark(mark.id)}
                     className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
-                    title={t('admin.map.deleteDrawing')}
+                    title={t('admin.map.deleteMapMark')}
                   >
                     <Trash size={12} />
                   </button>
                 </div>
               ))}
             </div>
-            {mapDrawingError && <p className="text-[11px] text-red-600">{mapDrawingError}</p>}
+            {mapMarkError && <p className="text-[11px] text-red-600">{mapMarkError}</p>}
           </div>
         )}
       </div>
@@ -1011,32 +1029,50 @@ export default function AdminMap({
           />
         ))}
 
-        {/* Saved admin map drawings */}
-        {mapDrawings.map((drawing) => {
-          const highlighted = selectedDrawingId === drawing.id
+        {/* Saved admin map marks */}
+        {mapMarks.map((mark) => {
+          const highlighted = selectedMarkId === mark.id
           return (
-            <Polyline
-              key={`map-drawing-${drawing.id}`}
-              positions={drawing.points.map((point) => [point.lat, point.lng] as [number, number])}
-              pathOptions={{
-                color: drawing.color,
-                weight: highlighted ? drawing.strokeWidth + 2 : drawing.strokeWidth,
-                opacity: highlighted ? 0.95 : 0.72,
-              }}
-              eventHandlers={{ click: () => setSelectedDrawingId(drawing.id) }}
-            />
+            <Marker
+              key={`map-mark-${mark.id}`}
+              position={[mark.position.lat, mark.position.lng]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div class="marker-b${highlighted ? '' : '-sm'}">${mark.visibility === 'public' ? 'P' : 'A'}</div>`,
+                iconSize: highlighted ? [36, 36] : [22, 22],
+                iconAnchor: highlighted ? [18, 18] : [11, 11],
+              })}
+              eventHandlers={{ click: () => setSelectedMarkId(mark.id) }}
+            >
+              <Popup autoPan className="marker-driver-label">
+                <div className="text-xs space-y-2 min-w-[170px]">
+                  <p className="font-bold">{mark.title}</p>
+                  <p className="text-[11px] text-muted">
+                    {mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}
+                  </p>
+                  {mark.photoUrl && (
+                    <img
+                      src={mark.photoUrl}
+                      alt={mark.title}
+                      className="w-full max-h-28 object-cover rounded-lg border border-border"
+                    />
+                  )}
+                </div>
+              </Popup>
+            </Marker>
           )
         })}
 
-        {/* Temporary marker drawing preview */}
-        {markerDrawingPoints.length > 1 && (
-          <Polyline
-            positions={markerDrawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
-            pathOptions={{
-              color: markerColor,
-              weight: 4,
-              opacity: 0.9,
-            }}
+        {/* Draft map mark preview */}
+        {draftMarkPosition && (
+          <Marker
+            position={[draftMarkPosition.lat, draftMarkPosition.lng]}
+            icon={L.divIcon({
+              className: '',
+              html: `<div class="marker-b">+</div>`,
+              iconSize: [36, 36],
+              iconAnchor: [18, 18],
+            })}
           />
         )}
 
@@ -1052,12 +1088,7 @@ export default function AdminMap({
           />
         )}
         {isDrawing && <DrawingClickHandler onPoint={onDrawPoint} />}
-        <MarkerBrushHandler
-          enabled={isMarkerDrawing}
-          onPoint={(point) => {
-            setMarkerDrawingPoints((prev) => [...prev, point])
-          }}
-        />
+        <MapMarkPlacementHandler enabled={isMarkModeEnabled} onPlace={setDraftMarkPosition} />
 
         {!isRoutePreviewMode && drivers
           .filter((driver) => driver.isOnline && driver.currentLocation)
@@ -1091,9 +1122,9 @@ export default function AdminMap({
           {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
         </div>
       )}
-      {isMarkerDrawing && (
+      {isMarkModeEnabled && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
-          {t('admin.map.markerDrawingHint', { count: markerDrawingPoints.length })}
+          {t('admin.map.markerPlacementHint')}
         </div>
       )}
 

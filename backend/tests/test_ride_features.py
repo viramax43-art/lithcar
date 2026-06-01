@@ -344,6 +344,28 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
     assert pricing_update.json()["ridePriceEur"] == 9.6
     assert pricing_update.json()["pricingMode"] in ("fixed", "dynamic")
     assert "pricingFormula" in pricing_update.json()
+    assert pricing_update.json()["userInfoText"] == {"lt": "", "pl": "", "en": "", "ru": ""}
+
+    user_info_update = await client.patch(
+        "/api/pricing",
+        json={
+            "userInfoText": {
+                "lt": "Labas",
+                "pl": "Czesc",
+                "en": "Hello",
+                "ru": "Privet",
+            }
+        },
+    )
+    assert user_info_update.status_code == 200
+    assert user_info_update.json()["userInfoText"]["en"] == "Hello"
+
+    legacy_user_info_update = await client.patch(
+        "/api/pricing",
+        json={"userInfoText": "Legacy text"},
+    )
+    assert legacy_user_info_update.status_code == 200
+    assert legacy_user_info_update.json()["userInfoText"]["lt"] == "Legacy text"
 
     # Две похожие заявки для подсказки группировки.
     await client.patch(f"/api/service-zones/{zone_id}", json={"isActive": True})
