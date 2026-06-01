@@ -224,6 +224,7 @@ export async function listMapMarks(params?: PaginationParams): Promise<Paginated
 
 export async function createMapMark(payload: {
   title: string
+  color: string
   position: { lat: number; lng: number }
   visibility: 'admin_only' | 'public'
   photoKey?: string

@@ -22,10 +22,10 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
   const isPickup = pt.pointType === 'pickup'
 
   // Driver flow color semantics:
-  // - Blue: heading to pickup
-  // - Red: heading to dropoff
+  // - Red: pickup
+  // - Blue: dropoff
   // - Green: completed point
-  const bg = isDone ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
+  const bg = isDone ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
 
   const sz = isDone ? 28 : isNext ? 44 : 36
   const label = pt.recommendedOrder != null ? String(pt.recommendedOrder) : isPickup ? 'A' : 'B'

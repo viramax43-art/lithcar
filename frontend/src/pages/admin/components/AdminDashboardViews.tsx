@@ -71,8 +71,8 @@ export function AdminHeader({
         <span className="text-xs md:text-sm font-semibold text-white/80 hidden md:inline">{t('admin.panel', { defaultValue: 'Admin panel' })}</span>
       </div>
       <div className="flex items-center gap-2 md:gap-5">
-        <div className="w-40 hidden md:block">
-          <LanguageSwitcher />
+        <div className="hidden md:block flex-shrink-0">
+          <LanguageSwitcher variant="header" />
         </div>
         <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-2 rounded-pill bg-white/10">
           <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Literal
 from urllib.parse import quote
 
@@ -20,6 +21,7 @@ from app.services.storage_service import download_mark_photo, upload_mark_photo
 router = APIRouter(prefix="/map-marks")
 
 MapMarkVisibility = Literal["admin_only", "public"]
+HEX_COLOR_PATTERN = re.compile(r"^#([0-9A-F]{3}|[0-9A-F]{6})$")
 
 
 class LatLng(BaseModel):
@@ -29,6 +31,7 @@ class LatLng(BaseModel):
 
 class MapMarkCreate(BaseModel):
     title: str = Field(min_length=1, max_length=140)
+    color: str = Field(default="#EF4444", min_length=4, max_length=16)
     position: LatLng
     visibility: MapMarkVisibility = "admin_only"
     photoKey: str | None = None
@@ -37,6 +40,7 @@ class MapMarkCreate(BaseModel):
 class MapMarkOut(BaseModel):
     id: str
     title: str
+    color: str
     position: LatLng
     visibility: MapMarkVisibility
     photoKey: str | None = None
@@ -64,6 +68,7 @@ def _to_out(mark) -> MapMarkOut:
     return MapMarkOut(
         id=mark.id,
         title=mark.title,
+        color=mark.color,
         position=LatLng(lat=mark.lat, lng=mark.lng),
         visibility=mark.visibility,
         photoKey=mark.photo_key,
@@ -136,9 +141,15 @@ async def create_mark(
     normalized_title = payload.title.strip()
     if not normalized_title:
         raise HTTPException(status_code=400, detail="Mark title is required.")
+    normalized_color = payload.color.strip().upper()
+    if not normalized_color.startswith("#"):
+        normalized_color = f"#{normalized_color}"
+    if not HEX_COLOR_PATTERN.fullmatch(normalized_color):
+        raise HTTPException(status_code=400, detail="Invalid mark color.")
     mark = await create_map_mark(
         db_session,
         title=normalized_title,
+        color=normalized_color,
         lat=payload.position.lat,
         lng=payload.position.lng,
         visibility=payload.visibility,

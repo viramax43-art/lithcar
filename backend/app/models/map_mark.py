@@ -12,6 +12,7 @@ class MapMark(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     title = Column(String, nullable=False)
+    color = Column(String, nullable=False, server_default="#EF4444")
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)
     visibility = Column(String, nullable=False, server_default="admin_only", index=True)

@@ -118,7 +118,7 @@ function SheetBody({
   const mainAction = getMainAction(point)
   const isPickup = point.pointType === 'pickup'
   const isDone = point.pointStatus === 'done'
-  const pointColor = isDone ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
+  const pointColor = isDone ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
 
   const dt = new Date(point.dateTime)
   const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })

@@ -10,6 +10,7 @@ async def create_map_mark(
     db_session: AsyncSession,
     *,
     title: str,
+    color: str,
     lat: float,
     lng: float,
     visibility: str,
@@ -18,6 +19,7 @@ async def create_map_mark(
 ) -> MapMark:
     mark = MapMark(
         title=title,
+        color=color,
         lat=lat,
         lng=lng,
         visibility=visibility,

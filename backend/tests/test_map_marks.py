@@ -35,6 +35,7 @@ async def test_admin_can_create_list_delete_map_mark(client):
         "/api/map-marks",
         json={
             "title": "Main station",
+            "color": "#3B82F6",
             "position": {"lat": 54.6872, "lng": 25.2797},
             "visibility": "admin_only",
         },
@@ -44,6 +45,7 @@ async def test_admin_can_create_list_delete_map_mark(client):
     mark_id = created["id"]
     assert created["title"] == "Main station"
     assert created["visibility"] == "admin_only"
+    assert created["color"] == "#3B82F6"
 
     list_response = await client.get("/api/map-marks")
     assert list_response.status_code == 200

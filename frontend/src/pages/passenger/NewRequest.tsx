@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
+import { makeMapMarkIcon } from '../../lib/mapMarkIcons'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
@@ -30,6 +31,7 @@ export default function NewRequest() {
   const maxDate = toLocalDateInput(maxDateObj)
   const [menuOpen, setMenuOpen] = useState(false)
   const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
 
@@ -67,16 +69,22 @@ export default function NewRequest() {
           {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
           {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           {publicMapMarks.map((mark) => (
-            <Marker key={mark.id} position={[mark.position.lat, mark.position.lng]}>
-              <Popup>
-                <div className="text-xs space-y-2 min-w-[160px]">
+            <Marker key={mark.id} position={[mark.position.lat, mark.position.lng]} icon={makeMapMarkIcon(mark.color, 28)}>
+              <Popup className="map-mark-popup">
+                <div className="text-xs min-w-[220px]">
                   <p className="font-bold">{mark.title}</p>
                   {mark.photoUrl && (
-                    <img
-                      src={mark.photoUrl}
-                      alt={mark.title}
-                      className="w-full max-h-24 object-cover rounded-lg border border-border"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setFullscreenPhoto({ src: mark.photoUrl!, title: mark.title })}
+                      className="block w-full mt-2 rounded-lg overflow-hidden border border-border"
+                    >
+                      <img
+                        src={mark.photoUrl}
+                        alt={mark.title}
+                        className="w-full h-auto max-h-[220px] object-cover"
+                      />
+                    </button>
                   )}
                 </div>
               </Popup>
@@ -504,6 +512,28 @@ export default function NewRequest() {
             {!model.isSearching && model.searchQuery.length >= 3 && model.searchResults.length === 0 && <p className="px-4 py-3 text-sm text-muted">{t('common.notFound', { defaultValue: 'Nothing found.' })}</p>}
             {model.searchQuery.length < 3 && !model.isSearching && <p className="px-4 py-3 text-sm text-muted">{t('passenger.searchMinChars', { defaultValue: 'Start typing address - minimum 3 characters.' })}</p>}
           </div>
+        </div>
+      )}
+
+      {fullscreenPhoto && (
+        <div
+          className="fixed inset-0 z-[2200] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={fullscreenPhoto.src}
+            alt={fullscreenPhoto.title}
+            className="max-w-[96vw] max-h-[88vh] object-contain rounded-xl"
+            onClick={(event) => event.stopPropagation()}
+          />
         </div>
       )}
 

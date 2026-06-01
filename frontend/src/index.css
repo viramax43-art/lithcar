@@ -226,6 +226,16 @@ body {
   box-shadow: none !important;
 }
 
+.map-mark-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 18px !important;
+}
+
+.map-mark-popup .leaflet-popup-content {
+  margin: 0 !important;
+  padding: 12px;
+}
+
 /* Toast animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-8px); }

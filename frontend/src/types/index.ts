@@ -86,6 +86,7 @@ export type MapMarkVisibility = 'admin_only' | 'public'
 export interface MapMark {
   id: string
   title: string
+  color: string
   position: LatLng
   visibility: MapMarkVisibility
   photoKey?: string | null

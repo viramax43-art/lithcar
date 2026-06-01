@@ -167,7 +167,7 @@ function NextStopBar({
   const actionLabelKey = getQuickActionLabelKey(point)
   const action = getQuickAction(point)
   const isPickup = point.pointType === 'pickup'
-  const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
+  const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
   const showPickupQuickActions = isPickup && point.pickupChangedByDriver
   const canNotifyPickup = showPickupQuickActions && !point.pickupNotifiedAt
 
@@ -175,12 +175,12 @@ function NextStopBar({
     (isPickup && s === 'awaiting_passenger' && point.rideStatus === 'awaiting_passenger') ||
     (!isPickup && s === point.rideStatus),
   )
-  const isBlue = isPickup && point.rideStatus === 'en_route_to_pickup'
+  const isPickupEnRoute = isPickup && point.rideStatus === 'en_route_to_pickup'
 
   const btnCls = isGreen
     ? 'bg-accent text-black active:bg-accent/90'
-    : isBlue
-    ? 'bg-blue-600 text-white active:bg-blue-700'
+    : isPickupEnRoute
+    ? 'bg-red-600 text-white active:bg-red-700'
     : 'bg-black text-white active:bg-zinc-900'
 
   return (

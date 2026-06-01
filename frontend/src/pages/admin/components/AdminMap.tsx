@@ -7,6 +7,7 @@ import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Toolti
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
+import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
 import { createMapMark, deleteMapMark, listMapMarks, uploadMapMarkPhoto } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
@@ -229,12 +230,14 @@ export default function AdminMap({
   const [isMarkModeEnabled, setIsMarkModeEnabled] = useState(false)
   const [draftMarkPosition, setDraftMarkPosition] = useState<LatLng | null>(null)
   const [markTitle, setMarkTitle] = useState('')
+  const [markColor, setMarkColor] = useState('#EF4444')
   const [markVisibility, setMarkVisibility] = useState<MapMarkVisibility>('admin_only')
   const [markPhotoFile, setMarkPhotoFile] = useState<File | null>(null)
   const [markPhotoPreviewUrl, setMarkPhotoPreviewUrl] = useState<string | null>(null)
   const [isSavingMapMark, setIsSavingMapMark] = useState(false)
   const [mapMarkError, setMapMarkError] = useState<string | null>(null)
   const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null)
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const selectedSimilarGroup = useMemo(
@@ -289,6 +292,7 @@ export default function AdminMap({
         title: markTitle.trim() || t('admin.map.markDefaultTitle', {
           time: formatTime(new Date(), { hour: '2-digit', minute: '2-digit' }),
         }),
+        color: normalizeMapMarkColor(markColor),
         position: draftMarkPosition,
         visibility: markVisibility,
         ...(photoKey ? { photoKey } : {}),
@@ -297,6 +301,7 @@ export default function AdminMap({
       setSelectedMarkId(mark.id)
       setDraftMarkPosition(null)
       setMarkTitle('')
+      setMarkColor('#EF4444')
       setMarkVisibility('admin_only')
       setMarkPhotoFile(null)
       setIsMarkModeEnabled(false)
@@ -310,7 +315,7 @@ export default function AdminMap({
     } finally {
       setIsSavingMapMark(false)
     }
-  }, [draftMarkPosition, isSavingMapMark, markPhotoFile, markTitle, markVisibility, t])
+  }, [draftMarkPosition, isSavingMapMark, markColor, markPhotoFile, markTitle, markVisibility, t])
 
   const handleDeleteMapMark = useCallback(async (markId: string) => {
     try {
@@ -787,6 +792,24 @@ export default function AdminMap({
                   placeholder={t('admin.map.markTitlePlaceholder')}
                   className="w-full h-9 px-3 rounded-lg border border-border bg-surface/50 text-xs outline-none focus:border-black"
                 />
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted">{t('admin.map.markColorLabel', { defaultValue: 'Color' })}</p>
+                  <div className="flex items-center gap-1.5">
+                    {MAP_MARK_PALETTE.map((color) => {
+                      const selected = normalizeMapMarkColor(markColor) === color
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setMarkColor(color)}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${selected ? 'border-black scale-110' : 'border-white/80'}`}
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setMarkVisibility('admin_only')}
@@ -866,7 +889,13 @@ export default function AdminMap({
                     className="flex-1 text-left min-w-0"
                   >
                     <p className="text-[11px] font-semibold truncate">{mark.title}</p>
-                    <p className="text-[10px] text-muted">{mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}</p>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
+                        style={{ backgroundColor: normalizeMapMarkColor(mark.color) }}
+                      />
+                      <p className="text-[10px] text-muted">{mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}</p>
+                    </div>
                   </button>
                   <button
                     onClick={() => void handleDeleteMapMark(mark.id)}
@@ -1036,26 +1065,27 @@ export default function AdminMap({
             <Marker
               key={`map-mark-${mark.id}`}
               position={[mark.position.lat, mark.position.lng]}
-              icon={L.divIcon({
-                className: '',
-                html: `<div class="marker-b${highlighted ? '' : '-sm'}">${mark.visibility === 'public' ? 'P' : 'A'}</div>`,
-                iconSize: highlighted ? [36, 36] : [22, 22],
-                iconAnchor: highlighted ? [18, 18] : [11, 11],
-              })}
+              icon={makeMapMarkIcon(mark.color, highlighted ? 40 : 30)}
               eventHandlers={{ click: () => setSelectedMarkId(mark.id) }}
             >
-              <Popup autoPan className="marker-driver-label">
-                <div className="text-xs space-y-2 min-w-[170px]">
+              <Popup autoPan className="map-mark-popup">
+                <div className="text-xs min-w-[220px]">
                   <p className="font-bold">{mark.title}</p>
                   <p className="text-[11px] text-muted">
                     {mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}
                   </p>
                   {mark.photoUrl && (
-                    <img
-                      src={mark.photoUrl}
-                      alt={mark.title}
-                      className="w-full max-h-28 object-cover rounded-lg border border-border"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setFullscreenPhoto({ src: mark.photoUrl!, title: mark.title })}
+                      className="block w-full mt-2 rounded-lg overflow-hidden border border-border"
+                    >
+                      <img
+                        src={mark.photoUrl}
+                        alt={mark.title}
+                        className="w-full h-auto max-h-[220px] object-cover"
+                      />
+                    </button>
                   )}
                 </div>
               </Popup>
@@ -1067,12 +1097,7 @@ export default function AdminMap({
         {draftMarkPosition && (
           <Marker
             position={[draftMarkPosition.lat, draftMarkPosition.lng]}
-            icon={L.divIcon({
-              className: '',
-              html: `<div class="marker-b">+</div>`,
-              iconSize: [36, 36],
-              iconAnchor: [18, 18],
-            })}
+            icon={makeMapMarkIcon(markColor, 42)}
           />
         )}
 
@@ -1125,6 +1150,28 @@ export default function AdminMap({
       {isMarkModeEnabled && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           {t('admin.map.markerPlacementHint')}
+        </div>
+      )}
+
+      {fullscreenPhoto && (
+        <div
+          className="fixed inset-0 z-[3200] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={fullscreenPhoto.src}
+            alt={fullscreenPhoto.title}
+            className="max-w-[96vw] max-h-[88vh] object-contain rounded-xl"
+            onClick={(event) => event.stopPropagation()}
+          />
         </div>
       )}
 
