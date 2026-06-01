@@ -94,6 +94,7 @@ export default function DriverSideMenu({
             </div>
 
             <QrScanner
+              autoStart={isOpen}
               onTokenRead={(token) => {
                 void (async () => {
                   setIsRedeeming(true)

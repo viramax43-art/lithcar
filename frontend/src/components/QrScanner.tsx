@@ -27,6 +27,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
     await scannerRef.current.stop().catch(() => undefined)
     scannerRef.current.clear()
     scannerRef.current = null
+    startedRef.current = false
   }
 
   const start = async () => {
@@ -68,7 +69,16 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
   }
 
   useEffect(() => {
-    if (autoStart) void start()
+    if (autoStart) {
+      void start()
+      return
+    }
+    void stop()
+    setState('idle')
+    setErrorText(null)
+  }, [autoStart])
+
+  useEffect(() => {
     return () => {
       void stop()
       startedRef.current = false
