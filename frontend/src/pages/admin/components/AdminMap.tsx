@@ -677,7 +677,7 @@ export default function AdminMap({
       </div>
 
       {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
-      <div className="admin-map-controls absolute top-[200px] left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))]">
+      <div className="admin-map-controls absolute top-[200px] left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))] max-h-[calc(100dvh-230px)] overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
           {searchOpen ? (
             <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-w-[calc(100vw-32px)] max-h-[50vh] overflow-hidden">
@@ -778,7 +778,7 @@ export default function AdminMap({
 
         {/* Map marker panel — only when active or there are saved marks */}
         {(isMarkModeEnabled || mapMarks.length > 0) && (
-          <div className="bg-white rounded-card shadow-card p-3.5 space-y-3">
+          <div className="bg-white rounded-card shadow-card p-3.5 space-y-3 max-h-[calc(100dvh-340px)] overflow-y-auto">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold">{t('admin.map.marksPanel')}</p>
               <span className="text-[10px] text-muted">{mapMarks.length} {t('common.saved')}</span>
