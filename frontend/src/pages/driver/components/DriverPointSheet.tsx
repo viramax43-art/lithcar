@@ -17,6 +17,7 @@ import {
 
 import type { DriverMapPoint } from '../../../types'
 import { directionsHref } from '../../../lib/navigation'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
 
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
@@ -118,8 +119,8 @@ function SheetBody({
   const pointColor = isDone ? '#16A34A' : isPickup ? '#2563EB' : '#DC2626'
 
   const dt = new Date(point.dateTime)
-  const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-  const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
 
   const pickupChangedNotNotified = isPickup && point.pickupChangedByDriver && !point.pickupNotifiedAt
   const needsPassengerConfirm = isPickup && point.pickupChangedByDriver && !!point.pickupNotifiedAt && !point.pickupConfirmedAt

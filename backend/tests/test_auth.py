@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 from app.models.ride_request import RideRequest, RideRequestStatus
-from app.models.user import UserRole
+from app.models.user import UserLanguage, UserRole
 
 def _make_tg_init_data(*, bot_token: str, user_id: str, username: str | None = None, extra: dict[str, str] | None = None) -> str:
     """
@@ -58,6 +58,7 @@ async def test_auth_login_valid_initdata_returns_token_and_users_me_works(client
     assert body["user_id"] == "100"
     assert body["username"] == "alice"
     assert body["role"] == UserRole.PASSENGER
+    assert body["language"] == UserLanguage.LITHUANIAN
 
 
 async def test_auth_invalid_hash_returns_400(client):
@@ -107,6 +108,52 @@ async def test_auth_login_updates_username_if_changed(client):
     me = await client.get("/api/users/me", headers={"Authorization": f"Bearer {token2}"})
     assert me.status_code == 200
     assert me.json()["username"] == "alice_renamed"
+
+
+async def test_auth_login_uses_supported_telegram_language(client):
+    init_data = _make_tg_init_data(
+        bot_token="test-bot-token",
+        user_id="201",
+        username="lang_user",
+        extra={"user": json.dumps({"id": 201, "username": "lang_user", "language_code": "en-US"}, separators=(",", ":"))},
+    )
+    auth = await client.post("/api/auth", json={"initData": init_data})
+    assert auth.status_code == 200
+
+    token = auth.json()["access_token"]
+    me = await client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["language"] == UserLanguage.ENGLISH
+
+
+async def test_update_user_language_updates_profile(client):
+    init_data = _make_tg_init_data(bot_token="test-bot-token", user_id="202", username="profile_user")
+    auth = await client.post("/api/auth", json={"initData": init_data})
+    assert auth.status_code == 200
+    token = auth.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    patch = await client.patch("/api/users/me/language", headers=headers, json={"language": "ru"})
+    assert patch.status_code == 200
+    assert patch.json()["language"] == UserLanguage.RUSSIAN
+
+    me = await client.get("/api/users/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["language"] == UserLanguage.RUSSIAN
+
+
+async def test_update_user_language_rejects_unsupported(client):
+    init_data = _make_tg_init_data(bot_token="test-bot-token", user_id="203", username="bad_lang")
+    auth = await client.post("/api/auth", json={"initData": init_data})
+    assert auth.status_code == 200
+    token = auth.json()["access_token"]
+
+    patch = await client.patch(
+        "/api/users/me/language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"language": "de"},
+    )
+    assert patch.status_code == 400
 
 
 async def test_non_admin_forbidden_for_admin_endpoints(client):

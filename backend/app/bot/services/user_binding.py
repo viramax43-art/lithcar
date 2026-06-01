@@ -17,4 +17,5 @@ async def get_or_create_passenger_from_telegram(
         db_session,
         user_id=str(telegram_user.id),
         username=username,
+        preferred_language=telegram_user.language_code,
     )

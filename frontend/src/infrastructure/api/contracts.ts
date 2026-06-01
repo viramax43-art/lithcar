@@ -25,6 +25,7 @@ export interface CurrentUser {
   user_id: string
   username: string | null
   role: string
+  language: 'lt' | 'pl' | 'en' | 'ru'
   created_at: string
   onboarding_completed: boolean
 }

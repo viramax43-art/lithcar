@@ -6,6 +6,7 @@ import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Toolti
 import type { Driver, LatLng, MapDrawing, RideRequest, RideStatus, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
 import { createMapDrawing, deleteMapDrawing, listMapDrawings } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
@@ -227,9 +228,9 @@ export default function AdminMap({
 
   const dt = selectedReq ? new Date(selectedReq.dateTime) : null
   const dateStr = dt
-    ? dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    ? formatDate(dt, { day: 'numeric', month: 'long' })
     : ''
-  const timeStr = dt ? dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''
+  const timeStr = dt ? formatTime(dt, { hour: '2-digit', minute: '2-digit' }) : ''
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -286,7 +287,7 @@ export default function AdminMap({
     setIsSavingMarkerDrawing(true)
     try {
       const drawing = await createMapDrawing({
-        title: markerTitle.trim() || `Рисунок ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+        title: markerTitle.trim() || `Рисунок ${formatTime(new Date(), { hour: '2-digit', minute: '2-digit' })}`,
         color: markerColor,
         strokeWidth: 4,
         points: markerDrawingPoints,

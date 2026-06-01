@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 
+import { formatDateTime } from '../../../i18n/dateTime'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 
@@ -199,7 +200,7 @@ export function AdminSidebarRequestsSuggestionsSection({
               <div className="mt-2.5 pt-2.5 border-t border-border flex items-center justify-between">
                 <span className="text-[11px] text-muted flex items-center gap-1.5">
                   <Clock size={11} />
-                  {new Date(request.dateTime).toLocaleString('ru-RU', {
+                  {formatDateTime(new Date(request.dateTime), {
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session
 from app.models.ride_request import RideRequest
-from app.models.user import User, UserRole
+from app.models.user import DEFAULT_USER_LANGUAGE, User, UserRole
 from app.services.auth_service import AuthService
 from app.services.rating_service import can_passenger_rate_driver, get_user_rating_aggregate
 from app.services.ride_request_service import list_passenger_requests
@@ -28,6 +28,7 @@ class UserData(BaseModel):
     user_id: str
     username: str | None
     role: str
+    language: str = DEFAULT_USER_LANGUAGE
     created_at: datetime
     onboarding_completed: bool = False
 
@@ -37,6 +38,10 @@ class UserData(BaseModel):
 
 class RoleUpdate(BaseModel):
     role: str
+
+
+class LanguageUpdate(BaseModel):
+    language: str
 
 
 class LatLng(BaseModel):
@@ -155,6 +160,16 @@ async def update_current_user_role(
     auth_service: AuthService = Depends(get_auth_service),
 ):
     user = await auth_service.set_user_role(current_user, payload.role)
+    return user
+
+
+@router.patch("/users/me/language", response_model=UserData)
+async def update_current_user_language(
+    payload: LanguageUpdate,
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    user = await auth_service.set_user_language(current_user, payload.language)
     return user
 
 

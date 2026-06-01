@@ -13,6 +13,7 @@ import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
 import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
+import LanguageSwitcher from '../../../components/LanguageSwitcher'
 
 interface DriverSideMenuProps {
   isOpen: boolean
@@ -76,6 +77,9 @@ export default function DriverSideMenu({
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
+          <section className="px-4 py-4 border-t border-border">
+            <LanguageSwitcher />
+          </section>
           <section className="px-4 py-4 border-t border-border">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">

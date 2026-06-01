@@ -8,6 +8,7 @@ import StarRatingInput from '../../components/StarRatingInput'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
+import { formatDate, formatTime } from '../../i18n/dateTime'
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Ожидает подтверждения', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -96,8 +97,8 @@ export default function RequestDetail() {
   const shouldShowAssignedFallback = Boolean(request.driverId) || hasAssignedDriverStatus
   const status = STATUS_MAP[request.status] || STATUS_MAP.pending
   const dt = new Date(request.dateTime)
-  const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-  const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(dt, { day: 'numeric', month: 'long', year: 'numeric' })
+  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
 
   const center: [number, number] = [
     (request.from.latlng.lat + request.to.latlng.lat) / 2,

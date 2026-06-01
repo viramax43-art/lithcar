@@ -81,5 +81,6 @@ export {
   listServiceZones,
   purchasePointsByCard,
   issuePassengerQrSale,
+  updateCurrentUserLanguage,
   updateRequest,
 } from '../infrastructure/api/passengerApi'

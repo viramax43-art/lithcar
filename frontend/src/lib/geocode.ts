@@ -1,4 +1,6 @@
 import type { LatLng } from '../types'
+import i18n from '../i18n'
+import { normalizeLanguage } from '../i18n/languages'
 
 /**
  * Nominatim public instance has a strict usage policy: at most 1 request/second
@@ -29,6 +31,10 @@ export function isRateLimited(): boolean {
 
 export function rateLimitRetryInMs(): number {
   return Math.max(0, cooldownUntil - Date.now())
+}
+
+function getAcceptLanguage(): string {
+  return normalizeLanguage(i18n.language)
 }
 
 /** Serialize requests so we never exceed 1/sec, and apply the cooldown window. */
@@ -75,7 +81,7 @@ export async function reverseGeocode(latlng: LatLng, signal?: AbortSignal): Prom
     }
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=ru`,
+        `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=${getAcceptLanguage()}`,
         { signal },
       )
       handleNominatimResponse(res)
@@ -127,7 +133,7 @@ export async function searchPlaces(
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           q,
-        )}&format=json&limit=6&countrycodes=lt&viewbox=24.9,54.5,25.6,54.85&bounded=1&accept-language=ru`,
+        )}&format=json&limit=6&countrycodes=lt&viewbox=24.9,54.5,25.6,54.85&bounded=1&accept-language=${getAcceptLanguage()}`,
         { signal },
       )
       handleNominatimResponse(res)

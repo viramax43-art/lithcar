@@ -10,6 +10,7 @@ import {
 import type { DriverCabinetRide } from '../../../types'
 import type { LatLng } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
 import { ctaLabel, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from '../constants'
 import RideStepper from './RideStepper'
 
@@ -25,8 +26,8 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
 
   const dt = new Date(ride.dateTime)
-  const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-  const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(dt, { day: 'numeric', month: 'long' })
+  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
 
   const headingToPickup = ride.status === 'en_route_to_pickup' || ride.status === 'assigned'
   const navTarget = headingToPickup ? ride.fromLatLng : ride.toLatLng

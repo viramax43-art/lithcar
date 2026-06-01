@@ -3,40 +3,40 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 
+from app.bot.i18n import t
 
-CANCEL_LABEL = "Отмена"
 
-
-def welcome_keyboard() -> InlineKeyboardMarkup:
+def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📱 Открыть Mini App", url="https://t.me/rideminiapp_bot/ride")],
-            [InlineKeyboardButton(text="🤖 Оформить через бота", callback_data="start_bot_booking")],
+            [InlineKeyboardButton(text=t("menu.open_mini_app", lang), url="https://t.me/rideminiapp_bot/ride")],
+            [InlineKeyboardButton(text=t("menu.book_in_bot", lang), callback_data="start_bot_booking")],
+            [InlineKeyboardButton(text=t("menu.change_language", lang), callback_data="language:choose")],
         ]
     )
 
 
-def confirm_keyboard() -> InlineKeyboardMarkup:
+def confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Подтвердить поездку", callback_data="confirm:submit")],
-            [InlineKeyboardButton(text="Изменить", callback_data="confirm:edit")],
-            [InlineKeyboardButton(text="Отмена", callback_data="confirm:cancel")],
+            [InlineKeyboardButton(text=t("menu.confirm_ride", lang), callback_data="confirm:submit")],
+            [InlineKeyboardButton(text=t("menu.edit", lang), callback_data="confirm:edit")],
+            [InlineKeyboardButton(text=t("menu.cancel", lang), callback_data="confirm:cancel")],
         ]
     )
 
 
-def edit_keyboard() -> InlineKeyboardMarkup:
+def edit_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Точка A", callback_data="edit:from"),
-                InlineKeyboardButton(text="Точка B", callback_data="edit:to"),
+                InlineKeyboardButton(text=t("booking.pointA", lang), callback_data="edit:from"),
+                InlineKeyboardButton(text=t("booking.pointB", lang), callback_data="edit:to"),
             ],
             [
-                InlineKeyboardButton(text="Дата", callback_data="edit:date"),
-                InlineKeyboardButton(text="Время", callback_data="edit:time"),
+                InlineKeyboardButton(text=t("booking.datetime_date", lang), callback_data="edit:date"),
+                InlineKeyboardButton(text=t("booking.datetime_time", lang), callback_data="edit:time"),
             ],
-            [InlineKeyboardButton(text="Назад к подтверждению", callback_data="edit:back")],
+            [InlineKeyboardButton(text=t("menu.back_to_confirm", lang), callback_data="edit:back")],
         ]
     )

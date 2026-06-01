@@ -15,6 +15,13 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   return apiRequest<CurrentUser>('/api/users/me')
 }
 
+export async function updateCurrentUserLanguage(language: 'lt' | 'pl' | 'en' | 'ru'): Promise<CurrentUser> {
+  return apiRequest<CurrentUser>('/api/users/me/language', {
+    method: 'PATCH',
+    body: { language },
+  })
+}
+
 export async function listMyRequests(params?: PaginationParams): Promise<PaginatedResult<RideRequest>> {
   const page = await apiRequest<{ items: RideRequestApi[]; total: number; limit: number; offset: number }>(
     `/api/ride-requests/me?${toPageQuery(params)}`

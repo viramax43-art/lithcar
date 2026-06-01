@@ -2,8 +2,12 @@ import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, Lis
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
+import LanguageSwitcher from '../../components/LanguageSwitcher'
+import { updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
+import type { AppLanguage } from '../../i18n/languages'
 import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
@@ -13,6 +17,7 @@ const toLocalDateInput = (value: Date): string =>
   `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 
 export default function NewRequest() {
+  const { t } = useTranslation()
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
@@ -132,8 +137,8 @@ export default function NewRequest() {
                   <ClipboardText size={18} weight="duotone" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Мои поездки</p>
-                  <p className="text-[11px] text-muted">История заявок</p>
+                  <p className="text-sm font-bold">{t('nav.requests')}</p>
+                  <p className="text-[11px] text-muted">{t('passenger.requestsHistory', { defaultValue: 'История заявок' })}</p>
                 </div>
               </button>
               <button
@@ -144,10 +149,21 @@ export default function NewRequest() {
                   <UserCircle size={18} weight="duotone" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Личный кабинет</p>
-                  <p className="text-[11px] text-muted">Баланс, история, QR</p>
+                  <p className="text-sm font-bold">{t('nav.profile')}</p>
+                  <p className="text-[11px] text-muted">{t('passenger.profileMenuDesc', { defaultValue: 'Баланс, история, QR' })}</p>
                 </div>
               </button>
+              <div className="px-3 pt-2">
+                <LanguageSwitcher
+                  onChangeLanguage={async (language: AppLanguage) => {
+                    try {
+                      await updateCurrentUserLanguage(language)
+                    } catch {
+                      // keep selected language locally if API call fails
+                    }
+                  }}
+                />
+              </div>
             </nav>
           </div>
         </>

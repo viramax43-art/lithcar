@@ -3,7 +3,7 @@ from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, decode_token, parse_tg_user_data
-from app.models.user import User, UserRole
+from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User, UserRole
 from app.services.user_service import get_or_create_user
 
 
@@ -21,16 +21,24 @@ class AuthService:
 
         user_id = user_dict.get("id")
         username = user_dict.get("username")
+        raw_language = user_dict.get("language_code")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User data not found in initData",
             )
 
+        normalized_language = None
+        if isinstance(raw_language, str):
+            normalized_language = raw_language.split("-", 1)[0].strip().lower()
+            if normalized_language not in SUPPORTED_USER_LANGUAGES:
+                normalized_language = None
+
         user = await get_or_create_user(
             self.db,
             user_id=str(user_id),
             username=username,
+            language=normalized_language,
         )
 
         access_token = create_access_token(subject=user.user_id, role=user.role)
@@ -65,6 +73,15 @@ class AuthService:
         }:
             raise HTTPException(status_code=400, detail="Unsupported role.")
         user.role = normalized_role
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def set_user_language(self, user: User, language: str) -> User:
+        normalized_language = str(language).strip().lower()
+        if normalized_language not in SUPPORTED_USER_LANGUAGES:
+            raise HTTPException(status_code=400, detail="Unsupported language.")
+        user.language = normalized_language or DEFAULT_USER_LANGUAGE
         await self.db.commit()
         await self.db.refresh(user)
         return user

@@ -11,6 +11,7 @@ import {
 
 import type { DriverCabinetRide } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
 import { ctaLabel, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL, nextStatus } from '../constants'
 
 interface DriverPassengerCardProps {
@@ -38,8 +39,8 @@ export default function DriverPassengerCard({
   const nextSt = nextStatus(ride.status)
   const cta = ctaLabel(ride.status)
   const dt = new Date(ride.dateTime)
-  const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-  const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
 
   const pickupChangedNotNotified = ride.pickupChangedByDriver && !ride.pickupNotifiedAt
   const needsPassengerConfirm = ride.pickupChangedByDriver && !!ride.pickupNotifiedAt && !ride.pickupConfirmedAt

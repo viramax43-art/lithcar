@@ -5,6 +5,7 @@ import { AdminDynamicPricingSection } from './AdminDynamicPricingSection'
 import InlineConfirm from './InlineConfirm'
 import { inputCls } from './AdminSidebarShared'
 import Skeleton from '../../../components/Skeleton'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 
 type ZonesSettingsQrSectionProps = Pick<
@@ -388,7 +389,7 @@ function formatPaymentDate(iso: string): string {
   const date = new Date(iso)
   const now = new Date()
   const sameYear = date.getFullYear() === now.getFullYear()
-  const datePart = date.toLocaleDateString('ru-RU', sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' })
-  const timePart = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const datePart = formatDate(date, sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' })
+  const timePart = formatTime(date, { hour: '2-digit', minute: '2-digit' })
   return `${datePart}, ${timePart}`
 }

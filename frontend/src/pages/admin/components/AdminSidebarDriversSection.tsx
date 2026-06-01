@@ -1,6 +1,7 @@
 import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
 import type { MutableRefObject } from 'react'
 import { showOnMapHref } from '../../../lib/navigation'
+import { formatDate } from '../../../i18n/dateTime'
 import LithuanianPlate from '../../../components/LithuanianPlate'
 import InlineConfirm from './InlineConfirm'
 import { ColorSwatch, inputCls, KeyReveal, Section, type CopyState, Stat } from './AdminSidebarShared'
@@ -195,7 +196,7 @@ export function AdminSidebarDriversSection({
       {drivers.map((driver) => {
         const expanded = expandedDriverId === driver.id
         const createdDate = driver.createdAt
-          ? new Date(driver.createdAt).toLocaleDateString('ru-RU', {
+          ? formatDate(new Date(driver.createdAt), {
               day: 'numeric',
               month: 'long',
               year: 'numeric',

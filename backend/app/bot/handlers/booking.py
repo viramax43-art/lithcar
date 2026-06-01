@@ -6,10 +6,10 @@ from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User as TgUser
 
+from app.bot.i18n import normalize_lang, t
 from app.bot.keyboards.booking import (
-    CANCEL_LABEL,
     confirm_keyboard,
     edit_keyboard,
     welcome_keyboard,
@@ -21,10 +21,9 @@ from app.services.pricing_service import get_or_create_pricing
 from app.services.ride_booking_service import (
     InsufficientPointsError,
     InvalidRideDateTimeError,
-    RideQuoteUnavailableError,
     book_ride_with_points,
 )
-from app.services.ride_quote_service import calculate_ride_quote
+from app.services.user_service import update_user_language
 
 router = Router(name="booking")
 
@@ -76,75 +75,111 @@ async def _load_user_and_pricing(message: Message):
         return user, pricing
 
 
+async def _load_user(telegram_user: TgUser):
+    async with async_session_factory() as db_session:
+        return await get_or_create_passenger_from_telegram(
+            db_session,
+            telegram_user=telegram_user,
+        )
+
+
+def _language_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Lietuviu", callback_data="language:set:lt"),
+                InlineKeyboardButton(text="Polski", callback_data="language:set:pl"),
+            ],
+            [
+                InlineKeyboardButton(text="English", callback_data="language:set:en"),
+                InlineKeyboardButton(text="Русский", callback_data="language:set:ru"),
+            ],
+        ]
+    )
+
+
+async def _get_user_lang(telegram_user: TgUser) -> str:
+    user = await _load_user(telegram_user)
+    return normalize_lang(user.preferred_language)
+
+
 async def _show_confirmation(message: Message, state: FSMContext):
     data = await state.get_data()
     user, pricing = await _load_user_and_pricing(message)
+    lang = normalize_lang(user.preferred_language)
     ride_datetime = get_selected_datetime(data)
-    try:
-        quote = await calculate_ride_quote(
-            pricing,
-            from_lat=float(data["from_lat"]),
-            from_lng=float(data["from_lng"]),
-            to_lat=float(data["to_lat"]),
-            to_lng=float(data["to_lng"]),
-        )
-        cost_line = f"Стоимость: {quote.points} поинтов (€{quote.price_eur:.2f})"
-        if quote.metrics is not None:
-            cost_line += (
-                f"\nМаршрут: {quote.metrics.road_km:.1f} км, "
-                f"{quote.metrics.duration_min:.0f} мин ({quote.metrics.tier_label})"
-            )
-    except ValueError:
-        cost_line = f"Стоимость: {pricing.points_per_ride} поинтов (расчёт маршрута недоступен)"
     text = (
-        "Проверьте детали поездки:\n\n"
-        f"Точка A: {data['from_address']}\n"
-        f"Точка B: {data['to_address']}\n"
-        f"Дата и время: {ride_datetime.strftime('%d.%m.%Y %H:%M')} UTC\n\n"
-        f"{cost_line}\n"
-        f"Ваш баланс: {int(user.points_balance or 0)} поинтов"
+        f"{t('booking.confirm.title', lang)}\n\n"
+        f"{t('booking.pointA', lang)}: {data['from_address']}\n"
+        f"{t('booking.pointB', lang)}: {data['to_address']}\n"
+        f"{t('booking.datetime', lang)}: {ride_datetime.strftime('%d.%m.%Y %H:%M')} UTC\n\n"
+        f"{t('booking.cost', lang)}: {pricing.points_per_ride}\n"
+        f"{t('booking.balance', lang)}: {int(user.points_balance or 0)}"
     )
     await state.set_state(BookingStates.confirming)
-    await message.answer(text, reply_markup=confirm_keyboard())
+    await message.answer(text, reply_markup=confirm_keyboard(lang))
 
-
-WELCOME_TEXT = (
-    "Добро пожаловать в Ride! 🚗\n\n"
-    "Мы — сервис для удобных групповых поездок. С нами вы можете быстро и с комфортом "
-    "добраться до нужной точки, оплачивая поездки внутренними поинтами.\n\n"
-    "💡 Обратите внимание: приобрести поинты можно внутри нашего Mini App.\n\n"
-    "Выберите удобный способ оформления поездки:"
-)
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    lang = await _get_user_lang(message.from_user)
     await message.answer(
-        WELCOME_TEXT,
-        reply_markup=welcome_keyboard(),
+        t("menu.welcome", lang),
+        reply_markup=welcome_keyboard(lang),
     )
 
 
-@router.message(F.text == CANCEL_LABEL)
+@router.message(F.text.in_(("Отмена", "Cancel", "Anuluj", "Atsaukti")))
 async def cancel_flow(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Оформление отменено.\n\n" + WELCOME_TEXT, reply_markup=welcome_keyboard())
+    lang = await _get_user_lang(message.from_user)
+    await message.answer(
+        f"{t('menu.cancelled', lang)}\n\n{t('menu.welcome', lang)}",
+        reply_markup=welcome_keyboard(lang),
+    )
+
+
+@router.callback_query(F.data == "language:choose")
+async def choose_language(callback: CallbackQuery):
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("lang.pick", lang), reply_markup=_language_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("language:set:"))
+async def set_language(callback: CallbackQuery):
+    lang = callback.data.split(":")[-1]
+    async with async_session_factory() as db_session:
+        user = await get_or_create_passenger_from_telegram(
+            db_session,
+            telegram_user=callback.from_user,
+        )
+        await update_user_language(db_session, user=user, preferred_language=lang)
+        normalized = normalize_lang(user.preferred_language)
+    await callback.message.answer(
+        f"{t('lang.changed', normalized)}\n\n{t('menu.welcome', normalized)}",
+        reply_markup=welcome_keyboard(normalized),
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "start_bot_booking", default_state)
 async def begin_booking_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(BookingStates.awaiting_from_location)
+    lang = await _get_user_lang(callback.from_user)
     await callback.message.answer(
-        "Отправьте геопозицию точки A (откуда вас забрать).",
+        t("booking.ask_point_a", lang),
     )
     await callback.answer()
 
 
 @router.message(BookingStates.awaiting_from_location, ~F.location)
 async def reject_non_location_from(message: Message):
+    lang = await _get_user_lang(message.from_user)
     await message.answer(
-        "Нужна именно геопозиция. Отправьте точку A через вложение локации в Telegram.",
+        t("booking.ask_point_a_retry", lang),
     )
 
 
@@ -157,15 +192,17 @@ async def set_from_location(message: Message, state: FSMContext):
     }
     await state.update_data(**from_point)
     await state.set_state(BookingStates.awaiting_to_location)
+    lang = await _get_user_lang(message.from_user)
     await message.answer(
-        "Отлично. Теперь отправьте геопозицию точки B (куда поедем).",
+        t("booking.ask_point_b", lang),
     )
 
 
 @router.message(BookingStates.awaiting_to_location, ~F.location)
 async def reject_non_location_to(message: Message):
+    lang = await _get_user_lang(message.from_user)
     await message.answer(
-        "Нужна геопозиция точки B. Отправьте локацию сообщением.",
+        t("booking.ask_point_b_retry", lang),
     )
 
 
@@ -178,28 +215,31 @@ async def set_to_location(message: Message, state: FSMContext):
     }
     await state.update_data(**to_point)
     await state.set_state(BookingStates.awaiting_date)
-    await message.answer("Введите дату поездки в формате ДД.ММ.ГГГГ.")
+    lang = await _get_user_lang(message.from_user)
+    await message.answer(t("booking.ask_date", lang))
 
 
 @router.message(BookingStates.awaiting_date, F.text)
 async def pick_date_manual(message: Message, state: FSMContext):
+    lang = await _get_user_lang(message.from_user)
     chosen_date = parse_manual_date(message.text)
     if chosen_date is None:
-        await message.answer("Не понял дату. Пример: 21.05.2026")
+        await message.answer(t("booking.ask_date_retry", lang))
         return
     if chosen_date < date.today():
-        await message.answer("Дата не может быть в прошлом.")
+        await message.answer(t("booking.date_in_past", lang))
         return
     await state.update_data(ride_date=chosen_date.isoformat())
     await state.set_state(BookingStates.awaiting_time)
-    await message.answer("Дата сохранена. Теперь введите время в формате ЧЧ:ММ.")
+    await message.answer(t("booking.ask_time", lang))
 
 
 @router.message(BookingStates.awaiting_time, F.text)
 async def pick_time_manual(message: Message, state: FSMContext):
+    lang = await _get_user_lang(message.from_user)
     ride_time = parse_manual_time(message.text)
     if ride_time is None:
-        await message.answer("Неверный формат времени. Пример: 19:30")
+        await message.answer(t("booking.ask_time_retry", lang))
         return
     await state.update_data(ride_time=ride_time.isoformat())
     await _show_confirmation(message, state)
@@ -208,55 +248,66 @@ async def pick_time_manual(message: Message, state: FSMContext):
 @router.callback_query(BookingStates.confirming, F.data == "confirm:cancel")
 async def cancel_from_confirm(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("Оформление отменено.\n\n" + WELCOME_TEXT, reply_markup=welcome_keyboard())
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(
+        f"{t('menu.cancelled', lang)}\n\n{t('menu.welcome', lang)}",
+        reply_markup=welcome_keyboard(lang),
+    )
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "confirm:edit")
 async def edit_from_confirm(callback: CallbackQuery):
-    await callback.message.answer("Что хотите изменить?", reply_markup=edit_keyboard())
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.edit_prompt", lang), reply_markup=edit_keyboard(lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:back")
 async def edit_back(callback: CallbackQuery):
-    await callback.message.answer("Возвращаю подтверждение.", reply_markup=confirm_keyboard())
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.back_to_confirm", lang), reply_markup=confirm_keyboard(lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:from")
 async def edit_from_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_from_location)
-    await callback.message.answer("Отправьте новую геопозицию точки A.")
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.ask_point_a_new", lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:to")
 async def edit_to_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_to_location)
-    await callback.message.answer("Отправьте новую геопозицию точки B.")
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.ask_point_b_new", lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:date")
 async def edit_date(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_date)
-    await callback.message.answer("Введите новую дату в формате ДД.ММ.ГГГГ.")
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.ask_date_new", lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "edit:time")
 async def edit_time(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_time)
-    await callback.message.answer("Введите новое время в формате ЧЧ:ММ.")
+    lang = await _get_user_lang(callback.from_user)
+    await callback.message.answer(t("booking.ask_time_new", lang))
     await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "confirm:submit")
 async def submit_booking(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
+    lang = await _get_user_lang(callback.from_user)
     if data.get("submitted"):
-        await callback.answer("Заявка уже обрабатывается.")
+        await callback.answer(t("booking.already_submitting", lang))
         return
     await state.update_data(submitted=True)
 
@@ -282,29 +333,29 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
     except InsufficientPointsError as exc:
         await state.update_data(submitted=False)
         await callback.message.answer(
-            "Недостаточно поинтов для оформления.\n"
-            f"Нужно: {exc.required_points}, у вас: {exc.current_balance}."
+            f"{t('booking.insufficient_points', lang)}\n"
+            f"{t('booking.required', lang)}: {exc.required_points}, {t('booking.current', lang)}: {exc.current_balance}."
         )
         await callback.answer()
         return
-    except (InvalidRideDateTimeError, RideQuoteUnavailableError, ValueError) as exc:
+    except (InvalidRideDateTimeError, ValueError):
         await state.update_data(submitted=False)
-        await callback.message.answer(f"Не удалось оформить поездку: {exc}")
+        await callback.message.answer(t("booking.invalid_datetime", lang))
         await callback.answer()
         return
 
     await state.clear()
     await callback.message.answer(
-        "Поездка оформлена.\n"
-        f"Списано: {booking.points_debited} поинтов\n"
-        f"Остаток: {booking.points_balance_after} поинтов\n"
-        "Статус заявки будет отображаться в приложении.\n\n"
-        + WELCOME_TEXT,
-        reply_markup=welcome_keyboard(),
+        f"{t('booking.created', lang)}\n"
+        f"{t('booking.debited', lang)}: {booking.points_debited}\n"
+        f"{t('booking.remaining', lang)}: {booking.points_balance_after}\n\n"
+        + t("menu.welcome", lang),
+        reply_markup=welcome_keyboard(lang),
     )
-    await callback.answer("Готово")
+    await callback.answer(t("common.done", lang))
 
 
 @router.callback_query(F.data == "confirm:submit")
 async def duplicate_submit(callback: CallbackQuery):
-    await callback.answer("Эта заявка уже обработана.", show_alert=True)
+    lang = await _get_user_lang(callback.from_user)
+    await callback.answer(t("booking.already_processed", lang), show_alert=True)

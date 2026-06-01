@@ -1,5 +1,6 @@
 import { SignOut, X } from '@phosphor-icons/react'
 import type { AdminSessionUser } from '../../../lib/backend'
+import LanguageSwitcher from '../../../components/LanguageSwitcher'
 import { getAdminRoleLabel } from '../utils/adminRolePresentation'
 
 export function AdminSessionChecking() {
@@ -64,6 +65,9 @@ export function AdminHeader({
         <span className="text-xs md:text-sm font-semibold text-white/80 hidden md:inline">Админ-панель</span>
       </div>
       <div className="flex items-center gap-2 md:gap-5">
+        <div className="w-40 hidden md:block">
+          <LanguageSwitcher />
+        </div>
         <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-2 rounded-pill bg-white/10">
           <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
           <span className="text-[11px] md:text-xs font-semibold">

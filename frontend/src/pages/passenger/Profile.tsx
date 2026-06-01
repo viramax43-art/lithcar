@@ -15,9 +15,12 @@ import {
   X,
 } from '@phosphor-icons/react'
 import Skeleton from '../../components/Skeleton'
-import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard } from '../../lib/backend'
+import LanguageSwitcher from '../../components/LanguageSwitcher'
+import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
+import { formatDateTime } from '../../i18n/dateTime'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
+import type { AppLanguage } from '../../i18n/languages'
 import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
 const STATUS_MAP: Record<string, string> = {
@@ -255,7 +258,7 @@ export default function Profile() {
               </div>
               <p className="text-xs text-muted truncate">{ride.to.address}</p>
               <p className="text-[10px] text-muted">
-                {new Date(ride.dateTime).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {formatDateTime(new Date(ride.dateTime), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </p>
             </button>
           ))}
@@ -270,6 +273,17 @@ export default function Profile() {
               {isHistoryLoading ? 'Загрузка...' : 'Показать еще'}
             </button>
           )}
+        </section>
+        <section className="bg-white border border-border rounded-card p-4">
+          <LanguageSwitcher
+            onChangeLanguage={async (language: AppLanguage) => {
+              try {
+                await updateCurrentUserLanguage(language)
+              } catch {
+                // keep local value even if backend update fails
+              }
+            }}
+          />
         </section>
       </div>
       </div>
