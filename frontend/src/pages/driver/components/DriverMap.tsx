@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Crosshair } from '@phosphor-icons/react'
+import { Crosshair, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import type { DriverMapPoint, LatLng } from '../../../types'
+import { listPublicMapMarks } from '../../../lib/backend'
+import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
+import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
 
 interface DriverMapProps {
   points: DriverMapPoint[]
@@ -14,6 +16,7 @@ interface DriverMapProps {
   roadPolyline: LatLng[]
   onSelectPoint: (point: DriverMapPoint) => void
   onPickupDragEnd: (rideId: string, latlng: LatLng) => void
+  onMapMarkViewModeChange?: (isViewing: boolean) => void
 }
 
 function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: boolean }): L.DivIcon {
@@ -110,7 +113,31 @@ export default function DriverMap({
   roadPolyline,
   onSelectPoint,
   onPickupDragEnd,
+  onMapMarkViewModeChange,
 }: DriverMapProps) {
+  const { t } = useTranslation()
+  const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
+  const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
+  const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
+
+  useEffect(() => {
+    onMapMarkViewModeChange?.(isMapMarkViewMode)
+  }, [isMapMarkViewMode, onMapMarkViewModeChange])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const page = await listPublicMapMarks('cookie', { limit: 300, offset: 0 })
+        if (!cancelled) setPublicMapMarks(page.items)
+      } catch {
+        if (!cancelled) setPublicMapMarks([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   const rideLines = useMemo(() => {
     const byRide = new Map<string, { pickup?: DriverMapPoint; dropoff?: DriverMapPoint }>()
     for (const pt of points) {
@@ -142,7 +169,7 @@ export default function DriverMap({
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <FitBoundsOnce points={points} driverLocation={driverLocation} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
-      <LocateButton />
+      {!isMapMarkViewMode && <LocateButton />}
 
       {/* Driver location */}
       {driverLocation && (
@@ -188,6 +215,38 @@ export default function DriverMap({
         )
       })}
 
+      {/* Public map marks visible to drivers */}
+      {publicMapMarks.map((mark) => (
+        <Marker
+          key={`public-map-mark-${mark.id}`}
+          position={[mark.position.lat, mark.position.lng]}
+          icon={makeMapMarkIcon(mark.color, 30)}
+          eventHandlers={{
+            popupopen: () => setOpenedPublicMarkId(mark.id),
+            popupclose: () => setOpenedPublicMarkId((current) => (current === mark.id ? null : current)),
+          }}
+        >
+          <Popup autoPan className="map-mark-popup">
+            <div className="text-xs min-w-[220px]">
+              <p className="font-bold">{mark.title}</p>
+              {mark.photoUrl && (
+                <button
+                  type="button"
+                  onClick={() => setFullscreenPhoto({ src: mark.photoUrl!, title: mark.title })}
+                  className="block w-full mt-2 rounded-lg overflow-hidden border border-border"
+                >
+                  <img
+                    src={mark.photoUrl}
+                    alt={mark.title}
+                    className="w-full h-auto max-h-[220px] object-cover"
+                  />
+                </button>
+              )}
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+
       {/* Point markers */}
       {points.map((pt) => (
         <Marker
@@ -208,6 +267,29 @@ export default function DriverMap({
           }}
         />
       ))}
+
+      {fullscreenPhoto && (
+        <div
+          className="fixed inset-0 z-[3200] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={fullscreenPhoto.src}
+            alt={fullscreenPhoto.title}
+            className="max-w-[96vw] max-h-[88vh] object-contain rounded-xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
     </MapContainer>
   )
 }

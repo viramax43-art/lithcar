@@ -122,6 +122,7 @@ export async function updatePricing(
       | 'pricingMode'
       | 'pricingFormula'
       | 'userInfoText'
+      | 'userInfoTextProfile'
       | 'workStartTime'
       | 'workEndTime'
       | 'slotIntervalMinutes'

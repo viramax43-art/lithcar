@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
+import { Calendar, Car, CaretDown, CaretLeft, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
@@ -234,6 +234,9 @@ export default function AdminMap({
   const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null)
   const [openedMarkPopupId, setOpenedMarkPopupId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
+  const [isFilterBarCollapsed, setIsFilterBarCollapsed] = useState(false)
+  const [isControlsCollapsed, setIsControlsCollapsed] = useState(false)
+  const [isMarksPanelCollapsed, setIsMarksPanelCollapsed] = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const selectedSimilarGroup = useMemo(
@@ -244,6 +247,7 @@ export default function AdminMap({
     selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
   )
   const isMapMarkViewMode = Boolean(openedMarkPopupId || fullscreenPhoto)
+  const floatingPanelsTop = isFilterBarCollapsed ? 124 : 252
 
   const getPickupColor = useCallback((request: RideRequest): string => {
     if (request.status === 'completed') return '#22C55E'
@@ -537,9 +541,21 @@ export default function AdminMap({
             <span className="text-[11px] font-semibold text-muted whitespace-nowrap">{t('common.periodFilter')}</span>
             <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
           </div>
-          {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
+          <div className="flex items-center gap-2">
+            {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
+            <button
+              type="button"
+              onClick={() => setIsFilterBarCollapsed((prev) => !prev)}
+              className="w-7 h-7 rounded-lg border border-border bg-white flex items-center justify-center"
+              title={isFilterBarCollapsed ? t('common.open') : t('common.close')}
+            >
+              {isFilterBarCollapsed ? <CaretDown size={14} /> : <CaretUp size={14} />}
+            </button>
+          </div>
         </div>
 
+        {!isFilterBarCollapsed && (
+        <>
         <div className="grid grid-cols-1 gap-2">
           <div className="rounded-xl border border-border bg-surface/50 px-3 py-2">
             <div className="flex items-center gap-2 mb-1.5">
@@ -637,13 +653,28 @@ export default function AdminMap({
             )
           })}
         </div>
+        </>
+        )}
       </div>
       )}
 
       {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
       {!isMapMarkViewMode && (
-      <div className="admin-map-controls absolute top-[200px] left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))] max-h-[calc(100dvh-230px)] overflow-y-auto pr-1">
+      <div
+        className="admin-map-controls absolute left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))] overflow-y-auto pr-1"
+        style={{ top: `${floatingPanelsTop}px`, maxHeight: `calc(100dvh - ${floatingPanelsTop + 24}px)` }}
+      >
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsControlsCollapsed((prev) => !prev)}
+            className="w-11 h-11 bg-white rounded-xl shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
+            title={isControlsCollapsed ? t('common.open') : t('common.close')}
+          >
+            {isControlsCollapsed ? <CaretDown size={18} weight="bold" /> : <CaretUp size={18} weight="bold" />}
+          </button>
+          {!isControlsCollapsed && (
+            <>
           {searchOpen ? (
             <div className="bg-white rounded-card shadow-card flex flex-col w-80 max-w-[calc(100vw-32px)] max-h-[50vh] overflow-hidden">
               <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
@@ -719,8 +750,12 @@ export default function AdminMap({
           >
             <MapPin size={18} weight={isMarkModeEnabled ? 'fill' : 'bold'} />
           </button>
+            </>
+          )}
         </div>
 
+        {!isControlsCollapsed && (
+        <>
         {/* Legend */}
         <div className="admin-legend-bar flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm w-fit">
           <div className="flex items-center gap-1.5">
@@ -746,9 +781,21 @@ export default function AdminMap({
           <div className="bg-white rounded-card shadow-card p-3.5 space-y-3 max-h-[calc(100dvh-340px)] overflow-y-auto">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold">{t('admin.map.marksPanel')}</p>
-              <span className="text-[10px] text-muted">{mapMarks.length} {t('common.saved')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted">{mapMarks.length} {t('common.saved')}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsMarksPanelCollapsed((prev) => !prev)}
+                  className="w-6 h-6 rounded-md border border-border bg-white flex items-center justify-center"
+                  title={isMarksPanelCollapsed ? t('common.open') : t('common.close')}
+                >
+                  {isMarksPanelCollapsed ? <CaretDown size={12} /> : <CaretUp size={12} />}
+                </button>
+              </div>
             </div>
 
+            {!isMarksPanelCollapsed && (
+            <>
             {isMarkModeEnabled && (
               <div className="rounded-xl border border-border p-2.5 space-y-2">
                 <input
@@ -873,7 +920,11 @@ export default function AdminMap({
               ))}
             </div>
             {mapMarkError && <p className="text-[11px] text-red-600">{mapMarkError}</p>}
+            </>
+            )}
           </div>
+        )}
+        </>
         )}
       </div>
       )}
@@ -1266,7 +1317,10 @@ export default function AdminMap({
 
       {/* Selected request detail card */}
       {!isMapMarkViewMode && selectedReq && status && (
-        <div className="admin-map-detail-card absolute top-[200px] right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden">
+        <div
+          className="admin-map-detail-card absolute right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden"
+          style={{ top: `${floatingPanelsTop}px` }}
+        >
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>

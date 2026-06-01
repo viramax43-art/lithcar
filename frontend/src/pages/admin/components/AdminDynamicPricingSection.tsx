@@ -16,6 +16,7 @@ type PricingChangeHandler = (
       | 'pricingMode'
       | 'pricingFormula'
       | 'userInfoText'
+      | 'userInfoTextProfile'
       | 'workStartTime'
       | 'workEndTime'
       | 'slotIntervalMinutes'

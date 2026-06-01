@@ -55,6 +55,7 @@ class PricingOut(BaseModel):
     pricingMode: str
     pricingFormula: PricingFormulaOut
     userInfoText: UserInfoTextI18nOut
+    userInfoTextProfile: UserInfoTextI18nOut
     workStartTime: str
     workEndTime: str
     slotIntervalMinutes: int
@@ -66,6 +67,7 @@ class PricingUpdate(BaseModel):
     pricingMode: str | None = None
     pricingFormula: PricingFormulaV1 | None = Field(default=None, alias="pricingFormula")
     userInfoText: UserInfoTextI18nOut | str | None = None
+    userInfoTextProfile: UserInfoTextI18nOut | str | None = None
     workStartTime: str | None = Field(default=None, pattern=r'^\d{2}:\d{2}$')
     workEndTime: str | None = Field(default=None, pattern=r'^\d{2}:\d{2}$')
     slotIntervalMinutes: int | None = Field(default=None, ge=5, le=120)
@@ -75,6 +77,14 @@ class PricingUpdate(BaseModel):
     @field_validator("userInfoText", mode="before")
     @classmethod
     def normalize_user_info_text(cls, value: Any) -> UserInfoTextI18nOut | None:
+        if value is None:
+            return None
+        normalized = normalize_user_info_text_i18n(value)
+        return UserInfoTextI18nOut(**normalized)
+
+    @field_validator("userInfoTextProfile", mode="before")
+    @classmethod
+    def normalize_user_info_text_profile(cls, value: Any) -> UserInfoTextI18nOut | None:
         if value is None:
             return None
         normalized = normalize_user_info_text_i18n(value)
@@ -117,6 +127,7 @@ def _to_pricing_out(pricing) -> PricingOut:
         pricingMode=(pricing.pricing_mode or PRICING_MODE_FIXED),
         pricingFormula=_formula_to_out(formula),
         userInfoText=UserInfoTextI18nOut(**normalize_user_info_text_i18n(pricing.user_info_text_i18n)),
+        userInfoTextProfile=UserInfoTextI18nOut(**normalize_user_info_text_i18n(pricing.user_info_text_profile_i18n)),
         workStartTime=pricing.work_start_time,
         workEndTime=pricing.work_end_time,
         slotIntervalMinutes=pricing.slot_interval_minutes,
@@ -155,6 +166,7 @@ async def patch_pricing(
         pricing_mode=payload.pricingMode,
         pricing_formula_json=formula_dict,
         user_info_text_i18n=payload.userInfoText.model_dump() if payload.userInfoText is not None else None,
+        user_info_text_profile_i18n=payload.userInfoTextProfile.model_dump() if payload.userInfoTextProfile is not None else None,
         work_start_time=payload.workStartTime,
         work_end_time=payload.workEndTime,
         slot_interval_minutes=payload.slotIntervalMinutes,

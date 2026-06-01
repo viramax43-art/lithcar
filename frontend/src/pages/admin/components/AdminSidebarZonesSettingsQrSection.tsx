@@ -56,11 +56,18 @@ export function AdminSidebarZonesSettingsQrSection({
   hasLoadedQrSalesOnce,
 }: ZonesSettingsQrSectionProps) {
   const { t } = useTranslation()
-  const [userInfoDraft, setUserInfoDraft] = useState<UserInfoTextI18n>(() => normalizeUserInfoText(pricing.userInfoText))
+  const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() => normalizeUserInfoText(pricing.userInfoText))
+  const [userInfoProfileDraft, setUserInfoProfileDraft] = useState<UserInfoTextI18n>(
+    () => normalizeUserInfoText(pricing.userInfoTextProfile),
+  )
 
   useEffect(() => {
-    setUserInfoDraft(normalizeUserInfoText(pricing.userInfoText))
+    setUserInfoMainDraft(normalizeUserInfoText(pricing.userInfoText))
   }, [pricing.userInfoText])
+
+  useEffect(() => {
+    setUserInfoProfileDraft(normalizeUserInfoText(pricing.userInfoTextProfile))
+  }, [pricing.userInfoTextProfile])
 
   if (activeTab === 'zones') {
     return (
@@ -211,31 +218,64 @@ export function AdminSidebarZonesSettingsQrSection({
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
           <p className="text-sm font-bold">{t('admin.settings.userInfo')}</p>
           <p className="text-[11px] text-muted">{t('admin.settings.userInfoHint')}</p>
-          <div className="space-y-3">
-            {SUPPORTED_LANGUAGES.map((lang) => (
-              <div key={lang} className="space-y-1.5">
-                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
-                  {t(`language.${lang}`)}
-                </label>
-                <textarea
-                  value={userInfoDraft[lang]}
-                  onChange={(event) =>
-                    setUserInfoDraft((prev) => ({
-                      ...prev,
-                      [lang]: event.target.value,
-                    }))
-                  }
-                  rows={3}
-                  placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
-                  className={`${inputCls} resize-y min-h-[72px]`}
-                />
-              </div>
-            ))}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border p-3 space-y-3">
+              <p className="text-xs font-bold">{t('admin.settings.userInfoMain', { defaultValue: 'Main screen info' })}</p>
+              <p className="text-[11px] text-muted">{t('admin.settings.userInfoMainHint', { defaultValue: 'Shown on the main passenger screen.' })}</p>
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <div key={`main-${lang}`} className="space-y-1.5">
+                  <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+                    {t(`language.${lang}`)}
+                  </label>
+                  <textarea
+                    value={userInfoMainDraft[lang]}
+                    onChange={(event) =>
+                      setUserInfoMainDraft((prev) => ({
+                        ...prev,
+                        [lang]: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
+                    className={`${inputCls} resize-y min-h-[72px]`}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-border p-3 space-y-3">
+              <p className="text-xs font-bold">{t('admin.settings.userInfoProfile', { defaultValue: 'Profile screen info' })}</p>
+              <p className="text-[11px] text-muted">{t('admin.settings.userInfoProfileHint', { defaultValue: 'Shown in passenger profile.' })}</p>
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <div key={`profile-${lang}`} className="space-y-1.5">
+                  <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+                    {t(`language.${lang}`)}
+                  </label>
+                  <textarea
+                    value={userInfoProfileDraft[lang]}
+                    onChange={(event) =>
+                      setUserInfoProfileDraft((prev) => ({
+                        ...prev,
+                        [lang]: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
+                    className={`${inputCls} resize-y min-h-[72px]`}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
           <div className="flex items-center justify-end gap-3">
             <button
-              onClick={() => void handlePricingChange({ userInfoText: normalizeUserInfoText(userInfoDraft) })}
-              disabled={userInfoTextEqual(userInfoDraft, normalizeUserInfoText(pricing.userInfoText))}
+              onClick={() => void handlePricingChange({
+                userInfoText: normalizeUserInfoText(userInfoMainDraft),
+                userInfoTextProfile: normalizeUserInfoText(userInfoProfileDraft),
+              })}
+              disabled={
+                userInfoTextEqual(userInfoMainDraft, normalizeUserInfoText(pricing.userInfoText))
+                && userInfoTextEqual(userInfoProfileDraft, normalizeUserInfoText(pricing.userInfoTextProfile))
+              }
               className="px-3 py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
             >
               {t('common.save')}

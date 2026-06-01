@@ -132,6 +132,7 @@ export interface PricingSettings {
   pricingMode: PricingMode
   pricingFormula: PricingFormula
   userInfoText: UserInfoTextI18n
+  userInfoTextProfile: UserInfoTextI18n
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number

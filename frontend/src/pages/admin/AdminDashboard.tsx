@@ -258,6 +258,7 @@ export default function AdminDashboard() {
         | 'pricingMode'
         | 'pricingFormula'
         | 'userInfoText'
+        | 'userInfoTextProfile'
         | 'workStartTime'
         | 'workEndTime'
         | 'slotIntervalMinutes'

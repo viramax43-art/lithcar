@@ -279,6 +279,7 @@ export default function DriverCabinet() {
   const [roadPolyline, setRoadPolyline] = useState<LatLng[]>([])
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
+  const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
@@ -416,6 +417,12 @@ export default function DriverCabinet() {
     return () => { cancelled = true }
   }, [routeWaypoints])
 
+  useEffect(() => {
+    if (!isMapMarkViewMode) return
+    setSideMenuOpen(false)
+    setSelectedPointId(null)
+  }, [isMapMarkViewMode])
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const performAction = async (point: DriverMapPoint, action: string) => {
@@ -545,10 +552,12 @@ export default function DriverCabinet() {
           roadPolyline={roadPolyline}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
           onPickupDragEnd={(rideId, latlng) => void handlePickupDragEnd(rideId, latlng)}
+          onMapMarkViewModeChange={setIsMapMarkViewMode}
         />
       </div>
 
       {/* ── Floating header ─────────────────────────────────────────────── */}
+      {!isMapMarkViewMode && (
       <div
         className="absolute left-0 right-0 top-0 z-[10] flex items-center justify-between gap-3 px-4 pointer-events-none"
         style={{ paddingTop: 'calc(var(--app-safe-area-top-total) + 12px)' }}
@@ -582,9 +591,10 @@ export default function DriverCabinet() {
 
         <div className="w-12 flex-shrink-0" />
       </div>
+      )}
 
       {/* ── Empty state ─────────────────────────────────────────────────── */}
-      {mapData && activePoints.length === 0 && (
+      {!isMapMarkViewMode && mapData && activePoints.length === 0 && (
         <div
           className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
           style={{ bottom: NEXT_BAR_H }}
@@ -602,7 +612,7 @@ export default function DriverCabinet() {
       )}
 
       {/* ── Next-stop persistent bar ─────────────────────────────────────── */}
-      {nextPoint && !selectedPointId && (
+      {!isMapMarkViewMode && nextPoint && !selectedPointId && (
         <NextStopBar
           point={nextPoint}
           isActioning={isActioning}
@@ -616,14 +626,16 @@ export default function DriverCabinet() {
       )}
 
       {/* ── Point detail sheet (slides up) ──────────────────────────────── */}
-      <DriverPointSheet
-        point={selectedPoint}
-        isActioning={isActioning}
-        isNotifying={isNotifying}
-        onClose={() => setSelectedPointId(null)}
-        onAction={handleAction}
-        onNotifyPickup={() => void handleNotifyPickup()}
-      />
+      {!isMapMarkViewMode && (
+        <DriverPointSheet
+          point={selectedPoint}
+          isActioning={isActioning}
+          isNotifying={isNotifying}
+          onClose={() => setSelectedPointId(null)}
+          onAction={handleAction}
+          onNotifyPickup={() => void handleNotifyPickup()}
+        />
+      )}
 
       <RideRatingSheet
         key={pendingRating?.rideId ?? 'closed'}
@@ -661,7 +673,7 @@ export default function DriverCabinet() {
       />
 
       {/* ── Error toast ──────────────────────────────────────────────────── */}
-      {errorMessage && (
+      {!isMapMarkViewMode && errorMessage && (
         <div
           className="absolute left-4 right-4 z-[60] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3"
           style={{ bottom: `calc(${NEXT_BAR_H}px + 12px)` }}

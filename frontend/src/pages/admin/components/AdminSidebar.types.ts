@@ -56,6 +56,7 @@ export interface AdminSidebarProps {
         | 'pricingMode'
         | 'pricingFormula'
         | 'userInfoText'
+        | 'userInfoTextProfile'
         | 'workStartTime'
         | 'workEndTime'
         | 'slotIntervalMinutes'
