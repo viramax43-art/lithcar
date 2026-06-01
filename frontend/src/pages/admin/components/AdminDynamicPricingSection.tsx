@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CircleMarker, MapContainer, Polyline, TileLayer, useMapEvents } from 'react-leaflet'
 
 import { getRideQuoteAdmin } from '../../../infrastructure/api/adminApi'
 import { DEFAULT_PRICING_FORMULA } from '../../../lib/pricingDefaults'
-import type { PricingFormula, PricingFormulaTier, PricingSettings, RideQuote } from '../../../types'
+import type { LatLng, PricingFormula, PricingFormulaTier, PricingSettings, RideQuote } from '../../../types'
 import { inputCls } from './AdminSidebarShared'
 
 type PricingChangeHandler = (
@@ -26,37 +27,6 @@ interface AdminDynamicPricingSectionProps {
   pricing: PricingSettings
   onPricingChange: PricingChangeHandler
 }
-
-/** Example routes for price checks (no coordinates shown in UI). */
-const EXAMPLE_ROUTES = [
-  {
-    id: 'highway',
-    labelKey: 'admin.pricing.exampleHighway',
-    hintKey: 'admin.pricing.exampleHighwayHint',
-    fromLat: 54.6872,
-    fromLng: 25.2797,
-    toLat: 54.634,
-    toLng: 25.287,
-  },
-  {
-    id: 'mixed',
-    labelKey: 'admin.pricing.exampleMixed',
-    hintKey: 'admin.pricing.exampleMixedHint',
-    fromLat: 54.691,
-    fromLng: 25.271,
-    toLat: 54.7,
-    toLng: 25.3,
-  },
-  {
-    id: 'urban',
-    labelKey: 'admin.pricing.exampleUrban',
-    hintKey: 'admin.pricing.exampleUrbanHint',
-    fromLat: 54.68,
-    fromLng: 25.25,
-    toLat: 54.71,
-    toLng: 25.32,
-  },
-] as const
 
 const TIER_HINT_KEYS = [
   'admin.pricing.tierHint0',
@@ -89,6 +59,15 @@ function percentToMult(percent: number): number {
   return 1 + Math.max(0, percent) / 100
 }
 
+function normalizeToFixedPoints(rideEuro: number, pointPriceCents: number): number {
+  const pointPriceEur = Math.max(pointPriceCents, 1) / 100
+  return Math.max(1, Math.round(rideEuro / pointPriceEur))
+}
+
+function fromFixedPointsToEur(points: number, pointPriceCents: number): number {
+  return points * Math.max(pointPriceCents, 1) / 100
+}
+
 function friendlyBreakdownLabel(key: string, label: string, translate: (key: string) => string): string {
   const mappedKey = BREAKDOWN_LABEL_KEYS[key]
   return mappedKey ? translate(mappedKey) : label.split('(')[0].trim()
@@ -97,21 +76,28 @@ function friendlyBreakdownLabel(key: string, label: string, translate: (key: str
 export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDynamicPricingSectionProps) {
   const { t } = useTranslation()
   const [formulaDraft, setFormulaDraft] = useState<PricingFormula>(pricing.pricingFormula)
-  const [pointsPerRideDraft, setPointsPerRideDraft] = useState(pricing.pointsPerRide)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [exampleRouteId, setExampleRouteId] = useState<string>(EXAMPLE_ROUTES[0].id)
+  const [fixedRideEuroDraft, setFixedRideEuroDraft] = useState(
+    fromFixedPointsToEur(pricing.pointsPerRide, pricing.pointPriceCents),
+  )
   const [sandboxQuote, setSandboxQuote] = useState<RideQuote | null>(null)
   const [sandboxLoading, setSandboxLoading] = useState(false)
   const [sandboxError, setSandboxError] = useState<string | null>(null)
+  const [quoteFrom, setQuoteFrom] = useState<LatLng>({ lat: 54.6872, lng: 25.2797 })
+  const [quoteTo, setQuoteTo] = useState<LatLng>({ lat: 54.7, lng: 25.3 })
+  const [activeQuotePoint, setActiveQuotePoint] = useState<'from' | 'to'>('from')
 
   useEffect(() => {
     setFormulaDraft(pricing.pricingFormula)
-    setPointsPerRideDraft(pricing.pointsPerRide)
-  }, [pricing.pricingFormula, pricing.pointsPerRide])
+    setFixedRideEuroDraft(fromFixedPointsToEur(pricing.pointsPerRide, pricing.pointPriceCents))
+  }, [pricing.pricingFormula, pricing.pointsPerRide, pricing.pointPriceCents])
 
   const isDynamic = pricing.pricingMode === 'dynamic'
   const formulaDirty = JSON.stringify(formulaDraft) !== JSON.stringify(pricing.pricingFormula)
-  const pointsDirty = pointsPerRideDraft !== pricing.pointsPerRide
+  const fixedPointsDraft = useMemo(
+    () => normalizeToFixedPoints(fixedRideEuroDraft, pricing.pointPriceCents),
+    [fixedRideEuroDraft, pricing.pointPriceCents],
+  )
+  const pointsDirty = fixedPointsDraft !== pricing.pointsPerRide
 
   const updateTier = (index: number, patch: Partial<PricingFormulaTier>) => {
     setFormulaDraft((prev) => ({
@@ -121,15 +107,14 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
   }
 
   const runExampleQuote = useCallback(async () => {
-    const route = EXAMPLE_ROUTES.find((r) => r.id === exampleRouteId) ?? EXAMPLE_ROUTES[0]
     setSandboxLoading(true)
     setSandboxError(null)
     try {
       const quote = await getRideQuoteAdmin({
-        fromLat: route.fromLat,
-        fromLng: route.fromLng,
-        toLat: route.toLat,
-        toLng: route.toLng,
+        fromLat: quoteFrom.lat,
+        fromLng: quoteFrom.lng,
+        toLat: quoteTo.lat,
+        toLng: quoteTo.lng,
       })
       setSandboxQuote(quote)
     } catch (error) {
@@ -138,7 +123,7 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
     } finally {
       setSandboxLoading(false)
     }
-  }, [exampleRouteId, t])
+  }, [quoteFrom, quoteTo, t])
 
   return (
     <div className="space-y-4">
@@ -162,24 +147,26 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
 
       {!isDynamic && (
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
-          <label className="block text-sm font-bold">{t('admin.pricing.pointsPerRide')}</label>
-          <p className="text-[11px] text-muted">{t('admin.pricing.pointsPerRideHint')}</p>
-          <input
-            type="number"
-            min={1}
-            value={pointsPerRideDraft}
-            onChange={(e) => setPointsPerRideDraft(parseInt(e.target.value, 10) || 1)}
-            className={inputCls}
+          <label className="block text-sm font-bold">{t('admin.settings.ridePrice')}</label>
+          <p className="text-[11px] text-muted">
+            {t('admin.pricing.approxAtPointPrice', {
+              amount: (pricing.pointPriceCents / 100).toFixed(2),
+            })}
+          </p>
+          <EuroField
+            label={t('admin.settings.approxEur')}
+            value={fixedRideEuroDraft}
+            onChange={(euro) => setFixedRideEuroDraft(euro)}
           />
           <p className="text-xs text-muted">
-            {t('admin.pricing.approxAtPointPrice', {
-              amount: ((pointsPerRideDraft * pricing.pointPriceCents) / 100).toFixed(2),
+            {t('admin.settings.pointsCount', {
+              count: fixedPointsDraft,
             })}
           </p>
           <button
             type="button"
             disabled={!pointsDirty}
-            onClick={() => void onPricingChange({ pointsPerRide: pointsPerRideDraft })}
+            onClick={() => void onPricingChange({ pointsPerRide: fixedPointsDraft })}
             className="w-full py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50"
           >
             {t('common.save')}
@@ -195,14 +182,6 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
               <p className="text-[11px] text-muted mt-1">{t('admin.pricing.baseTariffsHint')}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <EuroField
-                label={t('admin.pricing.startFee')}
-                hint={t('admin.pricing.startFeeHint')}
-                value={centsToEuro(formulaDraft.basePriceCents)}
-                onChange={(euro) =>
-                  setFormulaDraft((p) => ({ ...p, basePriceCents: euroToCents(euro) }))
-                }
-              />
               <EuroField
                 label={t('admin.pricing.perKm')}
                 hint={t('admin.pricing.perKmHint')}
@@ -235,13 +214,6 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
                   setFormulaDraft((p) => ({ ...p, maxPriceCents: euroToCents(euro) }))
                 }
               />
-              <NumberField
-                label={t('admin.pricing.minPoints')}
-                hint={t('admin.pricing.minPointsHint')}
-                value={formulaDraft.minPoints}
-                min={1}
-                onChange={(v) => setFormulaDraft((p) => ({ ...p, minPoints: v }))}
-              />
             </div>
           </div>
 
@@ -252,12 +224,13 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
             </div>
             {formulaDraft.tiers.map((tier, index) => (
               <div key={index} className="rounded-xl bg-surface p-3 space-y-3">
-                <input
-                  value={tier.label}
-                  onChange={(e) => updateTier(index, { label: e.target.value })}
-                  className={inputCls}
-                  placeholder={t('admin.pricing.tierNamePlaceholder')}
-                />
+                <p className="text-sm font-bold">
+                  {index === 0
+                    ? t('admin.pricing.exampleHighway')
+                    : index === 1
+                      ? t('admin.pricing.exampleMixed')
+                      : t('admin.pricing.exampleUrban')}
+                </p>
                 <p className="text-[11px] text-muted">
                   {t(TIER_HINT_KEYS[index] ?? 'admin.pricing.tierHintExtra')}
                 </p>
@@ -275,54 +248,17 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="w-full text-left text-xs font-semibold text-muted py-1"
-          >
-            {showAdvanced ? t('admin.pricing.hideAdvanced') : t('admin.pricing.showAdvanced')}
-          </button>
-
-          {showAdvanced && (
-            <div className="rounded-card border border-dashed border-border p-4 space-y-3">
-              <NumberField
-                label={t('admin.pricing.circuityThreshold')}
-                hint={t('admin.pricing.circuityThresholdHint')}
-                value={formulaDraft.circuityFreeThreshold}
-                step={0.01}
-                onChange={(v) => setFormulaDraft((p) => ({ ...p, circuityFreeThreshold: v }))}
-              />
-              <EuroField
-                label={t('admin.pricing.circuityPenalty')}
-                value={centsToEuro(formulaDraft.circuityPenaltyPerStepCents)}
-                onChange={(euro) =>
-                  setFormulaDraft((p) => ({ ...p, circuityPenaltyPerStepCents: euroToCents(euro) }))
-                }
-                step={0.01}
-              />
-              <NumberField
-                label={t('admin.pricing.fallbackSpeed')}
-                hint={t('admin.pricing.fallbackSpeedHint')}
-                value={formulaDraft.fallbackSpeedKmh}
-                step={1}
-                onChange={(v) => setFormulaDraft((p) => ({ ...p, fallbackSpeedKmh: v }))}
-              />
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={formulaDraft.requireOsrm}
-                  onChange={(e) => setFormulaDraft((p) => ({ ...p, requireOsrm: e.target.checked }))}
-                />
-                {t('admin.pricing.requireOsrm')}
-              </label>
-            </div>
-          )}
-
           <div className="flex gap-2">
             <button
               type="button"
               disabled={!formulaDirty}
-              onClick={() => void onPricingChange({ pricingFormula: formulaDraft })}
+              onClick={() => void onPricingChange({
+                pricingFormula: {
+                  ...formulaDraft,
+                  basePriceCents: 0,
+                  minPoints: normalizeToFixedPoints(centsToEuro(formulaDraft.minPriceCents), pricing.pointPriceCents),
+                },
+              })}
               className="flex-1 py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50"
             >
               {t('admin.pricing.saveTariffs')}
@@ -341,20 +277,54 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
       <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">
         <p className="text-sm font-bold">{t('admin.pricing.checkPrice')}</p>
         <p className="text-[11px] text-muted">{t('admin.pricing.checkPriceHint')}</p>
-        <select
-          value={exampleRouteId}
-          onChange={(e) => setExampleRouteId(e.target.value)}
-          className={inputCls}
-        >
-          {EXAMPLE_ROUTES.map((route) => (
-            <option key={route.id} value={route.id}>
-              {t(route.labelKey)}
-            </option>
-          ))}
-        </select>
-        <p className="text-[10px] text-muted">
-          {t(EXAMPLE_ROUTES.find((r) => r.id === exampleRouteId)?.hintKey ?? EXAMPLE_ROUTES[0].hintKey)}
-        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveQuotePoint('from')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+              activeQuotePoint === 'from' ? 'bg-red-500 text-white' : 'bg-surface text-muted'
+            }`}
+          >
+            {t('common.from')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveQuotePoint('to')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+              activeQuotePoint === 'to' ? 'bg-blue-500 text-white' : 'bg-surface text-muted'
+            }`}
+          >
+            {t('common.to')}
+          </button>
+          <span className="text-[11px] text-muted">
+            {t('admin.assignModal.mapHint')}
+          </span>
+        </div>
+        <div className="h-52 rounded-xl overflow-hidden border border-border">
+          <MapContainer
+            center={[(quoteFrom.lat + quoteTo.lat) / 2, (quoteFrom.lng + quoteTo.lng) / 2]}
+            zoom={13}
+            style={{ width: '100%', height: '100%' }}
+            zoomControl={false}
+            attributionControl={false}
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <QuoteMapClickHandler
+              activePoint={activeQuotePoint}
+              onSetFrom={setQuoteFrom}
+              onSetTo={setQuoteTo}
+            />
+            <CircleMarker center={[quoteFrom.lat, quoteFrom.lng]} radius={7} pathOptions={{ color: '#fff', fillColor: '#EF4444', fillOpacity: 1, weight: 2 }} />
+            <CircleMarker center={[quoteTo.lat, quoteTo.lng]} radius={7} pathOptions={{ color: '#fff', fillColor: '#3B82F6', fillOpacity: 1, weight: 2 }} />
+            <Polyline
+              positions={[
+                [quoteFrom.lat, quoteFrom.lng],
+                [quoteTo.lat, quoteTo.lng],
+              ]}
+              pathOptions={{ color: '#111827', weight: 2.5, dashArray: '6,6', opacity: 0.65 }}
+            />
+          </MapContainer>
+        </div>
         <button
           type="button"
           disabled={sandboxLoading}
@@ -396,6 +366,25 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
       </div>
     </div>
   )
+}
+
+function QuoteMapClickHandler({
+  activePoint,
+  onSetFrom,
+  onSetTo,
+}: {
+  activePoint: 'from' | 'to'
+  onSetFrom: (value: LatLng) => void
+  onSetTo: (value: LatLng) => void
+}) {
+  useMapEvents({
+    click(event) {
+      const value = { lat: event.latlng.lat, lng: event.latlng.lng }
+      if (activePoint === 'from') onSetFrom(value)
+      else onSetTo(value)
+    },
+  })
+  return null
 }
 
 function ModeButton({

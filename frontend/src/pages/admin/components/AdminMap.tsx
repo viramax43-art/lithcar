@@ -156,18 +156,18 @@ export default function AdminMap({
           if (reqDate < startDate || reqDate > endOfDay) return false
         }
       }
-      // Time filter
-      if (filterTime) {
-        const [startH, startM] = filterTime.split(':').map(Number)
+      // Time filter (manual from-to range)
+      if (filterTime || filterTimeEnd) {
         const reqMinutes = reqDate.getHours() * 60 + reqDate.getMinutes()
-        const startMinutes = startH * 60 + startM
+        if (filterTime) {
+          const [startH, startM] = filterTime.split(':').map(Number)
+          const startMinutes = startH * 60 + startM
+          if (reqMinutes < startMinutes) return false
+        }
         if (filterTimeEnd) {
           const [endH, endM] = filterTimeEnd.split(':').map(Number)
           const endMinutes = endH * 60 + endM
-          if (reqMinutes < startMinutes || reqMinutes > endMinutes) return false
-        } else {
-          // Show requests within 30 min window from start
-          if (reqMinutes < startMinutes || reqMinutes > startMinutes + 30) return false
+          if (reqMinutes > endMinutes) return false
         }
       }
       return true
@@ -232,6 +232,7 @@ export default function AdminMap({
   const [isSavingMapMark, setIsSavingMapMark] = useState(false)
   const [mapMarkError, setMapMarkError] = useState<string | null>(null)
   const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null)
+  const [openedMarkPopupId, setOpenedMarkPopupId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
@@ -242,6 +243,7 @@ export default function AdminMap({
   const isRoutePreviewMode = Boolean(
     selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
   )
+  const isMapMarkViewMode = Boolean(openedMarkPopupId || fullscreenPhoto)
 
   const getPickupColor = useCallback((request: RideRequest): string => {
     if (request.status === 'completed') return '#22C55E'
@@ -499,11 +501,6 @@ export default function AdminMap({
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
-  const timeSlotStepMinutes = useMemo(() => {
-    if (!slotIntervalMinutes || slotIntervalMinutes <= 0) return 30
-    return slotIntervalMinutes
-  }, [slotIntervalMinutes])
-
   const dayOptions = useMemo(() => {
     const now = new Date()
     const tomorrow = new Date(now)
@@ -529,39 +526,10 @@ export default function AdminMap({
     onFilterTimeEndChange('')
   }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
 
-  const timeSlots = useMemo(() => {
-    const toLabel = (totalMinutes: number): string => {
-      const normalized = Math.max(0, Math.min(totalMinutes, 24 * 60))
-      const hours = String(Math.floor(normalized / 60)).padStart(2, '0')
-      const minutes = String(normalized % 60).padStart(2, '0')
-      return `${hours}:${minutes}`
-    }
-
-    const slots: Array<{ value: string; start: string; end: string; label: string }> = []
-    for (let from = 0; from < 24 * 60; from += timeSlotStepMinutes) {
-      const to = Math.min(from + timeSlotStepMinutes, 24 * 60)
-      const start = toLabel(from)
-      const end = toLabel(to)
-      slots.push({
-        value: `${start}-${end}`,
-        start,
-        end,
-        label: t('common.timeFromTo', { from: start, to: end, defaultValue: `${start} - ${end}` }),
-      })
-    }
-    return slots
-  }, [timeSlotStepMinutes, t])
-
-  const selectedTimeSlotValue = useMemo(() => {
-    if (!filterTime && !filterTimeEnd) return 'all'
-    if (filterTime === '00:00' && filterTimeEnd === '23:59') return 'full-day'
-    const matched = timeSlots.find((slot) => slot.start === filterTime && slot.end === filterTimeEnd)
-    return matched ? matched.value : 'custom'
-  }, [filterTime, filterTimeEnd, timeSlots])
-
   return (
     <main className="flex-1 relative">
       {/* === Date/Time Filter Bar === */}
+      {!isMapMarkViewMode && (
       <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -573,41 +541,37 @@ export default function AdminMap({
         </div>
 
         <div className="grid grid-cols-1 gap-2">
-          <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
-            <Clock size={15} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] text-muted whitespace-nowrap">{t('common.timeRangeFromTo', { defaultValue: 'Time from-to' })}</span>
-            <select
-              value={selectedTimeSlotValue}
-              onChange={(event) => {
-                const value = event.target.value
-                if (value === 'all') {
-                  onFilterTimeChange('')
-                  onFilterTimeEndChange('')
-                  return
-                }
-                if (value === 'full-day') {
-                  onFilterTimeChange('00:00')
-                  onFilterTimeEndChange('23:59')
-                  return
-                }
-                const selectedSlot = timeSlots.find((slot) => slot.value === value)
-                if (!selectedSlot) return
-                onFilterTimeChange(selectedSlot.start)
-                onFilterTimeEndChange(selectedSlot.end)
-              }}
-              className="w-full text-sm bg-transparent outline-none border-none touch-none"
-              title={t('common.timeslot')}
-            >
-              <option value="all">{t('common.allTime')}</option>
-              <option value="full-day">{t('common.timeFromTo', { from: '00:00', to: '23:59', defaultValue: '00:00 - 23:59' })}</option>
-              {selectedTimeSlotValue === 'custom' && <option value="custom">{t('common.customRange')}</option>}
-              {timeSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="rounded-xl border border-border bg-surface/50 px-3 py-2">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Clock size={15} className="text-muted flex-shrink-0" />
+              <span className="text-[11px] text-muted whitespace-nowrap">
+                {t('common.timeRangeFromTo', { defaultValue: 'Time from-to' })}
+              </span>
+            </div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <label className="min-w-0">
+                <span className="text-[10px] text-muted">{t('common.from')}</span>
+                <input
+                  type="time"
+                  value={filterTime}
+                  onChange={(event) => onFilterTimeChange(event.target.value)}
+                  className="w-full mt-1 h-8 px-2 rounded-lg border border-border bg-white text-xs outline-none focus:border-black"
+                  title={t('common.from')}
+                />
+              </label>
+              <span className="text-muted text-sm mt-5">-</span>
+              <label className="min-w-0">
+                <span className="text-[10px] text-muted">{t('common.to')}</span>
+                <input
+                  type="time"
+                  value={filterTimeEnd}
+                  onChange={(event) => onFilterTimeEndChange(event.target.value)}
+                  className="w-full mt-1 h-8 px-2 rounded-lg border border-border bg-white text-xs outline-none focus:border-black"
+                  title={t('common.to')}
+                />
+              </label>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
@@ -674,8 +638,10 @@ export default function AdminMap({
           })}
         </div>
       </div>
+      )}
 
       {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
+      {!isMapMarkViewMode && (
       <div className="admin-map-controls absolute top-[200px] left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))] max-h-[calc(100dvh-230px)] overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
           {searchOpen ? (
@@ -910,9 +876,10 @@ export default function AdminMap({
           </div>
         )}
       </div>
+      )}
 
       {/* Sidebar toggle when collapsed */}
-      {sidebarCollapsed && (
+      {!isMapMarkViewMode && sidebarCollapsed && (
         <button
           onClick={onToggleSidebar}
           className="absolute top-1/2 left-2 -translate-y-1/2 z-[1000] w-10 h-10 bg-white border border-border rounded-full shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
@@ -1066,9 +1033,16 @@ export default function AdminMap({
               key={`map-mark-${mark.id}`}
               position={[mark.position.lat, mark.position.lng]}
               icon={makeMapMarkIcon(mark.color, highlighted ? 40 : 30)}
-              eventHandlers={{ click: () => setSelectedMarkId(mark.id) }}
+              eventHandlers={{
+                click: () => setSelectedMarkId(mark.id),
+                popupopen: () => setOpenedMarkPopupId(mark.id),
+                popupclose: () => {
+                  setOpenedMarkPopupId((current) => (current === mark.id ? null : current))
+                  setSelectedMarkId((current) => (current === mark.id ? null : current))
+                },
+              }}
             >
-              <Popup autoPan className="map-mark-popup" closeButton={false}>
+              <Popup autoPan className="map-mark-popup">
                 <div className="text-xs min-w-[220px]">
                   <p className="font-bold">{mark.title}</p>
                   <p className="text-[11px] text-muted">
@@ -1142,12 +1116,12 @@ export default function AdminMap({
       </MapContainer>
 
       {/* Drawing hint banner */}
-      {isDrawing && (
+      {!isMapMarkViewMode && isDrawing && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
         </div>
       )}
-      {isMarkModeEnabled && (
+      {!isMapMarkViewMode && isMarkModeEnabled && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           {t('admin.map.markerPlacementHint')}
         </div>
@@ -1163,7 +1137,7 @@ export default function AdminMap({
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
           >
             <X size={18} />
           </button>
@@ -1177,7 +1151,7 @@ export default function AdminMap({
       )}
 
       {/* Similar Trips Panel */}
-      {showSimilarPanel && (
+      {!isMapMarkViewMode && showSimilarPanel && (
         <div className="admin-map-route-panel absolute bottom-4 left-4 w-[380px] max-h-[50vh] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -1291,7 +1265,7 @@ export default function AdminMap({
       )}
 
       {/* Selected request detail card */}
-      {selectedReq && status && (
+      {!isMapMarkViewMode && selectedReq && status && (
         <div className="admin-map-detail-card absolute top-[200px] right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">

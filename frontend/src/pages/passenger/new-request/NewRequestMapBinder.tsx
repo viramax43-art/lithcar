@@ -21,10 +21,12 @@ export const iconB = L.divIcon({
 
 export function MapBinder({
   registerMap,
+  enabled = true,
   onPanStart,
   onPanEnd,
 }: {
   registerMap: (m: L.Map) => void
+  enabled?: boolean
   onPanStart: () => void
   onPanEnd: (latlng: LatLng) => void
 }) {
@@ -41,9 +43,11 @@ export function MapBinder({
 
   useMapEvents({
     movestart() {
+      if (!enabled) return
       onPanStart()
     },
     moveend() {
+      if (!enabled) return
       const size = map.getSize()
       const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
       const ll = map.containerPointToLatLng(px)

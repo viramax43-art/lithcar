@@ -306,14 +306,6 @@ export function AdminSidebarZonesSettingsQrSection({
             <span className="text-white/70">{t('admin.settings.onePoint')}</span>
             <span className="font-semibold">€{(pricing.pointPriceCents / 100).toFixed(2)}</span>
           </div>
-          {pricing.pricingMode === 'fixed' && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">{t('admin.settings.perRide')}</span>
-              <span className="font-semibold">
-                {t('admin.settings.pointsCount', { count: pricing.pointsPerRide })}
-              </span>
-            </div>
-          )}
           <div className="h-px bg-white/15" />
           <div className="flex items-center justify-between">
             <span className="text-sm text-white/70">

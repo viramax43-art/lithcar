@@ -31,9 +31,12 @@ export default function NewRequest() {
   const maxDate = toLocalDateInput(maxDateObj)
   const [menuOpen, setMenuOpen] = useState(false)
   const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
+  const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
+  const [isSignalMode, setIsSignalMode] = useState(false)
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
+  const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
 
   useEffect(() => {
     let cancelled = false
@@ -59,6 +62,7 @@ export default function NewRequest() {
             registerMap={(map) => {
               model.mapRef.current = map
             }}
+            enabled={!isMapMarkViewMode}
             onPanStart={() => model.setIsPanning(true)}
             onPanEnd={(latlng) => {
               model.setIsPanning(false)
@@ -69,8 +73,16 @@ export default function NewRequest() {
           {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
           {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           {publicMapMarks.map((mark) => (
-            <Marker key={mark.id} position={[mark.position.lat, mark.position.lng]} icon={makeMapMarkIcon(mark.color, 28)}>
-              <Popup className="map-mark-popup" closeButton={false}>
+            <Marker
+              key={mark.id}
+              position={[mark.position.lat, mark.position.lng]}
+              icon={makeMapMarkIcon(mark.color, 28)}
+              eventHandlers={{
+                popupopen: () => setOpenedPublicMarkId(mark.id),
+                popupclose: () => setOpenedPublicMarkId((current) => (current === mark.id ? null : current)),
+              }}
+            >
+              <Popup className="map-mark-popup">
                 <div className="text-xs w-[min(76vw,260px)]">
                   <p className="font-bold">{mark.title}</p>
                   {mark.photoUrl && (
@@ -102,7 +114,7 @@ export default function NewRequest() {
         </MapContainer>
       </div>
 
-      {model.isPinLive && (
+      {!isMapMarkViewMode && model.isPinLive && (
         <>
           <div className={`center-pin ${model.activeIsFrom ? 'pin-a' : 'pin-b'} ${model.isPanning ? 'is-panning' : ''}`}>
             <div className="pin-body">
@@ -113,6 +125,7 @@ export default function NewRequest() {
         </>
       )}
 
+      {!isMapMarkViewMode && (
       <header
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
@@ -125,6 +138,19 @@ export default function NewRequest() {
           <List size={20} weight="bold" />
         </button>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              hapticSelection()
+              setIsSignalMode(true)
+              if (!document.fullscreenElement) {
+                void document.documentElement.requestFullscreen?.().catch(() => undefined)
+              }
+            }}
+            className="w-10 h-10 rounded-pill bg-red-500 text-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
+            title={t('passenger.signalModeOpen', { defaultValue: 'Signal for driver' })}
+          >
+            <Warning size={18} weight="fill" />
+          </button>
           <button
             onClick={() => {
               hapticSelection()
@@ -150,9 +176,10 @@ export default function NewRequest() {
           </button>
         </div>
       </header>
+      )}
 
       {/* Side menu drawer */}
-      {menuOpen && (
+      {!isMapMarkViewMode && menuOpen && (
         <>
           <div
             className="absolute inset-0 z-[500] bg-black/30 backdrop-blur-[1px]"
@@ -212,7 +239,7 @@ export default function NewRequest() {
         </>
       )}
 
-      {model.isPinLive && (
+      {!isMapMarkViewMode && model.isPinLive && (
         <div
           className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
           style={{ top: 'calc(42% - 88px)' }}
@@ -246,7 +273,7 @@ export default function NewRequest() {
         </div>
       )}
 
-      {model.zoneWarning && (
+      {!isMapMarkViewMode && model.zoneWarning && (
         <div
           className="absolute left-3 right-3 z-30 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-pill shadow-card animate-fade-in"
           style={{ top: 'calc(var(--app-user-safe-top) + 48px)' }}
@@ -259,6 +286,7 @@ export default function NewRequest() {
         </div>
       )}
 
+      {!isMapMarkViewMode && (
       <div
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out"
         style={{
@@ -432,8 +460,9 @@ export default function NewRequest() {
           )}
         </div>
       </div>
+      )}
 
-      {model.showSearch && (
+      {!isMapMarkViewMode && model.showSearch && (
         <div
           className="absolute inset-0 z-[600] bg-white flex flex-col animate-fade-in"
           style={{
@@ -525,7 +554,7 @@ export default function NewRequest() {
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
           >
             <X size={18} />
           </button>
@@ -535,6 +564,33 @@ export default function NewRequest() {
             className="max-w-[96vw] max-h-[88vh] object-contain rounded-xl"
             onClick={(event) => event.stopPropagation()}
           />
+        </div>
+      )}
+
+      {isSignalMode && (
+        <div className="fixed inset-0 z-[2400] signal-attention-screen flex flex-col items-center justify-center text-center px-6">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignalMode(false)
+              if (document.fullscreenElement) {
+                void document.exitFullscreen?.().catch(() => undefined)
+              }
+            }}
+            className="absolute top-4 right-4 rounded-full w-11 h-11 bg-black/70 text-white flex items-center justify-center"
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 20px)' }}
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
+            <X size={18} />
+          </button>
+          <div className="signal-attention-content rounded-card px-5 py-4 max-w-[420px]">
+            <p className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {t('passenger.signalModeTitle', { defaultValue: 'Driver, I am here' })}
+            </p>
+            <p className="mt-2 text-sm font-semibold opacity-90">
+              {t('passenger.signalModeHint', { defaultValue: 'Hold the phone up so the driver can see you from the road.' })}
+            </p>
+          </div>
         </div>
       )}
 

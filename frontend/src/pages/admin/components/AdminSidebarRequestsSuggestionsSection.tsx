@@ -67,16 +67,17 @@ export function AdminSidebarRequestsSuggestionsSection({
         if (reqDate < startDate || reqDate > endDate) return false
       }
 
-      if (filterTime) {
-        const [startH, startM] = filterTime.split(':').map(Number)
+      if (filterTime || filterTimeEnd) {
         const reqMinutes = reqDate.getHours() * 60 + reqDate.getMinutes()
-        const startMinutes = startH * 60 + startM
+        if (filterTime) {
+          const [startH, startM] = filterTime.split(':').map(Number)
+          const startMinutes = startH * 60 + startM
+          if (reqMinutes < startMinutes) return false
+        }
         if (filterTimeEnd) {
           const [endH, endM] = filterTimeEnd.split(':').map(Number)
           const endMinutes = endH * 60 + endM
-          if (reqMinutes < startMinutes || reqMinutes > endMinutes) return false
-        } else if (reqMinutes < startMinutes || reqMinutes > startMinutes + 30) {
-          return false
+          if (reqMinutes > endMinutes) return false
         }
       }
 
