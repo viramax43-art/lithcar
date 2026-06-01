@@ -45,6 +45,16 @@ export function AdminSidebarRequestsSuggestionsSection({
   const { t } = useTranslation()
   const [manualGroupIds, setManualGroupIds] = useState<string[]>([])
 
+  const getPickupColor = (driverId?: string, status?: string): string => {
+    if (status === 'completed') return '#22C55E'
+    return driverId ? '#EF4444' : '#F59E0B'
+  }
+
+  const getDropoffColor = (driverId?: string, status?: string): string => {
+    if (status === 'completed') return '#22C55E'
+    return driverId ? '#3B82F6' : '#F59E0B'
+  }
+
   const requestsInDateTimeWindow = useMemo(() => {
     return requests.filter((request) => {
       const reqDate = new Date(request.dateTime)
@@ -190,9 +200,15 @@ export function AdminSidebarRequestsSuggestionsSection({
               )}
               <div className="flex gap-2.5">
                 <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
-                  <div className="w-2 h-2 rounded-full bg-point-a" />
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: getPickupColor(request.driverId, request.status) }}
+                  />
                   <div className="w-px flex-1 bg-border my-1" style={{ minHeight: 12 }} />
-                  <div className="w-2 h-2 rounded-full bg-point-b" />
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: getDropoffColor(request.driverId, request.status) }}
+                  />
                 </div>
                 <div className="flex-1 min-w-0 text-xs space-y-2">
                   <p className="truncate">{request.from.address}</p>

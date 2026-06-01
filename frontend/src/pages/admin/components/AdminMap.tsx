@@ -4,7 +4,7 @@ import L from 'leaflet'
 import { Calendar, Car, CaretLeft, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
-import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, RideStatus, ServiceZone } from '../../../types'
+import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
@@ -50,15 +50,7 @@ interface AdminMapProps {
   onToggleColor: (key: MapColorGroupKey) => void
 }
 
-/** Map ride status to CSS class */
-function getMarkerClass(status: RideStatus): string {
-  for (const group of MAP_COLOR_GROUPS) {
-    if (group.statuses.includes(status)) return group.cssClass
-  }
-  return 'marker-ride-gray'
-}
-
-function getMarkerSize(status: RideStatus): number {
+function getMarkerSize(status: string): number {
   if (status === 'completed') return 28
   if (status === 'en_route_to_pickup' || status === 'awaiting_passenger' || status === 'in_progress') return 28
   return 22
@@ -108,11 +100,14 @@ function MapInvalidator({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
   return null
 }
 
-function makeIcon(className: string, label?: string): L.DivIcon {
-  const size = className.includes('-sm') ? 14 : className.includes('marker-ride') ? 28 : 36
+function makeSolidPointIcon(color: string, size: number, label?: string): L.DivIcon {
+  const borderWidth = size >= 28 ? 3 : 2
+  const shadowAlpha = size >= 28 ? 0.45 : 0.35
+  const fontSize = size >= 28 ? 13 : 10
+  const fontWeight = size >= 28 ? 800 : 700
   return L.divIcon({
     className: '',
-    html: `<div class="${className}">${label ?? ''}</div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:${borderWidth}px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,${shadowAlpha});display:flex;align-items:center;justify-content:center;color:#fff;font-size:${fontSize}px;font-weight:${fontWeight};font-family:Inter,sans-serif;">${label ?? ''}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   })
@@ -248,6 +243,16 @@ export default function AdminMap({
     selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
   )
 
+  const getPickupColor = useCallback((request: RideRequest): string => {
+    if (request.status === 'completed') return '#22C55E'
+    return request.driverId ? '#EF4444' : '#F59E0B'
+  }, [])
+
+  const getDropoffColor = useCallback((request: RideRequest): string => {
+    if (request.status === 'completed') return '#22C55E'
+    return request.driverId ? '#3B82F6' : '#F59E0B'
+  }, [])
+
   const loadMapMarks = useCallback(async () => {
     setIsLoadingMapMarks(true)
     try {
@@ -368,26 +373,20 @@ export default function AdminMap({
     const groups: Record<MapColorGroupKey, ClusterMarker[]> = { amber: [], red: [], blue: [], green: [] }
 
     visibleActiveRequests.forEach((req) => {
-      const group = MAP_COLOR_GROUPS.find((g) => g.statuses.includes(req.status))
-      if (!group) return
+      const hasAssignedDriver = Boolean(req.driverId)
+      const pickupColor = getPickupColor(req)
       const size = getMarkerSize(req.status)
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="${group.cssClass}"></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      })
-      groups[group.key].push({
+      groups[hasAssignedDriver ? 'red' : 'amber'].push({
         id: `${req.id}-from`,
         position: [req.from.latlng.lat, req.from.latlng.lng],
-        icon,
+        icon: makeSolidPointIcon(pickupColor, size),
         onClick: () => onSelectRequest(req.id),
         tooltipText: `№${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
       })
     })
 
     return groups
-  }, [visibleActiveRequests, onSelectRequest])
+  }, [visibleActiveRequests, onSelectRequest, getPickupColor])
 
   // Completed destination markers (green history)
   const completedDestinationMarkers = useMemo(() => {
@@ -547,11 +546,11 @@ export default function AdminMap({
         value: `${start}-${end}`,
         start,
         end,
-        label: `${start} - ${end}`,
+        label: t('common.timeFromTo', { from: start, to: end, defaultValue: `${start} - ${end}` }),
       })
     }
     return slots
-  }, [timeSlotStepMinutes])
+  }, [timeSlotStepMinutes, t])
 
   const selectedTimeSlotValue = useMemo(() => {
     if (!filterTime && !filterTimeEnd) return 'all'
@@ -576,7 +575,7 @@ export default function AdminMap({
         <div className="grid grid-cols-1 gap-2">
           <label className="h-10 px-3 rounded-xl border border-border bg-surface/50 flex items-center gap-2">
             <Clock size={15} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] text-muted whitespace-nowrap">{t('common.timeslot')}</span>
+            <span className="text-[11px] text-muted whitespace-nowrap">{t('common.timeRangeFromTo', { defaultValue: 'Time from-to' })}</span>
             <select
               value={selectedTimeSlotValue}
               onChange={(event) => {
@@ -600,7 +599,7 @@ export default function AdminMap({
               title={t('common.timeslot')}
             >
               <option value="all">{t('common.allTime')}</option>
-              <option value="full-day">{t('common.fullDay')}</option>
+              <option value="full-day">{t('common.timeFromTo', { from: '00:00', to: '23:59', defaultValue: '00:00 - 23:59' })}</option>
               {selectedTimeSlotValue === 'custom' && <option value="custom">{t('common.customRange')}</option>}
               {timeSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
@@ -954,11 +953,12 @@ export default function AdminMap({
             {/* Destination markers + route lines for active non-completed rides */}
             {visibleActiveRequests.map((request) => {
               const highlighted = request.id === selectedReqId
+              const dropoffColor = getDropoffColor(request)
               return (
                 <div key={request.id}>
                   <Marker
                     position={[request.to.latlng.lat, request.to.latlng.lng]}
-                    icon={makeIcon(highlighted ? 'marker-b' : 'marker-b-sm', highlighted ? 'B' : undefined)}
+                    icon={makeSolidPointIcon(dropoffColor, highlighted ? 36 : 14, highlighted ? 'B' : undefined)}
                     eventHandlers={{ click: () => onSelectRequest(request.id) }}
                   />
                   <Polyline
@@ -1068,7 +1068,7 @@ export default function AdminMap({
               icon={makeMapMarkIcon(mark.color, highlighted ? 40 : 30)}
               eventHandlers={{ click: () => setSelectedMarkId(mark.id) }}
             >
-              <Popup autoPan className="map-mark-popup">
+              <Popup autoPan className="map-mark-popup" closeButton={false}>
                 <div className="text-xs min-w-[220px]">
                   <p className="font-bold">{mark.title}</p>
                   <p className="text-[11px] text-muted">
@@ -1163,6 +1163,7 @@ export default function AdminMap({
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
           >
             <X size={18} />
           </button>
@@ -1314,9 +1315,15 @@ export default function AdminMap({
           <div className="px-4 py-3 space-y-3">
             <div className="flex gap-3">
               <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-point-a" />
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: getPickupColor(selectedReq) }}
+                />
                 <div className="w-px flex-1 bg-border my-1 min-h-3" />
-                <div className="w-2.5 h-2.5 rounded-full bg-point-b" />
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: getDropoffColor(selectedReq) }}
+                />
               </div>
               <div className="flex-1 min-w-0 text-xs space-y-2.5">
                 <a

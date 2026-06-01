@@ -39,6 +39,7 @@ export default function RequestDetail() {
   const [ratingScore, setRatingScore] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
+  const [isSignalMode, setIsSignalMode] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -115,6 +116,8 @@ export default function RequestDetail() {
     [request.from.latlng.lat, request.from.latlng.lng],
     [request.to.latlng.lat, request.to.latlng.lng]
   )
+
+  const canUseSignalMode = Boolean(driver) && request.status !== 'completed'
 
   return (
     <div className="min-h-[100dvh] bg-white">
@@ -403,6 +406,20 @@ export default function RequestDetail() {
                   <NavigationArrow size={16} weight="fill" /> {t('common.showOnMap', { defaultValue: 'Show on map' })}
                 </a>
               )}
+              {canUseSignalMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignalMode(true)
+                    if (document.fullscreenElement) return
+                    void document.documentElement.requestFullscreen?.().catch(() => undefined)
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-white text-black rounded-xl text-sm font-extrabold hover:bg-white/90 transition-colors active:scale-[0.98]"
+                >
+                  <Warning size={16} weight="fill" />
+                  {t('passenger.signalModeOpen', { defaultValue: 'Signal for driver' })}
+                </button>
+              )}
             </div>
 
             {driver.isOnline && driver.currentLocation && (
@@ -518,6 +535,33 @@ export default function RequestDetail() {
           </p>
         </div>
       </div>
+
+      {isSignalMode && (
+        <div className="fixed inset-0 z-[3400] signal-attention-screen flex flex-col items-center justify-center text-center px-6">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignalMode(false)
+              if (document.fullscreenElement) {
+                void document.exitFullscreen?.().catch(() => undefined)
+              }
+            }}
+            className="absolute top-4 right-4 rounded-full w-11 h-11 bg-black/70 text-white flex items-center justify-center"
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
+            <ArrowLeft size={18} weight="bold" />
+          </button>
+          <div className="signal-attention-content rounded-card px-5 py-4 max-w-[420px]">
+            <p className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {t('passenger.signalModeTitle', { defaultValue: 'Driver, I am here' })}
+            </p>
+            <p className="mt-2 text-sm font-semibold opacity-90">
+              {t('passenger.signalModeHint', { defaultValue: 'Hold the phone up so the driver can see you from the road.' })}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

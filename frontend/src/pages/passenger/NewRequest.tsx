@@ -70,8 +70,8 @@ export default function NewRequest() {
           {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           {publicMapMarks.map((mark) => (
             <Marker key={mark.id} position={[mark.position.lat, mark.position.lng]} icon={makeMapMarkIcon(mark.color, 28)}>
-              <Popup className="map-mark-popup">
-                <div className="text-xs min-w-[220px]">
+              <Popup className="map-mark-popup" closeButton={false}>
+                <div className="text-xs w-[min(76vw,260px)]">
                   <p className="font-bold">{mark.title}</p>
                   {mark.photoUrl && (
                     <button
@@ -82,7 +82,7 @@ export default function NewRequest() {
                       <img
                         src={mark.photoUrl}
                         alt={mark.title}
-                        className="w-full h-auto max-h-[220px] object-cover"
+                        className="w-full h-auto max-h-[44vh] object-contain bg-surface/40"
                       />
                     </button>
                   )}
@@ -525,6 +525,7 @@ export default function NewRequest() {
             onClick={() => setFullscreenPhoto(null)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
             aria-label={t('common.close', { defaultValue: 'Close' })}
+            style={{ top: 'calc(var(--app-safe-area-top-total) + 8px)' }}
           >
             <X size={18} />
           </button>

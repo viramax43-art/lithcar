@@ -261,6 +261,31 @@ body {
 }
 .animate-slide-in-left { animation: slideInLeft 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
 
+/* Passenger roadside attention mode */
+@keyframes signalScreenPulse {
+  0% { background: #fef08a; color: #111827; }
+  33% { background: #f97316; color: #111827; }
+  66% { background: #ffffff; color: #111827; }
+  100% { background: #ef4444; color: #ffffff; }
+}
+
+@keyframes signalTextPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.signal-attention-screen {
+  animation: signalScreenPulse 1.2s linear infinite;
+}
+
+.signal-attention-content {
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: signalTextPulse 1s ease-in-out infinite;
+}
+
 /* Three-dot pulse for "resolving address" indicator. */
 @keyframes dotPulse {
   0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
