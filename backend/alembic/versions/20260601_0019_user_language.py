@@ -16,6 +16,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("users")}
+    if "language" in columns:
+        return
     op.add_column(
         "users",
         sa.Column("language", sa.String(length=8), nullable=False, server_default="lt"),
@@ -23,4 +28,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("users")}
+    if "language" not in columns:
+        return
     op.drop_column("users", "language")
