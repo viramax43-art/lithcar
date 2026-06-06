@@ -33,6 +33,8 @@ type DriversSectionProps = Pick<
   | 'setNewDriverAbout'
   | 'newDriverCanSellPoints'
   | 'setNewDriverCanSellPoints'
+  | 'newDriverCanSelfAssign'
+  | 'setNewDriverCanSelfAssign'
   | 'lastCreatedDriverKey'
   | 'rotatedDriverKeys'
   | 'handleCreateDriver'
@@ -71,6 +73,8 @@ export function AdminSidebarDriversSection({
   setNewDriverAbout,
   newDriverCanSellPoints,
   setNewDriverCanSellPoints,
+  newDriverCanSelfAssign,
+  setNewDriverCanSelfAssign,
   lastCreatedDriverKey,
   rotatedDriverKeys,
   handleCreateDriver,
@@ -152,6 +156,14 @@ export function AdminSidebarDriversSection({
               onChange={(event) => setNewDriverCanSellPoints(event.target.checked)}
             />
             <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
+          </label>
+          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={newDriverCanSelfAssign}
+              onChange={(event) => setNewDriverCanSelfAssign(event.target.checked)}
+            />
+            <span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>
           </label>
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted">{t('admin.drivers.driverPhoto')}</label>
@@ -246,6 +258,10 @@ export function AdminSidebarDriversSection({
                     {driver.canSellPoints ? t('admin.drivers.qrSalesOn') : t('admin.drivers.qrSalesOff')}
                   </span>
                   <span className="text-border">·</span>
+                  <span className="text-[10px] font-bold text-amber-700">
+                    {driver.canSelfAssign ? t('admin.drivers.selfAssignOn') : t('admin.drivers.selfAssignOff')}
+                  </span>
+                  <span className="text-border">·</span>
                   <span
                     className={`text-[10px] font-semibold ${driver.isOnline ? 'text-accent-dark' : 'text-muted'}`}
                   >
@@ -293,6 +309,13 @@ export function AdminSidebarDriversSection({
                     value={driver.canSellPoints ? t('common.yes') : t('common.no')}
                     label={t('admin.drivers.qrSalesLabel')}
                   />
+                  <Stat
+                    icon={<MapPin size={14} className="text-amber-600" />}
+                    value={driver.canSelfAssign ? t('common.yes') : t('common.no')}
+                    label={t('admin.drivers.selfAssignLabel')}
+                  />
+                </div>
+                <div className="grid grid-cols-1 border-b border-border bg-white">
                   <Stat
                     icon={<Users size={14} className="text-zinc-700" />}
                     value={String(driver.seatsCount ?? '—')}

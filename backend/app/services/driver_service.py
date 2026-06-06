@@ -36,6 +36,7 @@ async def create_driver(
     about: str,
     is_online: bool = False,
     can_sell_points: bool = False,
+    can_self_assign: bool = False,
 ) -> Driver:
     normalized_user_id = (user_id or "").strip() or None
     if normalized_user_id:
@@ -67,6 +68,7 @@ async def create_driver(
         is_online=is_online,
         last_seen_at=datetime.now(timezone.utc) if is_online else None,
         can_sell_points=can_sell_points,
+        can_self_assign=can_self_assign,
     )
     db_session.add(driver)
     await db_session.commit()
@@ -185,6 +187,7 @@ async def update_driver_profile(
     about: str | None = None,
     is_online: bool | None = None,
     can_sell_points: bool | None = None,
+    can_self_assign: bool | None = None,
 ) -> Driver | None:
     driver = await get_driver(db_session, driver_id=driver_id)
     if driver is None:
@@ -210,6 +213,8 @@ async def update_driver_profile(
         driver.last_seen_at = datetime.now(timezone.utc) if is_online else None
     if can_sell_points is not None:
         driver.can_sell_points = can_sell_points
+    if can_self_assign is not None:
+        driver.can_self_assign = can_self_assign
     await db_session.commit()
     await db_session.refresh(driver)
     return driver

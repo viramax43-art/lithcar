@@ -48,6 +48,7 @@ export interface Driver {
   licenseNumber?: string
   about?: string
   canSellPoints?: boolean
+  canSelfAssign?: boolean
   keyPrefix?: string
   createdAt?: string
   rating: number
@@ -208,6 +209,7 @@ export interface DriverSessionInfo {
   driverId: string
   name: string
   canSellPoints: boolean
+  canSelfAssign: boolean
   rating: number
   ratingCount: number
 }
@@ -241,11 +243,13 @@ export interface DriverMapPoint {
   pickupConfirmedAt: string | null
   passengerRating: number
   passengerRatingCount: number
+  pointKind?: 'mine' | 'available'
 }
 
 export interface DriverMapData {
   session: DriverSessionInfo
   points: DriverMapPoint[]
+  availablePoints?: DriverMapPoint[]
   activeRides: number
   totalRides: number
 }

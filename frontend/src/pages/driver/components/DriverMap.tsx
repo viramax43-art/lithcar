@@ -4,6 +4,7 @@ import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import { formatTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
 import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
@@ -13,7 +14,7 @@ interface DriverMapProps {
   selectedPointId: string | null
   nextPointId: string | null
   driverLocation: LatLng | null
-  roadPolyline: LatLng[]
+  mapInsetTop?: number
   onSelectPoint: (point: DriverMapPoint) => void
   onPickupDragEnd: (rideId: string, latlng: LatLng) => void
   onMapMarkViewModeChange?: (isViewing: boolean) => void
@@ -23,12 +24,20 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
   const { isSelected, isNext } = opts
   const isDone = pt.pointStatus === 'done'
   const isPickup = pt.pointType === 'pickup'
+  const isAvailable = pt.pointKind === 'available'
 
   // Driver flow color semantics:
+  // - Amber: available unassigned ride
   // - Red: pickup
   // - Blue: dropoff
   // - Green: completed point
-  const bg = isDone ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
+  const bg = isAvailable
+    ? '#F59E0B'
+    : isDone
+      ? '#16A34A'
+      : isPickup
+        ? '#EF4444'
+        : '#3B82F6'
 
   const sz = isDone ? 28 : isNext ? 44 : 36
   const label = pt.recommendedOrder != null ? String(pt.recommendedOrder) : isPickup ? 'A' : 'B'
@@ -38,22 +47,37 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
   if (isSelected) shadow = `0 0 0 3px white, 0 0 0 6px ${bg}, 0 2px 12px rgba(0,0,0,0.4)`
   else if (isNext) shadow = `0 0 0 3px white, 0 0 0 5px ${bg}, 0 4px 16px rgba(0,0,0,0.35)`
 
-  const pulse = isNext && !isDone
+  const pulse = isNext && !isDone && !isAvailable
     ? `<div style="position:absolute;inset:-8px;border-radius:50%;background:${bg};opacity:0.2;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>`
     : ''
 
+  const markerOpacity = isDone ? 0.95 : 1
+  const timeLabel = formatTime(new Date(pt.dateTime), { hour: '2-digit', minute: '2-digit' })
+  const timeFont = isDone ? 9 : isNext ? 11 : 10
+  const totalW = Math.max(sz, 42)
+  const totalH = sz + 18
+
   return L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:${sz}px;height:${sz}px;">
+    html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;width:${totalW}px;">
       ${pulse}
-      <div style="position:relative;width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:white;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:800;box-shadow:${shadow};opacity:${isDone ? 0.45 : 1};transition:transform 0.15s,box-shadow 0.15s;transform:${isSelected ? 'scale(1.1)' : 'scale(1)'};">${label}</div>
+      <div style="position:relative;width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:white;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:800;box-shadow:${shadow};opacity:${markerOpacity};transition:transform 0.15s,box-shadow 0.15s;transform:${isSelected ? 'scale(1.1)' : 'scale(1)'};">${label}</div>
+      <div style="margin-top:3px;padding:2px 6px;border-radius:6px;background:#fff;color:#111827;font-size:${timeFont}px;font-weight:800;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,0.22);border:1px solid rgba(0,0,0,0.08);font-family:Inter,system-ui,sans-serif;">${timeLabel}</div>
     </div>`,
-    iconSize: [sz, sz],
-    iconAnchor: [sz / 2, sz / 2],
+    iconSize: [totalW, totalH],
+    iconAnchor: [totalW / 2, sz / 2],
   })
 }
 
-function FitBoundsOnce({ points, driverLocation }: { points: DriverMapPoint[]; driverLocation: LatLng | null }) {
+function FitBoundsOnce({
+  points,
+  driverLocation,
+  mapInsetTop = 108,
+}: {
+  points: DriverMapPoint[]
+  driverLocation: LatLng | null
+  mapInsetTop?: number
+}) {
   const map = useMap()
   const fitted = useRef(false)
 
@@ -62,9 +86,13 @@ function FitBoundsOnce({ points, driverLocation }: { points: DriverMapPoint[]; d
     const latlngs: [number, number][] = points.map((p) => [p.latLng.lat, p.latLng.lng])
     if (driverLocation) latlngs.push([driverLocation.lat, driverLocation.lng])
     if (latlngs.length === 0) return
-    map.fitBounds(L.latLngBounds(latlngs), { padding: [70, 70], maxZoom: 15 })
+    map.fitBounds(L.latLngBounds(latlngs), {
+      paddingTopLeft: [24, mapInsetTop],
+      paddingBottomRight: [24, 70],
+      maxZoom: 15,
+    })
     fitted.current = true
-  }, [map, points, driverLocation])
+  }, [map, points, driverLocation, mapInsetTop])
 
   return null
 }
@@ -110,7 +138,7 @@ export default function DriverMap({
   selectedPointId,
   nextPointId,
   driverLocation,
-  roadPolyline,
+  mapInsetTop,
   onSelectPoint,
   onPickupDragEnd,
   onMapMarkViewModeChange,
@@ -167,7 +195,7 @@ export default function DriverMap({
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-      <FitBoundsOnce points={points} driverLocation={driverLocation} />
+      <FitBoundsOnce points={points} driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
       {!isMapMarkViewMode && <LocateButton />}
 
@@ -180,24 +208,20 @@ export default function DriverMap({
         />
       )}
 
-      {/* Primary route by roads */}
-      {roadPolyline.length > 1 && (
-        <Polyline
-          positions={roadPolyline.map((p) => [p.lat, p.lng])}
-          pathOptions={{
-            color: '#111827',
-            weight: 4,
-            opacity: 0.75,
-          }}
-        />
-      )}
-
-      {/* Fallback dashed A→B lines when road route is unavailable */}
-      {roadPolyline.length <= 1 && rideLines.map(({ pickup, dropoff }) => {
+      {/* Dashed A→B lines per ride */}
+      {rideLines.map(({ pickup, dropoff }) => {
         if (!pickup || !dropoff) return null
-        const isDone = pickup.pointStatus === 'done' && dropoff.pointStatus === 'done'
+        const isAvailable = pickup.pointKind === 'available'
+        const isDone = !isAvailable && pickup.pointStatus === 'done' && dropoff.pointStatus === 'done'
         const isHighlighted = selectedPointId === pickup.id || selectedPointId === dropoff.id
-          || nextPointId === pickup.id || nextPointId === dropoff.id
+          || (!isAvailable && (nextPointId === pickup.id || nextPointId === dropoff.id))
+        const lineColor = isAvailable
+          ? isHighlighted ? '#D97706' : '#F59E0B'
+          : isDone
+            ? '#16A34A'
+            : isHighlighted
+              ? '#111827'
+              : '#6B7280'
         return (
           <Polyline
             key={`line-${pickup.rideId}`}
@@ -206,10 +230,10 @@ export default function DriverMap({
               [dropoff.latLng.lat, dropoff.latLng.lng],
             ]}
             pathOptions={{
-              color: isDone ? '#16A34A' : isHighlighted ? '#111827' : '#6B7280',
+              color: lineColor,
               weight: isHighlighted ? 2.5 : 1.5,
               dashArray: '7, 7',
-              opacity: isDone ? 0.2 : isHighlighted ? 0.7 : 0.4,
+              opacity: isAvailable ? (isHighlighted ? 0.85 : 0.55) : isDone ? 0.2 : isHighlighted ? 0.7 : 0.4,
             }}
           />
         )
@@ -254,9 +278,9 @@ export default function DriverMap({
           position={[pt.latLng.lat, pt.latLng.lng]}
           icon={makePointIcon(pt, {
             isSelected: pt.id === selectedPointId,
-            isNext: pt.id === nextPointId,
+            isNext: pt.id === nextPointId && pt.pointStatus !== 'done',
           })}
-          draggable={pt.canEdit}
+          draggable={pt.canEdit && pt.pointKind !== 'available'}
           eventHandlers={{
             click: () => onSelectPoint(pt),
             dragend: (e) => {

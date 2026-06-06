@@ -108,6 +108,7 @@ export default function AdminDashboard() {
   const [newDriverSeatsCount, setNewDriverSeatsCount] = useState(4)
   const [newDriverAbout, setNewDriverAbout] = useState('')
   const [newDriverCanSellPoints, setNewDriverCanSellPoints] = useState(false)
+  const [newDriverCanSelfAssign, setNewDriverCanSelfAssign] = useState(false)
   const [lastCreatedDriverKey, setLastCreatedDriverKey] = useState<string | null>(null)
   const [rotatedDriverKeys, setRotatedDriverKeys] = useState<Record<string, string>>({})
 
@@ -368,6 +369,7 @@ export default function AdminDashboard() {
         licenseNumber: '',
         about: newDriverAbout.trim(),
         canSellPoints: newDriverCanSellPoints,
+        canSelfAssign: newDriverCanSelfAssign,
       })
       setLastCreatedDriverKey(result.key)
       setNewDriverName('')
@@ -380,6 +382,7 @@ export default function AdminDashboard() {
       setNewDriverSeatsCount(4)
       setNewDriverAbout('')
       setNewDriverCanSellPoints(false)
+      setNewDriverCanSelfAssign(false)
       await loadAll()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createDriverFailed'))
@@ -512,6 +515,8 @@ export default function AdminDashboard() {
           setNewDriverAbout={setNewDriverAbout}
           newDriverCanSellPoints={newDriverCanSellPoints}
           setNewDriverCanSellPoints={setNewDriverCanSellPoints}
+          newDriverCanSelfAssign={newDriverCanSelfAssign}
+          setNewDriverCanSelfAssign={setNewDriverCanSelfAssign}
           lastCreatedDriverKey={lastCreatedDriverKey}
           rotatedDriverKeys={rotatedDriverKeys}
           handleCreateDriver={handleCreateDriver}

@@ -43,26 +43,6 @@ async def get_or_create_user(
             await db_session.refresh(user)
         return user
 
-
-async def get_user_by_id(db_session: AsyncSession, *, user_id: str) -> User | None:
-    result = await db_session.execute(select(User).filter(User.user_id == user_id))
-    return result.scalar_one_or_none()
-
-
-async def update_user_language(
-    db_session: AsyncSession,
-    *,
-    user: User,
-    preferred_language: str,
-) -> User:
-    normalized_language = str(preferred_language).strip().lower()
-    if normalized_language not in SUPPORTED_USER_LANGUAGES:
-        normalized_language = DEFAULT_USER_LANGUAGE
-    user.language = normalized_language
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
     # Создаём нового пользователя; возможна гонка при параллельных логинах.
     new_user = User(
         user_id=str(user_id),
@@ -71,7 +51,7 @@ async def update_user_language(
         language=normalized_language or DEFAULT_USER_LANGUAGE,
     )
     db_session.add(new_user)
-    
+
     try:
         await db_session.commit()
         await db_session.refresh(new_user)
@@ -99,3 +79,23 @@ async def update_user_language(
             await db_session.commit()
             await db_session.refresh(user)
         return user
+
+
+async def get_user_by_id(db_session: AsyncSession, *, user_id: str) -> User | None:
+    result = await db_session.execute(select(User).filter(User.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
+async def update_user_language(
+    db_session: AsyncSession,
+    *,
+    user: User,
+    preferred_language: str,
+) -> User:
+    normalized_language = str(preferred_language).strip().lower()
+    if normalized_language not in SUPPORTED_USER_LANGUAGES:
+        normalized_language = DEFAULT_USER_LANGUAGE
+    user.language = normalized_language
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user

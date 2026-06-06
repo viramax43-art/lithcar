@@ -130,6 +130,45 @@ async def get_request(db_session: AsyncSession, *, request_id: str) -> RideReque
     return await db_session.get(RideRequest, request_id)
 
 
+async def list_unassigned_rides(
+    db_session: AsyncSession,
+    *,
+    limit: int,
+    offset: int,
+) -> tuple[list[RideRequest], int]:
+    status_filter = RideRequest.status.in_(
+        (RideRequestStatus.PENDING, RideRequestStatus.GROUPED)
+    )
+    unassigned_filter = RideRequest.driver_id.is_(None)
+    total_query = await db_session.execute(
+        select(func.count())
+        .select_from(RideRequest)
+        .where(status_filter)
+        .where(unassigned_filter)
+    )
+    total = int(total_query.scalar_one() or 0)
+    result = await db_session.execute(
+        select(RideRequest)
+        .where(status_filter)
+        .where(unassigned_filter)
+        .order_by(RideRequest.date_time.asc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rides = list(result.scalars().all())
+    in_zone: list[RideRequest] = []
+    for ride in rides:
+        is_from_allowed = await is_point_in_any_active_zone(
+            db_session, lat=ride.from_lat, lng=ride.from_lng
+        )
+        is_to_allowed = await is_point_in_any_active_zone(
+            db_session, lat=ride.to_lat, lng=ride.to_lng
+        )
+        if is_from_allowed and is_to_allowed:
+            in_zone.append(ride)
+    return in_zone, total
+
+
 async def list_driver_requests(
     db_session: AsyncSession,
     *,
@@ -195,7 +234,14 @@ async def assign_driver(
     )
     requests = list(result.scalars().all())
     overrides = point_overrides or {}
+    assignable_statuses = {RideRequestStatus.PENDING, RideRequestStatus.GROUPED}
     for request in requests:
+        if request.status not in assignable_statuses:
+            raise ValueError(
+                f"Заявка {request.id} нельзя назначить из статуса {request.status}."
+            )
+        if request.driver_id and request.driver_id != driver_id:
+            raise ValueError(f"Заявка {request.id} уже назначена другому водителю.")
         override = overrides.get(request.id)
         if override:
             from_point = override.get("from")
@@ -237,6 +283,66 @@ async def assign_driver(
     for request in requests:
         await db_session.refresh(request)
     return requests
+
+
+class ClaimRideError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+async def claim_ride_by_driver(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+    driver_can_self_assign: bool,
+) -> RideRequest:
+    if not driver_can_self_assign:
+        raise ClaimRideError("forbidden", "Driver cannot self-assign rides.")
+
+    result = await db_session.execute(
+        select(RideRequest).where(RideRequest.id == request_id).with_for_update()
+    )
+    request = result.scalar_one_or_none()
+    if request is None:
+        raise ClaimRideError("not_found", "Ride request not found.")
+
+    if request.driver_id and request.driver_id != driver_id:
+        raise ClaimRideError("already_assigned", "Ride is already assigned to another driver.")
+
+    if request.status not in (RideRequestStatus.PENDING, RideRequestStatus.GROUPED):
+        raise ClaimRideError("invalid_status", f"Ride cannot be claimed from status {request.status}.")
+
+    is_from_allowed = await is_point_in_any_active_zone(
+        db_session, lat=request.from_lat, lng=request.from_lng
+    )
+    is_to_allowed = await is_point_in_any_active_zone(
+        db_session, lat=request.to_lat, lng=request.to_lng
+    )
+    if not is_from_allowed or not is_to_allowed:
+        raise ClaimRideError("out_of_zone", "Ride points are outside active service zones.")
+
+    if request.driver_id == driver_id and request.status == RideRequestStatus.ASSIGNED:
+        await db_session.refresh(request)
+        return request
+
+    try:
+        updated = await assign_driver(
+            db_session,
+            request_ids=[request_id],
+            driver_id=driver_id,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        if "уже назначена" in message:
+            raise ClaimRideError("already_assigned", message) from exc
+        raise ClaimRideError("invalid_status", message) from exc
+
+    if not updated:
+        raise ClaimRideError("not_found", "Ride request not found.")
+    return updated[0]
 
 
 async def update_request_status(

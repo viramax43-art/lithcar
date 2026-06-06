@@ -54,6 +54,7 @@ export async function createDriver(payload: {
   about: string
   isOnline?: boolean
   canSellPoints?: boolean
+  canSelfAssign?: boolean
 }): Promise<{ driver: Driver; key: string }> {
   return apiRequest<{ driver: Driver; key: string }>('/api/drivers', { method: 'POST', body: payload, authMode: 'cookie' })
 }
@@ -84,6 +85,7 @@ export async function updateDriver(
     about: string
     isOnline: boolean
     canSellPoints: boolean
+    canSelfAssign: boolean
   }>
 ): Promise<Driver> {
   return apiRequest<Driver>(`/api/drivers/${driverId}`, { method: 'PATCH', body: payload, authMode: 'cookie' })

@@ -97,6 +97,8 @@ export interface AdminSidebarProps {
   setNewDriverAbout: (value: string) => void
   newDriverCanSellPoints: boolean
   setNewDriverCanSellPoints: (value: boolean) => void
+  newDriverCanSelfAssign: boolean
+  setNewDriverCanSelfAssign: (value: boolean) => void
   lastCreatedDriverKey: string | null
   rotatedDriverKeys: Record<string, string>
   handleCreateDriver: () => Promise<void>
@@ -113,6 +115,7 @@ export interface AdminSidebarProps {
       about: string
       isOnline: boolean
       canSellPoints: boolean
+      canSelfAssign: boolean
     }>
   ) => Promise<void>
   handleDeleteDriver: (driverId: string) => Promise<void>

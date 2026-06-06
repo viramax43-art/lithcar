@@ -626,6 +626,20 @@ body {
   animation: listItemIn 0.2s ease-out;
 }
 
+/* === Driver map period filter === */
+.driver-map-period-filter input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* === Driver map fullscreen mode === */
 .driver-map-fullscreen {
   position: fixed !important;

@@ -9,12 +9,13 @@
  *   [side menu: QR, history, logout]
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Car, CaretRight, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
+import { Car, CaretRight, Clock, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
 import {
   applyDriverPointAction,
+  claimDriverRide,
   getDriverCabinet,
   getDriverMapData,
   getDriverSession,
@@ -29,11 +30,16 @@ import {
   type DriverSessionUser,
 } from '../../lib/backend'
 import { reverseGeocode } from '../../lib/geocode'
-import { getRoadRoutePolyline } from '../../lib/osrm'
+import { formatTime } from '../../i18n/dateTime'
+import { ApiError } from '../../infrastructure/http/httpClient'
+import { getDefaultPeriodFilter, matchesPeriodFilter } from '../../lib/periodFilter'
 import { hapticImpact, hapticNotification } from '../../lib/telegram'
 import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng } from '../../types'
 
+import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
+import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/DriverCabinetModeSwitch'
 import DriverMap from './components/DriverMap'
+import DriverMapPeriodFilter from './components/DriverMapPeriodFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import DriverSideMenu from './components/DriverSideMenu'
 
@@ -166,6 +172,7 @@ function NextStopBar({
   const { t } = useTranslation()
   const actionLabelKey = getQuickActionLabelKey(point)
   const action = getQuickAction(point)
+  const arrivalTime = formatTime(new Date(point.dateTime), { hour: '2-digit', minute: '2-digit' })
   const isPickup = point.pointType === 'pickup'
   const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
   const showPickupQuickActions = isPickup && point.pickupChangedByDriver
@@ -210,7 +217,11 @@ function NextStopBar({
                 : t('driver.destinationPoint', { defaultValue: 'Destination point' })}
             </p>
             <p className="text-sm font-bold truncate">{point.address}</p>
-            <p className="text-[11px] text-muted truncate mt-0.5">{point.passengerName}</p>
+            <p className="text-[11px] font-semibold text-foreground flex items-center gap-1 mt-0.5">
+              <Clock size={11} weight="fill" className="text-muted flex-shrink-0" />
+              {arrivalTime}
+            </p>
+            <p className="text-[11px] text-muted truncate">{point.passengerName}</p>
           </div>
           <MapPin size={16} className="text-muted flex-shrink-0 mt-1" />
         </button>
@@ -276,10 +287,19 @@ export default function DriverCabinet() {
   const [isResettingPickup, setIsResettingPickup] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
-  const [roadPolyline, setRoadPolyline] = useState<LatLng[]>([])
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
   const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
+  const [filterExpanded, setFilterExpanded] = useState(false)
+  const defaultPeriod = getDefaultPeriodFilter()
+  const [filterDate, setFilterDate] = useState(defaultPeriod.filterDate)
+  const [filterDateEnd, setFilterDateEnd] = useState(defaultPeriod.filterDateEnd)
+  const [filterTime, setFilterTime] = useState(defaultPeriod.filterTime)
+  const [filterTimeEnd, setFilterTimeEnd] = useState(defaultPeriod.filterTimeEnd)
+  const [cabinetMode, setCabinetMode] = useState<DriverCabinetMode>('my')
+  const [isClaiming, setIsClaiming] = useState(false)
+
+  const canSelfAssign = Boolean(session?.canSelfAssign ?? mapData?.session.canSelfAssign)
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
@@ -367,9 +387,37 @@ export default function DriverCabinet() {
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const points = mapData?.points ?? []
+  const availablePoints = mapData?.availablePoints ?? []
+
+  const visiblePoints = useMemo(
+    () => points.filter((p) => matchesPeriodFilter(p.dateTime, {
+      filterDate,
+      filterDateEnd,
+      filterTime,
+      filterTimeEnd,
+    })),
+    [points, filterDate, filterDateEnd, filterTime, filterTimeEnd],
+  )
+
+  const visibleAvailablePoints = useMemo(
+    () => availablePoints.filter((p) => matchesPeriodFilter(p.dateTime, {
+      filterDate,
+      filterDateEnd,
+      filterTime,
+      filterTimeEnd,
+    })),
+    [availablePoints, filterDate, filterDateEnd, filterTime, filterTimeEnd],
+  )
+
+  const mapDisplayPoints = cabinetMode === 'available' ? visibleAvailablePoints : visiblePoints
+
+  const availableRideCount = useMemo(() => {
+    return new Set(visibleAvailablePoints.map((p) => p.rideId)).size
+  }, [visibleAvailablePoints])
+
   const activePoints = useMemo(
-    () => points.filter((p) => p.pointStatus !== 'done'),
-    [points],
+    () => visiblePoints.filter((p) => p.pointStatus !== 'done'),
+    [visiblePoints],
   )
 
   /** The next actionable point (en_route first, then pending in recommendedOrder) */
@@ -382,40 +430,41 @@ export default function DriverCabinet() {
     return pending.find((p) => getQuickAction(p) !== null) ?? null
   }, [activePoints])
 
-  const selectedPoint = points.find((p) => p.id === selectedPointId) ?? null
+  const selectedPoint = cabinetMode === 'my'
+    ? visiblePoints.find((p) => p.id === selectedPointId) ?? null
+    : null
 
-  const routeWaypoints = useMemo<LatLng[]>(() => {
-    const ordered = [...activePoints].sort(
-      (a, b) => (a.recommendedOrder ?? 999) - (b.recommendedOrder ?? 999),
-    )
-    const waypoints = ordered.map((p) => p.latLng)
-    if (driverLocation && waypoints.length > 0) {
-      return [driverLocation, ...waypoints]
-    }
-    return waypoints
-  }, [activePoints, driverLocation])
+  const selectedAvailablePoint = cabinetMode === 'available'
+    ? visibleAvailablePoints.find((p) => p.id === selectedPointId) ?? null
+    : null
+
+  const selectedAvailableRideId = selectedAvailablePoint?.rideId ?? null
+  const selectedAvailablePickup = selectedAvailableRideId
+    ? visibleAvailablePoints.find((p) => p.rideId === selectedAvailableRideId && p.pointType === 'pickup') ?? null
+    : null
+  const selectedAvailableDropoff = selectedAvailableRideId
+    ? visibleAvailablePoints.find((p) => p.rideId === selectedAvailableRideId && p.pointType === 'dropoff') ?? null
+    : null
+
+  const filterTopOffset = canSelfAssign
+    ? 'calc(var(--app-safe-area-top-total) + 112px)'
+    : 'calc(var(--app-safe-area-top-total) + 64px)'
+
+  const mapInsetTop = (canSelfAssign ? 48 : 0) + (filterExpanded ? 188 : 116)
 
   useEffect(() => {
-    if (routeWaypoints.length < 2) {
-      setRoadPolyline([])
-      return
+    if (!selectedPointId) return
+    const pool = cabinetMode === 'available' ? visibleAvailablePoints : visiblePoints
+    if (!pool.some((p) => p.id === selectedPointId)) {
+      setSelectedPointId(null)
     }
-    let cancelled = false
-    void getRoadRoutePolyline(routeWaypoints)
-      .then((polyline) => {
-        if (!cancelled) setRoadPolyline(polyline)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        setRoadPolyline([])
-        setErrorMessage(
-          error instanceof Error
-            ? t(error.message, { defaultValue: 'Failed to build road route.' })
-            : t('errors.buildRouteFailed', { defaultValue: 'Failed to build road route.' }),
-        )
-      })
-    return () => { cancelled = true }
-  }, [routeWaypoints])
+  }, [visiblePoints, visibleAvailablePoints, selectedPointId, cabinetMode])
+
+  useEffect(() => {
+    if (!canSelfAssign && cabinetMode === 'available') {
+      setCabinetMode('my')
+    }
+  }, [canSelfAssign, cabinetMode])
 
   useEffect(() => {
     if (!isMapMarkViewMode) return
@@ -471,6 +520,33 @@ export default function DriverCabinet() {
       setErrorMessage(err instanceof Error ? err.message : t('errors.notifyPassengerFailed', { defaultValue: 'Failed to notify passenger.' }))
     } finally {
       setIsNotifying(false)
+    }
+  }
+
+  const handleClaimRide = async () => {
+    if (!selectedAvailableRideId) return
+    setIsClaiming(true)
+    setErrorMessage(null)
+    try {
+      await claimDriverRide(selectedAvailableRideId)
+      hapticNotification('success')
+      setCabinetMode('my')
+      setSelectedPointId(`${selectedAvailableRideId}:pickup`)
+      await loadMapData()
+    } catch (err) {
+      hapticNotification('error')
+      if (err instanceof ApiError && err.status === 409) {
+        setErrorMessage(t('driver.claimRideTaken', { defaultValue: 'This ride was already taken.' }))
+      } else {
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : t('errors.claimRideFailed', { defaultValue: 'Failed to take ride.' }),
+        )
+      }
+      await loadMapData()
+    } finally {
+      setIsClaiming(false)
     }
   }
 
@@ -532,7 +608,7 @@ export default function DriverCabinet() {
 
   // Height of the bottom next-stop bar (approx), so map knows not to cover it.
   // We reserve space via CSS variables or a placeholder — map fits within the remaining area.
-  const NEXT_BAR_H = nextPoint ? 108 : 0 // px (rough height incl. safe area)
+  const NEXT_BAR_H = cabinetMode === 'my' && nextPoint ? 108 : 0 // px (rough height incl. safe area)
 
   return (
     <div
@@ -545,11 +621,11 @@ export default function DriverCabinet() {
         style={{ bottom: NEXT_BAR_H }}
       >
         <DriverMap
-          points={points}
+          points={mapDisplayPoints}
           selectedPointId={selectedPointId}
-          nextPointId={nextPoint?.id ?? null}
+          nextPointId={cabinetMode === 'my' ? (nextPoint?.id ?? null) : null}
           driverLocation={driverLocation}
-          roadPolyline={roadPolyline}
+          mapInsetTop={mapInsetTop}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
           onPickupDragEnd={(rideId, latlng) => void handlePickupDragEnd(rideId, latlng)}
           onMapMarkViewModeChange={setIsMapMarkViewMode}
@@ -593,11 +669,62 @@ export default function DriverCabinet() {
       </div>
       )}
 
+      {!isMapMarkViewMode && canSelfAssign && (
+        <DriverCabinetModeSwitch
+          mode={cabinetMode}
+          availableRideCount={availableRideCount}
+          onChange={(mode) => {
+            setCabinetMode(mode)
+            setSelectedPointId(null)
+          }}
+        />
+      )}
+
+      {!isMapMarkViewMode && (
+        <DriverMapPeriodFilter
+          pointCount={mapDisplayPoints.length}
+          topOffset={filterTopOffset}
+          showAvailableLegend={cabinetMode === 'available'}
+          filterDate={filterDate}
+          filterDateEnd={filterDateEnd}
+          filterTime={filterTime}
+          filterTimeEnd={filterTimeEnd}
+          onFilterDateChange={setFilterDate}
+          onFilterDateEndChange={setFilterDateEnd}
+          onFilterTimeChange={setFilterTime}
+          onFilterTimeEndChange={setFilterTimeEnd}
+          onExpandedChange={setFilterExpanded}
+        />
+      )}
+
       {/* ── Empty state ─────────────────────────────────────────────────── */}
-      {!isMapMarkViewMode && mapData && activePoints.length === 0 && (
+      {!isMapMarkViewMode && mapData && mapDisplayPoints.length === 0 && (
         <div
           className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
-          style={{ bottom: NEXT_BAR_H }}
+          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
+        >
+          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[260px]">
+            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
+              <Car size={22} className="text-muted" weight="fill" />
+            </div>
+            <p className="text-sm font-bold">
+              {cabinetMode === 'available'
+                ? t('driver.noAvailableInPeriod', { defaultValue: 'No available rides in this period' })
+                : t('driver.noPointsInPeriod', { defaultValue: 'No rides in this period' })}
+            </p>
+            <p className="text-xs text-muted mt-1 leading-snug">
+              {cabinetMode === 'available'
+                ? t('driver.noAvailableInPeriodHint', { defaultValue: 'Try another day or wait for new requests.' })
+                : t('driver.noPointsInPeriodHint', { defaultValue: 'Change the day or time filter to see other trips.' })}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isMapMarkViewMode && cabinetMode === 'my' && mapData && visiblePoints.length > 0 && activePoints.length === 0 && (
+        <div
+          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
+          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
         >
           <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[230px]">
             <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
@@ -612,7 +739,28 @@ export default function DriverCabinet() {
       )}
 
       {/* ── Next-stop persistent bar ─────────────────────────────────────── */}
-      {!isMapMarkViewMode && nextPoint && !selectedPointId && (
+      {!isMapMarkViewMode && cabinetMode === 'my' && (
+        <DriverPointSheet
+          point={selectedPoint}
+          isActioning={isActioning}
+          isNotifying={isNotifying}
+          onClose={() => setSelectedPointId(null)}
+          onAction={handleAction}
+          onNotifyPickup={() => void handleNotifyPickup()}
+        />
+      )}
+
+      {!isMapMarkViewMode && cabinetMode === 'available' && (
+        <DriverAvailableRideSheet
+          pickup={selectedAvailablePickup}
+          dropoff={selectedAvailableDropoff}
+          isClaiming={isClaiming}
+          onClose={() => setSelectedPointId(null)}
+          onClaim={() => void handleClaimRide()}
+        />
+      )}
+
+      {!isMapMarkViewMode && cabinetMode === 'my' && nextPoint && !selectedPointId && (
         <NextStopBar
           point={nextPoint}
           isActioning={isActioning}
@@ -622,18 +770,6 @@ export default function DriverCabinet() {
           onQuickAction={handleNextStopQuickAction}
           onNotifyPickup={() => void handleNotifyPickup()}
           onResetPickup={() => void handleResetPickup()}
-        />
-      )}
-
-      {/* ── Point detail sheet (slides up) ──────────────────────────────── */}
-      {!isMapMarkViewMode && (
-        <DriverPointSheet
-          point={selectedPoint}
-          isActioning={isActioning}
-          isNotifying={isNotifying}
-          onClose={() => setSelectedPointId(null)}
-          onAction={handleAction}
-          onNotifyPickup={() => void handleNotifyPickup()}
         />
       )}
 

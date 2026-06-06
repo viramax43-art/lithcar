@@ -99,6 +99,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     setNewDriverAbout,
     newDriverCanSellPoints,
     setNewDriverCanSellPoints,
+    newDriverCanSelfAssign,
+    setNewDriverCanSelfAssign,
     lastCreatedDriverKey,
     rotatedDriverKeys,
     handleCreateDriver,
@@ -274,6 +276,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               setNewDriverAbout={setNewDriverAbout}
               newDriverCanSellPoints={newDriverCanSellPoints}
               setNewDriverCanSellPoints={setNewDriverCanSellPoints}
+              newDriverCanSelfAssign={newDriverCanSelfAssign}
+              setNewDriverCanSelfAssign={setNewDriverCanSelfAssign}
               lastCreatedDriverKey={lastCreatedDriverKey}
               rotatedDriverKeys={rotatedDriverKeys}
               handleCreateDriver={handleCreateDriver}

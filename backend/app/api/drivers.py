@@ -46,6 +46,7 @@ class DriverCreate(BaseModel):
     about: str = ""
     isOnline: bool = False
     canSellPoints: bool = False
+    canSelfAssign: bool = False
 
 
 class DriverOnlineUpdate(BaseModel):
@@ -67,6 +68,7 @@ class DriverUpdate(BaseModel):
     about: str | None = None
     isOnline: bool | None = None
     canSellPoints: bool | None = None
+    canSelfAssign: bool | None = None
 
 
 class DriverOut(BaseModel):
@@ -82,6 +84,7 @@ class DriverOut(BaseModel):
     licenseNumber: str
     about: str
     canSellPoints: bool
+    canSelfAssign: bool
     keyPrefix: str
     rating: float
     isOnline: bool
@@ -130,6 +133,7 @@ def _to_driver_out(driver) -> DriverOut:
         licenseNumber=driver.license_number,
         about=driver.about,
         canSellPoints=driver.can_sell_points,
+        canSelfAssign=driver.can_self_assign,
         keyPrefix=driver.key_prefix or "",
         rating=driver.rating,
         isOnline=effective_online,
@@ -208,6 +212,7 @@ async def create_driver_endpoint(
         about=payload.about,
         is_online=payload.isOnline,
         can_sell_points=payload.canSellPoints,
+        can_self_assign=payload.canSelfAssign,
     )
     return DriverCreateResult(driver=_to_driver_out(driver), key=getattr(driver, "_raw_key", ""))
 
@@ -232,6 +237,7 @@ async def update_driver_endpoint(
         about=payload.about,
         is_online=payload.isOnline,
         can_sell_points=payload.canSellPoints,
+        can_self_assign=payload.canSelfAssign,
     )
     if driver is None:
         raise HTTPException(status_code=404, detail="Driver not found.")

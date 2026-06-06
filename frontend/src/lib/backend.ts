@@ -53,6 +53,7 @@ export {
   applyDriverPointAction,
   rateRideAsDriver,
   getDriverCabinet,
+  claimDriverRide,
   getDriverMapData,
   getDriverSession,
   issueDriverQrSale,

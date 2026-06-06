@@ -49,6 +49,7 @@ export interface DriverSessionUser {
   driverId: string
   name: string
   canSellPoints: boolean
+  canSelfAssign: boolean
   rating: number
   ratingCount: number
 }

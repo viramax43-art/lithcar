@@ -20,6 +20,7 @@ class Driver(Base):
     license_number = Column(String, nullable=False, server_default="")
     about = Column(String, nullable=False, server_default="")
     can_sell_points = Column(Boolean, nullable=False, server_default="false")
+    can_self_assign = Column(Boolean, nullable=False, server_default="false")
     access_key_hash = Column(String, nullable=True, unique=True, index=True)
     key_prefix = Column(String, nullable=True)
     rating = Column(Float, nullable=False, default=5.0)

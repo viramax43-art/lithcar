@@ -17,6 +17,7 @@ interface EditDriverModalProps {
     about: string
     isOnline: boolean
     canSellPoints: boolean
+    canSelfAssign: boolean
   }) => Promise<void>
 }
 
@@ -33,6 +34,7 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
   const [seatsCount, setSeatsCount] = useState(driver.seatsCount ?? 4)
   const [about, setAbout] = useState(driver.about ?? '')
   const [canSellPoints, setCanSellPoints] = useState(Boolean(driver.canSellPoints))
+  const [canSelfAssign, setCanSelfAssign] = useState(Boolean(driver.canSelfAssign))
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -57,6 +59,7 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
         about: about.trim(),
         isOnline: driver.isOnline,
         canSellPoints,
+        canSelfAssign,
       })
       onClose()
     } finally {
@@ -128,6 +131,14 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
               onChange={(e) => setCanSellPoints(e.target.checked)}
             />
             <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
+          </label>
+          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={canSelfAssign}
+              onChange={(e) => setCanSelfAssign(e.target.checked)}
+            />
+            <span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>
           </label>
         </div>
 

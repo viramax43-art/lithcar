@@ -78,6 +78,13 @@ export async function getDriverMapData(): Promise<DriverMapData> {
   return apiRequest<DriverMapData>('/api/driver/cabinet/map', { authMode: 'cookie' })
 }
 
+export async function claimDriverRide(requestId: string): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${requestId}/claim`, {
+    method: 'POST',
+    authMode: 'cookie',
+  })
+}
+
 export async function applyDriverPointAction(
   rideId: string,
   pointType: 'pickup' | 'dropoff',
