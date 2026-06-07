@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.i18n import t
 from app.core.config import settings
+from app.services.telegram_app_links import build_driver_cabinet_url
 from app.db import async_session_factory
 from app.services.user_service import get_user_by_id
 
@@ -37,7 +39,12 @@ async def _resolve_lang(user_id: str, *, fallback: str | None = None) -> str:
     return fallback or "lt"
 
 
-async def _send_to_user(*, user_id: str, text: str) -> None:
+async def _send_to_user(
+    *,
+    user_id: str,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
     if not _notifications_enabled():
         return
     chat_id = _resolve_chat_id(user_id)
@@ -45,7 +52,7 @@ async def _send_to_user(*, user_id: str, text: str) -> None:
         return
     try:
         async with Bot(token=settings.bot_token) as bot:
-            await bot.send_message(chat_id=chat_id, text=text)
+            await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
     except Exception:
         logger.exception("Failed to deliver driver Telegram notification.")
 
@@ -58,9 +65,18 @@ async def notify_driver_application_submitted(*, user_id: str, language: str | N
 
 async def notify_driver_application_approved(*, user_id: str, language: str | None, key: str) -> None:
     lang = language or await _resolve_lang(user_id)
+    cabinet_link = build_driver_cabinet_url()
     template = t("driver.application.approved", lang)
-    text = template.replace("{key}", key)
-    await _send_to_user(user_id=user_id, text=text)
+    text = template.replace("{key}", key).replace("{cabinet_link}", cabinet_link)
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=t("driver.application.open_cabinet", lang),
+                url=cabinet_link,
+            )],
+        ]
+    )
+    await _send_to_user(user_id=user_id, text=text, reply_markup=keyboard)
 
 
 async def notify_driver_application_rejected(

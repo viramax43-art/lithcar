@@ -76,7 +76,7 @@ export default function AdminDashboard() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [filterDate, setFilterDate] = useState<string>(() => todayDate)
   const [filterDateEnd, setFilterDateEnd] = useState<string>(() => todayDate)
   const [filterTime, setFilterTime] = useState<string>(() => '00:00')

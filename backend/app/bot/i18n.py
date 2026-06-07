@@ -346,10 +346,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "✅ Ваша заявка водителя получена и отправлена на проверку.",
     },
     "driver.application.approved": {
-        "lt": "🎉 Sveikiname! Jusu paraiška patvirtinta.\n\nJusu prieigos raktas:\n{key}\n\nNaudokite ji vairuotojo kabinete.",
-        "pl": "🎉 Gratulacje! Twoje zgloszenie zostalo zatwierdzone.\n\nTwoj klucz dostepu:\n{key}\n\nUzyj go w panelu kierowcy.",
-        "en": "🎉 Congratulations! Your application has been approved.\n\nYour access key:\n{key}\n\nUse it in the driver cabinet.",
-        "ru": "🎉 Поздравляем! Ваша заявка одобрена.\n\nВаш ключ доступа:\n{key}\n\nИспользуйте его в кабинете водителя.",
+        "lt": "🎉 Sveikiname! Jusu paraiška patvirtinta.\n\n1) Atidarykite vairuotojo kabineta:\n{cabinet_link}\n\n2) Prisijunkite su raktu:\n{key}",
+        "pl": "🎉 Gratulacje! Twoje zgloszenie zostalo zatwierdzone.\n\n1) Otworz panel kierowcy:\n{cabinet_link}\n\n2) Zaloguj sie kluczem:\n{key}",
+        "en": "🎉 Congratulations! Your application has been approved.\n\n1) Open the driver cabinet:\n{cabinet_link}\n\n2) Sign in with your key:\n{key}",
+        "ru": "🎉 Поздравляем! Ваша заявка одобрена.\n\n1) Откройте кабинет водителя:\n{cabinet_link}\n\n2) Войдите по ключу:\n{key}",
+    },
+    "driver.application.open_cabinet": {
+        "lt": "🚗 Vairuotojo kabinetas",
+        "pl": "🚗 Panel kierowcy",
+        "en": "🚗 Driver cabinet",
+        "ru": "🚗 Кабинет водителя",
     },
     "driver.application.rejected": {
         "lt": "❌ Jusu vairuotojo paraiška atmesta.\n\nPriezastis: {reason}",

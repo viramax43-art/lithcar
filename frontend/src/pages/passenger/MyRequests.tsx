@@ -249,12 +249,14 @@ export default function MyRequests() {
                   ? t('passenger.noCompletedRides', { defaultValue: 'No completed rides' })
                   : t('passenger.noRequestsYet', { defaultValue: 'No requests yet' })}
             </p>
-            <button
-              onClick={() => navigate('/')}
-              className="mt-4 px-6 py-2.5 bg-black text-white text-sm font-bold rounded-pill"
-            >
-              {t('passenger.createRequest', { defaultValue: 'Create request' })}
-            </button>
+            {tab !== 'completed' && (
+              <button
+                onClick={() => navigate('/')}
+                className="mt-4 px-6 py-2.5 bg-black text-white text-sm font-bold rounded-pill"
+              >
+                {t('passenger.createRequest', { defaultValue: 'Create request' })}
+              </button>
+            )}
           </div>
         )}
       </div>

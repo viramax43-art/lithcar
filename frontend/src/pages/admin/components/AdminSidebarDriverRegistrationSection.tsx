@@ -2,6 +2,8 @@ import { CaretDown, CaretRight, CaretUp, FloppyDisk, Plus, Trash } from '@phosph
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
+import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { getApplicationCarSummary, getApplicationDisplayName } from '../../../lib/driverApplicationDisplay'
 import { EMPTY_USER_INFO_TEXT } from '../../../lib/userInfoText'
 import type { DriverApplication, DriverRegistrationFormField, DriverRegistrationFormSchema } from '../../../types'
 import AdminDriverApplicationDetail from './AdminDriverApplicationDetail'
@@ -128,24 +130,42 @@ export function AdminSidebarDriverRegistrationSection({
           <p className="text-xs text-muted">{t('admin.driverApplications.empty')}</p>
         ) : (
           <div className="space-y-2">
-            {pendingApplications.map((application) => (
-              <button
-                key={application.id}
-                type="button"
-                onClick={() => setSelectedApplication(application)}
-                className="w-full text-left rounded-xl border border-border bg-surface px-3 py-2.5 hover:border-black/20 transition-colors"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-black truncate">
-                    {application.username || application.userId}
-                  </p>
-                  <CaretRight size={14} className="text-muted flex-shrink-0" />
-                </div>
-                <p className="text-[11px] text-muted mt-0.5">
-                  {new Date(application.createdAt).toLocaleString()}
-                </p>
-              </button>
-            ))}
+            {pendingApplications.map((application) => {
+              const name = getApplicationDisplayName(
+                application,
+                formSchema,
+                t('admin.driverApplications.unknownApplicant', { defaultValue: 'New driver' }),
+              )
+              const carSummary = getApplicationCarSummary(application, formSchema)
+              const submittedAt = new Date(application.createdAt)
+              return (
+                <button
+                  key={application.id}
+                  type="button"
+                  onClick={() => setSelectedApplication(application)}
+                  className="w-full text-left rounded-xl border border-border bg-surface px-3 py-3 hover:border-black/20 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-black truncate">{name}</p>
+                      {carSummary && (
+                        <p className="text-xs text-muted mt-0.5 truncate">{carSummary}</p>
+                      )}
+                      <p className="text-[11px] text-muted mt-1">
+                        {formatDate(submittedAt, { day: 'numeric', month: 'short' })},{' '}
+                        {formatTime(submittedAt, { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-amber-100 text-amber-800">
+                        {t('admin.driverApplications.status.pending', { defaultValue: 'Under review' })}
+                      </span>
+                      <CaretRight size={14} className="text-muted" />
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
         {lastApprovedDriverKey && (

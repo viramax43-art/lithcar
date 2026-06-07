@@ -14,10 +14,10 @@ import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
 import type { MapMark } from '../../types'
+import { addAppLocalDays, toAppLocalDateInput } from '../../i18n/dateTime'
+import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
-const toLocalDateInput = (value: Date): string =>
-  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 
 export default function NewRequest() {
   const { t, i18n } = useTranslation()
@@ -25,10 +25,8 @@ export default function NewRequest() {
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
   const now = new Date()
-  const todayDate = toLocalDateInput(now)
-  const maxDateObj = new Date(now)
-  maxDateObj.setDate(maxDateObj.getDate() + 2)
-  const maxDate = toLocalDateInput(maxDateObj)
+  const todayDate = toAppLocalDateInput(now)
+  const maxDate = addAppLocalDays(now, 2)
   const [menuOpen, setMenuOpen] = useState(false)
   const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
@@ -378,20 +376,14 @@ export default function NewRequest() {
                 className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
               >
                 <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-                {(() => {
-                  const slots: string[] = []
-                  const [sh, sm] = (model.pricing.workStartTime || '06:00').split(':').map(Number)
-                  const [eh, em] = (model.pricing.workEndTime || '19:00').split(':').map(Number)
-                  const interval = model.pricing.slotIntervalMinutes || 30
-                  const startMin = sh * 60 + sm
-                  const endMin = eh * 60 + em
-                  for (let t = startMin; t <= endMin; t += interval) {
-                    const hh = String(Math.floor(t / 60)).padStart(2, '0')
-                    const mm = String(t % 60).padStart(2, '0')
-                    slots.push(`${hh}:${mm}`)
-                  }
-                  return slots.map((s) => <option key={s} value={s}>{s}</option>)
-                })()}
+                {buildRideTimeSlots({
+                  workStartTime: model.pricing.workStartTime || '06:00',
+                  workEndTime: model.pricing.workEndTime || '19:00',
+                  slotIntervalMinutes: model.pricing.slotIntervalMinutes || 30,
+                  selectedDate: model.dateTime.split('T')[0] || todayDate,
+                }).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </div>
           </div>

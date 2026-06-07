@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.app_timezone import MIN_BOOKING_LEAD_HOURS, normalize_app_datetime, to_app_local
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.pricing_settings import PricingSettings
 from app.models.ride_request import RideRequest
@@ -62,10 +63,43 @@ async def _get_or_create_pricing_no_commit(db_session: AsyncSession) -> PricingS
     return pricing
 
 
-def _normalize_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value
+def validate_ride_datetime(
+    date_time: datetime,
+    *,
+    work_start: str = "06:00",
+    work_end: str = "19:00",
+    slot_interval_minutes: int = 30,
+    min_lead_hours: int = MIN_BOOKING_LEAD_HOURS,
+) -> datetime:
+    normalized = normalize_app_datetime(date_time)
+    now = datetime.now(timezone.utc)
+    min_time = now + timedelta(hours=min_lead_hours)
+    if normalized < min_time:
+        raise InvalidRideDateTimeError(
+            f"Ride must be scheduled at least {min_lead_hours} hours in advance."
+        )
+    max_date = now + timedelta(days=2)
+    if normalized > max_date:
+        raise InvalidRideDateTimeError("Ride can be planned at most 2 days ahead.")
+
+    local = to_app_local(normalized)
+    ride_total_minutes = local.hour * 60 + local.minute
+
+    start_h, start_m = (int(x) for x in work_start.split(":"))
+    end_h, end_m = (int(x) for x in work_end.split(":"))
+    start_total = start_h * 60 + start_m
+    end_total = end_h * 60 + end_m
+    interval = max(1, int(slot_interval_minutes))
+
+    if ride_total_minutes < start_total or ride_total_minutes > end_total:
+        raise InvalidRideDateTimeError(
+            f"Ride time must be between {work_start} and {work_end}."
+        )
+    if (ride_total_minutes - start_total) % interval != 0:
+        raise InvalidRideDateTimeError(
+            f"Ride time must align to {interval}-minute slots starting at {work_start}."
+        )
+    return normalized
 
 
 def _quote_breakdown_to_json(quote) -> list[dict] | None:
@@ -87,38 +121,14 @@ async def book_ride_with_points(
     to_lng: float,
     date_time: datetime,
 ) -> RideBookingResult:
-    normalized_date_time = _normalize_datetime(date_time)
-    now = datetime.now(timezone.utc)
-    if normalized_date_time <= now:
-        raise InvalidRideDateTimeError("Ride date and time must be in the future.")
-    max_date = now + timedelta(days=2)
-    if normalized_date_time > max_date:
-        raise InvalidRideDateTimeError("Ride can be planned at most 2 days ahead.")
-
     try:
         pricing = await _get_or_create_pricing_no_commit(db_session)
-
-        ride_hour = normalized_date_time.hour
-        ride_minute = normalized_date_time.minute
-        ride_total_minutes = ride_hour * 60 + ride_minute
-
-        work_start = pricing.work_start_time or "06:00"
-        work_end = pricing.work_end_time or "19:00"
-        interval = int(pricing.slot_interval_minutes or 30)
-
-        start_h, start_m = (int(x) for x in work_start.split(":"))
-        end_h, end_m = (int(x) for x in work_end.split(":"))
-        start_total = start_h * 60 + start_m
-        end_total = end_h * 60 + end_m
-
-        if ride_total_minutes < start_total or ride_total_minutes > end_total:
-            raise InvalidRideDateTimeError(
-                f"Ride time must be between {work_start} and {work_end}."
-            )
-        if (ride_total_minutes - start_total) % interval != 0:
-            raise InvalidRideDateTimeError(
-                f"Ride time must align to {interval}-minute slots starting at {work_start}."
-            )
+        normalized_date_time = validate_ride_datetime(
+            date_time,
+            work_start=pricing.work_start_time or "06:00",
+            work_end=pricing.work_end_time or "19:00",
+            slot_interval_minutes=int(pricing.slot_interval_minutes or 30),
+        )
 
         try:
             quote = await calculate_ride_quote(

@@ -187,7 +187,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
           })}
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="admin-sidebar-panel flex-1 flex flex-col overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-base font-extrabold tracking-tight">

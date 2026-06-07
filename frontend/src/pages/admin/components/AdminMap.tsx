@@ -251,12 +251,12 @@ export default function AdminMap({
 
   const getPickupColor = useCallback((request: RideRequest): string => {
     if (request.status === 'completed') return '#22C55E'
-    return request.driverId ? '#EF4444' : '#F59E0B'
+    return '#F59E0B'
   }, [])
 
   const getDropoffColor = useCallback((request: RideRequest): string => {
     if (request.status === 'completed') return '#22C55E'
-    return request.driverId ? '#3B82F6' : '#F59E0B'
+    return '#3B82F6'
   }, [])
 
   const loadMapMarks = useCallback(async () => {

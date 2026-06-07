@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False)
     frontend_cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")
     public_base_url: str = Field(default="http://localhost:8000")
+    telegram_mini_app_url: str = Field(default="https://t.me/rideminiapp_bot/ride")
+    frontend_public_url: str = Field(default="https://ride.leandoer.online")
     allow_test_telegram_init_data: bool = Field(default=True)
 
     admin_session_cookie_name: str = Field(default="ride_admin_session")

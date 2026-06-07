@@ -484,10 +484,14 @@ body {
 }
 
 /* === Sidebar collapse transition === */
-.admin-sidebar-collapsed {
-  width: 0 !important;
-  overflow: hidden;
-  border: none !important;
+@media (min-width: 769px) {
+  .admin-sidebar-collapsed {
+    width: 4rem !important;
+    overflow: hidden;
+  }
+  .admin-sidebar-collapsed .admin-sidebar-panel {
+    display: none;
+  }
 }
 .admin-sidebar-wrap {
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);

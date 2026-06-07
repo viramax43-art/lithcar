@@ -45,14 +45,14 @@ export function AdminSidebarRequestsSuggestionsSection({
   const { t } = useTranslation()
   const [manualGroupIds, setManualGroupIds] = useState<string[]>([])
 
-  const getPickupColor = (driverId?: string, status?: string): string => {
+  const getPickupColor = (status?: string): string => {
     if (status === 'completed') return '#22C55E'
-    return driverId ? '#EF4444' : '#F59E0B'
+    return '#F59E0B'
   }
 
-  const getDropoffColor = (driverId?: string, status?: string): string => {
+  const getDropoffColor = (status?: string): string => {
     if (status === 'completed') return '#22C55E'
-    return driverId ? '#3B82F6' : '#F59E0B'
+    return '#3B82F6'
   }
 
   const requestsInDateTimeWindow = useMemo(() => {
@@ -203,12 +203,12 @@ export function AdminSidebarRequestsSuggestionsSection({
                 <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
                   <div
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: getPickupColor(request.driverId, request.status) }}
+                    style={{ backgroundColor: getPickupColor(request.status) }}
                   />
                   <div className="w-px flex-1 bg-border my-1" style={{ minHeight: 12 }} />
                   <div
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: getDropoffColor(request.driverId, request.status) }}
+                    style={{ backgroundColor: getDropoffColor(request.status) }}
                   />
                 </div>
                 <div className="flex-1 min-w-0 text-xs space-y-2">

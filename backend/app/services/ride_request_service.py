@@ -471,7 +471,19 @@ async def update_ride_request(
     if to_lng is not None:
         request.to_lng = to_lng
     if date_time is not None:
-        request.date_time = date_time
+        from app.models.pricing_settings import PricingSettings
+        from app.services.ride_booking_service import InvalidRideDateTimeError, validate_ride_datetime
+
+        pricing = await db_session.get(PricingSettings, 1)
+        try:
+            request.date_time = validate_ride_datetime(
+                date_time,
+                work_start=(pricing.work_start_time if pricing else None) or "06:00",
+                work_end=(pricing.work_end_time if pricing else None) or "19:00",
+                slot_interval_minutes=int((pricing.slot_interval_minutes if pricing else None) or 30),
+            )
+        except InvalidRideDateTimeError as exc:
+            raise ValueError(str(exc)) from exc
     await db_session.commit()
     await db_session.refresh(request)
     return request

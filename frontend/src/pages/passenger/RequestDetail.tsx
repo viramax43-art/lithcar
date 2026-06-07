@@ -10,6 +10,7 @@ import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, upda
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 import { formatDate, formatTime } from '../../i18n/dateTime'
+import EditRequestSheet from './components/EditRequestSheet'
 
 const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
   pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -40,6 +41,7 @@ export default function RequestDetail() {
   const [ratingComment, setRatingComment] = useState('')
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
   const [isSignalMode, setIsSignalMode] = useState(false)
+  const [showEditSheet, setShowEditSheet] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -180,35 +182,7 @@ export default function RequestDetail() {
         {request.status === 'pending' && (
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                const nextName = window.prompt(
-                  t('passenger.promptPassengerName', { defaultValue: 'Passenger name' }),
-                  request.passengerName,
-                )
-                if (!nextName || !nextName.trim()) return
-                const nextDateTime = window.prompt(
-                  t('passenger.promptDateTimeIso', { defaultValue: 'Date and time (ISO, YYYY-MM-DDTHH:mm)' }),
-                  request.dateTime.slice(0, 16),
-                )
-                if (!nextDateTime || !nextDateTime.trim()) return
-                setIsSaving(true)
-                setErrorMessage(null)
-                try {
-                  const updated = await updateRequest(request.id, {
-                    passengerName: nextName.trim(),
-                    from: request.from,
-                    to: request.to,
-                    dateTime: nextDateTime.trim(),
-                  })
-                  setRequest(updated)
-                } catch (error) {
-                  setErrorMessage(
-                    error instanceof Error ? error.message : t('errors.updateRequestFailed', { defaultValue: 'Failed to update request.' }),
-                  )
-                } finally {
-                  setIsSaving(false)
-                }
-              }}
+              onClick={() => setShowEditSheet(true)}
               disabled={isSaving}
               className="flex-1 py-2 rounded-xl border border-border text-sm font-semibold"
             >
@@ -328,15 +302,21 @@ export default function RequestDetail() {
         </div>
 
         {/* Date/Time */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Calendar size={16} className="text-muted" />
-            <span className="text-sm font-medium">{dateStr}</span>
+        <div className="bg-surface rounded-card p-4 space-y-3">
+          <div>
+            <p className="text-xs text-muted mb-1 inline-flex items-center gap-1.5">
+              <Calendar size={14} />
+              {t('passenger.dateLabel', { defaultValue: 'Date' })}
+            </p>
+            <p className="text-sm font-semibold">{dateStr}</p>
           </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <Clock size={16} className="text-muted" />
-            <span className="text-sm font-medium">{timeStr}</span>
+          <div className="w-full h-px bg-border" />
+          <div>
+            <p className="text-xs text-muted mb-1 inline-flex items-center gap-1.5">
+              <Clock size={14} />
+              {t('passenger.timeLabel', { defaultValue: 'Time' })}
+            </p>
+            <p className="text-sm font-semibold">{timeStr}</p>
           </div>
         </div>
 
@@ -535,6 +515,32 @@ export default function RequestDetail() {
           </p>
         </div>
       </div>
+
+      <EditRequestSheet
+        open={showEditSheet}
+        request={request}
+        isSaving={isSaving}
+        onClose={() => setShowEditSheet(false)}
+        onSave={async ({ fromAddress, toAddress, dateTime }) => {
+          setIsSaving(true)
+          setErrorMessage(null)
+          try {
+            const updated = await updateRequest(request.id, {
+              from: { address: fromAddress, latlng: request.from.latlng },
+              to: { address: toAddress, latlng: request.to.latlng },
+              dateTime,
+            })
+            setRequest(updated)
+            setShowEditSheet(false)
+          } catch (error) {
+            setErrorMessage(
+              error instanceof Error ? error.message : t('errors.updateRequestFailed', { defaultValue: 'Failed to update request.' }),
+            )
+          } finally {
+            setIsSaving(false)
+          }
+        }}
+      />
 
       {isSignalMode && (
         <div className="fixed inset-0 z-[3400] signal-attention-screen flex flex-col items-center justify-center text-center px-6">
