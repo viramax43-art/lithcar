@@ -339,6 +339,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Please confirm the new pickup point using the button below.",
         "ru": "Пожалуйста, подтвердите новую точку посадки кнопкой ниже.",
     },
+    "driver.application.submitted": {
+        "lt": "✅ Jusu vairuotojo paraiška gauta ir perduota perziurai.",
+        "pl": "✅ Twoje zgloszenie kierowcy zostalo przyjete i przekazane do weryfikacji.",
+        "en": "✅ Your driver application has been received and sent for review.",
+        "ru": "✅ Ваша заявка водителя получена и отправлена на проверку.",
+    },
+    "driver.application.approved": {
+        "lt": "🎉 Sveikiname! Jusu paraiška patvirtinta.\n\nJusu prieigos raktas:\n{key}\n\nNaudokite ji vairuotojo kabinete.",
+        "pl": "🎉 Gratulacje! Twoje zgloszenie zostalo zatwierdzone.\n\nTwoj klucz dostepu:\n{key}\n\nUzyj go w panelu kierowcy.",
+        "en": "🎉 Congratulations! Your application has been approved.\n\nYour access key:\n{key}\n\nUse it in the driver cabinet.",
+        "ru": "🎉 Поздравляем! Ваша заявка одобрена.\n\nВаш ключ доступа:\n{key}\n\nИспользуйте его в кабинете водителя.",
+    },
+    "driver.application.rejected": {
+        "lt": "❌ Jusu vairuotojo paraiška atmesta.\n\nPriezastis: {reason}",
+        "pl": "❌ Twoje zgloszenie kierowcy zostalo odrzucone.\n\nPowod: {reason}",
+        "en": "❌ Your driver application was rejected.\n\nReason: {reason}",
+        "ru": "❌ Ваша заявка водителя отклонена.\n\nПричина: {reason}",
+    },
+    "driver.application.rejected_no_reason": {
+        "lt": "Nenurodyta",
+        "pl": "Nie podano",
+        "en": "Not specified",
+        "ru": "Не указана",
+    },
 }
 
 

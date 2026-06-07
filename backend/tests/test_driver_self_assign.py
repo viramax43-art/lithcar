@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from tests.ride_datetime import future_ride_datetime_iso
 
 from app.core.security import create_access_token
 from app.models.user import User, UserRole
@@ -67,7 +67,7 @@ async def _create_pending_request(client, db_session):
             "passengerName": "Self Assign Passenger",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=3),
         },
         headers=headers,
     )

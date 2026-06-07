@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DEFAULT_DRIVER_REGISTRATION_FORM } from '../../lib/driverRegistrationDefaults'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
-import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
+import type { Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import {
+  approveDriverApplication,
   assignDriverBulk,
   createAdminKey,
   createDriver,
@@ -12,19 +14,23 @@ import {
   createServiceZone,
   deleteServiceZone,
   getAdminSession,
+  getDriverRegistrationSettings,
   getPricing,
   listAdminRequests,
   listAdminKeys,
+  listDriverApplications,
   listDrivers,
   listAdminQrSales,
   listServiceZones,
   loginAdminByKey,
   logoutAdminSession,
+  rejectDriverApplication,
   rotateAdminKey,
   rotateDriverKey,
   uploadDriverPhoto,
   updateAdminKey,
   updateDriver,
+  updateDriverRegistrationSettings,
   updatePricing,
   updateServiceZone,
   type AdminKeyInfo,
@@ -111,6 +117,12 @@ export default function AdminDashboard() {
   const [newDriverCanSelfAssign, setNewDriverCanSelfAssign] = useState(false)
   const [lastCreatedDriverKey, setLastCreatedDriverKey] = useState<string | null>(null)
   const [rotatedDriverKeys, setRotatedDriverKeys] = useState<Record<string, string>>({})
+  const [driverApplications, setDriverApplications] = useState<DriverApplication[]>([])
+  const [driverApplicationsPendingCount, setDriverApplicationsPendingCount] = useState(0)
+  const [driverRegistrationFormSchema, setDriverRegistrationFormSchema] = useState<DriverRegistrationFormSchema>(
+    DEFAULT_DRIVER_REGISTRATION_FORM,
+  )
+  const [lastApprovedDriverApplicationKey, setLastApprovedDriverApplicationKey] = useState<string | null>(null)
 
   const loadManagedKeys = useCallback(async () => {
     if (adminSession?.role !== 'chief_admin') return
@@ -128,12 +140,14 @@ export default function AdminDashboard() {
     if (!adminSession) return
     setErrorMessage(null)
     try {
-      const [req, drv, zones, price, qrSalesPage] = await Promise.all([
+      const [req, drv, zones, price, qrSalesPage, applicationsPage, registrationForm] = await Promise.all([
         listAdminRequests('all', { limit: ADMIN_PAGE_SIZE, offset: 0 }),
         listDrivers(false, { limit: 200, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
         getPricing('cookie'),
         listAdminQrSales({ limit: 100, offset: 0, redeemedOnly: true }),
+        listDriverApplications({ limit: 100, offset: 0 }),
+        getDriverRegistrationSettings(),
       ])
       setRequests(req.items)
       setRequestsTotal(req.total)
@@ -143,6 +157,9 @@ export default function AdminDashboard() {
       setPricing(price)
       setQrSales(qrSalesPage.items)
       setHasLoadedQrSalesOnce(true)
+      setDriverApplications(applicationsPage.items)
+      setDriverApplicationsPendingCount(applicationsPage.pendingCount)
+      setDriverRegistrationFormSchema(registrationForm)
       if (adminSession.role === 'chief_admin') {
         await loadManagedKeys()
       }
@@ -417,6 +434,34 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleRefreshDriverApplications = useCallback(async () => {
+    const page = await listDriverApplications({ limit: 100, offset: 0 })
+    setDriverApplications(page.items)
+    setDriverApplicationsPendingCount(page.pendingCount)
+  }, [])
+
+  const handleSaveDriverRegistrationForm = async (schema: DriverRegistrationFormSchema) => {
+    try {
+      const updated = await updateDriverRegistrationSettings(schema)
+      setDriverRegistrationFormSchema(updated)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('common.error'))
+      throw error
+    }
+  }
+
+  const handleApproveDriverApplication = async (applicationId: string) => {
+    const result = await approveDriverApplication(applicationId)
+    setLastApprovedDriverApplicationKey(result.key)
+    await loadAll()
+    return result.key
+  }
+
+  const handleRejectDriverApplication = async (applicationId: string, reason?: string) => {
+    await rejectDriverApplication(applicationId, reason)
+    await loadAll()
+  }
+
   if (!isInitialAdminCheckDone) {
     return <AdminSessionChecking />
   }
@@ -523,6 +568,14 @@ export default function AdminDashboard() {
           handleRotateDriverKey={handleRotateDriverKey}
           handleUpdateDriver={handleUpdateDriver}
           handleDeleteDriver={handleDeleteDriver}
+          driverApplications={driverApplications}
+          driverApplicationsPendingCount={driverApplicationsPendingCount}
+          driverRegistrationFormSchema={driverRegistrationFormSchema}
+          lastApprovedDriverApplicationKey={lastApprovedDriverApplicationKey}
+          handleRefreshDriverApplications={handleRefreshDriverApplications}
+          handleSaveDriverRegistrationForm={handleSaveDriverRegistrationForm}
+          handleApproveDriverApplication={handleApproveDriverApplication}
+          handleRejectDriverApplication={handleRejectDriverApplication}
         />
 
         <AdminMap

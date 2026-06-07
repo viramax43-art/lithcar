@@ -1,7 +1,7 @@
 import { resolveApiBaseUrl } from '../../config/env'
 import { clearAccessToken, ensurePassengerAccessToken } from '../auth/passengerAuthSession'
 
-export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 export type AuthMode = 'bearer' | 'cookie' | 'none'
 
 export interface ApiRequestOptions {
@@ -89,6 +89,20 @@ export async function uploadMultipart<T>(path: string, formData: FormData): Prom
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: 'POST',
     credentials: 'include',
+    body: formData,
+  })
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(message || `Upload failed (${response.status})`)
+  }
+  return (await response.json()) as T
+}
+
+export async function uploadMultipartBearer<T>(path: string, formData: FormData): Promise<T> {
+  const token = await ensurePassengerAccessToken(false)
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   })
   if (!response.ok) {

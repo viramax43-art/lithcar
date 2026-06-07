@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import select
 
+from tests.ride_datetime import future_ride_datetime, future_ride_datetime_iso
+
 from app.core.security import create_access_token
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.ride_request import RideRequest
@@ -70,7 +72,7 @@ async def test_passenger_create_list_and_get_own_requests(client, db_session):
         "passengerName": "Alice Rider",
         "fromPoint": {"address": "Point A", "latlng": {"lat": 54.69, "lng": 25.27}},
         "toPoint": {"address": "Point B", "latlng": {"lat": 54.70, "lng": 25.28}},
-        "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
+        "dateTime": future_ride_datetime_iso(hours_ahead=3),
     }
     headers = _headers_for(passenger.user_id, passenger.role)
 
@@ -112,7 +114,7 @@ async def test_create_request_with_insufficient_points_returns_400(client, db_se
             "passengerName": "Low Balance",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
@@ -130,7 +132,7 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
             "passengerName": "Bob",
             "fromPoint": {"address": "Out A", "latlng": {"lat": 55.2, "lng": 26.0}},
             "toPoint": {"address": "Out B", "latlng": {"lat": 55.3, "lng": 26.1}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=1),
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
@@ -217,7 +219,7 @@ async def test_dynamic_booking_saves_quote_snapshot(client, db_session):
                 "passengerName": "Dynamic Rider",
                 "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
                 "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-                "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
+                "dateTime": future_ride_datetime_iso(hours_ahead=3),
             },
             headers=headers,
         )
@@ -241,7 +243,7 @@ async def test_create_request_writes_debit_transaction(client, db_session):
             "passengerName": "Tx User",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
@@ -285,7 +287,7 @@ async def test_admin_assign_driver_and_filter_requests(client, db_session):
             "passengerName": "Passenger 3",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
@@ -370,7 +372,8 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
     # Две похожие заявки для подсказки группировки.
     await client.patch(f"/api/service-zones/{zone_id}", json={"isActive": True})
     passenger_headers = _headers_for(passenger.user_id, passenger.role)
-    base_dt = datetime.now(timezone.utc) + timedelta(hours=6)
+    base_dt = future_ride_datetime(hours_ahead=6)
+    second_dt = future_ride_datetime(hours_ahead=6, minutes_offset=30)
     await client.post(
         "/api/ride-requests",
         json={
@@ -387,7 +390,7 @@ async def test_admin_can_manage_zones_pricing_and_suggestions(client, db_session
             "passengerName": "P2",
             "fromPoint": {"address": "CC", "latlng": {"lat": 54.692, "lng": 25.272}},
             "toPoint": {"address": "DD", "latlng": {"lat": 54.701, "lng": 25.281}},
-            "dateTime": (base_dt + timedelta(minutes=20)).isoformat(),
+            "dateTime": second_dt.isoformat(),
         },
         headers=passenger_headers,
     )

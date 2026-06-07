@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   CaretRight,
+  Car,
   CheckCircle,
+  Clock,
   Coins,
   CreditCard,
   Info,
@@ -17,13 +19,13 @@ import {
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
-import { getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
+import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatDateTime } from '../../i18n/dateTime'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { AppLanguage } from '../../i18n/languages'
-import type { PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
+import type { DriverApplication, PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
 type RedeemReceipt = {
   pointsRequested: number
@@ -49,6 +51,7 @@ export default function Profile() {
   const [isBuySheetOpen, setIsBuySheetOpen] = useState(false)
   const [lastReceipt, setLastReceipt] = useState<RedeemReceipt | null>(null)
   const [lastCardReceipt, setLastCardReceipt] = useState<CardReceipt | null>(null)
+  const [driverApplication, setDriverApplication] = useState<DriverApplication | null | undefined>(undefined)
 
   const historyPageSize = 20
 
@@ -71,6 +74,9 @@ export default function Profile() {
     void getPricing()
       .then((value) => setPricing(value))
       .catch(() => undefined)
+    void getMyDriverApplication()
+      .then((value) => setDriverApplication(value))
+      .catch(() => setDriverApplication(null))
   }, []) // single initial load
 
   const sortedHistory = useMemo(() => {
@@ -206,6 +212,72 @@ export default function Profile() {
                 {' · '}
                 <span className="text-white/70">{t('profile.driverWillCreditByQr', { amount: lastReceipt.eurAmount.toFixed(2), defaultValue: `driver will credit via QR · €${lastReceipt.eurAmount.toFixed(2)}` })}</span>
               </p>
+            </div>
+          )}
+        </section>
+
+        <section className="bg-white border border-border rounded-card p-4 space-y-3">
+          <p className="text-sm font-bold">{t('profile.becomeDriver.title')}</p>
+          {driverApplication === undefined ? (
+            <p className="text-xs text-muted">{t('common.loading')}</p>
+          ) : driverApplication === null ? (
+            <button
+              type="button"
+              onClick={() => navigate('/driver/register')}
+              className="w-full flex items-center gap-3 rounded-xl bg-surface px-3 py-3 text-left active:bg-border/40 transition-colors"
+            >
+              <span className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center flex-shrink-0">
+                <Car size={18} weight="duotone" />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[13px] font-semibold">{t('profile.becomeDriver.apply')}</span>
+                <span className="block text-[11px] text-muted">{t('profile.becomeDriver.applyHint')}</span>
+              </span>
+              <CaretRight size={14} weight="bold" className="text-muted flex-shrink-0" />
+            </button>
+          ) : driverApplication.status === 'pending' ? (
+            <div className="rounded-xl bg-surface px-3 py-3 flex items-start gap-3">
+              <Clock size={18} weight="duotone" className="text-black flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-semibold">{t('profile.becomeDriver.pending')}</p>
+                <p className="text-[11px] text-muted mt-1">{t('profile.becomeDriver.pendingHint')}</p>
+              </div>
+            </div>
+          ) : driverApplication.status === 'rejected' ? (
+            <div className="space-y-2">
+              <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-3 flex items-start gap-3">
+                <SealWarning size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[13px] font-semibold text-red-700">{t('profile.becomeDriver.rejected')}</p>
+                  {driverApplication.rejectionReason && (
+                    <p className="text-[11px] text-red-600 mt-1">{driverApplication.rejectionReason}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/driver/register')}
+                className="w-full h-10 rounded-pill bg-black text-white text-xs font-bold"
+              >
+                {t('profile.becomeDriver.resubmit')}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="rounded-xl bg-surface px-3 py-3 flex items-start gap-3">
+                <CheckCircle size={18} weight="duotone" className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[13px] font-semibold">{t('profile.becomeDriver.approved')}</p>
+                  <p className="text-[11px] text-muted mt-1">{t('profile.becomeDriver.approvedHint')}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/driver')}
+                className="w-full h-10 rounded-pill bg-black text-white text-xs font-bold"
+              >
+                {t('profile.becomeDriver.openCabinet')}
+              </button>
             </div>
           )}
         </section>

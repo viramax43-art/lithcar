@@ -1,5 +1,5 @@
 import type { AdminKeyInfo, AdminQrSaleAudit, AdminSessionUser } from '../../../lib/backend'
-import type { Driver, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../../types'
+import type { Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../../types'
 import type { AdminTab, MapColorGroupKey } from '../constants'
 
 export interface AdminSidebarProps {
@@ -119,4 +119,12 @@ export interface AdminSidebarProps {
     }>
   ) => Promise<void>
   handleDeleteDriver: (driverId: string) => Promise<void>
+  driverApplications: DriverApplication[]
+  driverApplicationsPendingCount: number
+  driverRegistrationFormSchema: DriverRegistrationFormSchema
+  lastApprovedDriverApplicationKey: string | null
+  handleRefreshDriverApplications: () => Promise<void>
+  handleSaveDriverRegistrationForm: (schema: DriverRegistrationFormSchema) => Promise<void>
+  handleApproveDriverApplication: (applicationId: string) => Promise<string>
+  handleRejectDriverApplication: (applicationId: string, reason?: string) => Promise<void>
 }

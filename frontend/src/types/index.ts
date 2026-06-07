@@ -269,3 +269,59 @@ export interface DriverCabinetData {
   limit: number
   offset: number
 }
+
+export type DriverFormFieldType = 'text' | 'textarea' | 'file'
+
+export type DriverFormDriverField =
+  | 'name'
+  | 'carBrand'
+  | 'carModel'
+  | 'carPlate'
+  | 'vehicleColor'
+  | 'seatsCount'
+  | 'licenseNumber'
+  | 'about'
+  | 'photo'
+
+export interface DriverRegistrationFormField {
+  id: string
+  type: DriverFormFieldType
+  required: boolean
+  order: number
+  label: UserInfoTextI18n
+  placeholder: UserInfoTextI18n
+  helpText: UserInfoTextI18n
+  driverField?: DriverFormDriverField | null
+  accept?: string | null
+}
+
+export interface DriverRegistrationFormSchema {
+  introText: UserInfoTextI18n
+  fields: DriverRegistrationFormField[]
+}
+
+export interface DriverApplicationFileEntry {
+  objectKey: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  fileUrl: string
+}
+
+export type DriverApplicationStatus = 'pending' | 'approved' | 'rejected'
+
+export interface DriverApplication {
+  id: string
+  userId: string
+  username: string | null
+  status: DriverApplicationStatus
+  language: 'lt' | 'pl' | 'en' | 'ru'
+  answers: Record<string, string>
+  files: Record<string, DriverApplicationFileEntry>
+  rejectionReason: string | null
+  reviewedBy: string | null
+  reviewedAt: string | null
+  createdDriverId: string | null
+  createdAt: string
+  updatedAt: string
+}

@@ -1,7 +1,7 @@
 """Tests for post-ride bidirectional ratings."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from tests.ride_datetime import future_ride_datetime_iso
 
 from app.core.security import create_access_token
 from app.models.driver import Driver
@@ -74,7 +74,7 @@ async def _setup_completed_ride(client, db_session):
             "passengerName": "Rating Passenger",
             "fromPoint": {"address": "Start A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "End B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
         },
         headers=passenger_headers,
     )
@@ -130,7 +130,7 @@ async def test_passenger_cannot_rate_before_completed(client, db_session):
             "passengerName": "Pending",
             "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=3),
         },
         headers=ctx["passenger_headers"],
     )
@@ -249,7 +249,7 @@ async def test_driver_average_from_multiple_ratings(client, db_session):
             "passengerName": "Rating Passenger 2",
             "fromPoint": {"address": "C", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "D", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=4),
         },
         headers=ctx["passenger_headers"],
     )

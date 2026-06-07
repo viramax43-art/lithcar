@@ -71,6 +71,7 @@ export {
 export {
   confirmPickup,
   rateRideAsPassenger,
+  completeOnboarding,
   createRequest,
   deleteRequest,
   getCurrentUser,
@@ -87,3 +88,16 @@ export {
   updateCurrentUserLanguage,
   updateRequest,
 } from '../infrastructure/api/passengerApi'
+
+export {
+  approveDriverApplication,
+  getDriverApplication,
+  getDriverRegistrationForm,
+  getDriverRegistrationSettings,
+  getMyDriverApplication,
+  listDriverApplications,
+  rejectDriverApplication,
+  submitDriverApplication,
+  updateDriverRegistrationSettings,
+  uploadDriverApplicationFile,
+} from '../infrastructure/api/driverRegistrationApi'

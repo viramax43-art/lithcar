@@ -16,6 +16,8 @@ from app.models.admin_audit_event import AdminAuditEvent
 from app.models.map_drawing import MapDrawing
 from app.models.map_mark import MapMark
 from app.models.ride_rating import RideRating
+from app.models.driver_registration_settings import DriverRegistrationSettings
+from app.models.driver_application import DriverApplication
 
 
 __all__ = [
@@ -31,4 +33,6 @@ __all__ = [
     "MapDrawing",
     "MapMark",
     "RideRating",
+    "DriverRegistrationSettings",
+    "DriverApplication",
 ]

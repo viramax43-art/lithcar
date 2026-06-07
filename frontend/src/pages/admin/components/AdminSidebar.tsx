@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { AdminSidebarDriversSection } from './AdminSidebarDriversSection'
+import { AdminSidebarDriverRegistrationSection } from './AdminSidebarDriverRegistrationSection'
 import { AdminSidebarRequestsSuggestionsSection } from './AdminSidebarRequestsSuggestionsSection'
 import { AdminSidebarStaffSection } from './AdminSidebarStaffSection'
 import { AdminSidebarZonesSettingsQrSection } from './AdminSidebarZonesSettingsQrSection'
@@ -107,6 +108,14 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     handleRotateDriverKey,
     handleUpdateDriver,
     handleDeleteDriver,
+    driverApplications,
+    driverApplicationsPendingCount,
+    driverRegistrationFormSchema,
+    lastApprovedDriverApplicationKey,
+    handleRefreshDriverApplications,
+    handleSaveDriverRegistrationForm,
+    handleApproveDriverApplication,
+    handleRejectDriverApplication,
   } = props
 
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -250,6 +259,21 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               selectedReqId={selectedReqId}
               setSelectedReqId={setSelectedReqId}
               setAssignModalReqIds={setAssignModalReqIds}
+            />
+
+            <AdminSidebarDriverRegistrationSection
+              activeTab={activeTab}
+              applications={driverApplications}
+              pendingCount={driverApplicationsPendingCount}
+              formSchema={driverRegistrationFormSchema}
+              lastApprovedDriverKey={lastApprovedDriverApplicationKey}
+              copyState={copyState}
+              copiedToken={copiedToken}
+              copyText={copyText}
+              onRefresh={handleRefreshDriverApplications}
+              onSaveFormSchema={handleSaveDriverRegistrationForm}
+              onApproveApplication={handleApproveDriverApplication}
+              onRejectApplication={handleRejectDriverApplication}
             />
 
             <AdminSidebarDriversSection

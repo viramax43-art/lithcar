@@ -9,6 +9,7 @@ from app.api import (
     admin_keys,
     auth,
     driver_portal,
+    driver_registration,
     drivers,
     group_suggestions,
     map_drawings,
@@ -55,6 +56,7 @@ api_router.include_router(admin_keys.router, tags=["Admin Keys & Sessions"])
 api_router.include_router(admin_audit.router, tags=["Admin Audit"])
 api_router.include_router(ride_requests.router, tags=["Ride Requests"])
 api_router.include_router(drivers.router, tags=["Drivers"])
+api_router.include_router(driver_registration.router, tags=["Driver Registration"])
 api_router.include_router(driver_portal.router, tags=["Driver Portal"])
 api_router.include_router(points_card.router, tags=["Points Card"])
 api_router.include_router(points_qr.router, tags=["Points QR"])

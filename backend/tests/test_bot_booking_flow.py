@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, time
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from app.bot.handlers.booking import (
     combine_booking_datetime,
@@ -37,13 +37,21 @@ def test_resolve_quick_time_returns_time_value():
     assert isinstance(value, time)
 
 
-async def test_reject_non_location_message():
-    message = SimpleNamespace(answer=AsyncMock())
+@patch("app.bot.handlers.booking._get_user_lang", new_callable=AsyncMock, return_value="en")
+async def test_reject_non_location_message(_mock_lang):
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=1001, username="tester"),
+        answer=AsyncMock(),
+    )
     await reject_non_location_from(message)
     assert message.answer.await_count == 1
 
 
-async def test_duplicate_submit_callback():
-    callback = SimpleNamespace(answer=AsyncMock())
+@patch("app.bot.handlers.booking._get_user_lang", new_callable=AsyncMock, return_value="en")
+async def test_duplicate_submit_callback(_mock_lang):
+    callback = SimpleNamespace(
+        from_user=SimpleNamespace(id=1001, username="tester"),
+        answer=AsyncMock(),
+    )
     await duplicate_submit(callback)
     callback.answer.assert_awaited_once()

@@ -1,7 +1,7 @@
 """Tests for driver pickup editing and passenger confirmation flow."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from tests.ride_datetime import future_ride_datetime_iso
 
 from app.core.security import create_access_token
 from app.models.user import User, UserRole
@@ -78,7 +78,7 @@ async def _setup_driver_and_passenger(client, db_session):
             "passengerName": "Pickup Passenger",
             "fromPoint": {"address": "Start A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "End B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
         },
         headers=passenger_headers,
     )

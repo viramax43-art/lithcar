@@ -22,6 +22,10 @@ export async function updateCurrentUserLanguage(language: 'lt' | 'pl' | 'en' | '
   })
 }
 
+export async function completeOnboarding(): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>('/api/users/me/complete-onboarding', { method: 'POST' })
+}
+
 export async function listMyRequests(params?: PaginationParams): Promise<PaginatedResult<RideRequest>> {
   const page = await apiRequest<{ items: RideRequestApi[]; total: number; limit: number; offset: number }>(
     `/api/ride-requests/me?${toPageQuery(params)}`
