@@ -159,15 +159,17 @@ export default function AdminSidebar(props: AdminSidebarProps) {
       <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
         {/* Drawer handle for mobile */}
         <div className="admin-drawer-handle" onClick={onToggleCollapse} />
-        {/* Collapse toggle (desktop only) */}
-        <button
-          onClick={onToggleCollapse}
-          className="hidden md:flex absolute top-1/2 -right-4 z-[1001] w-9 h-9 bg-white border border-border rounded-full shadow-card items-center justify-center hover:bg-surface transition-colors"
-          style={{ transform: 'translateY(-50%)' }}
-          title={collapsed ? t('admin.sidebar.expandPanel') : t('admin.sidebar.collapsePanel')}
-        >
-          {collapsed ? <CaretRight size={14} weight="bold" /> : <CaretLeft size={14} weight="bold" />}
-        </button>
+        {/* Collapse toggle (desktop only, visible when panel is open) */}
+        {!collapsed && (
+          <button
+            onClick={onToggleCollapse}
+            className="hidden md:flex absolute top-1/2 -right-4 z-[1001] w-9 h-9 bg-white border border-border rounded-full shadow-card items-center justify-center hover:bg-surface transition-colors"
+            style={{ transform: 'translateY(-50%)' }}
+            title={t('admin.sidebar.collapsePanel')}
+          >
+            <CaretLeft size={14} weight="bold" />
+          </button>
+        )}
         <div className="admin-sidebar-icon-rail w-16 border-r border-border bg-surface flex flex-col items-center py-3 gap-1.5 flex-shrink-0">
           {tabs.map((tab) => {
             const active = activeTab === tab.id

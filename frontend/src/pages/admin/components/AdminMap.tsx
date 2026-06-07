@@ -929,14 +929,15 @@ export default function AdminMap({
       </div>
       )}
 
-      {/* Sidebar toggle when collapsed */}
+      {/* Sidebar expand — only control when panel is fully hidden */}
       {!isMapMarkViewMode && sidebarCollapsed && (
         <button
           onClick={onToggleSidebar}
-          className="absolute top-1/2 left-2 -translate-y-1/2 z-[1000] w-10 h-10 bg-white border border-border rounded-full shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
+          className="absolute top-1/2 left-3 -translate-y-1/2 z-[1000] w-10 h-10 bg-white border border-border rounded-full shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
           title={t('admin.sidebar.expandPanel')}
+          aria-label={t('admin.sidebar.expandPanel')}
         >
-          <CaretLeft size={16} weight="bold" className="rotate-180" />
+          <CaretRight size={16} weight="bold" />
         </button>
       )}
 

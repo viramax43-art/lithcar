@@ -483,14 +483,13 @@ body {
   height: 100%;
 }
 
-/* === Sidebar collapse transition === */
+/* === Sidebar collapse transition (desktop: fully hidden for max map) === */
 @media (min-width: 769px) {
   .admin-sidebar-collapsed {
-    width: 4rem !important;
+    width: 0 !important;
+    min-width: 0 !important;
     overflow: hidden;
-  }
-  .admin-sidebar-collapsed .admin-sidebar-panel {
-    display: none;
+    border: none !important;
   }
 }
 .admin-sidebar-wrap {
