@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.app_timezone import to_app_local_iso
 from app.core.dependencies import get_db_session
 from app.models.ride_request import RideRequest
 from app.models.user import DEFAULT_USER_LANGUAGE, User, UserRole
@@ -61,6 +62,7 @@ class RideHistoryItem(BaseModel):
     toPoint: RoutePoint
     status: str
     dateTime: datetime
+    dateTimeLocal: str
     createdAt: datetime
     canRateDriver: bool = False
 
@@ -197,6 +199,7 @@ async def _to_ride_history_item(
         ),
         status=request.status,
         dateTime=request.date_time,
+        dateTimeLocal=to_app_local_iso(request.date_time),
         createdAt=request.created_at,
         canRateDriver=can_rate,
     )

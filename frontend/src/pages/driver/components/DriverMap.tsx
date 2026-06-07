@@ -4,7 +4,7 @@ import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import { formatTime } from '../../../i18n/dateTime'
+import { formatRideTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
 import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
@@ -52,7 +52,7 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
     : ''
 
   const markerOpacity = isDone ? 0.95 : 1
-  const timeLabel = formatTime(new Date(pt.dateTime), { hour: '2-digit', minute: '2-digit' })
+  const timeLabel = formatRideTime(pt)
   const timeFont = isDone ? 9 : isNext ? 11 : 10
   const totalW = Math.max(sz, 42)
   const totalH = sz + 18

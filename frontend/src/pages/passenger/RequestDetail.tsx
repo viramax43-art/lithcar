@@ -9,7 +9,7 @@ import StarRatingInput from '../../components/StarRatingInput'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
-import { formatDate, formatTime } from '../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import EditRequestSheet from './components/EditRequestSheet'
 
 const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
@@ -105,9 +105,8 @@ export default function RequestDetail() {
   )
   const shouldShowAssignedFallback = Boolean(request.driverId) || hasAssignedDriverStatus
   const status = STATUS_COLOR_MAP[request.status] || STATUS_COLOR_MAP.pending
-  const dt = new Date(request.dateTime)
-  const dateStr = formatDate(dt, { day: 'numeric', month: 'long', year: 'numeric' })
-  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatRideDate(request, { day: 'numeric', month: 'long', year: 'numeric' })
+  const timeStr = formatRideTime(request)
 
   const center: [number, number] = [
     (request.from.latlng.lat + request.to.latlng.lat) / 2,

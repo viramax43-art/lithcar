@@ -17,3 +17,9 @@ def normalize_app_datetime(value: datetime) -> datetime:
 def to_app_local(value: datetime) -> datetime:
     normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
     return normalized.astimezone(APP_TIMEZONE)
+
+
+def to_app_local_iso(value: datetime) -> str:
+    """Wall-clock date/time in Europe/Vilnius as YYYY-MM-DDTHH:MM."""
+    local = to_app_local(value)
+    return local.strftime("%Y-%m-%dT%H:%M")

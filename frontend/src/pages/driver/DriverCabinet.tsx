@@ -30,7 +30,7 @@ import {
   type DriverSessionUser,
 } from '../../lib/backend'
 import { reverseGeocode } from '../../lib/geocode'
-import { formatTime } from '../../i18n/dateTime'
+import { formatRideTime } from '../../i18n/dateTime'
 import { ApiError } from '../../infrastructure/http/httpClient'
 import { getDefaultPeriodFilter, matchesPeriodFilter } from '../../lib/periodFilter'
 import { hapticImpact, hapticNotification } from '../../lib/telegram'
@@ -172,7 +172,7 @@ function NextStopBar({
   const { t } = useTranslation()
   const actionLabelKey = getQuickActionLabelKey(point)
   const action = getQuickAction(point)
-  const arrivalTime = formatTime(new Date(point.dateTime), { hour: '2-digit', minute: '2-digit' })
+  const arrivalTime = formatRideTime(point)
   const isPickup = point.pointType === 'pickup'
   const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
   const showPickupQuickActions = isPickup && point.pickupChangedByDriver

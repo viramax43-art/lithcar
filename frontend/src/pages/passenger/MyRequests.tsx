@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
-import { formatDate, formatTime } from '../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 
 const PAGE_SIZE = 20
 
@@ -152,9 +152,8 @@ export default function MyRequests() {
         {!isLoading && sorted.map((req) => {
           const status = STATUS_COLOR_MAP[req.status] || STATUS_COLOR_MAP.pending
           const driver = req.driverId ? drivers.find((d) => d.id === req.driverId) : null
-          const dt = new Date(req.dateTime)
-          const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
-          const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
+          const dateStr = formatRideDate(req, { day: 'numeric', month: 'short' })
+          const timeStr = formatRideTime(req)
 
           return (
             <button

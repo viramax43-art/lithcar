@@ -26,7 +26,7 @@ from app.services.driver_registration_service import (
     get_application,
     get_form_schema,
     get_or_create_registration_settings,
-    get_user_application,
+    get_user_application_for_portal,
     list_applications,
     normalize_form_schema,
     reject_application,
@@ -263,7 +263,7 @@ async def get_my_driver_application(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    application = await get_user_application(db_session, user_id=current_user.user_id)
+    application = await get_user_application_for_portal(db_session, user_id=current_user.user_id)
     if application is None:
         return None
     return await _application_out(db_session, application)

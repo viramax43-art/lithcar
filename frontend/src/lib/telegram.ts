@@ -23,6 +23,7 @@ type TelegramWebApp = {
   expand?: () => void
   requestFullscreen?: () => void
   disableVerticalSwipes?: () => void
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
   onEvent?: (eventType: string, callback: () => void) => void
   HapticFeedback?: TelegramHapticFeedback
 }
@@ -132,6 +133,20 @@ export function hapticImpact(style: HapticImpactStyle = 'light'): void {
     return
   }
   vibrateFallback(style === 'heavy' ? 24 : style === 'medium' ? 16 : 10)
+}
+
+/** Open URL in the system browser when running inside Telegram Mini App. */
+export function openExternalLink(url: string): void {
+  const webApp = getTelegramWebApp()
+  if (webApp?.openLink) {
+    try {
+      webApp.openLink(url)
+      return
+    } catch {
+      // fall through to window.open
+    }
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export function hapticNotification(type: HapticNotificationType): void {

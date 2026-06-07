@@ -1,7 +1,7 @@
 import { Clock, Star, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import type { DriverMapPoint } from '../../../types'
 
 interface DriverAvailableRideSheetProps {
@@ -27,9 +27,8 @@ export default function DriverAvailableRideSheet({
     return null
   }
 
-  const dt = new Date(point.dateTime)
-  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
-  const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
+  const timeStr = formatRideTime(point)
+  const dateStr = formatRideDate(point, { day: 'numeric', month: 'short' })
 
   return (
     <>

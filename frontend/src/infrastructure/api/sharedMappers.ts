@@ -30,6 +30,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     from: item.fromPoint,
     to: item.toPoint,
     dateTime: item.dateTime,
+    dateTimeLocal: item.dateTimeLocal,
     status: item.status,
     groupId: item.groupId,
     driverId: item.driverId,
@@ -55,6 +56,7 @@ export function mapUserCabinetRide(item: UserCabinetRideApi): UserCabinetRideHis
     to: item.toPoint,
     status: item.status,
     dateTime: item.dateTime,
+    dateTimeLocal: item.dateTimeLocal,
     createdAt: item.createdAt,
     canRateDriver: item.canRateDriver,
   }

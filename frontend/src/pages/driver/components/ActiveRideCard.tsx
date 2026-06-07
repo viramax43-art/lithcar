@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import type { DriverCabinetRide } from '../../../types'
 import type { LatLng } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
-import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
 import RideStepper from './RideStepper'
 
@@ -27,9 +27,8 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
   const ctaKey = ctaLabelKey(ride.status)
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
 
-  const dt = new Date(ride.dateTime)
-  const dateStr = formatDate(dt, { day: 'numeric', month: 'long' })
-  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatRideDate(ride, { day: 'numeric', month: 'long' })
+  const timeStr = formatRideTime(ride)
 
   const headingToPickup = ride.status === 'en_route_to_pickup' || ride.status === 'assigned'
   const navTarget = headingToPickup ? ride.fromLatLng : ride.toLatLng

@@ -119,6 +119,7 @@ export interface RideRequestApi {
   fromPoint: { address: string; latlng: { lat: number; lng: number } }
   toPoint: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string
+  dateTimeLocal?: string
   status: RideRequest['status']
   groupId?: string
   driverId?: string
@@ -152,6 +153,7 @@ export interface UserCabinetRideApi {
   toPoint: { address: string; latlng: { lat: number; lng: number } }
   status: RideRequest['status']
   dateTime: string
+  dateTimeLocal?: string
   createdAt: string
   canRateDriver: boolean
 }

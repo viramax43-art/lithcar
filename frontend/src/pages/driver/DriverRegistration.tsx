@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import { resolveDriverFormText } from '../../lib/driverFormText'
+import { openDriverCabinetInBrowser } from '../../lib/driverPortal'
 import {
   getDriverRegistrationForm,
   getMyDriverApplication,
@@ -175,7 +176,7 @@ export default function DriverRegistration() {
           <p className="text-sm text-muted mt-2">{t('driverRegistration.approvedDescription')}</p>
           <button
             type="button"
-            onClick={() => navigate('/driver')}
+            onClick={() => openDriverCabinetInBrowser()}
             className="mt-6 h-11 px-5 rounded-pill bg-black text-white text-sm font-bold"
           >
             {t('driverRegistration.openCabinet')}

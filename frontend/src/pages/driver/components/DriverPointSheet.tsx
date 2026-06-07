@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { DriverMapPoint } from '../../../types'
 import { directionsHref } from '../../../lib/navigation'
-import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
@@ -120,9 +120,8 @@ function SheetBody({
   const isDone = point.pointStatus === 'done'
   const pointColor = isDone ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
 
-  const dt = new Date(point.dateTime)
-  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
-  const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
+  const timeStr = formatRideTime(point)
+  const dateStr = formatRideDate(point, { day: 'numeric', month: 'short' })
 
   const pickupChangedNotNotified = isPickup && point.pickupChangedByDriver && !point.pickupNotifiedAt
   const needsPassengerConfirm = isPickup && point.pickupChangedByDriver && !!point.pickupNotifiedAt && !point.pickupConfirmedAt

@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { DriverCabinetRide } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
-import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
 
 interface DriverPassengerCardProps {
@@ -40,9 +40,8 @@ export default function DriverPassengerCard({
   const statusColors = DRIVER_STATUS_COLOR[ride.status]
   const nextSt = nextStatus(ride.status)
   const ctaKey = ctaLabelKey(ride.status)
-  const dt = new Date(ride.dateTime)
-  const timeStr = formatTime(dt, { hour: '2-digit', minute: '2-digit' })
-  const dateStr = formatDate(dt, { day: 'numeric', month: 'short' })
+  const timeStr = formatRideTime(ride)
+  const dateStr = formatRideDate(ride, { day: 'numeric', month: 'short' })
 
   const pickupChangedNotNotified = ride.pickupChangedByDriver && !ride.pickupNotifiedAt
   const needsPassengerConfirm = ride.pickupChangedByDriver && !!ride.pickupNotifiedAt && !ride.pickupConfirmedAt

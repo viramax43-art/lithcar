@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin_session import require_admin_roles
 from app.api.auth import get_current_user, require_roles
+from app.core.app_timezone import to_app_local_iso
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
@@ -106,6 +107,7 @@ class RideRequestOut(BaseModel):
     fromPoint: RoutePoint
     toPoint: RoutePoint
     dateTime: datetime
+    dateTimeLocal: str
     status: str
     groupId: str | None
     driverId: str | None
@@ -157,6 +159,7 @@ def _to_ride_request_out(
             latlng=LatLng(lat=request.to_lat, lng=request.to_lng),
         ),
         dateTime=request.date_time,
+        dateTimeLocal=to_app_local_iso(request.date_time),
         status=request.status,
         groupId=request.group_id,
         driverId=request.driver_id,

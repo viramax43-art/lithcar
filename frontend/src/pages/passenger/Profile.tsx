@@ -20,7 +20,8 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
-import { formatDateTime } from '../../i18n/dateTime'
+import { formatRideDateTime } from '../../i18n/dateTime'
+import { openDriverCabinetInBrowser } from '../../lib/driverPortal'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
@@ -273,7 +274,7 @@ export default function Profile() {
               </div>
               <button
                 type="button"
-                onClick={() => navigate('/driver')}
+                onClick={() => openDriverCabinetInBrowser()}
                 className="w-full h-10 rounded-pill bg-black text-white text-xs font-bold"
               >
                 {t('profile.becomeDriver.openCabinet')}
@@ -326,7 +327,7 @@ export default function Profile() {
               </div>
               <p className="text-xs text-muted truncate">{ride.to.address}</p>
               <p className="text-[10px] text-muted">
-                {formatDateTime(new Date(ride.dateTime), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {formatRideDateTime(ride, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </p>
             </button>
           ))}

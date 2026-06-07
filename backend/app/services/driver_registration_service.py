@@ -12,7 +12,7 @@ from app.core.i18n_text import EMPTY_USER_INFO_TEXT, normalize_user_info_text_i1
 from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.driver_registration_settings import DriverRegistrationSettings
 from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User
-from app.services.driver_service import create_driver
+from app.services.driver_service import create_driver, get_driver, get_driver_by_user_id
 
 DRIVER_FIELD_BINDINGS = frozenset(
     {
@@ -284,6 +284,20 @@ def _validate_submission(
     return normalized_answers, normalized_files
 
 
+async def _active_driver_for_user(
+    db_session: AsyncSession,
+    *,
+    user_id: str,
+    application: DriverApplication | None = None,
+):
+    driver = await get_driver_by_user_id(db_session, user_id=user_id)
+    if driver is not None:
+        return driver
+    if application is not None and application.created_driver_id:
+        return await get_driver(db_session, driver_id=application.created_driver_id)
+    return None
+
+
 async def get_user_application(db_session: AsyncSession, *, user_id: str) -> DriverApplication | None:
     result = await db_session.execute(
         select(DriverApplication)
@@ -292,6 +306,21 @@ async def get_user_application(db_session: AsyncSession, *, user_id: str) -> Dri
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def get_user_application_for_portal(
+    db_session: AsyncSession,
+    *,
+    user_id: str,
+) -> DriverApplication | None:
+    """Hide stale approved applications when the driver profile was removed."""
+    application = await get_user_application(db_session, user_id=user_id)
+    if application is None:
+        return None
+    if application.status == DriverApplicationStatus.APPROVED:
+        if await _active_driver_for_user(db_session, user_id=user_id, application=application) is None:
+            return None
+    return application
 
 
 async def submit_application(
@@ -307,7 +336,8 @@ async def submit_application(
         if existing.status == DriverApplicationStatus.PENDING:
             raise HTTPException(status_code=409, detail="Application is already pending review.")
         if existing.status == DriverApplicationStatus.APPROVED:
-            raise HTTPException(status_code=409, detail="Application is already approved.")
+            if await _active_driver_for_user(db_session, user_id=user.user_id, application=existing) is not None:
+                raise HTTPException(status_code=409, detail="Application is already approved.")
 
     schema = await get_form_schema(db_session)
     normalized_answers, normalized_files = _validate_submission(

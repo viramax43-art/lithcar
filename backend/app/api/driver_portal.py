@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.app_timezone import to_app_local_iso
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.models.user import User
@@ -100,6 +101,7 @@ class DriverRideOut(BaseModel):
     passengerName: str
     status: str
     dateTime: datetime
+    dateTimeLocal: str
     createdAt: datetime
     routeOrder: int | None
     pickupChangedByDriver: bool
@@ -146,6 +148,7 @@ class DriverMapPointOut(BaseModel):
     availableActions: list[str]
     mapLinks: DriverMapLinkOut
     dateTime: datetime
+    dateTimeLocal: str
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
@@ -287,6 +290,7 @@ async def _to_driver_ride_out(
         passengerName=ride.passenger_name,
         status=ride.status,
         dateTime=ride.date_time,
+        dateTimeLocal=to_app_local_iso(ride.date_time),
         createdAt=ride.created_at,
         routeOrder=ride.route_order,
         pickupChangedByDriver=ride.pickup_changed_by_driver,
@@ -447,6 +451,7 @@ def _build_driver_map_points(
                     availableActions=available_actions,
                     mapLinks=_build_map_links(lat=lat, lng=lng, label=label),
                     dateTime=ride.date_time,
+                    dateTimeLocal=to_app_local_iso(ride.date_time),
                     pickupChangedByDriver=ride.pickup_changed_by_driver if is_pickup else False,
                     pickupNotifiedAt=ride.pickup_notified_at if is_pickup else None,
                     pickupConfirmedAt=ride.pickup_confirmed_at if is_pickup else None,

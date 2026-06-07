@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import generate_driver_key, hash_admin_key
 from app.models.driver import Driver
+from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.ride_request import RideRequest
 from app.models.user import User, UserRole
 
@@ -228,6 +229,18 @@ async def delete_driver(db_session: AsyncSession, *, driver_id: str) -> bool:
         user = await db_session.get(User, driver.user_id)
         if user is not None:
             user.role = UserRole.PASSENGER
+        await db_session.execute(
+            update(DriverApplication)
+            .where(
+                DriverApplication.user_id == driver.user_id,
+                DriverApplication.status == DriverApplicationStatus.APPROVED,
+            )
+            .values(
+                status=DriverApplicationStatus.REJECTED,
+                rejection_reason="Driver profile removed by administrator.",
+                created_driver_id=None,
+            )
+        )
     await db_session.execute(
         update(RideRequest).where(RideRequest.driver_id == driver_id).values(driver_id=None)
     )

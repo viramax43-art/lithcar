@@ -25,6 +25,7 @@ export interface RideRequest {
   from: { address: string; latlng: LatLng }
   to: { address: string; latlng: LatLng }
   dateTime: string
+  dateTimeLocal?: string
   status: RideStatus
   groupId?: string
   driverId?: string
@@ -171,6 +172,7 @@ export interface UserCabinetRideHistoryItem {
   to: { address: string; latlng: LatLng }
   status: RideStatus
   dateTime: string
+  dateTimeLocal?: string
   createdAt: string
   canRateDriver: boolean
 }
@@ -197,6 +199,7 @@ export interface DriverCabinetRide {
   passengerName: string
   status: RideStatus
   dateTime: string
+  dateTimeLocal?: string
   createdAt: string
   routeOrder: number | null
   pickupChangedByDriver: boolean
@@ -238,6 +241,7 @@ export interface DriverMapPoint {
   availableActions: string[]
   mapLinks: DriverMapLinks
   dateTime: string
+  dateTimeLocal?: string
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null

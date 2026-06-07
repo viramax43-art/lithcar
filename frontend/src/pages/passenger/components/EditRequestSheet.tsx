@@ -3,7 +3,7 @@ import { Calendar, Clock, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import { getPricing } from '../../../lib/backend'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
-import { addAppLocalDays, toAppLocalDateInput, toAppLocalTimeInput } from '../../../i18n/dateTime'
+import { addAppLocalDays, rideLocalDateInput, rideLocalTimeInput, toAppLocalDateInput } from '../../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
 import type { PricingSettings, RideRequest } from '../../../types'
 
@@ -34,15 +34,15 @@ export default function EditRequestSheet({
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [fromAddress, setFromAddress] = useState(request.from.address)
   const [toAddress, setToAddress] = useState(request.to.address)
-  const [date, setDate] = useState(() => toAppLocalDateInput(new Date(request.dateTime)))
-  const [time, setTime] = useState(() => toAppLocalTimeInput(new Date(request.dateTime)))
+  const [date, setDate] = useState(() => rideLocalDateInput(request))
+  const [time, setTime] = useState(() => rideLocalTimeInput(request))
 
   useEffect(() => {
     if (!open) return
     setFromAddress(request.from.address)
     setToAddress(request.to.address)
-    setDate(toAppLocalDateInput(new Date(request.dateTime)))
-    setTime(toAppLocalTimeInput(new Date(request.dateTime)))
+    setDate(rideLocalDateInput(request))
+    setTime(rideLocalTimeInput(request))
     void getPricing().then(setPricing).catch(() => undefined)
   }, [open, request])
 

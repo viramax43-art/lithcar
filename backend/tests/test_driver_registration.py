@@ -175,3 +175,57 @@ async def test_get_my_application_endpoint(client):
     assert mine.status_code == 200
     assert mine.json()["status"] == "pending"
     assert mine.json()["answers"]["full_name"] == "Status Driver"
+
+
+async def test_resubmit_after_driver_deleted(client):
+    await _admin_login(client)
+    token = await _passenger_token(client, user_id="205", username="reapply_user")
+
+    submit = await client.post(
+        "/api/driver-registration/applications",
+        json={
+            "language": "ru",
+            "answers": {
+                "full_name": "Reapply Driver",
+                "car_brand": "VW",
+                "car_model": "Golf",
+                "car_plate": "REA111",
+            },
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert submit.status_code == 200
+    application_id = submit.json()["id"]
+
+    approve = await client.post(f"/api/driver-registration/applications/{application_id}/approve")
+    assert approve.status_code == 200
+
+    drivers = await client.get("/api/drivers")
+    assert drivers.status_code == 200
+    created = next(item for item in drivers.json()["items"] if item["userId"] == "205")
+
+    delete = await client.delete(f"/api/drivers/{created['id']}")
+    assert delete.status_code == 200
+
+    mine = await client.get(
+        "/api/driver-registration/applications/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert mine.status_code == 200
+    assert mine.json() is None
+
+    resubmit = await client.post(
+        "/api/driver-registration/applications",
+        json={
+            "language": "ru",
+            "answers": {
+                "full_name": "Reapply Driver Again",
+                "car_brand": "VW",
+                "car_model": "Golf",
+                "car_plate": "REA222",
+            },
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resubmit.status_code == 200
+    assert resubmit.json()["status"] == "pending"
