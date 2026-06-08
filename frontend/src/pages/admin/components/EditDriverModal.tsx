@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import type { Driver } from '../../../types'
+import AdminModalShell from './AdminModalShell'
 
 interface EditDriverModalProps {
   driver: Driver
@@ -68,19 +68,13 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4" onClick={onClose}>
-      <div className="bg-white rounded-card shadow-card w-full max-w-md max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
-          <div>
-            <h2 className="text-base font-bold">{t('admin.editDriver.title')}</h2>
-            <p className="text-xs text-muted mt-0.5">{driver.keyPrefix}…</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+    <AdminModalShell
+      onClose={onClose}
+      title={t('admin.editDriver.title')}
+      subtitle={`${driver.keyPrefix}…`}
+      maxWidthClass="max-w-md"
+    >
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">{t('common.name')}</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
@@ -142,19 +136,21 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
           </label>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-border flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
+        <div
+          className="flex gap-3 px-5 py-4 border-t border-border flex-shrink-0"
+          style={{ paddingBottom: 'max(1rem, var(--app-safe-area-bottom-total, 0px))' }}
+        >
+          <button onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
             {t('common.cancel')}
           </button>
           <button
             onClick={() => void handleSubmit()}
             disabled={submitting}
-            className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
           >
             {submitting ? t('common.saving') : t('common.save')}
           </button>
         </div>
-      </div>
-    </div>
+    </AdminModalShell>
   )
 }

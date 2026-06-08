@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import type { AdminKeyInfo } from '../../../lib/backend'
+import AdminModalShell from './AdminModalShell'
 import { getAdminRoleLabel } from '../utils/adminRolePresentation'
 
 interface EditStaffModalProps {
@@ -42,15 +42,7 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4" onClick={onClose}>
-      <div className="bg-white rounded-card shadow-card w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-bold">{t('admin.editStaff.title')}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
+    <AdminModalShell onClose={onClose} title={t('admin.editStaff.title')} maxWidthClass="max-w-sm">
         <div className="px-5 py-4 space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">{t('common.name')}</label>
@@ -74,19 +66,21 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
           </div>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-border">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
+        <div
+          className="flex gap-3 px-5 py-4 border-t border-border"
+          style={{ paddingBottom: 'max(1rem, var(--app-safe-area-bottom-total, 0px))' }}
+        >
+          <button onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
             {t('common.cancel')}
           </button>
           <button
             onClick={() => void handleSubmit()}
             disabled={submitting || !name.trim()}
-            className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
           >
             {submitting ? t('common.saving') : t('common.save')}
           </button>
         </div>
-      </div>
-    </div>
+    </AdminModalShell>
   )
 }

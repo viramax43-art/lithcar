@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Car, CaretLeft, CaretRight, CreditCard, Gear, MapPin, PenNib, Plus, Users, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import { getInitialSidebarUi } from '../../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import type { AdminTab } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { AdminSidebarDriversSection } from './AdminSidebarDriversSection'
@@ -12,6 +14,8 @@ import { AdminSidebarZonesSettingsQrSection } from './AdminSidebarZonesSettingsQ
 import EditDriverModal from './EditDriverModal'
 import EditStaffModal from './EditStaffModal'
 import type { CopyState } from './AdminSidebarShared'
+
+const INITIAL_SIDEBAR_UI = getInitialSidebarUi()
 
 const TAB_DEFS = [
   { id: 'requests' as AdminTab, icon: MapPin, labelKey: 'admin.tabs.requests' },
@@ -120,11 +124,38 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  const [showDriverForm, setShowDriverForm] = useState(false)
-  const [showStaffForm, setShowStaffForm] = useState(false)
-  const [editingDriver, setEditingDriver] = useState<AdminSidebarProps['drivers'][number] | null>(null)
-  const [editingStaff, setEditingStaff] = useState<AdminSidebarProps['managedAdminKeys'][number] | null>(null)
+  const [showDriverForm, setShowDriverForm] = useState(INITIAL_SIDEBAR_UI.showDriverForm)
+  const [showStaffForm, setShowStaffForm] = useState(INITIAL_SIDEBAR_UI.showStaffForm)
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(INITIAL_SIDEBAR_UI.editingDriverId)
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(INITIAL_SIDEBAR_UI.editingStaffId)
   const driverCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const editingDriver = useMemo(
+    () => drivers.find((driver) => driver.id === editingDriverId) ?? null,
+    [drivers, editingDriverId],
+  )
+  const editingStaff = useMemo(
+    () => managedAdminKeys.find((staff) => staff.id === editingStaffId) ?? null,
+    [managedAdminKeys, editingStaffId],
+  )
+
+  const setEditingDriver = useCallback((driver: AdminSidebarProps['drivers'][number] | null) => {
+    setEditingDriverId(driver?.id ?? null)
+  }, [])
+  const setEditingStaff = useCallback((staff: AdminSidebarProps['managedAdminKeys'][number] | null) => {
+    setEditingStaffId(staff?.id ?? null)
+  }, [])
+
+  const sidebarUiPersistence = useMemo(
+    () => ({
+      showDriverForm,
+      showStaffForm,
+      editingDriverId,
+      editingStaffId,
+    }),
+    [showDriverForm, showStaffForm, editingDriverId, editingStaffId],
+  )
+  usePersistAdminUiSlice('sidebar', sidebarUiPersistence)
 
   useEffect(() => {
     setCopyState('idle')
@@ -156,6 +187,14 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   return (
     <>
+      {!collapsed && (
+        <button
+          type="button"
+          aria-label={t('common.close')}
+          className="admin-drawer-scrim md:hidden fixed inset-0 z-[1999] bg-black/35"
+          onClick={onToggleCollapse}
+        />
+      )}
       <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
         {/* Drawer handle for mobile */}
         <div className="admin-drawer-handle" onClick={onToggleCollapse} />
@@ -177,7 +216,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all touch-none ${
+                className={`w-[52px] min-h-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all ${
                   active ? 'bg-black text-white' : 'text-muted hover:bg-white hover:text-black'
                 }`}
                 title={t(tab.labelKey)}

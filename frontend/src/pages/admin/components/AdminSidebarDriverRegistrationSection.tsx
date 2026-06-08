@@ -1,10 +1,21 @@
-import { CaretDown, CaretRight, CaretUp, FloppyDisk, Plus, Trash } from '@phosphor-icons/react'
-import { useEffect, useMemo, useState } from 'react'
+import { CaretDown, CaretRight, CaretUp, FloppyDisk, Image, Plus, TextAa, TextAlignLeft, Trash, UploadSimple } from '@phosphor-icons/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { getInitialDriverRegistrationUi } from '../../../lib/adminUiState'
+import {
+  createFieldFromPreset,
+  fieldTypeLabelKey,
+  getAvailableProfilePresets,
+  mergeEditorToSchema,
+  splitSchemaForEditor,
+  type FieldPresetId,
+  type FormBuilderEditorState,
+} from '../../../lib/driverFormBuilderHelpers'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
 import { getApplicationCarSummary, getApplicationDisplayName } from '../../../lib/driverApplicationDisplay'
-import { EMPTY_USER_INFO_TEXT } from '../../../lib/userInfoText'
 import type { DriverApplication, DriverRegistrationFormField, DriverRegistrationFormSchema } from '../../../types'
 import AdminDriverApplicationDetail from './AdminDriverApplicationDetail'
 import { inputCls, KeyReveal, Section, type CopyState } from './AdminSidebarShared'
@@ -24,11 +35,11 @@ type AdminSidebarDriverRegistrationSectionProps = {
   onRejectApplication: (applicationId: string, reason?: string) => Promise<void>
 }
 
-const FIELD_TYPES = ['text', 'textarea', 'file'] as const
-const DRIVER_FIELDS = ['', 'name', 'carBrand', 'carModel', 'carPlate', 'vehicleColor', 'seatsCount', 'licenseNumber', 'about', 'photo'] as const
-
-function makeFieldId(): string {
-  return `field_${Date.now().toString(36)}`
+const PRESET_ICONS: Partial<Record<FieldPresetId, typeof TextAa>> = {
+  customShortText: TextAa,
+  customLongText: TextAlignLeft,
+  customPhoto: Image,
+  customDocument: UploadSimple,
 }
 
 export function AdminSidebarDriverRegistrationSection({
@@ -45,22 +56,61 @@ export function AdminSidebarDriverRegistrationSection({
   onApproveApplication,
   onRejectApplication,
 }: AdminSidebarDriverRegistrationSectionProps) {
-  const { t } = useTranslation()
-  const [showBuilder, setShowBuilder] = useState(false)
-  const [draft, setDraft] = useState<DriverRegistrationFormSchema>(formSchema)
-  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null)
-  const [selectedApplication, setSelectedApplication] = useState<DriverApplication | null>(null)
+  const { t, i18n } = useTranslation()
+  const initialDriverRegistrationUi = getInitialDriverRegistrationUi()
+  const skipFormSchemaSyncRef = useRef(initialDriverRegistrationUi.formDraft !== null)
+  const [showBuilder, setShowBuilder] = useState(initialDriverRegistrationUi.showBuilder)
+  const [draft, setDraft] = useState<FormBuilderEditorState>(() => {
+    const persisted = initialDriverRegistrationUi.formDraft as DriverRegistrationFormSchema | null
+    return splitSchemaForEditor(persisted ?? formSchema)
+  })
+  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(initialDriverRegistrationUi.expandedFieldId)
+  const [showIntroText, setShowIntroText] = useState(false)
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(
+    initialDriverRegistrationUi.selectedApplicationId,
+  )
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const selectedApplication = useMemo(
+    () => applications.find((item) => item.id === selectedApplicationId) ?? null,
+    [applications, selectedApplicationId],
+  )
+
+  const driverRegistrationUiPersistence = useMemo(
+    () => ({
+      showBuilder,
+      expandedFieldId,
+      selectedApplicationId,
+      formDraft: mergeEditorToSchema(draft),
+    }),
+    [showBuilder, expandedFieldId, selectedApplicationId, draft],
+  )
+  usePersistAdminUiSlice('driverRegistration', driverRegistrationUiPersistence)
+
   useEffect(() => {
-    setDraft(formSchema)
+    if (skipFormSchemaSyncRef.current) {
+      skipFormSchemaSyncRef.current = false
+      return
+    }
+    setDraft(splitSchemaForEditor(formSchema))
   }, [formSchema])
 
   const pendingApplications = useMemo(
     () => applications.filter((item) => item.status === 'pending'),
     [applications],
   )
+
+  const sortedFields = useMemo(
+    () => draft.fields.slice().sort((a, b) => a.order - b.order),
+    [draft.fields],
+  )
+
+  const availablePresets = useMemo(() => getAvailableProfilePresets(draft.fields), [draft.fields])
+
+  const currentLang = (['lt', 'pl', 'en', 'ru'].includes(i18n.language.slice(0, 2))
+    ? i18n.language.slice(0, 2)
+    : 'en') as 'lt' | 'pl' | 'en' | 'ru'
 
   if (activeTab !== 'drivers') return null
 
@@ -85,18 +135,8 @@ export function AdminSidebarDriverRegistrationSection({
     })
   }
 
-  const addField = () => {
-    const nextOrder = draft.fields.length
-    const newField: DriverRegistrationFormField = {
-      id: makeFieldId(),
-      type: 'text',
-      required: false,
-      order: nextOrder,
-      label: { ...EMPTY_USER_INFO_TEXT, en: 'New field' },
-      placeholder: { ...EMPTY_USER_INFO_TEXT },
-      helpText: { ...EMPTY_USER_INFO_TEXT },
-      driverField: null,
-    }
+  const addPresetField = (preset: FieldPresetId) => {
+    const newField = createFieldFromPreset(preset, draft.fields.length)
     setDraft((prev) => ({ ...prev, fields: [...prev.fields, newField] }))
     setExpandedFieldId(newField.id)
   }
@@ -109,12 +149,17 @@ export function AdminSidebarDriverRegistrationSection({
     setIsSaving(true)
     setErrorMessage(null)
     try {
-      await onSaveFormSchema(draft)
+      await onSaveFormSchema(mergeEditorToSchema(draft))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('common.error'))
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const presetLabel = (preset: FieldPresetId): string => {
+    const key = `admin.driverFormBuilder.preset.${preset}`
+    return t(key, { defaultValue: preset })
   }
 
   return (
@@ -142,8 +187,8 @@ export function AdminSidebarDriverRegistrationSection({
                 <button
                   key={application.id}
                   type="button"
-                  onClick={() => setSelectedApplication(application)}
-                  className="w-full text-left rounded-xl border border-border bg-surface px-3 py-3 hover:border-black/20 transition-colors"
+                  onClick={() => setSelectedApplicationId(application.id)}
+                  className="w-full text-left rounded-xl border border-border bg-surface px-3 py-3.5 hover:border-black/20 transition-colors min-h-[44px]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -185,157 +230,210 @@ export function AdminSidebarDriverRegistrationSection({
         <button
           type="button"
           onClick={() => setShowBuilder((value) => !value)}
-          className="w-full flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-semibold"
+          className="w-full flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-3 text-sm font-semibold min-h-[44px]"
         >
           <span>{showBuilder ? t('admin.driverFormBuilder.hide') : t('admin.driverFormBuilder.open')}</span>
           <CaretDown size={14} className={`transition-transform ${showBuilder ? 'rotate-180' : ''}`} />
         </button>
 
         {showBuilder && (
-          <div className="mt-3 space-y-3">
-            <label className="block">
-              <span className="text-xs font-bold text-muted">{t('admin.driverFormBuilder.introText')}</span>
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <textarea
-                  key={lang}
-                  value={draft.introText[lang]}
-                  onChange={(event) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      introText: { ...prev.introText, [lang]: event.target.value },
-                    }))
-                  }
-                  rows={2}
-                  className={`${inputCls} mt-1`}
-                  placeholder={`${t(`language.${lang}`)}`}
-                />
-              ))}
-            </label>
+          <div className="mt-3 space-y-4">
+            <p className="text-xs text-muted leading-relaxed">{t('admin.driverFormBuilder.hint')}</p>
+
+            {/* Profile photo — separate from form fields */}
+            <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold">{t('admin.driverFormBuilder.profilePhoto.title')}</p>
+                  <p className="text-[11px] text-muted mt-0.5">{t('admin.driverFormBuilder.profilePhoto.hint')}</p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={draft.profilePhoto.enabled}
+                    onChange={(event) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        profilePhoto: { ...prev.profilePhoto, enabled: event.target.checked },
+                      }))
+                    }
+                  />
+                  {t('admin.driverFormBuilder.profilePhoto.enabled')}
+                </label>
+              </div>
+              {draft.profilePhoto.enabled && (
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <label className="flex items-center gap-2 text-xs font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={draft.profilePhoto.required}
+                      onChange={(event) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          profilePhoto: { ...prev.profilePhoto, required: event.target.checked },
+                        }))
+                      }
+                    />
+                    {t('admin.driverFormBuilder.required')}
+                  </label>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <label key={lang} className="block">
+                      <span className="text-[11px] font-bold text-muted">
+                        {t('admin.driverFormBuilder.label')} ({t(`language.${lang}`)})
+                      </span>
+                      <input
+                        value={draft.profilePhoto.label[lang]}
+                        onChange={(event) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            profilePhoto: {
+                              ...prev.profilePhoto,
+                              label: { ...prev.profilePhoto.label, [lang]: event.target.value },
+                            },
+                          }))
+                        }
+                        className={`${inputCls} mt-1`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowIntroText((value) => !value)}
+              className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-3 py-2.5 text-xs font-semibold text-muted min-h-[44px]"
+            >
+              <span>{t('admin.driverFormBuilder.introText')}</span>
+              <CaretDown size={12} className={`transition-transform ${showIntroText ? 'rotate-180' : ''}`} />
+            </button>
+            {showIntroText && (
+              <div className="space-y-2">
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <label key={lang} className="block">
+                    <span className="text-[11px] font-bold text-muted">{t(`language.${lang}`)}</span>
+                    <textarea
+                      value={draft.introText[lang]}
+                      onChange={(event) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          introText: { ...prev.introText, [lang]: event.target.value },
+                        }))
+                      }
+                      rows={2}
+                      className={`${inputCls} mt-1`}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-2">
-              {draft.fields
-                .slice()
-                .sort((a, b) => a.order - b.order)
-                .map((field) => {
-                  const expanded = expandedFieldId === field.id
-                  return (
-                    <div key={field.id} className="rounded-xl border border-border bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedFieldId(expanded ? null : field.id)}
-                        className="w-full px-3 py-2.5 flex items-center justify-between gap-2 text-left"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{field.label.en || field.id}</p>
-                          <p className="text-[11px] text-muted">{field.type} · {field.required ? 'required' : 'optional'}</p>
-                        </div>
-                        <CaretDown size={14} className={`text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                      </button>
-                      {expanded && (
-                        <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <label className="block col-span-2">
-                              <span className="text-[11px] font-bold text-muted">ID</span>
-                              <input
-                                value={field.id}
-                                onChange={(event) => updateField(field.id, { id: event.target.value })}
-                                className={`${inputCls} mt-1`}
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="text-[11px] font-bold text-muted">{t('admin.driverFormBuilder.type')}</span>
-                              <select
-                                value={field.type}
-                                onChange={(event) => updateField(field.id, { type: event.target.value as DriverRegistrationFormField['type'] })}
-                                className={`${inputCls} mt-1`}
-                              >
-                                {FIELD_TYPES.map((type) => (
-                                  <option key={type} value={type}>{type}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block">
-                              <span className="text-[11px] font-bold text-muted">{t('admin.driverFormBuilder.driverField')}</span>
-                              <select
-                                value={field.driverField ?? ''}
-                                onChange={(event) =>
-                                  updateField(field.id, {
-                                    driverField: (event.target.value || null) as DriverRegistrationFormField['driverField'],
-                                  })
-                                }
-                                className={`${inputCls} mt-1`}
-                              >
-                                {DRIVER_FIELDS.map((value) => (
-                                  <option key={value || 'none'} value={value}>
-                                    {value || t('admin.driverFormBuilder.noBinding')}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                          <label className="flex items-center gap-2 text-xs font-semibold">
+              <p className="text-xs font-bold">{t('admin.driverFormBuilder.fieldsTitle')}</p>
+              {sortedFields.length === 0 && (
+                <p className="text-xs text-muted py-2">{t('admin.driverFormBuilder.fieldsEmpty')}</p>
+              )}
+              {sortedFields.map((field) => {
+                const expanded = expandedFieldId === field.id
+                const displayLabel = field.label[currentLang] || field.label.en || field.label.lt || t('admin.driverFormBuilder.untitledField')
+                return (
+                  <div key={field.id} className="rounded-xl border border-border bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedFieldId(expanded ? null : field.id)}
+                      className="w-full px-3 py-3 flex items-center justify-between gap-2 text-left min-h-[44px]"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{displayLabel}</p>
+                        <p className="text-[11px] text-muted">
+                          {t(fieldTypeLabelKey(field))}
+                          {' · '}
+                          {field.required ? t('admin.driverFormBuilder.required') : t('admin.driverFormBuilder.optional')}
+                        </p>
+                      </div>
+                      <CaretDown size={14} className={`text-muted transition-transform flex-shrink-0 ${expanded ? 'rotate-180' : ''}`} />
+                    </button>
+                    {expanded && (
+                      <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
+                        <label className="flex items-center gap-2 text-xs font-semibold min-h-[44px]">
+                          <input
+                            type="checkbox"
+                            checked={field.required}
+                            onChange={(event) => updateField(field.id, { required: event.target.checked })}
+                          />
+                          {t('admin.driverFormBuilder.required')}
+                        </label>
+                        {SUPPORTED_LANGUAGES.map((lang) => (
+                          <label key={lang} className="block">
+                            <span className="text-[11px] font-bold text-muted">
+                              {t('admin.driverFormBuilder.label')} ({t(`language.${lang}`)})
+                            </span>
                             <input
-                              type="checkbox"
-                              checked={field.required}
-                              onChange={(event) => updateField(field.id, { required: event.target.checked })}
+                              value={field.label[lang]}
+                              onChange={(event) =>
+                                updateField(field.id, {
+                                  label: { ...field.label, [lang]: event.target.value },
+                                })
+                              }
+                              className={`${inputCls} mt-1`}
                             />
-                            {t('admin.driverFormBuilder.required')}
                           </label>
-                          {SUPPORTED_LANGUAGES.map((lang) => (
-                            <label key={lang} className="block">
-                              <span className="text-[11px] font-bold text-muted">{t('admin.driverFormBuilder.label')} ({lang})</span>
-                              <input
-                                value={field.label[lang]}
-                                onChange={(event) =>
-                                  updateField(field.id, {
-                                    label: { ...field.label, [lang]: event.target.value },
-                                  })
-                                }
-                                className={`${inputCls} mt-1`}
-                              />
-                            </label>
-                          ))}
-                          <div className="flex items-center gap-2">
-                            <button type="button" onClick={() => moveField(field.id, -1)} className="touch-compact h-8 px-2 rounded-lg border border-border">
-                              <CaretUp size={14} />
-                            </button>
-                            <button type="button" onClick={() => moveField(field.id, 1)} className="touch-compact h-8 px-2 rounded-lg border border-border">
-                              <CaretDown size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeField(field.id)}
-                              className="touch-compact h-8 px-2 rounded-lg border border-red-200 text-red-600"
-                            >
-                              <Trash size={14} />
-                            </button>
-                          </div>
+                        ))}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button type="button" onClick={() => moveField(field.id, -1)} className="min-h-[44px] min-w-[44px] rounded-lg border border-border flex items-center justify-center">
+                            <CaretUp size={16} />
+                          </button>
+                          <button type="button" onClick={() => moveField(field.id, 1)} className="min-h-[44px] min-w-[44px] rounded-lg border border-border flex items-center justify-center">
+                            <CaretDown size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeField(field.id)}
+                            className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-xs font-bold inline-flex items-center gap-1"
+                          >
+                            <Trash size={14} />
+                            {t('common.delete', { defaultValue: 'Delete' })}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={addField}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-pill border border-border text-xs font-bold"
-              >
-                <Plus size={14} />
-                {t('admin.driverFormBuilder.addField')}
-              </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => void handleSave()}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-pill bg-black text-white text-xs font-bold disabled:opacity-50"
-              >
-                <FloppyDisk size={14} />
-                {isSaving ? t('common.loading') : t('common.save')}
-              </button>
+            <div className="space-y-2">
+              <p className="text-xs font-bold">{t('admin.driverFormBuilder.addField')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {availablePresets.map((preset) => {
+                  const Icon = PRESET_ICONS[preset] ?? Plus
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => addPresetField(preset)}
+                      className="rounded-xl border border-border bg-surface px-3 py-3 text-left hover:border-black/20 transition-colors min-h-[52px]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon size={16} className="text-muted flex-shrink-0" />
+                        <span className="text-xs font-bold leading-tight">{presetLabel(preset)}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
+
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => void handleSave()}
+              className="w-full inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-50 min-h-[44px]"
+            >
+              <FloppyDisk size={16} />
+              {isSaving ? t('common.loading') : t('common.save')}
+            </button>
             {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
           </div>
         )}
@@ -346,7 +444,7 @@ export function AdminSidebarDriverRegistrationSection({
           application={selectedApplication}
           formSchema={formSchema}
           onClose={() => {
-            setSelectedApplication(null)
+            setSelectedApplicationId(null)
             void onRefresh()
           }}
           onApprove={async (applicationId) => {

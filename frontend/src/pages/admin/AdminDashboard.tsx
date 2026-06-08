@@ -42,15 +42,16 @@ import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDr
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
-import { getDefaultPeriodFilter } from '../../lib/periodFilter'
-import { GROUP_COLORS, MAP_COLOR_GROUPS, ZONE_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
+import { getInitialDashboardUi } from '../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../lib/useAdminUiPersistence'
+import { GROUP_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
-const DEFAULT_PERIOD_FILTER = getDefaultPeriodFilter()
+const INITIAL_DASHBOARD_UI = getInitialDashboardUi()
 
 export default function AdminDashboard() {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<AdminTab>('requests')
+  const [activeTab, setActiveTab] = useState<AdminTab>(INITIAL_DASHBOARD_UI.activeTab)
   const [requests, setRequests] = useState<RideRequest[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([])
@@ -64,23 +65,23 @@ export default function AdminDashboard() {
   const [isAdminAuthorizing, setIsAdminAuthorizing] = useState(false)
   const [isInitialAdminCheckDone, setIsInitialAdminCheckDone] = useState(false)
   const [managedAdminKeys, setManagedAdminKeys] = useState<AdminKeyInfo[]>([])
-  const [newManagedKeyName, setNewManagedKeyName] = useState('')
-  const [newManagedKeyRole, setNewManagedKeyRole] = useState<'admin' | 'moderator'>('admin')
+  const [newManagedKeyName, setNewManagedKeyName] = useState(INITIAL_DASHBOARD_UI.newManagedKeyName)
+  const [newManagedKeyRole, setNewManagedKeyRole] = useState<'admin' | 'moderator'>(INITIAL_DASHBOARD_UI.newManagedKeyRole)
   const [lastCreatedAdminKey, setLastCreatedAdminKey] = useState<string | null>(null)
   const [rotatedAdminKeys, setRotatedAdminKeys] = useState<Record<string, string>>({})
 
-  const [filterStatus, setFilterStatus] = useState('pending')
-  const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
-  const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [filterDate, setFilterDate] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterDate)
-  const [filterDateEnd, setFilterDateEnd] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterDateEnd)
-  const [filterTime, setFilterTime] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterTime)
-  const [filterTimeEnd, setFilterTimeEnd] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterTimeEnd)
+  const [filterStatus, setFilterStatus] = useState(INITIAL_DASHBOARD_UI.filterStatus)
+  const [selectedReqId, setSelectedReqId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedReqId)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedGroupId)
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedZoneId)
+  const [expandedDriverId, setExpandedDriverId] = useState<string | null>(INITIAL_DASHBOARD_UI.expandedDriverId)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(INITIAL_DASHBOARD_UI.sidebarCollapsed)
+  const [filterDate, setFilterDate] = useState<string>(INITIAL_DASHBOARD_UI.filterDate)
+  const [filterDateEnd, setFilterDateEnd] = useState<string>(INITIAL_DASHBOARD_UI.filterDateEnd)
+  const [filterTime, setFilterTime] = useState<string>(INITIAL_DASHBOARD_UI.filterTime)
+  const [filterTimeEnd, setFilterTimeEnd] = useState<string>(INITIAL_DASHBOARD_UI.filterTimeEnd)
   const [enabledColors, setEnabledColors] = useState<Set<MapColorGroupKey>>(
-    () => new Set(MAP_COLOR_GROUPS.map((g) => g.key)),
+    () => new Set(INITIAL_DASHBOARD_UI.enabledColors),
   )
   const handleToggleColor = (key: MapColorGroupKey) => {
     setEnabledColors((prev) => {
@@ -92,29 +93,29 @@ export default function AdminDashboard() {
   }
   const [requestsTotal, setRequestsTotal] = useState(0)
   const [isLoadingMoreRequests, setIsLoadingMoreRequests] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(INITIAL_DASHBOARD_UI.searchQuery)
 
   const [assignModalReqIds, setAssignModalReqIds] = useState<string[] | null>(null)
   const [routeEditDraft, setRouteEditDraft] = useState<RideDraft | null>(null)
   const [isSavingRoute, setIsSavingRoute] = useState(false)
-  const [assignDriverId, setAssignDriverId] = useState<string>('')
+  const [assignDriverId, setAssignDriverId] = useState<string>(INITIAL_DASHBOARD_UI.assignDriverId)
   const [isAssigning, setIsAssigning] = useState(false)
 
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [drawingPoints, setDrawingPoints] = useState<LatLng[]>([])
-  const [newZoneName, setNewZoneName] = useState('')
-  const [newZoneColor, setNewZoneColor] = useState(ZONE_COLORS[0])
-  const [newDriverName, setNewDriverName] = useState('')
+  const [isDrawing, setIsDrawing] = useState(INITIAL_DASHBOARD_UI.isDrawing)
+  const [drawingPoints, setDrawingPoints] = useState<LatLng[]>(INITIAL_DASHBOARD_UI.drawingPoints)
+  const [newZoneName, setNewZoneName] = useState(INITIAL_DASHBOARD_UI.newZoneName)
+  const [newZoneColor, setNewZoneColor] = useState(INITIAL_DASHBOARD_UI.newZoneColor)
+  const [newDriverName, setNewDriverName] = useState(INITIAL_DASHBOARD_UI.newDriverName)
   const [newDriverPhotoFile, setNewDriverPhotoFile] = useState<File | null>(null)
   const [newDriverPhotoPreview, setNewDriverPhotoPreview] = useState<string | null>(null)
-  const [newDriverCarBrand, setNewDriverCarBrand] = useState('')
-  const [newDriverCarModel, setNewDriverCarModel] = useState('')
-  const [newDriverCarPlate, setNewDriverCarPlate] = useState('')
-  const [newDriverVehicleColor, setNewDriverVehicleColor] = useState('')
-  const [newDriverSeatsCount, setNewDriverSeatsCount] = useState(4)
-  const [newDriverAbout, setNewDriverAbout] = useState('')
-  const [newDriverCanSellPoints, setNewDriverCanSellPoints] = useState(false)
-  const [newDriverCanSelfAssign, setNewDriverCanSelfAssign] = useState(false)
+  const [newDriverCarBrand, setNewDriverCarBrand] = useState(INITIAL_DASHBOARD_UI.newDriverCarBrand)
+  const [newDriverCarModel, setNewDriverCarModel] = useState(INITIAL_DASHBOARD_UI.newDriverCarModel)
+  const [newDriverCarPlate, setNewDriverCarPlate] = useState(INITIAL_DASHBOARD_UI.newDriverCarPlate)
+  const [newDriverVehicleColor, setNewDriverVehicleColor] = useState(INITIAL_DASHBOARD_UI.newDriverVehicleColor)
+  const [newDriverSeatsCount, setNewDriverSeatsCount] = useState(INITIAL_DASHBOARD_UI.newDriverSeatsCount)
+  const [newDriverAbout, setNewDriverAbout] = useState(INITIAL_DASHBOARD_UI.newDriverAbout)
+  const [newDriverCanSellPoints, setNewDriverCanSellPoints] = useState(INITIAL_DASHBOARD_UI.newDriverCanSellPoints)
+  const [newDriverCanSelfAssign, setNewDriverCanSelfAssign] = useState(INITIAL_DASHBOARD_UI.newDriverCanSelfAssign)
   const [lastCreatedDriverKey, setLastCreatedDriverKey] = useState<string | null>(null)
   const [rotatedDriverKeys, setRotatedDriverKeys] = useState<Record<string, string>>({})
   const [driverApplications, setDriverApplications] = useState<DriverApplication[]>([])
@@ -123,6 +124,72 @@ export default function AdminDashboard() {
     DEFAULT_DRIVER_REGISTRATION_FORM,
   )
   const [lastApprovedDriverApplicationKey, setLastApprovedDriverApplicationKey] = useState<string | null>(null)
+
+  const dashboardUiPersistence = useMemo(
+    () => ({
+      activeTab,
+      filterStatus,
+      selectedReqId,
+      selectedGroupId,
+      selectedZoneId,
+      expandedDriverId,
+      sidebarCollapsed,
+      filterDate,
+      filterDateEnd,
+      filterTime,
+      filterTimeEnd,
+      enabledColors: Array.from(enabledColors),
+      searchQuery,
+      assignDriverId,
+      isDrawing,
+      drawingPoints,
+      newZoneName,
+      newZoneColor,
+      newDriverName,
+      newDriverCarBrand,
+      newDriverCarModel,
+      newDriverCarPlate,
+      newDriverVehicleColor,
+      newDriverSeatsCount,
+      newDriverAbout,
+      newDriverCanSellPoints,
+      newDriverCanSelfAssign,
+      newManagedKeyName,
+      newManagedKeyRole,
+    }),
+    [
+      activeTab,
+      filterStatus,
+      selectedReqId,
+      selectedGroupId,
+      selectedZoneId,
+      expandedDriverId,
+      sidebarCollapsed,
+      filterDate,
+      filterDateEnd,
+      filterTime,
+      filterTimeEnd,
+      enabledColors,
+      searchQuery,
+      assignDriverId,
+      isDrawing,
+      drawingPoints,
+      newZoneName,
+      newZoneColor,
+      newDriverName,
+      newDriverCarBrand,
+      newDriverCarModel,
+      newDriverCarPlate,
+      newDriverVehicleColor,
+      newDriverSeatsCount,
+      newDriverAbout,
+      newDriverCanSellPoints,
+      newDriverCanSelfAssign,
+      newManagedKeyName,
+      newManagedKeyRole,
+    ],
+  )
+  usePersistAdminUiSlice('dashboard', dashboardUiPersistence)
 
   const loadManagedKeys = useCallback(async () => {
     if (adminSession?.role !== 'chief_admin') return

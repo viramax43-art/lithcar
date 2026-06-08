@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { getInitialPricingUi } from '../../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { useTranslation } from 'react-i18next'
 import { CircleMarker, MapContainer, Polyline, TileLayer, useMapEvents } from 'react-leaflet'
 
@@ -76,18 +79,50 @@ function friendlyBreakdownLabel(key: string, label: string, translate: (key: str
 
 export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDynamicPricingSectionProps) {
   const { t } = useTranslation()
-  const [formulaDraft, setFormulaDraft] = useState<PricingFormula>(pricing.pricingFormula)
+  const initialPricingUi = getInitialPricingUi()
+  const skipPricingSyncRef = useRef(
+    initialPricingUi.formulaDraft !== null || initialPricingUi.fixedRideEuroDraft !== null,
+  )
+  const [formulaDraft, setFormulaDraft] = useState<PricingFormula>(
+    () => (initialPricingUi.formulaDraft as PricingFormula | null) ?? pricing.pricingFormula,
+  )
   const [fixedRideEuroDraft, setFixedRideEuroDraft] = useState(
-    fromFixedPointsToEur(pricing.pointsPerRide, pricing.pointPriceCents),
+    () =>
+      initialPricingUi.fixedRideEuroDraft ??
+      fromFixedPointsToEur(pricing.pointsPerRide, pricing.pointPriceCents),
   )
   const [sandboxQuote, setSandboxQuote] = useState<RideQuote | null>(null)
   const [sandboxLoading, setSandboxLoading] = useState(false)
   const [sandboxError, setSandboxError] = useState<string | null>(null)
-  const [quoteFrom, setQuoteFrom] = useState<LatLng>({ lat: 54.6872, lng: 25.2797 })
-  const [quoteTo, setQuoteTo] = useState<LatLng>({ lat: 54.7, lng: 25.3 })
-  const [activeQuotePoint, setActiveQuotePoint] = useState<'from' | 'to'>('from')
+  const [quoteFrom, setQuoteFrom] = useState<LatLng>({
+    lat: initialPricingUi.quoteFromLat,
+    lng: initialPricingUi.quoteFromLng,
+  })
+  const [quoteTo, setQuoteTo] = useState<LatLng>({
+    lat: initialPricingUi.quoteToLat,
+    lng: initialPricingUi.quoteToLng,
+  })
+  const [activeQuotePoint, setActiveQuotePoint] = useState<'from' | 'to'>(initialPricingUi.activeQuotePoint)
+
+  const pricingUiPersistence = useMemo(
+    () => ({
+      formulaDraft,
+      fixedRideEuroDraft,
+      quoteFromLat: quoteFrom.lat,
+      quoteFromLng: quoteFrom.lng,
+      quoteToLat: quoteTo.lat,
+      quoteToLng: quoteTo.lng,
+      activeQuotePoint,
+    }),
+    [formulaDraft, fixedRideEuroDraft, quoteFrom.lat, quoteFrom.lng, quoteTo.lat, quoteTo.lng, activeQuotePoint],
+  )
+  usePersistAdminUiSlice('pricing', pricingUiPersistence)
 
   useEffect(() => {
+    if (skipPricingSyncRef.current) {
+      skipPricingSyncRef.current = false
+      return
+    }
     setFormulaDraft(pricing.pricingFormula)
     setFixedRideEuroDraft(fromFixedPointsToEur(pricing.pointsPerRide, pricing.pointPriceCents))
   }, [pricing.pricingFormula, pricing.pointsPerRide, pricing.pointPriceCents])

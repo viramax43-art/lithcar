@@ -584,8 +584,22 @@ body {
   }
   .admin-map-controls {
     top: auto !important;
-    bottom: 72px !important;
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     left: 8px !important;
+    right: 8px !important;
+    max-width: none !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: flex-end !important;
+  }
+  .admin-map-filter-bar--collapsed {
+    top: auto !important;
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    left: 8px !important;
+    right: auto !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: calc(100vw - 16px) !important;
   }
   .admin-map-controls .admin-legend-bar {
     display: none;
@@ -594,7 +608,7 @@ body {
     top: auto !important;
     right: 8px !important;
     left: 8px !important;
-    bottom: 72px !important;
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     width: auto !important;
     max-height: 50vh;
     overflow-y: auto;
@@ -603,7 +617,7 @@ body {
   .admin-map-route-panel {
     left: 8px !important;
     right: 8px !important;
-    bottom: 72px !important;
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     width: auto !important;
     max-height: 50vh;
   }
@@ -664,12 +678,13 @@ body {
 
 /* === Pull affordance for bottom drawer === */
 .admin-drawer-handle {
-  width: 36px;
-  height: 5px;
+  width: 48px;
+  height: 6px;
   border-radius: 3px;
   background: #d1d1d1;
-  margin: 10px auto 6px;
+  margin: 12px auto 8px;
   transition: background 0.2s;
+  cursor: pointer;
 }
 .admin-sidebar-wrap:active .admin-drawer-handle,
 .admin-drawer-handle:active {
@@ -709,6 +724,47 @@ body {
 }
 
 /* === Sticky section headers for long lists === */
+/* === Admin mobile modals (bottom sheets) === */
+@media (max-width: 768px) {
+  .admin-modal-root {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .admin-modal-panel {
+    max-width: 100% !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  .admin-modal-header {
+    padding-top: 0.25rem;
+  }
+  .admin-modal-header::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: #d1d1d1;
+    margin: 8px auto 6px;
+  }
+  .admin-route-edit-bar {
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px)) !important;
+  }
+  .admin-error-toast {
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 12px) !important;
+  }
+  .admin-sidebar-wrap {
+    max-height: 85dvh;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail button {
+    min-width: 56px;
+    min-height: 52px;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail span {
+    font-size: 10px !important;
+  }
+}
+
 .sticky-section-header {
   position: sticky;
   top: 0;

@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import { getInitialZonesSettingsUi } from '../../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { useTranslation } from 'react-i18next'
 
 import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
@@ -56,16 +59,41 @@ export function AdminSidebarZonesSettingsQrSection({
   hasLoadedQrSalesOnce,
 }: ZonesSettingsQrSectionProps) {
   const { t } = useTranslation()
-  const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() => normalizeUserInfoText(pricing.userInfoText))
+  const initialZonesSettingsUi = getInitialZonesSettingsUi()
+  const skipMainSyncRef = useRef(initialZonesSettingsUi.userInfoMainDraft !== null)
+  const skipProfileSyncRef = useRef(initialZonesSettingsUi.userInfoProfileDraft !== null)
+  const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() =>
+    (initialZonesSettingsUi.userInfoMainDraft as UserInfoTextI18n | null) ??
+    normalizeUserInfoText(pricing.userInfoText),
+  )
   const [userInfoProfileDraft, setUserInfoProfileDraft] = useState<UserInfoTextI18n>(
-    () => normalizeUserInfoText(pricing.userInfoTextProfile),
+    () =>
+      (initialZonesSettingsUi.userInfoProfileDraft as UserInfoTextI18n | null) ??
+      normalizeUserInfoText(pricing.userInfoTextProfile),
   )
 
+  const zonesSettingsUiPersistence = useMemo(
+    () => ({
+      userInfoMainDraft,
+      userInfoProfileDraft,
+    }),
+    [userInfoMainDraft, userInfoProfileDraft],
+  )
+  usePersistAdminUiSlice('zonesSettings', zonesSettingsUiPersistence)
+
   useEffect(() => {
+    if (skipMainSyncRef.current) {
+      skipMainSyncRef.current = false
+      return
+    }
     setUserInfoMainDraft(normalizeUserInfoText(pricing.userInfoText))
   }, [pricing.userInfoText])
 
   useEffect(() => {
+    if (skipProfileSyncRef.current) {
+      skipProfileSyncRef.current = false
+      return
+    }
     setUserInfoProfileDraft(normalizeUserInfoText(pricing.userInfoTextProfile))
   }, [pricing.userInfoTextProfile])
 

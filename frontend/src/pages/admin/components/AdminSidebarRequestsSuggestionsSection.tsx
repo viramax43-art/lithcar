@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+
+import { getInitialSidebarUi } from '../../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,7 +47,11 @@ export function AdminSidebarRequestsSuggestionsSection({
   setAssignModalReqIds,
 }: RequestsSuggestionsProps) {
   const { t } = useTranslation()
-  const [manualGroupIds, setManualGroupIds] = useState<string[]>([])
+  const initialSidebarUi = getInitialSidebarUi()
+  const [manualGroupIds, setManualGroupIds] = useState<string[]>(initialSidebarUi.manualGroupIds)
+
+  const sidebarGroupsPersistence = useMemo(() => ({ manualGroupIds }), [manualGroupIds])
+  usePersistAdminUiSlice('sidebar', sidebarGroupsPersistence)
 
   const getPickupColor = (status?: string): string => {
     if (status === 'completed') return '#22C55E'
@@ -144,10 +151,18 @@ export function AdminSidebarRequestsSuggestionsSection({
           const selected = selectedReqId === request.id
           const inManualGroup = manualGroupIds.includes(request.id)
           return (
-            <button
+            <div
               key={request.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setSelectedReqId(selected ? null : request.id)}
-              className={`w-full text-left p-3.5 rounded-card border-[1.5px] transition-all touch-none ${
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setSelectedReqId(selected ? null : request.id)
+                }
+              }}
+              className={`w-full text-left p-3.5 rounded-card border-[1.5px] transition-all cursor-pointer ${
                 selected ? 'border-black bg-surface' : inManualGroup ? 'border-violet-400 bg-violet-50/30' : 'border-border hover:border-muted'
               }`}
             >
@@ -212,7 +227,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                       event.stopPropagation()
                       setManualGroupIds((prev) => prev.includes(request.id) ? prev.filter((id) => id !== request.id) : [...prev, request.id])
                     }}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-pill transition-colors touch-compact ${
+                    className={`text-[11px] font-bold px-3 py-2 rounded-pill transition-colors min-h-[44px] ${
                       inManualGroup
                         ? 'text-violet-700 bg-violet-100 border border-violet-300'
                         : 'text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200'
@@ -228,14 +243,14 @@ export function AdminSidebarRequestsSuggestionsSection({
                         event.stopPropagation()
                         setAssignModalReqIds([request.id])
                       }}
-                      className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-1.5 rounded-pill transition-colors touch-compact"
+                      className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-2 rounded-pill transition-colors min-h-[44px]"
                     >
                       {t('admin.requests.assign', { defaultValue: 'Assign' })}
                     </button>
                   )}
                 </div>
               </div>
-            </button>
+            </div>
           )
         })}
         {filteredRequests.length === 0 && (

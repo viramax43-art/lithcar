@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Car, Check, MagnifyingGlass, Star, X } from '@phosphor-icons/react'
+import { Car, Check, MagnifyingGlass, Star } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import type { Driver, RideRequest } from '../../../types'
 import LithuanianPlate from '../../../components/LithuanianPlate'
+import AdminModalShell from './AdminModalShell'
 
 interface AssignDriverModalProps {
   requestIds: string[]
@@ -65,27 +66,13 @@ export default function AssignDriverModal({
   const selectedDriver = drivers.find((d) => d.id === selectedDriverId)
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4"
-      onClick={onClose}
+    <AdminModalShell
+      onClose={onClose}
+      title={t('admin.assignModal.title')}
+      subtitle={t('admin.assignModal.requestCount', { count: requestCount })}
+      maxWidthClass="max-w-lg"
     >
-      <div
-        className="bg-white rounded-card shadow-card w-full max-w-lg max-h-[96vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold">{t('admin.assignModal.title')}</h2>
-            <p className="text-xs text-muted mt-0.5 truncate">
-              {t('admin.assignModal.requestCount', { count: requestCount })}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto bg-surface/40">
+        <div className="flex-1 overflow-y-auto bg-surface/40 min-h-0">
           <div className="px-4 pt-4 pb-3 sticky top-0 bg-surface/95 backdrop-blur z-10">
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-[1.5px] border-border bg-white focus-within:border-black transition-colors">
               <MagnifyingGlass size={14} className="text-muted flex-shrink-0" />
@@ -164,17 +151,20 @@ export default function AssignDriverModal({
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-border flex-shrink-0 flex gap-3">
+        <div
+          className="px-5 py-4 border-t border-border flex-shrink-0 flex gap-3"
+          style={{ paddingBottom: 'max(1rem, var(--app-safe-area-bottom-total, 0px))' }}
+        >
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]"
           >
             {t('common.cancel')}
           </button>
           <button
             onClick={onSubmit}
             disabled={!selectedDriverId || isAssigning}
-            className="flex-[2] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-[2] min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isAssigning
               ? t('common.assigning')
@@ -183,7 +173,6 @@ export default function AssignDriverModal({
                 : t('admin.requests.assign')}
           </button>
         </div>
-      </div>
-    </div>
+    </AdminModalShell>
   )
 }

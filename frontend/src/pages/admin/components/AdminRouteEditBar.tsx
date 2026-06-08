@@ -28,7 +28,8 @@ export default function AdminRouteEditBar({
 
   return (
     <div
-      className="absolute left-0 right-0 bottom-0 z-[1100] bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+      className="admin-route-edit-bar absolute left-0 right-0 bottom-0 z-[1100] bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+      style={{ paddingBottom: 'var(--app-safe-area-bottom-total, 0px)' }}
     >
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -72,7 +73,7 @@ export default function AdminRouteEditBar({
         </div>
       </div>
 
-      <div className="px-4 pb-3 grid grid-cols-2 gap-2">
+      <div className="admin-route-edit-inputs px-4 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
         <label className="block space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
             {t('passenger.fromLabel', { defaultValue: 'Pickup' })}

@@ -9,6 +9,8 @@ import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
 import { formatRideDate, formatRideTime, formatTime } from '../../../i18n/dateTime'
+import { getInitialMapUi } from '../../../lib/adminUiState'
+import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { getAppLocalDayOptions, matchesPeriodFilter } from '../../../lib/periodFilter'
 import { createMapMark, deleteMapMark, listMapMarks, uploadMapMarkPhoto } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
@@ -18,7 +20,7 @@ import { buildSimilarTripGroups, type SimilarTripGroup } from '../utils/similarT
 import AdminRouteEditBar from './AdminRouteEditBar'
 import { getRouteEditMarkerIcon, type RideDraft } from './AssignDriverModalParts'
 
-const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
+const INITIAL_MAP_UI = getInitialMapUi()
 
 interface AdminMapProps {
   requests: RideRequest[]
@@ -139,6 +141,20 @@ function MapInvalidator({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
   return null
 }
 
+function MapViewportPersistence({
+  onViewportChange,
+}: {
+  onViewportChange: (center: LatLng, zoom: number) => void
+}) {
+  useMapEvents({
+    moveend(event) {
+      const center = event.target.getCenter()
+      onViewportChange({ lat: center.lat, lng: center.lng }, event.target.getZoom())
+    },
+  })
+  return null
+}
+
 function makeSolidPointIcon(color: string, size: number, label?: string): L.DivIcon {
   const borderWidth = size >= 28 ? 3 : 2
   const shadowAlpha = size >= 28 ? 0.45 : 0.35
@@ -234,39 +250,89 @@ export default function AdminMap({
     : ''
   const timeStr = selectedReq ? formatRideTime(selectedReq) : ''
 
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(INITIAL_MAP_UI.searchOpen)
+  const [searchQuery, setSearchQuery] = useState(INITIAL_MAP_UI.mapSearchQuery)
   const [searchResults, setSearchResults] = useState<NominatimSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [flyTarget, setFlyTarget] = useState<LatLng | null>(null)
   const [isLocating, setIsLocating] = useState(false)
-  const [showSimilarPanel, setShowSimilarPanel] = useState(false)
+  const [showSimilarPanel, setShowSimilarPanel] = useState(INITIAL_MAP_UI.showSimilarPanel)
   const [isFindingSimilar, setIsFindingSimilar] = useState(false)
   const [similarError, setSimilarError] = useState<string | null>(null)
   const [similarGroups, setSimilarGroups] = useState<SimilarTripGroup[]>([])
-  const [selectedSimilarGroupId, setSelectedSimilarGroupId] = useState<string | null>(null)
-  const [selectedSimilarStepKey, setSelectedSimilarStepKey] = useState<string | null>(null)
+  const [selectedSimilarGroupId, setSelectedSimilarGroupId] = useState<string | null>(INITIAL_MAP_UI.selectedSimilarGroupId)
+  const [selectedSimilarStepKey, setSelectedSimilarStepKey] = useState<string | null>(INITIAL_MAP_UI.selectedSimilarStepKey)
   const [selectedSimilarRoadPolyline, setSelectedSimilarRoadPolyline] = useState<LatLng[] | null>(null)
   const [similarRoadError, setSimilarRoadError] = useState<string | null>(null)
   const [mapMarks, setMapMarks] = useState<MapMark[]>([])
   const [isLoadingMapMarks, setIsLoadingMapMarks] = useState(false)
-  const [isMarkModeEnabled, setIsMarkModeEnabled] = useState(false)
+  const [isMarkModeEnabled, setIsMarkModeEnabled] = useState(INITIAL_MAP_UI.isMarkModeEnabled)
   const [draftMarkPosition, setDraftMarkPosition] = useState<LatLng | null>(null)
-  const [markTitle, setMarkTitle] = useState('')
-  const [markColor, setMarkColor] = useState('#EF4444')
-  const [markVisibility, setMarkVisibility] = useState<MapMarkVisibility>('admin_only')
+  const [markTitle, setMarkTitle] = useState(INITIAL_MAP_UI.markTitle)
+  const [markColor, setMarkColor] = useState(INITIAL_MAP_UI.markColor)
+  const [markVisibility, setMarkVisibility] = useState<MapMarkVisibility>(INITIAL_MAP_UI.markVisibility)
   const [markPhotoFile, setMarkPhotoFile] = useState<File | null>(null)
   const [markPhotoPreviewUrl, setMarkPhotoPreviewUrl] = useState<string | null>(null)
   const [isSavingMapMark, setIsSavingMapMark] = useState(false)
   const [mapMarkError, setMapMarkError] = useState<string | null>(null)
-  const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null)
-  const [openedMarkPopupId, setOpenedMarkPopupId] = useState<string | null>(null)
+  const [selectedMarkId, setSelectedMarkId] = useState<string | null>(INITIAL_MAP_UI.selectedMarkId)
+  const [openedMarkPopupId, setOpenedMarkPopupId] = useState<string | null>(INITIAL_MAP_UI.openedMarkPopupId)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
-  const [isFilterBarCollapsed, setIsFilterBarCollapsed] = useState(false)
-  const [isControlsCollapsed, setIsControlsCollapsed] = useState(false)
-  const [isMarksPanelCollapsed, setIsMarksPanelCollapsed] = useState(false)
+  const [isFilterBarCollapsed, setIsFilterBarCollapsed] = useState(INITIAL_MAP_UI.isFilterBarCollapsed)
+  const [isControlsCollapsed, setIsControlsCollapsed] = useState(INITIAL_MAP_UI.isControlsCollapsed)
+  const [isMarksPanelCollapsed, setIsMarksPanelCollapsed] = useState(INITIAL_MAP_UI.isMarksPanelCollapsed)
+  const [mapCenter, setMapCenter] = useState<LatLng>({ lat: INITIAL_MAP_UI.centerLat, lng: INITIAL_MAP_UI.centerLng })
+  const [mapZoom, setMapZoom] = useState(INITIAL_MAP_UI.zoom)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
+
+  const handleMapViewportChange = useCallback((center: LatLng, zoom: number) => {
+    setMapCenter(center)
+    setMapZoom(zoom)
+  }, [])
+
+  const mapUiPersistence = useMemo(
+    () => ({
+      searchOpen,
+      mapSearchQuery: searchQuery,
+      showSimilarPanel,
+      isFilterBarCollapsed,
+      isControlsCollapsed,
+      isMarksPanelCollapsed,
+      isMarkModeEnabled,
+      markTitle,
+      markColor,
+      markVisibility,
+      selectedSimilarGroupId,
+      selectedSimilarStepKey,
+      selectedMarkId,
+      openedMarkPopupId,
+      centerLat: mapCenter.lat,
+      centerLng: mapCenter.lng,
+      zoom: mapZoom,
+    }),
+    [
+      searchOpen,
+      searchQuery,
+      showSimilarPanel,
+      isFilterBarCollapsed,
+      isControlsCollapsed,
+      isMarksPanelCollapsed,
+      isMarkModeEnabled,
+      markTitle,
+      markColor,
+      markVisibility,
+      selectedSimilarGroupId,
+      selectedSimilarStepKey,
+      selectedMarkId,
+      openedMarkPopupId,
+      mapCenter.lat,
+      mapCenter.lng,
+      mapZoom,
+    ],
+  )
+  usePersistAdminUiSlice('map', mapUiPersistence)
+
   const selectedSimilarGroup = useMemo(
     () => similarGroups.find((g) => g.id === selectedSimilarGroupId) ?? null,
     [similarGroups, selectedSimilarGroupId],
@@ -594,7 +660,11 @@ export default function AdminMap({
     <main className="flex-1 relative">
       {/* === Date/Time Filter Bar === */}
       {!isMapMarkViewMode && (
-      <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
+      <div
+        className={`admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5 ${
+          isFilterBarCollapsed ? 'admin-map-filter-bar--collapsed' : ''
+        }`}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
@@ -721,7 +791,7 @@ export default function AdminMap({
       {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
       {!isMapMarkViewMode && (
       <div
-        className="admin-map-controls absolute left-4 z-[1000] flex flex-col gap-2 max-w-[min(380px,calc(100vw-32px))] overflow-y-auto pr-1"
+        className="admin-map-controls absolute left-4 z-[1000] flex flex-col flex-wrap gap-2 max-w-[min(380px,calc(100vw-32px))] overflow-y-auto pr-1"
         style={{ top: `${floatingPanelsTop}px`, maxHeight: `calc(100dvh - ${floatingPanelsTop + 24}px)` }}
       >
         <div className="flex items-center gap-2">
@@ -1004,12 +1074,18 @@ export default function AdminMap({
         </button>
       )}
 
-      <MapContainer center={VILNIUS_CENTER} zoom={12} zoomControl={false} style={{ width: '100%', height: '100%' }}>
+      <MapContainer
+        center={[mapCenter.lat, mapCenter.lng]}
+        zoom={mapZoom}
+        zoomControl={false}
+        style={{ width: '100%', height: '100%' }}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <ZoomControl position="bottomright" />
+        <MapViewportPersistence onViewportChange={handleMapViewportChange} />
         <FlyToHelper target={flyTarget} />
         <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
 

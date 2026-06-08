@@ -64,7 +64,10 @@ export function AdminHeader({
 }) {
   const { t } = useTranslation()
   return (
-    <header className="flex items-center justify-between px-4 md:px-6 h-14 md:h-16 bg-black text-white flex-shrink-0">
+    <header
+      className="admin-dashboard-header flex items-center justify-between px-4 md:px-6 h-14 md:h-16 bg-black text-white flex-shrink-0 user-safe-top"
+      style={{ paddingTop: 'var(--app-safe-area-top-total, 0px)', minHeight: 'calc(3.5rem + var(--app-safe-area-top-total, 0px))' }}
+    >
       <div className="flex items-center gap-2 md:gap-4">
         <h1 className="text-lg md:text-xl font-extrabold tracking-tight">RIDE</h1>
         <span className="w-px h-5 bg-white/20 hidden md:block" />
@@ -99,7 +102,7 @@ export function AdminHeader({
 export function AdminErrorToast({ errorMessage, onClose }: { errorMessage: string; onClose: () => void }) {
   const { t } = useTranslation()
   return (
-    <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[3000] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 animate-slide-up">
+    <div className="admin-error-toast fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[3000] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 animate-slide-up">
       <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
         <X size={16} className="text-red-600" />
       </div>
