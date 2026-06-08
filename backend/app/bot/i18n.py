@@ -357,6 +357,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "📍 Driver changed your destination!",
         "ru": "📍 Водитель изменил точку назначения!",
     },
+    "notif.admin_pickup_changed": {
+        "lt": "📍 Administratorius pakeite A taska (paemima)",
+        "pl": "📍 Administrator zmienil punkt A (odbior)",
+        "en": "📍 Administrator changed point A (pickup)",
+        "ru": "📍 Администратор изменил точку A (подачу)",
+    },
+    "notif.admin_dropoff_changed": {
+        "lt": "📍 Administratorius pakeite B taska (paskirtis)",
+        "pl": "📍 Administrator zmienil punkt B (cel)",
+        "en": "📍 Administrator changed point B (destination)",
+        "ru": "📍 Администратор изменил точку B (назначение)",
+    },
+    "notif.passenger_pickup_changed": {
+        "lt": "📍 Keleivis pakeite A taska (paemima)",
+        "pl": "📍 Pasazer zmienil punkt A (odbior)",
+        "en": "📍 Passenger changed point A (pickup)",
+        "ru": "📍 Пассажир изменил точку A (подачу)",
+    },
+    "notif.passenger_dropoff_changed": {
+        "lt": "📍 Keleivis pakeite B taska (paskirtis)",
+        "pl": "📍 Pasazer zmienil punkt B (cel)",
+        "en": "📍 Passenger changed point B (destination)",
+        "ru": "📍 Пассажир изменил точку B (назначение)",
+    },
     "notif.route_changed_by_admin": {
         "lt": "📍 Administratorius pakeite marsruto taska",
         "pl": "📍 Administrator zmienil punkt trasy",

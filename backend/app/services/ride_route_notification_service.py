@@ -69,8 +69,16 @@ async def _send_message(
 
 def _point_label(lang: str, point: RoutePointKind) -> str:
     if point == "from":
-        return t("notif.pickup", lang)
-    return t("notif.dropoff", lang)
+        return t("booking.pointA", lang)
+    return t("booking.pointB", lang)
+
+
+def _route_change_header(actor: RouteChangeActor, point: RoutePointKind, lang: str) -> str:
+    if actor == RouteChangeActor.DRIVER:
+        return t("notif.pickup_changed" if point == "from" else "notif.dropoff_changed", lang)
+    if actor == RouteChangeActor.ADMIN:
+        return t("notif.admin_pickup_changed" if point == "from" else "notif.admin_dropoff_changed", lang)
+    return t("notif.passenger_pickup_changed" if point == "from" else "notif.passenger_dropoff_changed", lang)
 
 
 async def _notify_passenger_route_changed(
@@ -111,10 +119,7 @@ async def _notify_passenger_route_changed(
                     address = html.escape(request.to_address)
 
                 if actor == RouteChangeActor.DRIVER:
-                    if point == "from":
-                        header = t("notif.pickup_changed", lang)
-                    else:
-                        header = t("notif.dropoff_changed", lang)
+                    header = _route_change_header(actor, point, lang)
                     text = (
                         f"{html.escape(header)}\n\n"
                         f"{html.escape(_point_label(lang, point))}: {address}"
@@ -144,8 +149,9 @@ async def _notify_passenger_route_changed(
                             parse_mode=ParseMode.HTML,
                         )
                 elif actor == RouteChangeActor.ADMIN:
+                    header = _route_change_header(actor, point, lang)
                     text = (
-                        f"{html.escape(t('notif.route_changed_by_admin', lang))}\n\n"
+                        f"{html.escape(header)}\n\n"
                         f"{html.escape(_point_label(lang, point))}: {address}"
                     )
                     await bot.send_message(
@@ -173,11 +179,6 @@ async def _notify_driver_route_changed(
         return
 
     lang = await _resolve_lang(driver.user_id)
-    actor_key = (
-        "notif.route_changed_by_passenger"
-        if actor == RouteChangeActor.PASSENGER
-        else "notif.route_changed_by_admin"
-    )
 
     try:
         async with Bot(token=settings.bot_token) as bot:
@@ -196,8 +197,9 @@ async def _notify_driver_route_changed(
                         longitude=request.to_lng,
                     )
                     address = html.escape(request.to_address)
+                header = _route_change_header(actor, point, lang)
                 text = (
-                    f"{html.escape(t(actor_key, lang))}\n\n"
+                    f"{html.escape(header)}\n\n"
                     f"№{request.ride_number} · {html.escape(request.passenger_name)}\n"
                     f"{html.escape(_point_label(lang, point))}: {address}"
                 )

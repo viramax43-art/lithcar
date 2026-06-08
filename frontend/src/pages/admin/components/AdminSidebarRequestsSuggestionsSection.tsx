@@ -193,7 +193,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                   {t(status.labelKey, { defaultValue: status.labelKey })}
                 </span>
               </div>
-              <p className="text-[11px] text-muted -mt-1 mb-2">{t('passenger.rideNumber', { rideNumber: request.rideNumber, defaultValue: `Ride number: ${request.rideNumber}` })}</p>
+              <p className="text-[11px] text-muted -mt-1 mb-2">{t('passenger.rideNumber', { number: request.rideNumber, defaultValue: `Ride number: ${request.rideNumber}` })}</p>
               {request.driverId && request.status !== 'completed' && (
                 <p className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-pill px-2 py-1 inline-flex mb-2">
                   {t('passenger.driverAssigned', { defaultValue: 'Driver assigned' })}
