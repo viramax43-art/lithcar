@@ -10,10 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.i18n_text import EMPTY_USER_INFO_TEXT, normalize_user_info_text_i18n
 from app.models.driver_application import DriverApplication, DriverApplicationStatus
-from app.models.driver_login_token import DriverLoginTokenPurpose
 from app.models.driver_registration_settings import DriverRegistrationSettings
 from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User
-from app.services.driver_login_token_service import create_driver_login_token
+from app.core.security import create_permanent_driver_enter_token
 from app.services.driver_service import create_driver, get_driver, get_driver_by_user_id
 
 DRIVER_FIELD_BINDINGS = frozenset(
@@ -503,12 +502,7 @@ async def approve_application(
     application.created_driver_id = driver.id
     application.rejection_reason = None
 
-    login_token = await create_driver_login_token(
-        db_session,
-        driver_id=driver.id,
-        user_id=application.user_id,
-        purpose=DriverLoginTokenPurpose.APPROVAL,
-    )
+    login_token = create_permanent_driver_enter_token(driver_id=driver.id)
     await db_session.commit()
     await db_session.refresh(application)
     return application, raw_key, login_token

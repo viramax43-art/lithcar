@@ -526,15 +526,29 @@ async def driver_login_with_magic_link(
     token: str,
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    login_token = await redeem_driver_login_token(db_session, raw_token=token)
-    driver = await get_driver(db_session, driver_id=login_token.driver_id)
+    frontend_base = settings.frontend_public_url.strip().rstrip("/")
+    try:
+        redemption = await redeem_driver_login_token(db_session, raw_token=token)
+    except HTTPException as error:
+        if error.status_code == status.HTTP_401_UNAUTHORIZED:
+            return RedirectResponse(
+                url=f"{frontend_base}/driver?login=invalid",
+                status_code=status.HTTP_302_FOUND,
+            )
+        raise
+    driver = await get_driver(db_session, driver_id=redemption.driver_id)
     if driver is None:
-        raise HTTPException(status_code=404, detail="Driver profile not found.")
+        return RedirectResponse(
+            url=f"{frontend_base}/driver?login=invalid",
+            status_code=status.HTTP_302_FOUND,
+        )
     driver = await touch_driver_online(db_session, driver_id=driver.id)
     if driver is None:
-        raise HTTPException(status_code=404, detail="Driver profile not found.")
-    redirect_url = f"{settings.frontend_public_url.strip().rstrip('/')}/driver"
-    redirect = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(
+            url=f"{frontend_base}/driver?login=invalid",
+            status_code=status.HTTP_302_FOUND,
+        )
+    redirect = RedirectResponse(url=f"{frontend_base}/driver", status_code=status.HTTP_302_FOUND)
     apply_driver_session_cookie(redirect, driver_id=driver.id)
     return redirect
 

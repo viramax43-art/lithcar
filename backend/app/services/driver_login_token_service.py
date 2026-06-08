@@ -2,17 +2,24 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import decode_permanent_driver_enter_token
 from app.models.driver_login_token import DriverLoginToken, DriverLoginTokenPurpose
 
 
-APPROVAL_TOKEN_TTL_DAYS = 7
 PROFILE_TOKEN_TTL_MINUTES = 15
+
+
+@dataclass(frozen=True)
+class DriverEnterRedemption:
+    driver_id: str
 
 
 def _hash_token(raw_token: str) -> str:
@@ -20,8 +27,6 @@ def _hash_token(raw_token: str) -> str:
 
 
 def _ttl_for_purpose(purpose: str) -> timedelta:
-    if purpose == DriverLoginTokenPurpose.APPROVAL:
-        return timedelta(days=APPROVAL_TOKEN_TTL_DAYS)
     if purpose == DriverLoginTokenPurpose.PROFILE:
         return timedelta(minutes=PROFILE_TOKEN_TTL_MINUTES)
     raise ValueError(f"Unsupported driver login token purpose: {purpose}")
@@ -34,6 +39,9 @@ async def create_driver_login_token(
     user_id: str,
     purpose: str,
 ) -> str:
+    if purpose != DriverLoginTokenPurpose.PROFILE:
+        raise ValueError("Only short-lived profile tokens are stored in the database.")
+
     raw_token = secrets.token_urlsafe(32)
     token = DriverLoginToken(
         token_hash=_hash_token(raw_token),
@@ -47,32 +55,41 @@ async def create_driver_login_token(
     return raw_token
 
 
+def _is_likely_jwt(raw_token: str) -> bool:
+    return raw_token.count(".") == 2
+
+
 async def redeem_driver_login_token(
     db_session: AsyncSession,
     *,
     raw_token: str,
-) -> DriverLoginToken:
+) -> DriverEnterRedemption:
+    if _is_likely_jwt(raw_token):
+        try:
+            driver_id = decode_permanent_driver_enter_token(raw_token)
+            return DriverEnterRedemption(driver_id=driver_id)
+        except (JWTError, ValueError):
+            pass
+
     token_hash = _hash_token(raw_token)
     now = datetime.now(timezone.utc)
-    result = await db_session.execute(
-        update(DriverLoginToken)
-        .where(
-            DriverLoginToken.token_hash == token_hash,
-            DriverLoginToken.used_at.is_(None),
-            DriverLoginToken.expires_at > now,
-        )
-        .values(used_at=now)
-        .returning(DriverLoginToken.id)
+    token_result = await db_session.execute(
+        select(DriverLoginToken).where(DriverLoginToken.token_hash == token_hash)
     )
-    redeemed_id = result.scalar_one_or_none()
-    if redeemed_id is None:
+    token = token_result.scalar_one_or_none()
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired login link.",
         )
-    token_result = await db_session.execute(
-        select(DriverLoginToken).where(DriverLoginToken.id == redeemed_id)
-    )
-    token = token_result.scalar_one()
-    await db_session.commit()
-    return token
+
+    if token.purpose == DriverLoginTokenPurpose.PROFILE:
+        if token.used_at is not None or token.expires_at <= now:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired login link.",
+            )
+        token.used_at = now
+        await db_session.commit()
+
+    return DriverEnterRedemption(driver_id=token.driver_id)

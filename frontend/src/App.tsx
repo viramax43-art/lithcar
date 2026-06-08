@@ -6,6 +6,7 @@ import RequestDetail from './pages/passenger/RequestDetail'
 import Profile from './pages/passenger/Profile'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import DriverCabinet from './pages/driver/DriverCabinet'
+import DriverMagicLogin from './pages/driver/DriverMagicLogin'
 import DriverRegistration from './pages/driver/DriverRegistration'
 
 function PassengerRoute({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/requests/:id" element={<PassengerRoute><RequestDetail /></PassengerRoute>} />
         <Route path="/profile" element={<PassengerRoute><Profile /></PassengerRoute>} />
         <Route path="/driver/register" element={<DriverRegistration />} />
+        <Route path="/driver/enter/:token" element={<DriverMagicLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/driver" element={<DriverCabinet />} />
         <Route path="*" element={<Navigate to="/" replace />} />

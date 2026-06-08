@@ -22,7 +22,7 @@ from app.services.driver_notification_service import (
 )
 from app.services.driver_service import get_driver_by_user_id, touch_driver_online
 from app.services.driver_session_service import apply_driver_session_cookie
-from app.services.telegram_app_links import build_driver_cabinet_enter_url
+from app.services.telegram_app_links import build_driver_cabinet_enter_url, build_permanent_driver_cabinet_enter_url
 from app.services.driver_registration_service import (
     MAX_FILE_SIZE_BYTES,
     approve_application,
@@ -273,6 +273,23 @@ async def get_my_driver_application(
     return await _application_out(db_session, application)
 
 
+class DriverEnterUrlOut(BaseModel):
+    enterUrl: str
+
+
+@router.get("/driver-access/enter-url", response_model=DriverEnterUrlOut)
+async def get_driver_enter_url(
+    current_user: User = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    driver = await get_driver_by_user_id(db_session, user_id=current_user.user_id)
+    if driver is None:
+        raise HTTPException(status_code=403, detail="Driver profile not found.")
+    return DriverEnterUrlOut(
+        enterUrl=build_permanent_driver_cabinet_enter_url(driver_id=driver.id),
+    )
+
+
 @router.post("/driver-access/bootstrap", response_model=DriverSessionOut)
 async def bootstrap_driver_access(
     response: Response,
@@ -352,6 +369,26 @@ async def approve_driver_application(
         application=await _application_out(db_session, application),
         key=raw_key,
     )
+
+
+@router.post("/applications/{application_id}/resend-enter-link", response_model=DriverEnterUrlOut)
+async def resend_driver_cabinet_enter_link(
+    application_id: str,
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    application = await get_application(db_session, application_id=application_id)
+    if application is None:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    if application.status != "approved" or not application.created_driver_id:
+        raise HTTPException(status_code=409, detail="Application is not approved.")
+    enter_url = build_permanent_driver_cabinet_enter_url(driver_id=application.created_driver_id)
+    await notify_driver_application_approved(
+        user_id=application.user_id,
+        language=application.language,
+        enter_url=enter_url,
+    )
+    return DriverEnterUrlOut(enterUrl=enter_url)
 
 
 @router.post("/applications/{application_id}/reject", response_model=ApplicationOut)

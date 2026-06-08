@@ -11,6 +11,10 @@ export async function getMyDriverApplication(): Promise<DriverApplication | null
   return apiRequest<DriverApplication | null>('/api/driver-registration/applications/me')
 }
 
+export async function getDriverCabinetEnterUrl(): Promise<{ enterUrl: string }> {
+  return apiRequest<{ enterUrl: string }>('/api/driver-registration/driver-access/enter-url')
+}
+
 export async function submitDriverApplication(payload: {
   language: 'lt' | 'pl' | 'en' | 'ru'
   answers: Record<string, string>

@@ -61,7 +61,7 @@ export default function Profile() {
     setIsEnteringDriverCabinet(true)
     setErrorMessage(null)
     try {
-      await enterDriverCabinet(navigate)
+      await enterDriverCabinet()
     } catch (error) {
       setErrorMessage(
         error instanceof Error

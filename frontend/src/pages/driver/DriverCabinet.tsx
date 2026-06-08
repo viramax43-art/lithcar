@@ -9,6 +9,7 @@
  *   [side menu: QR, history, logout]
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Car, CaretRight, Clock, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +19,7 @@ import {
   claimDriverRide,
   getDriverCabinet,
   getDriverMapData,
+  bootstrapDriverAccess,
   getDriverSession,
   loginDriverByKey,
   logoutDriverSession,
@@ -79,7 +81,13 @@ function getQuickAction(pt: DriverMapPoint): string | null {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
+function LoginScreen({
+  onLogin,
+  magicLinkHint,
+}: {
+  onLogin: (s: DriverSessionUser) => void
+  magicLinkHint?: string | null
+}) {
   const { t } = useTranslation()
   const [key, setKey] = useState('')
   const [loading, setLoading] = useState(false)
@@ -117,6 +125,11 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
             <p className="text-xs text-muted">{t('driver.cabinet', { defaultValue: 'Driver cabinet' })}</p>
           </div>
         </div>
+        {magicLinkHint && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 leading-relaxed">
+            {magicLinkHint}
+          </p>
+        )}
         <p className="text-sm text-muted">{t('driver.loginByKey', { defaultValue: 'Enter driver key.' })}</p>
         <input
           type="password"
@@ -260,7 +273,9 @@ function NextStopBar({
 
 export default function DriverCabinet() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [session, setSession] = useState<DriverSessionUser | null>(null)
+  const [magicLinkHint, setMagicLinkHint] = useState<string | null>(null)
   const [mapData, setMapData] = useState<DriverMapData | null>(null)
   const [cabinetData, setCabinetData] = useState<DriverCabinetData | null>(null)
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null)
@@ -296,16 +311,42 @@ export default function DriverCabinet() {
     setCabinetData(data)
   }, [])
 
-  // Restore session on mount
+  // Restore session on mount; retry via Telegram bootstrap after failed magic link
   useEffect(() => {
     let cancelled = false
+    const loginParam = searchParams.get('login')
     void (async () => {
       try {
         await getDriverSession()
         if (cancelled) return
+        if (loginParam) {
+          searchParams.delete('login')
+          setSearchParams(searchParams, { replace: true })
+        }
+        setMagicLinkHint(null)
         await Promise.all([loadMapData(), loadCabinetData()])
       } catch {
-        if (!cancelled) setSession(null)
+        if (cancelled) return
+        if (loginParam === 'invalid') {
+          try {
+            const bootstrapped = await bootstrapDriverAccess()
+            if (cancelled) return
+            setSession(bootstrapped)
+            setMagicLinkHint(null)
+            searchParams.delete('login')
+            setSearchParams(searchParams, { replace: true })
+            await Promise.all([loadMapData(), loadCabinetData()])
+            return
+          } catch {
+            setMagicLinkHint(
+              t('driver.magicLogin.invalid', {
+                defaultValue:
+                  'Login link did not work. Open the Ride app in Telegram and use Profile → Driver cabinet, or enter your driver key below.',
+              }),
+            )
+          }
+        }
+        setSession(null)
       }
     })()
     return () => { cancelled = true }
@@ -567,8 +608,10 @@ export default function DriverCabinet() {
   if (!session) {
     return (
       <LoginScreen
+        magicLinkHint={magicLinkHint}
         onLogin={async (s) => {
           setSession(s)
+          setMagicLinkHint(null)
           await Promise.all([loadMapData(), loadCabinetData()])
         }}
       />

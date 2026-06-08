@@ -1,10 +1,12 @@
-import { bootstrapDriverAccess } from '../infrastructure/api/driverApi'
+import { getDriverCabinetEnterUrl } from '../infrastructure/api/driverRegistrationApi'
+import { openExternalLink } from './telegram'
 
 export function getDriverCabinetUrl(): string {
   return `${window.location.origin}/driver`
 }
 
-export async function enterDriverCabinet(navigate: (path: string) => void): Promise<void> {
-  await bootstrapDriverAccess()
-  navigate('/driver')
+/** Opens driver cabinet in the phone's system browser (outside Telegram Mini App). */
+export async function enterDriverCabinet(): Promise<void> {
+  const { enterUrl } = await getDriverCabinetEnterUrl()
+  openExternalLink(enterUrl)
 }

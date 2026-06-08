@@ -37,7 +37,7 @@ export default function DriverRegistration() {
     setIsEnteringDriverCabinet(true)
     setErrorMessage(null)
     try {
-      await enterDriverCabinet(navigate)
+      await enterDriverCabinet()
     } catch (error) {
       setErrorMessage(
         error instanceof Error
