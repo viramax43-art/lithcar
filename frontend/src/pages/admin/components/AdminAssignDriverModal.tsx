@@ -1,4 +1,3 @@
-import type { RidePointOverride } from '../../../lib/backend'
 import type { Driver, RideRequest } from '../../../types'
 import AssignDriverModal from './AssignDriverModal'
 
@@ -19,7 +18,7 @@ export function AdminAssignDriverModal({
   isAssigning: boolean
   onSelectDriver: (driverId: string) => void
   onClose: () => void
-  onSubmit: (pointOverrides: RidePointOverride[]) => void
+  onSubmit: () => void
 }) {
   if (!assignModalReqIds) return null
   return (

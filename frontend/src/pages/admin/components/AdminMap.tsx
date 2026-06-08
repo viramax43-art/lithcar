@@ -5,7 +5,7 @@ import { Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowS
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
-import { searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
+import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
@@ -14,6 +14,8 @@ import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../const
 import { showOnMapHref } from '../../../lib/navigation'
 import MarkerClusterGroup from './MarkerClusterGroup'
 import { buildSimilarTripGroups, type SimilarTripGroup } from '../utils/similarTrips'
+import AdminRouteEditBar from './AdminRouteEditBar'
+import { getRouteEditMarkerIcon, type RideDraft } from './AssignDriverModalParts'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 
@@ -35,6 +37,12 @@ interface AdminMapProps {
   onSelectDriver: (driverId: string) => void
   onOpenAssignModal: (requestIds: string[]) => void
   onOpenEditRoute: (requestId: string) => void
+  routeEditDraft: RideDraft | null
+  onRouteEditDraftChange: (draft: RideDraft) => void
+  onCancelRouteEdit: () => void
+  onSaveRouteEdit: () => void
+  onResetRouteEdit: () => void
+  isSavingRoute: boolean
   onDrawPoint: (latlng: LatLng) => void
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
@@ -82,6 +90,41 @@ function MapMarkPlacementHandler({
   return null
 }
 
+function RouteEditMapClickHandler({
+  enabled,
+  onPick,
+}: {
+  enabled: boolean
+  onPick: (latlng: LatLng) => void
+}) {
+  useMapEvents({
+    click(event) {
+      if (!enabled) return
+      onPick({ lat: event.latlng.lat, lng: event.latlng.lng })
+    },
+  })
+  return null
+}
+
+function FlyToDraftBounds({ draft }: { draft: RideDraft | null }) {
+  const map = useMap()
+  const lastRequestId = useRef<string | null>(null)
+  useEffect(() => {
+    if (!draft) {
+      lastRequestId.current = null
+      return
+    }
+    if (lastRequestId.current === draft.requestId) return
+    lastRequestId.current = draft.requestId
+    const bounds = L.latLngBounds(
+      [draft.fromLatLng.lat, draft.fromLatLng.lng],
+      [draft.toLatLng.lat, draft.toLatLng.lng],
+    )
+    map.fitBounds(bounds, { padding: [80, 80], maxZoom: 15 })
+  }, [draft, map])
+  return null
+}
+
 function FlyToHelper({ target }: { target: LatLng | null }) {
   const map = useMap()
   if (target) {
@@ -126,6 +169,12 @@ export default function AdminMap({
   onSelectDriver,
   onOpenAssignModal,
   onOpenEditRoute,
+  routeEditDraft,
+  onRouteEditDraftChange,
+  onCancelRouteEdit,
+  onSaveRouteEdit,
+  onResetRouteEdit,
+  isSavingRoute,
   onDrawPoint,
   sidebarCollapsed,
   onToggleSidebar,
@@ -196,7 +245,13 @@ export default function AdminMap({
     [completedRequests, enabledStatuses],
   )
 
+  const isRouteEditMode = routeEditDraft !== null
+  const editingRequestId = routeEditDraft?.requestId ?? null
+
   const selectedReq = visibleRequests.find((request) => request.id === selectedReqId) ?? null
+  const editingRequest = routeEditDraft
+    ? requests.find((request) => request.id === routeEditDraft.requestId) ?? selectedReq
+    : null
   const assignedDriver = selectedReq?.driverId
     ? drivers.find((d) => d.id === selectedReq.driverId) ?? null
     : null
@@ -246,7 +301,10 @@ export default function AdminMap({
     [similarGroups, selectedSimilarGroupId],
   )
   const isRoutePreviewMode = Boolean(
-    selectedSimilarGroup && selectedSimilarRoadPolyline && selectedSimilarRoadPolyline.length > 1,
+    !isRouteEditMode &&
+      selectedSimilarGroup &&
+      selectedSimilarRoadPolyline &&
+      selectedSimilarRoadPolyline.length > 1,
   )
   const isMapMarkViewMode = Boolean(openedMarkPopupId || fullscreenPhoto)
   const floatingPanelsTop = isFilterBarCollapsed ? 124 : 252
@@ -281,6 +339,45 @@ export default function AdminMap({
   useEffect(() => {
     void loadMapMarks()
   }, [loadMapMarks])
+
+  useEffect(() => {
+    if (!isRouteEditMode) return
+    setIsMarkModeEnabled(false)
+    setShowSimilarPanel(false)
+    setSelectedSimilarGroupId(null)
+    setSelectedSimilarStepKey(null)
+    setSelectedSimilarRoadPolyline(null)
+    setDraftMarkPosition(null)
+  }, [isRouteEditMode])
+
+  const handleSelectRequest = useCallback(
+    (requestId: string | null) => {
+      if (isRouteEditMode) return
+      onSelectRequest(requestId)
+    },
+    [isRouteEditMode, onSelectRequest],
+  )
+
+  const handleMoveEditPoint = useCallback(
+    async (point: 'from' | 'to', latlng: LatLng) => {
+      if (!routeEditDraft) return
+      const next: RideDraft = { ...routeEditDraft }
+      if (point === 'from') next.fromLatLng = latlng
+      else next.toLatLng = latlng
+      onRouteEditDraftChange(next)
+      try {
+        const address = await reverseGeocode(latlng)
+        if (!address) return
+        onRouteEditDraftChange({
+          ...next,
+          ...(point === 'from' ? { fromAddress: address } : { toAddress: address }),
+        })
+      } catch {
+        // keep coordinates even if geocode fails
+      }
+    },
+    [onRouteEditDraftChange, routeEditDraft],
+  )
 
   useEffect(() => {
     if (!markPhotoFile) {
@@ -381,6 +478,7 @@ export default function AdminMap({
     const groups: Record<MapColorGroupKey, ClusterMarker[]> = { amber: [], red: [], blue: [], green: [] }
 
     visibleActiveRequests.forEach((req) => {
+      if (req.id === editingRequestId) return
       const hasAssignedDriver = Boolean(req.driverId)
       const pickupColor = getPickupColor(req)
       const size = getMarkerSize(req.status)
@@ -388,13 +486,13 @@ export default function AdminMap({
         id: `${req.id}-from`,
         position: [req.from.latlng.lat, req.from.latlng.lng],
         icon: makeSolidPointIcon(pickupColor, size),
-        onClick: () => onSelectRequest(req.id),
+        onClick: () => handleSelectRequest(req.id),
         tooltipText: `№${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
       })
     })
 
     return groups
-  }, [visibleActiveRequests, onSelectRequest, getPickupColor])
+  }, [visibleActiveRequests, handleSelectRequest, getPickupColor, editingRequestId])
 
   // Completed destination markers (green history)
   const completedDestinationMarkers = useMemo(() => {
@@ -407,10 +505,10 @@ export default function AdminMap({
         iconSize: [28, 28] as [number, number],
         iconAnchor: [14, 14] as [number, number],
       }),
-      onClick: () => onSelectRequest(req.id),
+      onClick: () => handleSelectRequest(req.id),
       tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} → ${req.to.address}`,
     }))
-  }, [visibleCompletedRequests, onSelectRequest])
+  }, [visibleCompletedRequests, handleSelectRequest])
 
   // Completed pickup markers (point A) — green for finished routes
   const completedPickupMarkers = useMemo(() => {
@@ -423,10 +521,10 @@ export default function AdminMap({
         iconSize: [14, 14],
         iconAnchor: [7, 7],
       }),
-      onClick: () => onSelectRequest(req.id),
+      onClick: () => handleSelectRequest(req.id),
       tooltipText: `A · №${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
     }))
-  }, [visibleCompletedRequests, onSelectRequest])
+  }, [visibleCompletedRequests, handleSelectRequest])
 
   const handleSearchInput = useCallback((query: string) => {
     setSearchQuery(query)
@@ -727,7 +825,8 @@ export default function AdminMap({
           </button>
           <button
             onClick={() => void handleFindSimilarTrips()}
-            className="h-11 px-4 bg-white rounded-xl shadow-card flex items-center gap-2 hover:bg-surface transition-colors touch-none"
+            disabled={isRouteEditMode}
+            className="h-11 px-4 bg-white rounded-xl shadow-card flex items-center gap-2 hover:bg-surface transition-colors touch-none disabled:opacity-50"
             title={t('admin.map.findSimilarTrips')}
           >
             <Lightning size={16} weight="bold" className="text-amber-500" />
@@ -735,6 +834,7 @@ export default function AdminMap({
           </button>
           <button
             onClick={() => {
+              if (isRouteEditMode) return
               setIsMarkModeEnabled((prev) => {
                 const next = !prev
                 if (!next) {
@@ -745,7 +845,8 @@ export default function AdminMap({
               })
               setMapMarkError(null)
             }}
-            className={`w-11 h-11 rounded-xl shadow-card flex items-center justify-center transition-colors touch-none ${
+            disabled={isRouteEditMode}
+            className={`w-11 h-11 rounded-xl shadow-card flex items-center justify-center transition-colors touch-none disabled:opacity-50 ${
               isMarkModeEnabled ? 'bg-black text-white' : 'bg-white hover:bg-surface'
             }`}
             title={t('admin.map.placeMark')}
@@ -973,6 +1074,7 @@ export default function AdminMap({
 
             {/* Destination markers + route lines for active non-completed rides */}
             {visibleActiveRequests.map((request) => {
+              if (request.id === editingRequestId) return null
               const highlighted = request.id === selectedReqId
               const dropoffColor = getDropoffColor(request)
               return (
@@ -980,7 +1082,7 @@ export default function AdminMap({
                   <Marker
                     position={[request.to.latlng.lat, request.to.latlng.lng]}
                     icon={makeSolidPointIcon(dropoffColor, highlighted ? 36 : 14, highlighted ? 'B' : undefined)}
-                    eventHandlers={{ click: () => onSelectRequest(request.id) }}
+                    eventHandlers={{ click: () => handleSelectRequest(request.id) }}
                   />
                   <Polyline
                     positions={[
@@ -1140,8 +1242,66 @@ export default function AdminMap({
             }}
           />
         )}
-        {isDrawing && <DrawingClickHandler onPoint={onDrawPoint} />}
-        <MapMarkPlacementHandler enabled={isMarkModeEnabled} onPlace={setDraftMarkPosition} />
+        {isDrawing && !isRouteEditMode && <DrawingClickHandler onPoint={onDrawPoint} />}
+        <MapMarkPlacementHandler
+          enabled={isMarkModeEnabled && !isRouteEditMode}
+          onPlace={setDraftMarkPosition}
+        />
+        {routeEditDraft && (
+          <>
+            <FlyToDraftBounds draft={routeEditDraft} />
+            <RouteEditMapClickHandler
+              enabled={!isDrawing}
+              onPick={(latlng) => void handleMoveEditPoint(routeEditDraft.active, latlng)}
+            />
+            <Pane name="route-edit-pane" style={{ zIndex: 1300 }}>
+              <Polyline
+                positions={[
+                  [routeEditDraft.fromLatLng.lat, routeEditDraft.fromLatLng.lng],
+                  [routeEditDraft.toLatLng.lat, routeEditDraft.toLatLng.lng],
+                ]}
+                pathOptions={{
+                  color: '#000',
+                  dashArray: '8, 8',
+                  weight: 4,
+                  opacity: 0.95,
+                }}
+              />
+              <Marker
+                position={[routeEditDraft.fromLatLng.lat, routeEditDraft.fromLatLng.lng]}
+                icon={getRouteEditMarkerIcon('from', routeEditDraft.active)}
+                draggable
+                zIndexOffset={1400}
+                eventHandlers={{
+                  dragend(event) {
+                    const marker = event.target as L.Marker
+                    const pos = marker.getLatLng()
+                    void handleMoveEditPoint('from', { lat: pos.lat, lng: pos.lng })
+                  },
+                  click() {
+                    onRouteEditDraftChange({ ...routeEditDraft, active: 'from' })
+                  },
+                }}
+              />
+              <Marker
+                position={[routeEditDraft.toLatLng.lat, routeEditDraft.toLatLng.lng]}
+                icon={getRouteEditMarkerIcon('to', routeEditDraft.active)}
+                draggable
+                zIndexOffset={1400}
+                eventHandlers={{
+                  dragend(event) {
+                    const marker = event.target as L.Marker
+                    const pos = marker.getLatLng()
+                    void handleMoveEditPoint('to', { lat: pos.lat, lng: pos.lng })
+                  },
+                  click() {
+                    onRouteEditDraftChange({ ...routeEditDraft, active: 'to' })
+                  },
+                }}
+              />
+            </Pane>
+          </>
+        )}
 
         {!isRoutePreviewMode && drivers
           .filter((driver) => driver.isOnline && driver.currentLocation)
@@ -1205,7 +1365,7 @@ export default function AdminMap({
       )}
 
       {/* Similar Trips Panel */}
-      {!isMapMarkViewMode && showSimilarPanel && (
+      {!isMapMarkViewMode && !isRouteEditMode && showSimilarPanel && (
         <div className="admin-map-route-panel absolute bottom-4 left-4 w-[380px] max-h-[50vh] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -1318,8 +1478,22 @@ export default function AdminMap({
         </div>
       )}
 
+      {/* Route edit bottom bar */}
+      {routeEditDraft && editingRequest && (
+        <AdminRouteEditBar
+          draft={routeEditDraft}
+          passengerName={editingRequest.passengerName}
+          rideNumber={editingRequest.rideNumber}
+          isSaving={isSavingRoute}
+          onDraftChange={onRouteEditDraftChange}
+          onCancel={onCancelRouteEdit}
+          onSave={onSaveRouteEdit}
+          onReset={onResetRouteEdit}
+        />
+      )}
+
       {/* Selected request detail card */}
-      {!isMapMarkViewMode && selectedReq && status && (
+      {!isMapMarkViewMode && !isRouteEditMode && selectedReq && status && (
         <div
           className="admin-map-detail-card absolute right-4 w-[340px] bg-white rounded-card shadow-card z-[1000] animate-slide-up overflow-hidden"
           style={{ top: `${floatingPanelsTop}px` }}
@@ -1336,7 +1510,7 @@ export default function AdminMap({
               {t(status.labelKey)}
             </span>
             <button
-              onClick={() => onSelectRequest(null)}
+              onClick={() => handleSelectRequest(null)}
               className="p-1.5 hover:bg-surface rounded-xl flex-shrink-0 transition-colors -my-1 -mr-1"
             >
               <X size={14} />

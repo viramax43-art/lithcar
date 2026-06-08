@@ -24,6 +24,7 @@ import {
   listServiceZones,
   loginAdminByKey,
   logoutAdminSession,
+  patchAdminRideRoute,
   rejectDriverApplication,
   rotateAdminKey,
   rotateDriverKey,
@@ -35,10 +36,9 @@ import {
   updateServiceZone,
   type AdminKeyInfo,
   type AdminSessionUser,
-  type RidePointOverride,
 } from '../../lib/backend'
 import { AdminAssignDriverModal } from './components/AdminAssignDriverModal'
-import EditRideRouteModal from './components/EditRideRouteModal'
+import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDriverModalParts'
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const [assignModalReqIds, setAssignModalReqIds] = useState<string[] | null>(null)
-  const [editRouteRequest, setEditRouteRequest] = useState<RideRequest | null>(null)
+  const [routeEditDraft, setRouteEditDraft] = useState<RideDraft | null>(null)
   const [isSavingRoute, setIsSavingRoute] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState<string>('')
   const [isAssigning, setIsAssigning] = useState(false)
@@ -185,6 +185,58 @@ export default function AdminDashboard() {
     }
   }, [isLoadingMoreRequests, requests.length, requestsTotal])
 
+  const startRouteEdit = useCallback((request: RideRequest) => {
+    setRouteEditDraft(toRideDraft(request))
+    setSelectedReqId(request.id)
+  }, [])
+
+  const cancelRouteEdit = useCallback(() => {
+    setRouteEditDraft(null)
+  }, [])
+
+  const saveRouteEdit = useCallback(async () => {
+    if (!routeEditDraft) return
+    if (!isOverridden(routeEditDraft)) {
+      setRouteEditDraft(null)
+      return
+    }
+    setIsSavingRoute(true)
+    setErrorMessage(null)
+    try {
+      await patchAdminRideRoute(routeEditDraft.requestId, {
+        fromPoint: {
+          address: routeEditDraft.fromAddress.trim() || routeEditDraft.originalFromAddress,
+          latlng: routeEditDraft.fromLatLng,
+        },
+        toPoint: {
+          address: routeEditDraft.toAddress.trim() || routeEditDraft.originalToAddress,
+          latlng: routeEditDraft.toLatLng,
+        },
+      })
+      await loadAll()
+      setRouteEditDraft(null)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : t('admin.errors.updateRouteFailed', { defaultValue: 'Failed to update route.' }),
+      )
+    } finally {
+      setIsSavingRoute(false)
+    }
+  }, [loadAll, routeEditDraft, t])
+
+  const resetRouteEdit = useCallback(() => {
+    if (!routeEditDraft) return
+    setRouteEditDraft({
+      ...routeEditDraft,
+      fromAddress: routeEditDraft.originalFromAddress,
+      fromLatLng: { ...routeEditDraft.originalFromLatLng },
+      toAddress: routeEditDraft.originalToAddress,
+      toLatLng: { ...routeEditDraft.originalToLatLng },
+    })
+  }, [routeEditDraft])
+
   const ensureAdminSession = useCallback(async () => {
     try {
       const session = await getAdminSession()
@@ -218,11 +270,11 @@ export default function AdminDashboard() {
     return result
   }, [suggestions])
 
-  const handleAssign = async (pointOverrides: RidePointOverride[] = []) => {
+  const handleAssign = async () => {
     if (!assignModalReqIds || !assignDriverId) return
     setIsAssigning(true)
     try {
-      await assignDriverBulk(assignModalReqIds, assignDriverId, pointOverrides)
+      await assignDriverBulk(assignModalReqIds, assignDriverId, [])
       await loadAll()
       setAssignModalReqIds(null)
       setAssignDriverId('')
@@ -597,8 +649,14 @@ export default function AdminDashboard() {
           onOpenAssignModal={setAssignModalReqIds}
           onOpenEditRoute={(requestId) => {
             const request = requests.find((item) => item.id === requestId)
-            if (request) setEditRouteRequest(request)
+            if (request) startRouteEdit(request)
           }}
+          routeEditDraft={routeEditDraft}
+          onRouteEditDraftChange={setRouteEditDraft}
+          onCancelRouteEdit={cancelRouteEdit}
+          onSaveRouteEdit={() => void saveRouteEdit()}
+          onResetRouteEdit={resetRouteEdit}
+          isSavingRoute={isSavingRoute}
           onDrawPoint={(point) => {
             if (!isDrawing) return
             setDrawingPoints((prev) => [...prev, point])
@@ -631,18 +689,9 @@ export default function AdminDashboard() {
         isAssigning={isAssigning}
         onSelectDriver={setAssignDriverId}
         onClose={() => setAssignModalReqIds(null)}
-        onSubmit={(overrides) => void handleAssign(overrides)}
+        onSubmit={() => void handleAssign()}
       />
 
-      {editRouteRequest && (
-        <EditRideRouteModal
-          request={editRouteRequest}
-          isSaving={isSavingRoute}
-          onClose={() => setEditRouteRequest(null)}
-          onSaved={() => void loadAll()}
-          onSavingChange={setIsSavingRoute}
-        />
-      )}
     </div>
   )
 }
