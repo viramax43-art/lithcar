@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
@@ -201,7 +202,7 @@ export default function AdminMap({
   enabledColors,
   onToggleColor,
 }: AdminMapProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   // --- Date/time filtering ---
   const filteredRequests = useMemo(() => {
@@ -580,6 +581,32 @@ export default function AdminMap({
     }, 500)
   }, [])
 
+  useEffect(() => {
+    const q = searchQuery
+    if (q.length < 3) {
+      setSearchResults([])
+      return
+    }
+    if (searchAbort.current) {
+      searchAbort.current.abort()
+      searchAbort.current = null
+    }
+    setIsSearching(true)
+    const controller = new AbortController()
+    searchAbort.current = controller
+    void (async () => {
+      try {
+        const data = await searchPlaces(q, controller.signal)
+        setSearchResults(data)
+      } catch {
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch address labels when language changes
+  }, [i18n.language])
+
   const handleSelectResult = useCallback((result: NominatimSearchResult) => {
     const latlng: LatLng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
     setFlyTarget(latlng)
@@ -832,7 +859,7 @@ export default function AdminMap({
                   </button>
                 ))}
                 {!isSearching && searchQuery.length >= 3 && searchResults.length === 0 && (
-                  <p className="px-3 py-3 text-xs text-muted">{t('common.notFound', { defaultValue: 'Nothing found.' })}</p>
+                  <p className="px-3 py-3 text-xs text-muted">{t('common.notFound')}</p>
                 )}
               </div>
             </div>
@@ -1080,10 +1107,7 @@ export default function AdminMap({
         zoomControl={false}
         style={{ width: '100%', height: '100%' }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LocalizedTileLayer />
         <ZoomControl position="bottomright" />
         <MapViewportPersistence onViewportChange={handleMapViewportChange} />
         <FlyToHelper target={flyTarget} />

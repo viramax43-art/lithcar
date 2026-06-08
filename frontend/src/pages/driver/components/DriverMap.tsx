@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
+import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
@@ -194,7 +195,7 @@ export default function DriverMap({
       attributionControl={false}
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <LocalizedTileLayer />
       <FitBoundsOnce points={points} driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
       {!isMapMarkViewMode && <LocateButton />}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
+import { MapContainer, Marker, Polyline } from 'react-leaflet'
+import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
@@ -154,7 +155,7 @@ export default function RequestDetail() {
           zoomControl={false}
           attributionControl={false}
         >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <LocalizedTileLayer />
 
           <Marker position={[request.from.latlng.lat, request.from.latlng.lng]} icon={iconA} />
           <Marker position={[request.to.latlng.lat, request.to.latlng.lng]} icon={iconB} />

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getInitialPricingUi } from '../../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { useTranslation } from 'react-i18next'
-import { CircleMarker, MapContainer, Polyline, TileLayer, useMapEvents } from 'react-leaflet'
+import { CircleMarker, MapContainer, Polyline, useMapEvents } from 'react-leaflet'
+import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 
 import { getRideQuoteAdmin } from '../../../infrastructure/api/adminApi'
 import { DEFAULT_PRICING_FORMULA } from '../../../lib/pricingDefaults'
@@ -344,7 +345,7 @@ export function AdminDynamicPricingSection({ pricing, onPricingChange }: AdminDy
             zoomControl={false}
             attributionControl={false}
           >
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <LocalizedTileLayer />
             <QuoteMapClickHandler
               activePoint={activeQuotePoint}
               onSetFrom={setQuoteFrom}

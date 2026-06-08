@@ -1,6 +1,6 @@
 import type { LatLng } from '../types'
 import i18n from '../i18n'
-import { normalizeLanguage } from '../i18n/languages'
+import { getNominatimAcceptLanguage } from './mapLocale'
 
 /**
  * Nominatim public instance has a strict usage policy: at most 1 request/second
@@ -25,16 +25,27 @@ let inflightChain: Promise<unknown> = Promise.resolve()
 const reverseCache = new Map<string, string>()
 const searchCache = new Map<string, NominatimSearchResult[]>()
 
+export function clearGeocodeCaches(): void {
+  reverseCache.clear()
+  searchCache.clear()
+}
+
+function currentLanguageKey(): string {
+  return getNominatimAcceptLanguage(i18n.language)
+}
+
+if (typeof window !== 'undefined') {
+  i18n.on('languageChanged', () => {
+    clearGeocodeCaches()
+  })
+}
+
 export function isRateLimited(): boolean {
   return Date.now() < cooldownUntil
 }
 
 export function rateLimitRetryInMs(): number {
   return Math.max(0, cooldownUntil - Date.now())
-}
-
-function getAcceptLanguage(): string {
-  return normalizeLanguage(i18n.language)
 }
 
 /** Serialize requests so we never exceed 1/sec, and apply the cooldown window. */
@@ -47,7 +58,6 @@ async function scheduleNominatim<T>(task: () => Promise<T>): Promise<T> {
     return task()
   }
   const next = inflightChain.then(run, run) as Promise<T>
-  // Don't block the chain on individual failures.
   inflightChain = next.catch(() => undefined)
   return next
 }
@@ -60,8 +70,15 @@ function handleNominatimResponse(res: Response): void {
 }
 
 function coordKey(latlng: LatLng): string {
-  // Round to ~10m precision so tiny pan jitter hits the cache.
   return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`
+}
+
+function reverseCacheKey(latlng: LatLng): string {
+  return `${coordKey(latlng)}|${currentLanguageKey()}`
+}
+
+function searchCacheKey(query: string): string {
+  return `${query.trim().toLowerCase()}|${currentLanguageKey()}`
 }
 
 /**
@@ -69,9 +86,11 @@ function coordKey(latlng: LatLng): string {
  * Returns empty string on failure. Throws {@link RateLimitedError} when 429.
  */
 export async function reverseGeocode(latlng: LatLng, signal?: AbortSignal): Promise<string> {
-  const key = coordKey(latlng)
+  const key = reverseCacheKey(latlng)
   const cached = reverseCache.get(key)
   if (cached !== undefined) return cached
+
+  const acceptLanguage = encodeURIComponent(currentLanguageKey())
 
   return scheduleNominatim(async () => {
     if (signal?.aborted) {
@@ -81,7 +100,7 @@ export async function reverseGeocode(latlng: LatLng, signal?: AbortSignal): Prom
     }
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=${getAcceptLanguage()}`,
+        `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=${acceptLanguage}`,
         { signal },
       )
       handleNominatimResponse(res)
@@ -110,8 +129,11 @@ export interface NominatimSearchResult {
   lon: string
 }
 
+/** Lithuania viewbox for Nominatim relevance (not a hard boundary). */
+const LT_VIEWBOX = '20.9,56.5,26.9,53.9'
+
 /**
- * Forward search via Nominatim, scoped to Vilnius/Lithuania.
+ * Forward search via Nominatim, scoped to Lithuania.
  * Throws {@link RateLimitedError} when 429.
  */
 export async function searchPlaces(
@@ -120,8 +142,11 @@ export async function searchPlaces(
 ): Promise<NominatimSearchResult[]> {
   const q = query.trim()
   if (!q) return []
-  const cached = searchCache.get(q.toLowerCase())
-  if (cached) return cached
+  const cacheKey = searchCacheKey(q)
+  const cached = searchCache.get(cacheKey)
+  if (cached && cached.length > 0) return cached
+
+  const acceptLanguage = encodeURIComponent(currentLanguageKey())
 
   return scheduleNominatim(async () => {
     if (signal?.aborted) {
@@ -133,13 +158,13 @@ export async function searchPlaces(
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           q,
-        )}&format=json&limit=6&countrycodes=lt&viewbox=24.9,54.5,25.6,54.85&bounded=1&accept-language=${getAcceptLanguage()}`,
+        )}&format=json&limit=8&countrycodes=lt&viewbox=${LT_VIEWBOX}&accept-language=${acceptLanguage}`,
         { signal },
       )
       handleNominatimResponse(res)
       if (!res.ok) return []
       const data = (await res.json()) as NominatimSearchResult[]
-      searchCache.set(q.toLowerCase(), data)
+      if (data.length > 0) searchCache.set(cacheKey, data)
       return data
     } catch (err) {
       if (err instanceof RateLimitedError) throw err

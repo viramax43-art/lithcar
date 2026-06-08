@@ -1,5 +1,6 @@
 import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
+import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -55,7 +56,7 @@ export default function NewRequest() {
     <div className="relative h-[100dvh] overflow-hidden bg-white">
       <div className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
-          <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <LocalizedTileLayer />
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map

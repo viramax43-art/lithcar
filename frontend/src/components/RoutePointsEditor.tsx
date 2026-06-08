@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, useMap, useMapEvents } from 'react-leaflet'
+import LocalizedTileLayer from './LocalizedTileLayer'
 import { useTranslation } from 'react-i18next'
 import type { LatLng } from '../types'
 import { reverseGeocode } from '../lib/geocode'
@@ -123,7 +124,7 @@ export default function RoutePointsEditor({
           zoomControl
           attributionControl={false}
         >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <LocalizedTileLayer />
           <FitBoundsOnce from={value.fromLatLng} to={value.toLatLng} />
           <MapClickHandler onPick={(latlng) => void movePoint(active, latlng)} />
           <Marker

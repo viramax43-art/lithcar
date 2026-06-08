@@ -49,7 +49,7 @@ function clearDraft(): void {
 }
 
 export function useNewRequestController() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [quote, setQuote] = useState<RideQuote | null>(null)
@@ -266,6 +266,62 @@ export function useNewRequestController() {
     },
     [showZoneWarning, t],
   )
+
+  useEffect(() => {
+    const q = searchQuery
+    if (q.length >= 3) {
+      if (searchAbort.current) {
+        searchAbort.current.abort()
+        searchAbort.current = null
+      }
+      setIsSearching(true)
+      const controller = new AbortController()
+      searchAbort.current = controller
+      void (async () => {
+        try {
+          const data = await nominatimSearch(q, controller.signal)
+          setSearchResults(data)
+        } catch {
+          setSearchResults([])
+        } finally {
+          setIsSearching(false)
+        }
+      })()
+    } else {
+      setSearchResults([])
+    }
+
+    if (pinLatLng) {
+      void (async () => {
+        try {
+          const addr = await nominatimReverse(pinLatLng)
+          setPinAddress(addr || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`)
+        } catch {
+          /* keep coordinates */
+        }
+      })()
+    }
+
+    void (async () => {
+      if (fromPoint) {
+        try {
+          const addr = await nominatimReverse(fromPoint)
+          if (addr) setFromAddress(addr)
+        } catch {
+          /* ignore */
+        }
+      }
+      if (toPoint) {
+        try {
+          const addr = await nominatimReverse(toPoint)
+          if (addr) setToAddress(addr)
+        } catch {
+          /* ignore */
+        }
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh geocode labels when language changes
+  }, [i18n.language])
 
   const handleSelectSearchResult = useCallback(
     (result: NominatimSearchResult) => {
