@@ -178,7 +178,7 @@ export default function RequestDetail() {
 
       {/* Content */}
       <div className="px-5 py-5 space-y-5">
-        {request.status === 'pending' && (
+        {request.status !== 'completed' && (
           <div className="flex gap-2">
             <button
               onClick={() => setShowEditSheet(true)}
@@ -187,32 +187,36 @@ export default function RequestDetail() {
             >
               {isSaving
                 ? t('common.saving', { defaultValue: 'Saving...' })
-                : t('passenger.editRequest', { defaultValue: 'Edit' })}
+                : request.status === 'pending'
+                  ? t('passenger.editRequest', { defaultValue: 'Edit' })
+                  : t('passenger.editRoute', { defaultValue: 'Edit route' })}
             </button>
-            <button
-              onClick={async () => {
-                const confirmed = window.confirm(
-                  t('passenger.deleteRequestConfirm', { defaultValue: 'Delete request?' }),
-                )
-                if (!confirmed) return
-                setIsSaving(true)
-                setErrorMessage(null)
-                try {
-                  await deleteRequest(request.id)
-                  navigate('/requests', { replace: true })
-                } catch (error) {
-                  setErrorMessage(
-                    error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),
+            {request.status === 'pending' && (
+              <button
+                onClick={async () => {
+                  const confirmed = window.confirm(
+                    t('passenger.deleteRequestConfirm', { defaultValue: 'Delete request?' }),
                   )
-                } finally {
-                  setIsSaving(false)
-                }
-              }}
-              disabled={isSaving}
-              className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold"
-            >
-              {t('common.delete', { defaultValue: 'Delete' })}
-            </button>
+                  if (!confirmed) return
+                  setIsSaving(true)
+                  setErrorMessage(null)
+                  try {
+                    await deleteRequest(request.id)
+                    navigate('/requests', { replace: true })
+                  } catch (error) {
+                    setErrorMessage(
+                      error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),
+                    )
+                  } finally {
+                    setIsSaving(false)
+                  }
+                }}
+                disabled={isSaving}
+                className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold"
+              >
+                {t('common.delete', { defaultValue: 'Delete' })}
+              </button>
+            )}
           </div>
         )}
         {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
@@ -518,15 +522,16 @@ export default function RequestDetail() {
       <EditRequestSheet
         open={showEditSheet}
         request={request}
+        routeOnly={request.status !== 'pending'}
         isSaving={isSaving}
         onClose={() => setShowEditSheet(false)}
-        onSave={async ({ fromAddress, toAddress, dateTime }) => {
+        onSave={async ({ fromAddress, toAddress, fromLatLng, toLatLng, dateTime }) => {
           setIsSaving(true)
           setErrorMessage(null)
           try {
             const updated = await updateRequest(request.id, {
-              from: { address: fromAddress, latlng: request.from.latlng },
-              to: { address: toAddress, latlng: request.to.latlng },
+              from: { address: fromAddress, latlng: fromLatLng },
+              to: { address: toAddress, latlng: toLatLng },
               dateTime,
             })
             setRequest(updated)

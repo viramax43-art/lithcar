@@ -8,6 +8,7 @@ export interface ApiRequestOptions {
   method?: HttpMethod
   body?: unknown
   authMode?: AuthMode
+  withCredentials?: boolean
 }
 
 export class ApiError extends Error {
@@ -48,7 +49,7 @@ async function performRequest(
   options: ApiRequestOptions,
   forceRefreshToken: boolean,
 ): Promise<Response> {
-  const { method = 'GET', body, authMode = 'bearer' } = options
+  const { method = 'GET', body, authMode = 'bearer', withCredentials = false } = options
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (authMode === 'bearer') {
     const token = await ensurePassengerAccessToken(forceRefreshToken)
@@ -56,7 +57,7 @@ async function performRequest(
   }
   return fetch(`${resolveApiBaseUrl()}${path}`, {
     method,
-    credentials: authMode === 'cookie' ? 'include' : undefined,
+    credentials: authMode === 'cookie' || withCredentials ? 'include' : undefined,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timezone
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -27,9 +28,14 @@ def test_parse_manual_time():
 
 def test_combine_and_restore_selected_datetime():
     combined = combine_booking_datetime(ride_date=date(2026, 5, 21), ride_time=time(12, 45))
-    assert combined.isoformat() == "2026-05-21T12:45:00+00:00"
+    local = combined.astimezone(ZoneInfo("Europe/Vilnius"))
+    assert local.hour == 12
+    assert local.minute == 45
+    assert combined.tzinfo == timezone.utc
     restored = get_selected_datetime({"ride_date": "2026-05-21", "ride_time": "12:45:00"})
-    assert restored.isoformat() == "2026-05-21T12:45:00+00:00"
+    restored_local = restored.astimezone(ZoneInfo("Europe/Vilnius"))
+    assert restored_local.hour == 12
+    assert restored_local.minute == 45
 
 
 def test_resolve_quick_time_returns_time_value():

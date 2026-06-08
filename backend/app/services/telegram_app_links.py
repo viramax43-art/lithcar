@@ -15,3 +15,8 @@ def build_driver_cabinet_url() -> str:
     """Direct web URL to the driver cabinet (/driver), not the passenger Mini App."""
     base = settings.frontend_public_url.strip().rstrip("/")
     return f"{base}/driver"
+
+
+def build_driver_cabinet_enter_url(token: str) -> str:
+    base = settings.frontend_public_url.strip().rstrip("/")
+    return f"{base}/api/driver/session/enter/{token}"

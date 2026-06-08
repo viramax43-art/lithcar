@@ -124,6 +124,7 @@ async def test_driver_can_edit_pickup_point(client, db_session):
     assert body["fromLatLng"]["lat"] == 54.691
     assert body["fromLatLng"]["lng"] == 25.271
     assert body["pickupChangedByDriver"] is True
+    assert body["pickupNotifiedAt"] is not None
     assert body["pickupConfirmedAt"] is None
 
 
@@ -248,7 +249,7 @@ async def test_driver_cannot_edit_pickup_of_other_drivers_ride(client, db_sessio
         f"/api/driver/cabinet/rides/{ctx['request_id']}/pickup",
         json={"fromAddress": "Hack attempt", "fromLat": 54.691, "fromLng": 25.271},
     )
-    assert response.status_code == 404
+    assert response.status_code == 400
 
 
 async def test_driver_cannot_edit_pickup_outside_active_zone(client, db_session):
@@ -267,11 +268,10 @@ async def test_driver_cannot_edit_pickup_outside_active_zone(client, db_session)
     assert "зон" in response.json()["detail"].lower()
 
 
-async def test_driver_cannot_edit_pickup_after_ride_in_progress(client, db_session):
-    """Driver cannot edit pickup once ride is in_progress or later."""
+async def test_driver_can_edit_pickup_while_in_progress(client, db_session):
+    """Driver can edit route points while ride is in_progress (until completed)."""
     ctx = await _setup_driver_and_passenger(client, db_session)
 
-    # Advance ride to en_route_to_pickup → awaiting_passenger → in_progress
     await client.patch(
         f"/api/driver/cabinet/rides/{ctx['request_id']}/status",
         json={"status": "en_route_to_pickup"},
@@ -285,13 +285,12 @@ async def test_driver_cannot_edit_pickup_after_ride_in_progress(client, db_sessi
         json={"status": "in_progress"},
     )
 
-    # Try to edit pickup
     response = await client.patch(
         f"/api/driver/cabinet/rides/{ctx['request_id']}/pickup",
         json={"fromAddress": "Late edit", "fromLat": 54.691, "fromLng": 25.271},
     )
-    assert response.status_code == 400
-    assert "статус" in response.json()["detail"].lower()
+    assert response.status_code == 200
+    assert response.json()["fromAddress"] == "Late edit"
 
 
 async def test_other_passenger_cannot_confirm_pickup(client, db_session):

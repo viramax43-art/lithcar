@@ -38,6 +38,7 @@ import {
   type RidePointOverride,
 } from '../../lib/backend'
 import { AdminAssignDriverModal } from './components/AdminAssignDriverModal'
+import EditRideRouteModal from './components/EditRideRouteModal'
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
@@ -97,6 +98,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const [assignModalReqIds, setAssignModalReqIds] = useState<string[] | null>(null)
+  const [editRouteRequest, setEditRouteRequest] = useState<RideRequest | null>(null)
+  const [isSavingRoute, setIsSavingRoute] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState<string>('')
   const [isAssigning, setIsAssigning] = useState(false)
 
@@ -592,6 +595,10 @@ export default function AdminDashboard() {
             setExpandedDriverId(driverId)
           }}
           onOpenAssignModal={setAssignModalReqIds}
+          onOpenEditRoute={(requestId) => {
+            const request = requests.find((item) => item.id === requestId)
+            if (request) setEditRouteRequest(request)
+          }}
           onDrawPoint={(point) => {
             if (!isDrawing) return
             setDrawingPoints((prev) => [...prev, point])
@@ -626,6 +633,16 @@ export default function AdminDashboard() {
         onClose={() => setAssignModalReqIds(null)}
         onSubmit={(overrides) => void handleAssign(overrides)}
       />
+
+      {editRouteRequest && (
+        <EditRideRouteModal
+          request={editRouteRequest}
+          isSaving={isSavingRoute}
+          onClose={() => setEditRouteRequest(null)}
+          onSaved={() => void loadAll()}
+          onSavingChange={setIsSavingRoute}
+        />
+      )}
     </div>
   )
 }

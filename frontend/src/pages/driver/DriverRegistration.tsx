@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import { resolveDriverFormText } from '../../lib/driverFormText'
-import { openDriverCabinetInBrowser } from '../../lib/driverPortal'
+import { enterDriverCabinet } from '../../lib/driverPortal'
 import {
   getDriverRegistrationForm,
   getMyDriverApplication,
@@ -30,7 +30,24 @@ export default function DriverRegistration() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEnteringDriverCabinet, setIsEnteringDriverCabinet] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handleOpenDriverCabinet = async () => {
+    setIsEnteringDriverCabinet(true)
+    setErrorMessage(null)
+    try {
+      await enterDriverCabinet(navigate)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : t('driverRegistration.openCabinetFailed', { defaultValue: 'Failed to open driver cabinet.' }),
+      )
+    } finally {
+      setIsEnteringDriverCabinet(false)
+    }
+  }
 
   const sortedFields = useMemo(
     () => (schema?.fields ?? []).slice().sort((a, b) => a.order - b.order || a.id.localeCompare(b.id)),
@@ -176,10 +193,13 @@ export default function DriverRegistration() {
           <p className="text-sm text-muted mt-2">{t('driverRegistration.approvedDescription')}</p>
           <button
             type="button"
-            onClick={() => openDriverCabinetInBrowser()}
-            className="mt-6 h-11 px-5 rounded-pill bg-black text-white text-sm font-bold"
+            onClick={() => void handleOpenDriverCabinet()}
+            disabled={isEnteringDriverCabinet}
+            className="mt-6 h-11 px-5 rounded-pill bg-black text-white text-sm font-bold disabled:opacity-60"
           >
-            {t('driverRegistration.openCabinet')}
+            {isEnteringDriverCabinet
+              ? t('driverRegistration.openingCabinet', { defaultValue: 'Opening...' })
+              : t('driverRegistration.openCabinet')}
           </button>
         </div>
       </div>

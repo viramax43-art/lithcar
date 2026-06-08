@@ -18,6 +18,7 @@ from app.models.map_mark import MapMark
 from app.models.ride_rating import RideRating
 from app.models.driver_registration_settings import DriverRegistrationSettings
 from app.models.driver_application import DriverApplication
+from app.models.driver_login_token import DriverLoginToken
 
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "RideRating",
     "DriverRegistrationSettings",
     "DriverApplication",
+    "DriverLoginToken",
 ]

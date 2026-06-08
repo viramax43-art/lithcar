@@ -3,6 +3,13 @@ import { apiRequest } from '../http/httpClient'
 import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
 
+export async function bootstrapDriverAccess(): Promise<DriverSessionUser> {
+  return apiRequest<DriverSessionUser>('/api/driver-registration/driver-access/bootstrap', {
+    method: 'POST',
+    withCredentials: true,
+  })
+}
+
 export async function loginDriverByKey(key: string): Promise<DriverSessionUser> {
   return apiRequest<DriverSessionUser>('/api/driver/session/login', {
     method: 'POST',
@@ -56,6 +63,20 @@ export async function updateDriverRidePickup(
   return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/pickup`, {
     method: 'PATCH',
     body: { fromAddress, fromLat, fromLng },
+    authMode: 'cookie',
+  })
+}
+
+export async function updateDriverRideRoute(
+  rideId: string,
+  payload: {
+    fromPoint?: { address: string; lat: number; lng: number }
+    toPoint?: { address: string; lat: number; lng: number }
+  },
+): Promise<DriverCabinetRide> {
+  return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${rideId}/route`, {
+    method: 'PATCH',
+    body: payload,
     authMode: 'cookie',
   })
 }

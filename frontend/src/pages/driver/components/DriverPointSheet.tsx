@@ -8,7 +8,6 @@ import {
   Clock,
   MapPin,
   NavigationArrow,
-  PaperPlaneTilt,
   Star,
   TelegramLogo,
   Warning,
@@ -60,19 +59,15 @@ function variantCls(v: ActionDef['variant']): string {
 interface DriverPointSheetProps {
   point: DriverMapPoint | null
   isActioning: boolean
-  isNotifying: boolean
   onClose: () => void
   onAction: (action: string) => void
-  onNotifyPickup: () => void
 }
 
 export default function DriverPointSheet({
   point,
   isActioning,
-  isNotifying,
   onClose,
   onAction,
-  onNotifyPickup,
 }: DriverPointSheetProps) {
   return (
     <>
@@ -95,10 +90,8 @@ export default function DriverPointSheet({
           <SheetBody
             point={point}
             isActioning={isActioning}
-            isNotifying={isNotifying}
             onClose={onClose}
             onAction={onAction}
-            onNotifyPickup={onNotifyPickup}
           />
         )}
       </div>
@@ -109,11 +102,9 @@ export default function DriverPointSheet({
 function SheetBody({
   point,
   isActioning,
-  isNotifying,
   onClose,
   onAction,
-  onNotifyPickup,
-}: DriverPointSheetProps & { point: DriverMapPoint }) {
+}: Omit<DriverPointSheetProps, 'point'> & { point: DriverMapPoint }) {
   const { t } = useTranslation()
   const mainAction = getMainAction(point)
   const isPickup = point.pointType === 'pickup'
@@ -123,7 +114,6 @@ function SheetBody({
   const timeStr = formatRideTime(point)
   const dateStr = formatRideDate(point, { day: 'numeric', month: 'short' })
 
-  const pickupChangedNotNotified = isPickup && point.pickupChangedByDriver && !point.pickupNotifiedAt
   const needsPassengerConfirm = isPickup && point.pickupChangedByDriver && !!point.pickupNotifiedAt && !point.pickupConfirmedAt
   const pickupConfirmed = isPickup && point.pickupChangedByDriver && !!point.pickupConfirmedAt
 
@@ -188,15 +178,6 @@ function SheetBody({
           {dateStr} · {timeStr}
         </div>
 
-        {/* Pickup change status */}
-        {pickupChangedNotNotified && (
-          <div className="flex items-start gap-1.5 pt-1">
-            <Warning size={12} weight="fill" className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] font-semibold text-amber-700">
-              {t('driver.pickupChangedNotifyHint', { defaultValue: 'Point changed - notify passenger' })}
-            </p>
-          </div>
-        )}
         {needsPassengerConfirm && (
           <div className="flex items-start gap-1.5 pt-1">
             <Warning size={12} weight="fill" className="text-amber-400 flex-shrink-0 mt-0.5" />
@@ -237,30 +218,6 @@ function SheetBody({
           {t('common.message', { defaultValue: 'Message' })}
         </a>
       </div>
-
-      {/* ── Notify pickup change ─────────────────────────────────────────── */}
-      {pickupChangedNotNotified && (
-        <div className="px-4 mb-3">
-          <button
-            onClick={onNotifyPickup}
-            disabled={isNotifying}
-            className="w-full h-13 rounded-2xl bg-amber-500 text-white text-sm font-bold flex items-center justify-center gap-2 active:bg-amber-600 transition-colors disabled:opacity-60 touch-none"
-            style={{ height: 52 }}
-          >
-            {isNotifying ? (
-              <>
-                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                {t('common.sending', { defaultValue: 'Sending...' })}
-              </>
-            ) : (
-              <>
-                <PaperPlaneTilt size={16} weight="fill" />
-                {t('driver.notifyPointChanged', { defaultValue: 'Notify about point change' })}
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
       {/* ── MAIN ACTION BUTTON ───────────────────────────────────────────── */}
       {mainAction && (

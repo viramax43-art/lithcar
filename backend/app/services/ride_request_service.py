@@ -499,28 +499,16 @@ async def update_driver_pickup_point(
     from_lng: float,
 ) -> tuple[RideRequest | None, str | None]:
     """Driver edits the pickup point for a ride assigned to them."""
-    request = await get_request(db_session, request_id=request_id)
-    if request is None:
-        return None, "Поездка не найдена."
-    if request.driver_id != driver_id:
-        return None, "Эта поездка не назначена вам."
-    if request.status not in (RideRequestStatus.ASSIGNED, RideRequestStatus.EN_ROUTE_TO_PICKUP):
-        return None, "Нельзя изменить точку подачи в текущем статусе."
-    if not await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng):
-        return None, "Точка подачи вне активных зон обслуживания."
-    if request.original_from_lat is None or request.original_from_lng is None:
-        request.original_from_address = request.from_address
-        request.original_from_lat = request.from_lat
-        request.original_from_lng = request.from_lng
-    request.from_address = from_address
-    request.from_lat = from_lat
-    request.from_lng = from_lng
-    request.pickup_changed_by_driver = True
-    request.pickup_notified_at = None
-    request.pickup_confirmed_at = None
-    await db_session.commit()
-    await db_session.refresh(request)
-    return request, None
+    from app.services.ride_route_update_service import PointUpdate, RouteChangeActor, update_ride_route_points
+
+    request, _result, error = await update_ride_route_points(
+        db_session,
+        request_id=request_id,
+        actor=RouteChangeActor.DRIVER,
+        driver_id=driver_id,
+        from_point=PointUpdate(address=from_address, lat=from_lat, lng=from_lng),
+    )
+    return request, error
 
 
 async def reset_driver_pickup_point(

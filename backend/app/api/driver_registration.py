@@ -14,11 +14,15 @@ from app.core.dependencies import get_db_session
 from app.core.i18n_text import normalize_user_info_text_i18n
 from app.models.admin_api_key import AdminApiRole
 from app.models.user import User
+from app.api.driver_portal import DriverSessionOut, _to_driver_session_out
 from app.services.driver_notification_service import (
     notify_driver_application_approved,
     notify_driver_application_rejected,
     notify_driver_application_submitted,
 )
+from app.services.driver_service import get_driver_by_user_id, touch_driver_online
+from app.services.driver_session_service import apply_driver_session_cookie
+from app.services.telegram_app_links import build_driver_cabinet_enter_url
 from app.services.driver_registration_service import (
     MAX_FILE_SIZE_BYTES,
     approve_application,
@@ -269,6 +273,28 @@ async def get_my_driver_application(
     return await _application_out(db_session, application)
 
 
+@router.post("/driver-access/bootstrap", response_model=DriverSessionOut)
+async def bootstrap_driver_access(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    driver = await get_driver_by_user_id(db_session, user_id=current_user.user_id)
+    if driver is None:
+        raise HTTPException(status_code=403, detail="Driver profile not found.")
+    driver = await touch_driver_online(db_session, driver_id=driver.id)
+    if driver is None:
+        raise HTTPException(status_code=403, detail="Driver profile not found.")
+    apply_driver_session_cookie(response, driver_id=driver.id)
+    return await _to_driver_session_out(
+        db_session,
+        driver_id=driver.id,
+        name=driver.name,
+        can_sell_points=driver.can_sell_points,
+        can_self_assign=driver.can_self_assign,
+    )
+
+
 @router.get("/applications", response_model=ApplicationPage)
 async def list_driver_applications(
     status: str | None = Query(default=None),
@@ -312,7 +338,7 @@ async def approve_driver_application(
     session=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    application, raw_key = await approve_application(
+    application, raw_key, login_token = await approve_application(
         db_session,
         application_id=application_id,
         reviewed_by=session.admin_key_id,
@@ -320,7 +346,7 @@ async def approve_driver_application(
     await notify_driver_application_approved(
         user_id=application.user_id,
         language=application.language,
-        key=raw_key,
+        enter_url=build_driver_cabinet_enter_url(login_token),
     )
     return ApplicationApproveResult(
         application=await _application_out(db_session, application),

@@ -47,6 +47,7 @@ export {
   uploadMapMarkPhoto,
   uploadDriverPhoto,
   assignDriverBulk,
+  patchAdminRideRoute,
 } from '../infrastructure/api/adminApi'
 
 export {
@@ -55,6 +56,7 @@ export {
   getDriverCabinet,
   claimDriverRide,
   getDriverMapData,
+  bootstrapDriverAccess,
   getDriverSession,
   issueDriverQrSale,
   loginDriverByKey,
@@ -66,6 +68,7 @@ export {
   setDriverOnlineStatus,
   setDriverRideStatus,
   updateDriverRidePickup,
+  updateDriverRideRoute,
 } from '../infrastructure/api/driverApi'
 
 export {

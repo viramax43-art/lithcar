@@ -16,7 +16,7 @@ interface DriverMapProps {
   driverLocation: LatLng | null
   mapInsetTop?: number
   onSelectPoint: (point: DriverMapPoint) => void
-  onPickupDragEnd: (rideId: string, latlng: LatLng) => void
+  onPointDragEnd: (rideId: string, pointType: 'pickup' | 'dropoff', latlng: LatLng) => void
   onMapMarkViewModeChange?: (isViewing: boolean) => void
 }
 
@@ -140,7 +140,7 @@ export default function DriverMap({
   driverLocation,
   mapInsetTop,
   onSelectPoint,
-  onPickupDragEnd,
+  onPointDragEnd,
   onMapMarkViewModeChange,
 }: DriverMapProps) {
   const { t } = useTranslation()
@@ -286,7 +286,7 @@ export default function DriverMap({
             dragend: (e) => {
               const m = e.target as L.Marker
               const pos = m.getLatLng()
-              onPickupDragEnd(pt.rideId, { lat: pos.lat, lng: pos.lng })
+              onPointDragEnd(pt.rideId, pt.pointType, { lat: pos.lat, lng: pos.lng })
             },
           }}
         />

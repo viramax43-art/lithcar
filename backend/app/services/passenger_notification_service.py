@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import html
 import logging
-from datetime import timezone
 
 from aiogram import Bot
+from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from app.bot.datetime_format import format_bot_date_time_html
 from app.bot.i18n import t
 from app.core.config import settings
 from app.db import async_session_factory
@@ -61,7 +63,7 @@ async def _send_to_passenger(*, passenger_id: str, text: str) -> None:
         return
     try:
         async with Bot(token=settings.bot_token) as bot:
-            await bot.send_message(chat_id=chat_id, text=text)
+            await bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
     except Exception:
         logger.exception("Failed to deliver passenger Telegram notification.")
 
@@ -73,16 +75,11 @@ async def _send_pickup_point(*, passenger_id: str, request: RideRequest) -> None
     if chat_id is None:
         return
     try:
-        lang = await _resolve_lang(passenger_id)
         async with Bot(token=settings.bot_token) as bot:
             await bot.send_location(
                 chat_id=chat_id,
                 latitude=request.from_lat,
                 longitude=request.from_lng,
-            )
-            await bot.send_message(
-                chat_id=chat_id,
-                text=f"{t('notif.pickup', lang)}: {request.from_address}",
             )
     except Exception:
         logger.exception("Failed to deliver passenger pickup location.")
@@ -90,38 +87,39 @@ async def _send_pickup_point(*, passenger_id: str, request: RideRequest) -> None
 
 def _build_message(status: str, *, request: RideRequest, driver: Driver | None, lang: str) -> str | None:
     """Возвращает текст уведомления для конкретного статуса или None, если уведомлять не нужно."""
-    ride_dt = request.date_time.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M")
 
     if status == "assigned":
         if driver is None:
             return None
+        pickup = html.escape(request.from_address)
         return (
-            f"{t('notif.assigned', lang)}\n\n"
-            f"{_driver_card(driver)}\n\n"
-            f"📍 {t('notif.pickup', lang)}: {request.from_address}\n"
-            f"🕐 {t('notif.time', lang)}: {ride_dt} UTC"
+            f"{html.escape(t('notif.assigned', lang))}\n\n"
+            f"{html.escape(_driver_card(driver))}\n\n"
+            f"📍 {html.escape(t('notif.pickup', lang))}: {pickup}\n"
+            f"{format_bot_date_time_html(request.date_time, lang)}"
         )
 
     if status == "en_route_to_pickup":
-        base = t("notif.en_route", lang)
+        base = html.escape(t("notif.en_route", lang))
         if driver:
-            base += f"\n\n{_driver_card(driver)}"
+            base += f"\n\n{html.escape(_driver_card(driver))}"
         return base
 
     if status == "awaiting_passenger":
-        base = t("notif.awaiting", lang)
+        base = html.escape(t("notif.awaiting", lang))
         if driver:
-            base += f"\n\n{_driver_card(driver)}"
+            base += f"\n\n{html.escape(_driver_card(driver))}"
         return base
 
     if status == "in_progress":
-        return t("notif.in_progress", lang)
+        return html.escape(t("notif.in_progress", lang))
 
     if status == "completed":
+        route = html.escape(f"{request.from_address} → {request.to_address}")
         return (
-            f"{t('notif.completed', lang)}\n\n"
-            f"{t('notif.route', lang)}: {request.from_address} → {request.to_address}\n\n"
-            f"{t('notif.thanks', lang)}"
+            f"{html.escape(t('notif.completed', lang))}\n\n"
+            f"{html.escape(t('notif.route', lang))}: {route}\n\n"
+            f"{html.escape(t('notif.thanks', lang))}"
         )
 
     return None
@@ -136,11 +134,11 @@ async def notify_passenger_pickup_changed(*, request: RideRequest, driver: Drive
         return
 
     lang = await _resolve_lang(request.passenger_id)
-    text = f"{t('notif.pickup_changed', lang)}\n\n"
-    text += f"{t('notif.new_pickup', lang)}: {request.from_address}\n\n"
+    text = f"{html.escape(t('notif.pickup_changed', lang))}\n\n"
+    text += f"{html.escape(t('notif.new_pickup', lang))}: {html.escape(request.from_address)}\n\n"
     if driver:
-        text += f"{_driver_card(driver)}\n\n"
-    text += t("notif.pickup_confirm_prompt", lang)
+        text += f"{html.escape(_driver_card(driver))}\n\n"
+    text += html.escape(t("notif.pickup_confirm_prompt", lang))
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -162,6 +160,7 @@ async def notify_passenger_pickup_changed(*, request: RideRequest, driver: Drive
                 chat_id=chat_id,
                 text=text,
                 reply_markup=keyboard,
+                parse_mode=ParseMode.HTML,
             )
     except Exception:
         logger.exception("Failed to deliver passenger pickup-changed notification.")

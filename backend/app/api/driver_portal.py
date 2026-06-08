@@ -5,6 +5,7 @@ from datetime import datetime
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 from jose import JWTError
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -14,10 +15,9 @@ from app.core.app_timezone import to_app_local_iso
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.models.user import User
-from app.core.security import (
-    create_driver_session_token,
-    decode_driver_session_token,
-)
+from app.core.security import decode_driver_session_token
+from app.services.driver_login_token_service import redeem_driver_login_token
+from app.services.driver_session_service import apply_driver_session_cookie
 from app.services.driver_service import (
     get_driver,
     get_driver_by_raw_key,
@@ -52,9 +52,7 @@ from app.services.ride_request_service import (
     get_request,
     list_driver_requests,
     list_unassigned_rides,
-    mark_pickup_notified,
     reset_driver_pickup_point,
-    update_driver_pickup_point,
     update_driver_ride_status,
 )
 
@@ -118,6 +116,17 @@ class DriverPickupUpdate(BaseModel):
     fromAddress: str = Field(min_length=1)
     fromLat: float = Field(ge=-90, le=90)
     fromLng: float = Field(ge=-180, le=180)
+
+
+class DriverRoutePointUpdate(BaseModel):
+    address: str = Field(min_length=1)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class DriverRouteUpdate(BaseModel):
+    fromPoint: DriverRoutePointUpdate | None = None
+    toPoint: DriverRoutePointUpdate | None = None
 
 
 class DriverPointActionPayload(BaseModel):
@@ -428,7 +437,12 @@ def _build_driver_map_points(
             else:
                 point_status = _point_status_for(ride_status=ride.status, point_type=point_type)
                 recommended_order = order_base - 1 if is_pickup else order_base
-                can_edit = is_pickup and ride.status in {"assigned", "en_route_to_pickup"}
+                can_edit = ride.status in {
+                    "assigned",
+                    "en_route_to_pickup",
+                    "awaiting_passenger",
+                    "in_progress",
+                }
                 available_actions = _available_actions_for(
                     ride_status=ride.status, point_type=point_type
                 )
@@ -497,16 +511,7 @@ async def driver_login_with_key(
     if driver is None:
         raise HTTPException(status_code=404, detail="Driver profile not found.")
 
-    token = create_driver_session_token(driver_id=driver.id)
-    response.set_cookie(
-        key=settings.driver_session_cookie_name,
-        value=token,
-        max_age=settings.driver_session_ttl_hours * 3600,
-        httponly=True,
-        secure=settings.admin_session_cookie_secure,
-        samesite="lax",
-        path="/",
-    )
+    apply_driver_session_cookie(response, driver_id=driver.id)
     return await _to_driver_session_out(
         db_session,
         driver_id=driver.id,
@@ -514,6 +519,24 @@ async def driver_login_with_key(
         can_sell_points=driver.can_sell_points,
         can_self_assign=driver.can_self_assign,
     )
+
+
+@router.get("/session/enter/{token}")
+async def driver_login_with_magic_link(
+    token: str,
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    login_token = await redeem_driver_login_token(db_session, raw_token=token)
+    driver = await get_driver(db_session, driver_id=login_token.driver_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver profile not found.")
+    driver = await touch_driver_online(db_session, driver_id=driver.id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver profile not found.")
+    redirect_url = f"{settings.frontend_public_url.strip().rstrip('/')}/driver"
+    redirect = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+    apply_driver_session_cookie(redirect, driver_id=driver.id)
+    return redirect
 
 
 @router.post("/session/logout")
@@ -798,10 +821,10 @@ async def update_cabinet_ride_status(
         driver_id=session.driver_id,
         target_status=payload.status,
     )
-    if ride is None:
-        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
     driver = await get_driver(db_session, driver_id=session.driver_id)
     await notify_passenger_status_changed(
         request=ride,
@@ -857,10 +880,10 @@ async def update_cabinet_point_action(
         point_type=normalized_point_type,
         action=normalized_action,
     )
-    if ride is None:
-        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
 
     if previous_status is not None and previous_status != ride.status:
         driver = await get_driver(db_session, driver_id=session.driver_id)
@@ -879,18 +902,71 @@ async def update_cabinet_ride_pickup(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    ride, error = await update_driver_pickup_point(
+    from app.services.ride_route_update_service import (
+        PointUpdate,
+        RouteChangeActor,
+        apply_route_update_with_notifications,
+    )
+
+    ride, error = await apply_route_update_with_notifications(
         db_session,
         request_id=request_id,
+        actor=RouteChangeActor.DRIVER,
         driver_id=session.driver_id,
-        from_address=payload.fromAddress,
-        from_lat=payload.fromLat,
-        from_lng=payload.fromLng,
+        from_point=PointUpdate(
+            address=payload.fromAddress,
+            lat=payload.fromLat,
+            lng=payload.fromLng,
+        ),
     )
-    if ride is None:
-        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
+    return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
+
+
+@router.patch("/cabinet/rides/{request_id}/route", response_model=DriverRideOut)
+async def update_cabinet_ride_route(
+    request_id: str,
+    payload: DriverRouteUpdate,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    from app.services.ride_route_update_service import PointUpdate, RouteChangeActor, apply_route_update_with_notifications
+
+    if payload.fromPoint is None and payload.toPoint is None:
+        raise HTTPException(status_code=400, detail="At least one route point is required.")
+    from_point = (
+        PointUpdate(
+            address=payload.fromPoint.address,
+            lat=payload.fromPoint.lat,
+            lng=payload.fromPoint.lng,
+        )
+        if payload.fromPoint is not None
+        else None
+    )
+    to_point = (
+        PointUpdate(
+            address=payload.toPoint.address,
+            lat=payload.toPoint.lat,
+            lng=payload.toPoint.lng,
+        )
+        if payload.toPoint is not None
+        else None
+    )
+    ride, error = await apply_route_update_with_notifications(
+        db_session,
+        request_id=request_id,
+        actor=RouteChangeActor.DRIVER,
+        driver_id=session.driver_id,
+        from_point=from_point,
+        to_point=to_point,
+    )
+    if error is not None:
+        raise HTTPException(status_code=400, detail=error)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
@@ -905,10 +981,10 @@ async def reset_cabinet_ride_pickup(
         request_id=request_id,
         driver_id=session.driver_id,
     )
-    if ride is None:
-        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
@@ -918,17 +994,18 @@ async def notify_pickup_change(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    """Driver confirms the pickup change and triggers notification to the passenger."""
-    ride, error = await mark_pickup_notified(
-        db_session,
-        request_id=request_id,
-        driver_id=session.driver_id,
-    )
+    """Backward-compatible endpoint: notifications are sent automatically on route save."""
+    ride = await get_request(db_session, request_id=request_id)
     if ride is None:
-        raise HTTPException(status_code=404, detail=error or "Поездка не найдена.")
-    if error is not None:
-        raise HTTPException(status_code=400, detail=error)
-    from app.services.passenger_notification_service import notify_passenger_pickup_changed
-    driver = await get_driver(db_session, driver_id=session.driver_id)
-    await notify_passenger_pickup_changed(request=ride, driver=driver)
+        raise HTTPException(status_code=404, detail="Поездка не найдена.")
+    if ride.driver_id != session.driver_id:
+        raise HTTPException(status_code=400, detail="Эта поездка не назначена вам.")
+    if ride.pickup_changed_by_driver and ride.pickup_notified_at is None:
+        from app.services.passenger_notification_service import notify_passenger_pickup_changed
+        from app.services.ride_route_update_service import mark_driver_pickup_notified
+
+        driver = await get_driver(db_session, driver_id=session.driver_id)
+        await notify_passenger_pickup_changed(request=ride, driver=driver)
+        await mark_driver_pickup_notified(db_session, request_id=request_id)
+        ride = await get_request(db_session, request_id=request_id)
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)

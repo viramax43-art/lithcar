@@ -7,7 +7,6 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.i18n import t
 from app.core.config import settings
-from app.services.telegram_app_links import build_driver_cabinet_url
 from app.db import async_session_factory
 from app.services.user_service import get_user_by_id
 
@@ -63,16 +62,15 @@ async def notify_driver_application_submitted(*, user_id: str, language: str | N
     await _send_to_user(user_id=user_id, text=text)
 
 
-async def notify_driver_application_approved(*, user_id: str, language: str | None, key: str) -> None:
+async def notify_driver_application_approved(*, user_id: str, language: str | None, enter_url: str) -> None:
     lang = language or await _resolve_lang(user_id)
-    cabinet_link = build_driver_cabinet_url()
     template = t("driver.application.approved", lang)
-    text = template.replace("{key}", key).replace("{cabinet_link}", cabinet_link)
+    text = template.replace("{enter_url}", enter_url)
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(
                 text=t("driver.application.open_cabinet", lang),
-                url=cabinet_link,
+                url=enter_url,
             )],
         ]
     )

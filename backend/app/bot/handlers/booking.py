@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from datetime import date, datetime, time, timedelta, timezone
 
 from aiogram import F, Router
@@ -8,7 +9,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User as TgUser
 
+from app.bot.datetime_format import format_bot_date_time_html
 from app.bot.i18n import normalize_lang, t
+from app.core.app_timezone import normalize_app_datetime
 from app.bot.keyboards.booking import (
     confirm_keyboard,
     edit_keyboard,
@@ -50,7 +53,7 @@ def parse_manual_time(text: str) -> time | None:
 
 
 def combine_booking_datetime(*, ride_date: date, ride_time: time) -> datetime:
-    return datetime.combine(ride_date, ride_time).replace(tzinfo=timezone.utc)
+    return normalize_app_datetime(datetime.combine(ride_date, ride_time))
 
 
 def resolve_quick_time(*, ride_date: date, minutes: int) -> time:
@@ -110,14 +113,14 @@ async def _show_confirmation(message: Message, state: FSMContext):
     ride_datetime = get_selected_datetime(data)
     text = (
         f"{t('booking.confirm.title', lang)}\n\n"
-        f"{t('booking.pointA', lang)}: {data['from_address']}\n"
-        f"{t('booking.pointB', lang)}: {data['to_address']}\n"
-        f"{t('booking.datetime', lang)}: {ride_datetime.strftime('%d.%m.%Y %H:%M')} UTC\n\n"
+        f"{t('booking.pointA', lang)}: {html.escape(str(data['from_address']))}\n"
+        f"{t('booking.pointB', lang)}: {html.escape(str(data['to_address']))}\n"
+        f"{format_bot_date_time_html(ride_datetime, lang)}\n\n"
         f"{t('booking.cost', lang)}: {pricing.points_per_ride}\n"
         f"{t('booking.balance', lang)}: {int(user.points_balance or 0)}"
     )
     await state.set_state(BookingStates.confirming)
-    await message.answer(text, reply_markup=confirm_keyboard(lang))
+    await message.answer(text, reply_markup=confirm_keyboard(lang), parse_mode="HTML")
 
 
 @router.message(CommandStart())

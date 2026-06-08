@@ -179,6 +179,7 @@ async def test_driver_rates_passenger_and_cabinet_reflects(client, db_session):
     assert rate.status_code == 200
     assert rate.json()["rating"]["myScore"] == 3
 
+    await db_session.refresh(ctx["passenger"])
     user = await db_session.get(User, ctx["passenger"].user_id)
     assert user is not None
     assert user.rating == 3.0

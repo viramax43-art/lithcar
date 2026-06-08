@@ -279,6 +279,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Pickup",
         "ru": "Подача",
     },
+    "notif.date": {
+        "lt": "Data",
+        "pl": "Data",
+        "en": "Date",
+        "ru": "Дата",
+    },
     "notif.time": {
         "lt": "Laikas",
         "pl": "Czas",
@@ -339,6 +345,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Please confirm the new pickup point using the button below.",
         "ru": "Пожалуйста, подтвердите новую точку посадки кнопкой ниже.",
     },
+    "notif.dropoff": {
+        "lt": "Paskirtis",
+        "pl": "Cel",
+        "en": "Destination",
+        "ru": "Назначение",
+    },
+    "notif.dropoff_changed": {
+        "lt": "📍 Vairuotojas pakeite paskirties taska!",
+        "pl": "📍 Kierowca zmienil punkt docelowy!",
+        "en": "📍 Driver changed your destination!",
+        "ru": "📍 Водитель изменил точку назначения!",
+    },
+    "notif.route_changed_by_admin": {
+        "lt": "📍 Administratorius pakeite marsruto taska",
+        "pl": "📍 Administrator zmienil punkt trasy",
+        "en": "📍 Administrator changed a route point",
+        "ru": "📍 Администратор изменил точку маршрута",
+    },
+    "notif.route_changed_by_passenger": {
+        "lt": "📍 Keleivis pakeite marsruto taska",
+        "pl": "📍 Pasazer zmienil punkt trasy",
+        "en": "📍 Passenger changed a route point",
+        "ru": "📍 Пассажир изменил точку маршрута",
+    },
     "driver.application.submitted": {
         "lt": "✅ Jusu vairuotojo paraiška gauta ir perduota perziurai.",
         "pl": "✅ Twoje zgloszenie kierowcy zostalo przyjete i przekazane do weryfikacji.",
@@ -346,10 +376,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "✅ Ваша заявка водителя получена и отправлена на проверку.",
     },
     "driver.application.approved": {
-        "lt": "🎉 Sveikiname! Jusu paraiška patvirtinta.\n\n1) Atidarykite vairuotojo kabineta:\n{cabinet_link}\n\n2) Prisijunkite su raktu:\n{key}",
-        "pl": "🎉 Gratulacje! Twoje zgloszenie zostalo zatwierdzone.\n\n1) Otworz panel kierowcy:\n{cabinet_link}\n\n2) Zaloguj sie kluczem:\n{key}",
-        "en": "🎉 Congratulations! Your application has been approved.\n\n1) Open the driver cabinet:\n{cabinet_link}\n\n2) Sign in with your key:\n{key}",
-        "ru": "🎉 Поздравляем! Ваша заявка одобрена.\n\n1) Откройте кабинет водителя:\n{cabinet_link}\n\n2) Войдите по ключу:\n{key}",
+        "lt": "🎉 Sveikiname! Jusu paraiška patvirtinta.\n\nAtidarykite vairuotojo kabineta — prisijungimas bus automatinis:\n{enter_url}",
+        "pl": "🎉 Gratulacje! Twoje zgloszenie zostalo zatwierdzone.\n\nOtworz panel kierowcy — logowanie bedzie automatyczne:\n{enter_url}",
+        "en": "🎉 Congratulations! Your application has been approved.\n\nOpen the driver cabinet — you will be signed in automatically:\n{enter_url}",
+        "ru": "🎉 Поздравляем! Ваша заявка одобрена.\n\nОткройте кабинет водителя — вход будет автоматическим:\n{enter_url}",
     },
     "driver.application.open_cabinet": {
         "lt": "🚗 Vairuotojo kabinetas",

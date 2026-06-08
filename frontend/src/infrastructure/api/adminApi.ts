@@ -21,6 +21,21 @@ export async function listAdminRequests(status: string, params?: PaginationParam
   return { items: page.items.map(mapRideRequest), total: page.total, limit: page.limit, offset: page.offset }
 }
 
+export async function patchAdminRideRoute(
+  requestId: string,
+  payload: {
+    fromPoint?: { address: string; latlng: { lat: number; lng: number } }
+    toPoint?: { address: string; latlng: { lat: number; lng: number } }
+  },
+): Promise<RideRequest> {
+  const updated = await apiRequest<RideRequestApi>(`/api/ride-requests/${requestId}/route`, {
+    method: 'PATCH',
+    body: payload,
+    authMode: 'cookie',
+  })
+  return mapRideRequest(updated)
+}
+
 export async function assignDriverBulk(
   requestIds: string[],
   driverId: string,

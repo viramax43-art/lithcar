@@ -21,7 +21,7 @@ import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatRideDateTime } from '../../i18n/dateTime'
-import { openDriverCabinetInBrowser } from '../../lib/driverPortal'
+import { enterDriverCabinet } from '../../lib/driverPortal'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
@@ -53,8 +53,25 @@ export default function Profile() {
   const [lastReceipt, setLastReceipt] = useState<RedeemReceipt | null>(null)
   const [lastCardReceipt, setLastCardReceipt] = useState<CardReceipt | null>(null)
   const [driverApplication, setDriverApplication] = useState<DriverApplication | null | undefined>(undefined)
+  const [isEnteringDriverCabinet, setIsEnteringDriverCabinet] = useState(false)
 
   const historyPageSize = 20
+
+  const handleOpenDriverCabinet = async () => {
+    setIsEnteringDriverCabinet(true)
+    setErrorMessage(null)
+    try {
+      await enterDriverCabinet(navigate)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : t('profile.becomeDriver.openCabinetFailed', { defaultValue: 'Failed to open driver cabinet.' }),
+      )
+    } finally {
+      setIsEnteringDriverCabinet(false)
+    }
+  }
 
   const loadCabinet = async (offset: number, append: boolean) => {
     if (append) setIsHistoryLoading(true)
@@ -274,10 +291,13 @@ export default function Profile() {
               </div>
               <button
                 type="button"
-                onClick={() => openDriverCabinetInBrowser()}
-                className="w-full h-10 rounded-pill bg-black text-white text-xs font-bold"
+                onClick={() => void handleOpenDriverCabinet()}
+                disabled={isEnteringDriverCabinet}
+                className="w-full h-10 rounded-pill bg-black text-white text-xs font-bold disabled:opacity-60"
               >
-                {t('profile.becomeDriver.openCabinet')}
+                {isEnteringDriverCabinet
+                  ? t('profile.becomeDriver.openingCabinet', { defaultValue: 'Opening...' })
+                  : t('profile.becomeDriver.openCabinet')}
               </button>
             </div>
           )}

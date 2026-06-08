@@ -21,12 +21,11 @@ import {
   getDriverSession,
   loginDriverByKey,
   logoutDriverSession,
-  notifyPickupChange,
   rateRideAsDriver,
   resetDriverRidePickup,
   sendDriverLocation,
   setDriverOnlineStatus,
-  updateDriverRidePickup,
+  updateDriverRideRoute,
   type DriverSessionUser,
 } from '../../lib/backend'
 import { reverseGeocode } from '../../lib/geocode'
@@ -153,20 +152,16 @@ function LoginScreen({ onLogin }: { onLogin: (s: DriverSessionUser) => void }) {
 function NextStopBar({
   point,
   isActioning,
-  isNotifying,
   isResetting,
   onOpenSheet,
   onQuickAction,
-  onNotifyPickup,
   onResetPickup,
 }: {
   point: DriverMapPoint
   isActioning: boolean
-  isNotifying: boolean
   isResetting: boolean
   onOpenSheet: () => void
   onQuickAction: () => void
-  onNotifyPickup: () => void
   onResetPickup: () => void
 }) {
   const { t } = useTranslation()
@@ -176,7 +171,6 @@ function NextStopBar({
   const isPickup = point.pointType === 'pickup'
   const pointColor = point.pointStatus === 'done' ? '#16A34A' : isPickup ? '#EF4444' : '#3B82F6'
   const showPickupQuickActions = isPickup && point.pickupChangedByDriver
-  const canNotifyPickup = showPickupQuickActions && !point.pickupNotifiedAt
 
   const isGreen = ['awaiting_passenger', 'in_progress'].some((s) =>
     (isPickup && s === 'awaiting_passenger' && point.rideStatus === 'awaiting_passenger') ||
@@ -246,26 +240,15 @@ function NextStopBar({
         )}
       </div>
       {showPickupQuickActions && (
-        <div className="px-4 pb-3 flex items-center gap-2.5">
+        <div className="px-4 pb-3">
           <button
             onClick={onResetPickup}
             disabled={isResetting}
-            className="flex-1 h-11 rounded-xl border border-border bg-surface text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+            className="w-full h-11 rounded-xl border border-border bg-surface text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
             {isResetting
               ? t('common.resetting', { defaultValue: 'Resetting...' })
               : t('common.reset', { defaultValue: 'Reset' })}
-          </button>
-          <button
-            onClick={onNotifyPickup}
-            disabled={isNotifying || !canNotifyPickup}
-            className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
-          >
-            {isNotifying
-              ? t('common.sending', { defaultValue: 'Sending...' })
-              : canNotifyPickup
-                ? t('driver.notifyPassenger', { defaultValue: 'Notify passenger' })
-                : t('driver.alreadyNotified', { defaultValue: 'Already notified' })}
           </button>
         </div>
       )}
@@ -283,7 +266,6 @@ export default function DriverCabinet() {
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null)
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [isActioning, setIsActioning] = useState(false)
-  const [isNotifying, setIsNotifying] = useState(false)
   const [isResettingPickup, setIsResettingPickup] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
@@ -506,23 +488,6 @@ export default function DriverCabinet() {
     void performAction(nextPoint, action)
   }
 
-  const handleNotifyPickup = async () => {
-    const point = selectedPoint ?? nextPoint
-    if (!point) return
-    setIsNotifying(true)
-    setErrorMessage(null)
-    try {
-      await notifyPickupChange(point.rideId)
-      hapticImpact('medium')
-      await loadMapData()
-    } catch (err) {
-      hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : t('errors.notifyPassengerFailed', { defaultValue: 'Failed to notify passenger.' }))
-    } finally {
-      setIsNotifying(false)
-    }
-  }
-
   const handleClaimRide = async () => {
     if (!selectedAvailableRideId) return
     setIsClaiming(true)
@@ -567,7 +532,7 @@ export default function DriverCabinet() {
     }
   }
 
-  const handlePickupDragEnd = async (rideId: string, latlng: LatLng) => {
+  const handlePointDragEnd = async (rideId: string, pointType: 'pickup' | 'dropoff', latlng: LatLng) => {
     setErrorMessage(null)
     let address = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`
     try {
@@ -575,12 +540,20 @@ export default function DriverCabinet() {
       if (resolved) address = resolved
     } catch { /* fallback */ }
     try {
-      await updateDriverRidePickup(rideId, address, latlng.lat, latlng.lng)
+      const point = { address, lat: latlng.lat, lng: latlng.lng }
+      await updateDriverRideRoute(
+        rideId,
+        pointType === 'pickup' ? { fromPoint: point } : { toPoint: point },
+      )
       hapticImpact('light')
       await loadMapData()
     } catch (err) {
       hapticNotification('error')
-      setErrorMessage(err instanceof Error ? err.message : t('errors.updatePickupFailed', { defaultValue: 'Failed to update pickup point.' }))
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : t('errors.updateRouteFailed', { defaultValue: 'Failed to update route point.' }),
+      )
     }
   }
 
@@ -627,7 +600,7 @@ export default function DriverCabinet() {
           driverLocation={driverLocation}
           mapInsetTop={mapInsetTop}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
-          onPickupDragEnd={(rideId, latlng) => void handlePickupDragEnd(rideId, latlng)}
+          onPointDragEnd={(rideId, pointType, latlng) => void handlePointDragEnd(rideId, pointType, latlng)}
           onMapMarkViewModeChange={setIsMapMarkViewMode}
         />
       </div>
@@ -743,10 +716,8 @@ export default function DriverCabinet() {
         <DriverPointSheet
           point={selectedPoint}
           isActioning={isActioning}
-          isNotifying={isNotifying}
           onClose={() => setSelectedPointId(null)}
           onAction={handleAction}
-          onNotifyPickup={() => void handleNotifyPickup()}
         />
       )}
 
@@ -764,11 +735,9 @@ export default function DriverCabinet() {
         <NextStopBar
           point={nextPoint}
           isActioning={isActioning}
-          isNotifying={isNotifying}
           isResetting={isResettingPickup}
           onOpenSheet={() => setSelectedPointId(nextPoint.id)}
           onQuickAction={handleNextStopQuickAction}
-          onNotifyPickup={() => void handleNotifyPickup()}
           onResetPickup={() => void handleResetPickup()}
         />
       )}

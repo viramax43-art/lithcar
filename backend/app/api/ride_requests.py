@@ -39,6 +39,11 @@ from app.services.ride_request_service import (
     update_ride_request,
     update_request_status,
 )
+from app.services.ride_route_update_service import (
+    PointUpdate,
+    RouteChangeActor,
+    apply_route_update_with_notifications,
+)
 
 
 router = APIRouter(prefix="/ride-requests")
@@ -97,6 +102,11 @@ class RideRequestUpdate(BaseModel):
     fromPoint: RoutePoint | None = None
     toPoint: RoutePoint | None = None
     dateTime: datetime | None = None
+
+
+class RideRouteUpdate(BaseModel):
+    fromPoint: RoutePoint | None = None
+    toPoint: RoutePoint | None = None
 
 
 class RideRequestOut(BaseModel):
@@ -470,23 +480,112 @@ async def patch_request(
     is_owner = request.passenger_id == current_user.user_id
     if not is_admin_user and not is_owner:
         raise HTTPException(status_code=403, detail="Access denied.")
-    if is_owner and not is_admin_user and request.status != "pending":
-        raise HTTPException(status_code=400, detail="Only pending requests can be edited by passenger.")
-    try:
-        updated = await update_ride_request(
+
+    is_route_edit = payload.fromPoint is not None or payload.toPoint is not None
+    is_meta_edit = (
+        payload.passengerName is not None
+        or payload.dateTime is not None
+    )
+    if is_owner and not is_admin_user:
+        if is_meta_edit and request.status != "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="Only pending requests can be edited by passenger.",
+            )
+        if is_route_edit and request.status == "completed":
+            raise HTTPException(status_code=400, detail="Completed rides cannot be edited.")
+
+    updated = request
+    if is_route_edit:
+        from_point = (
+            PointUpdate(
+                address=payload.fromPoint.address,
+                lat=payload.fromPoint.latlng.lat,
+                lng=payload.fromPoint.latlng.lng,
+            )
+            if payload.fromPoint is not None
+            else None
+        )
+        to_point = (
+            PointUpdate(
+                address=payload.toPoint.address,
+                lat=payload.toPoint.latlng.lat,
+                lng=payload.toPoint.latlng.lng,
+            )
+            if payload.toPoint is not None
+            else None
+        )
+        actor = RouteChangeActor.ADMIN if is_admin_user else RouteChangeActor.PASSENGER
+        updated, route_error = await apply_route_update_with_notifications(
             db_session,
             request_id=request_id,
-            passenger_name=payload.passengerName,
-            from_address=payload.fromPoint.address if payload.fromPoint else None,
-            from_lat=payload.fromPoint.latlng.lat if payload.fromPoint else None,
-            from_lng=payload.fromPoint.latlng.lng if payload.fromPoint else None,
-            to_address=payload.toPoint.address if payload.toPoint else None,
-            to_lat=payload.toPoint.latlng.lat if payload.toPoint else None,
-            to_lng=payload.toPoint.latlng.lng if payload.toPoint else None,
-            date_time=payload.dateTime,
+            actor=actor,
+            passenger_id=current_user.user_id if actor == RouteChangeActor.PASSENGER else None,
+            from_point=from_point,
+            to_point=to_point,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if route_error is not None:
+            raise HTTPException(status_code=400, detail=route_error)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Ride request not found.")
+
+    if is_meta_edit:
+        if is_owner and not is_admin_user and request.status != "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="Only pending requests can be edited by passenger.",
+            )
+        try:
+            updated = await update_ride_request(
+                db_session,
+                request_id=request_id,
+                passenger_name=payload.passengerName,
+                date_time=payload.dateTime,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Ride request not found.")
+
+    return _to_ride_request_out(updated)
+
+
+@router.patch("/{request_id}/route", response_model=RideRequestOut)
+async def patch_request_route_admin(
+    request_id: str,
+    payload: RideRouteUpdate,
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN, AdminApiRole.MODERATOR)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    if payload.fromPoint is None and payload.toPoint is None:
+        raise HTTPException(status_code=400, detail="At least one route point is required.")
+    from_point = (
+        PointUpdate(
+            address=payload.fromPoint.address,
+            lat=payload.fromPoint.latlng.lat,
+            lng=payload.fromPoint.latlng.lng,
+        )
+        if payload.fromPoint is not None
+        else None
+    )
+    to_point = (
+        PointUpdate(
+            address=payload.toPoint.address,
+            lat=payload.toPoint.latlng.lat,
+            lng=payload.toPoint.latlng.lng,
+        )
+        if payload.toPoint is not None
+        else None
+    )
+    updated, route_error = await apply_route_update_with_notifications(
+        db_session,
+        request_id=request_id,
+        actor=RouteChangeActor.ADMIN,
+        from_point=from_point,
+        to_point=to_point,
+    )
+    if route_error is not None:
+        raise HTTPException(status_code=400, detail=route_error)
     if updated is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
     return _to_ride_request_out(updated)

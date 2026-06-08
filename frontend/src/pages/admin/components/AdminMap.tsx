@@ -34,6 +34,7 @@ interface AdminMapProps {
   onSelectRequest: (requestId: string | null) => void
   onSelectDriver: (driverId: string) => void
   onOpenAssignModal: (requestIds: string[]) => void
+  onOpenEditRoute: (requestId: string) => void
   onDrawPoint: (latlng: LatLng) => void
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
@@ -124,6 +125,7 @@ export default function AdminMap({
   onSelectRequest,
   onSelectDriver,
   onOpenAssignModal,
+  onOpenEditRoute,
   onDrawPoint,
   sidebarCollapsed,
   onToggleSidebar,
@@ -1411,16 +1413,24 @@ export default function AdminMap({
             )}
           </div>
 
-          {!selectedReq.driverId && (
-            <div className="px-4 pb-4">
+          <div className="px-4 pb-4 space-y-2">
+            {selectedReq.status !== 'completed' && (
+              <button
+                onClick={() => onOpenEditRoute(selectedReq.id)}
+                className="w-full py-2.5 border border-border bg-white rounded-xl text-xs font-bold transition-all active:scale-[0.97]"
+              >
+                {t('admin.editRoute.title', { defaultValue: 'Edit route' })}
+              </button>
+            )}
+            {!selectedReq.driverId && (
               <button
                 onClick={() => onOpenAssignModal([selectedReq.id])}
                 className="w-full py-2.5 bg-black text-white rounded-xl text-xs font-bold transition-all active:scale-[0.97]"
               >
                 {t('admin.requests.assignDriver')}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </main>
