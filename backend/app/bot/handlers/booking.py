@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot.datetime_format import format_bot_date_time_html
 from app.bot.i18n import normalize_lang, t
-from app.core.app_timezone import normalize_app_datetime
+from app.core.app_timezone import normalize_app_datetime, to_app_local
 from app.bot.keyboards.booking import (
     confirm_keyboard,
     edit_keyboard,
@@ -57,9 +57,9 @@ def combine_booking_datetime(*, ride_date: date, ride_time: time) -> datetime:
 
 
 def resolve_quick_time(*, ride_date: date, minutes: int) -> time:
-    now = datetime.now(timezone.utc)
-    base = datetime.combine(ride_date, now.time()).replace(tzinfo=timezone.utc)
-    return (base + timedelta(minutes=minutes)).time().replace(second=0, microsecond=0)
+    _ = ride_date
+    target_local = to_app_local(datetime.now(timezone.utc)) + timedelta(minutes=minutes)
+    return target_local.time().replace(second=0, microsecond=0)
 
 
 def get_selected_datetime(data: dict) -> datetime:

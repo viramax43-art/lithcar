@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import { formatDateTime } from '../../../i18n/dateTime'
+import { formatRideDateTime } from '../../../i18n/dateTime'
+import { matchesPeriodFilter } from '../../../lib/periodFilter'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 
@@ -56,33 +57,12 @@ export function AdminSidebarRequestsSuggestionsSection({
   }
 
   const requestsInDateTimeWindow = useMemo(() => {
-    return requests.filter((request) => {
-      const reqDate = new Date(request.dateTime)
-
-      if (filterDate) {
-        const startDate = new Date(`${filterDate}T00:00:00`)
-        const endDate = filterDateEnd
-          ? new Date(`${filterDateEnd}T23:59:59`)
-          : new Date(`${filterDate}T23:59:59`)
-        if (reqDate < startDate || reqDate > endDate) return false
-      }
-
-      if (filterTime || filterTimeEnd) {
-        const reqMinutes = reqDate.getHours() * 60 + reqDate.getMinutes()
-        if (filterTime) {
-          const [startH, startM] = filterTime.split(':').map(Number)
-          const startMinutes = startH * 60 + startM
-          if (reqMinutes < startMinutes) return false
-        }
-        if (filterTimeEnd) {
-          const [endH, endM] = filterTimeEnd.split(':').map(Number)
-          const endMinutes = endH * 60 + endM
-          if (reqMinutes > endMinutes) return false
-        }
-      }
-
-      return true
-    })
+    return requests.filter((request) =>
+      matchesPeriodFilter(
+        { dateTime: request.dateTime, dateTimeLocal: request.dateTimeLocal },
+        { filterDate, filterDateEnd, filterTime, filterTimeEnd },
+      ),
+    )
   }, [requests, filterDate, filterDateEnd, filterTime, filterTimeEnd])
 
   const filteredRequests = useMemo(() => {
@@ -219,7 +199,7 @@ export function AdminSidebarRequestsSuggestionsSection({
               <div className="mt-2.5 pt-2.5 border-t border-border flex items-center justify-between">
                 <span className="text-[11px] text-muted flex items-center gap-1.5">
                   <Clock size={11} />
-                  {formatDateTime(new Date(request.dateTime), {
+                  {formatRideDateTime(request, {
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',

@@ -1,4 +1,5 @@
 import i18n from '../../../i18n'
+import { rideSlotKey } from '../../../lib/periodFilter'
 import type { RideRequest } from '../../../types'
 import { getDistanceDurationMatrix, type DistanceDurationMatrix } from '../../../lib/osrm'
 
@@ -32,16 +33,6 @@ export interface SimilarTripGroup {
 
 export interface SimilarTripBuildDeps {
   getMatrix?: (points: Array<{ lat: number; lng: number }>) => Promise<DistanceDurationMatrix>
-}
-
-function toSlotKey(dateTime: string, slotStepMinutes: number): string {
-  const value = new Date(dateTime)
-  const yyyy = value.getFullYear()
-  const mm = String(value.getMonth() + 1).padStart(2, '0')
-  const dd = String(value.getDate()).padStart(2, '0')
-  const minutes = value.getHours() * 60 + value.getMinutes()
-  const slotIndex = Math.floor(minutes / slotStepMinutes)
-  return `${yyyy}-${mm}-${dd}:${slotIndex}`
 }
 
 function permutations<T>(items: T[]): T[][] {
@@ -146,7 +137,10 @@ export async function buildSimilarTripGroups(
 
   const bySlot = new Map<string, RideRequest[]>()
   requests.forEach((r) => {
-    const key = toSlotKey(r.dateTime, slotStepMinutes)
+    const key = rideSlotKey(
+      { dateTime: r.dateTime, dateTimeLocal: r.dateTimeLocal },
+      slotStepMinutes,
+    )
     const bucket = bySlot.get(key) ?? []
     bucket.push(r)
     bySlot.set(key, bucket)

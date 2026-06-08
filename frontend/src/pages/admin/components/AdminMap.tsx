@@ -8,7 +8,8 @@ import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZo
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
-import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { formatRideDate, formatRideTime, formatTime } from '../../../i18n/dateTime'
+import { getAppLocalDayOptions, matchesPeriodFilter } from '../../../lib/periodFilter'
 import { createMapMark, deleteMapMark, listMapMarks, uploadMapMarkPhoto } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
@@ -18,12 +19,6 @@ import AdminRouteEditBar from './AdminRouteEditBar'
 import { getRouteEditMarkerIcon, type RideDraft } from './AssignDriverModalParts'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
-
-const toDateInputValue = (value: Date): string =>
-  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
-
-const toTimeInputValue = (value: Date): string =>
-  `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
 
 interface AdminMapProps {
   requests: RideRequest[]
@@ -194,35 +189,12 @@ export default function AdminMap({
 
   // --- Date/time filtering ---
   const filteredRequests = useMemo(() => {
-    return requests.filter((req) => {
-      const reqDate = new Date(req.dateTime)
-      // Date filter
-      if (filterDate) {
-        const startDate = new Date(filterDate + 'T00:00:00')
-        if (filterDateEnd) {
-          const endDate = new Date(filterDateEnd + 'T23:59:59')
-          if (reqDate < startDate || reqDate > endDate) return false
-        } else {
-          const endOfDay = new Date(filterDate + 'T23:59:59')
-          if (reqDate < startDate || reqDate > endOfDay) return false
-        }
-      }
-      // Time filter (manual from-to range)
-      if (filterTime || filterTimeEnd) {
-        const reqMinutes = reqDate.getHours() * 60 + reqDate.getMinutes()
-        if (filterTime) {
-          const [startH, startM] = filterTime.split(':').map(Number)
-          const startMinutes = startH * 60 + startM
-          if (reqMinutes < startMinutes) return false
-        }
-        if (filterTimeEnd) {
-          const [endH, endM] = filterTimeEnd.split(':').map(Number)
-          const endMinutes = endH * 60 + endM
-          if (reqMinutes > endMinutes) return false
-        }
-      }
-      return true
-    })
+    return requests.filter((req) =>
+      matchesPeriodFilter(
+        { dateTime: req.dateTime, dateTimeLocal: req.dateTimeLocal },
+        { filterDate, filterDateEnd, filterTime, filterTimeEnd },
+      ),
+    )
   }, [requests, filterDate, filterDateEnd, filterTime, filterTimeEnd])
 
   // Separate completed (green history) from active
@@ -257,11 +229,10 @@ export default function AdminMap({
     : null
   const status = selectedReq ? STATUS_CONFIG[selectedReq.status] ?? STATUS_CONFIG.pending : null
 
-  const dt = selectedReq ? new Date(selectedReq.dateTime) : null
-  const dateStr = dt
-    ? formatDate(dt, { day: 'numeric', month: 'long' })
+  const dateStr = selectedReq
+    ? formatRideDate(selectedReq, { day: 'numeric', month: 'long' })
     : ''
-  const timeStr = dt ? formatTime(dt, { hour: '2-digit', minute: '2-digit' }) : ''
+  const timeStr = selectedReq ? formatRideTime(selectedReq) : ''
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -605,18 +576,7 @@ export default function AdminMap({
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
-  const dayOptions = useMemo(() => {
-    const now = new Date()
-    const tomorrow = new Date(now)
-    tomorrow.setDate(now.getDate() + 1)
-    const dayAfterTomorrow = new Date(now)
-    dayAfterTomorrow.setDate(now.getDate() + 2)
-    return {
-      today: toDateInputValue(now),
-      tomorrow: toDateInputValue(tomorrow),
-      dayAfterTomorrow: toDateInputValue(dayAfterTomorrow),
-    }
-  }, [])
+  const dayOptions = useMemo(() => getAppLocalDayOptions(), [])
 
   const applySingleDay = useCallback((dayValue: string) => {
     onFilterDateChange(dayValue)

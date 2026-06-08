@@ -42,9 +42,11 @@ import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDr
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
+import { getDefaultPeriodFilter } from '../../lib/periodFilter'
 import { GROUP_COLORS, MAP_COLOR_GROUPS, ZONE_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
+const DEFAULT_PERIOD_FILTER = getDefaultPeriodFilter()
 
 export default function AdminDashboard() {
   const { t } = useTranslation()
@@ -67,21 +69,16 @@ export default function AdminDashboard() {
   const [lastCreatedAdminKey, setLastCreatedAdminKey] = useState<string | null>(null)
   const [rotatedAdminKeys, setRotatedAdminKeys] = useState<Record<string, string>>({})
 
-  const now = new Date()
-  const toDateInput = (value: Date) =>
-    `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
-  const todayDate = toDateInput(now)
-
   const [filterStatus, setFilterStatus] = useState('pending')
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [filterDate, setFilterDate] = useState<string>(() => todayDate)
-  const [filterDateEnd, setFilterDateEnd] = useState<string>(() => todayDate)
-  const [filterTime, setFilterTime] = useState<string>(() => '00:00')
-  const [filterTimeEnd, setFilterTimeEnd] = useState<string>(() => '23:59')
+  const [filterDate, setFilterDate] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterDate)
+  const [filterDateEnd, setFilterDateEnd] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterDateEnd)
+  const [filterTime, setFilterTime] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterTime)
+  const [filterTimeEnd, setFilterTimeEnd] = useState<string>(() => DEFAULT_PERIOD_FILTER.filterTimeEnd)
   const [enabledColors, setEnabledColors] = useState<Set<MapColorGroupKey>>(
     () => new Set(MAP_COLOR_GROUPS.map((g) => g.key)),
   )

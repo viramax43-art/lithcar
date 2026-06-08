@@ -372,22 +372,18 @@ export default function DriverCabinet() {
   const availablePoints = mapData?.availablePoints ?? []
 
   const visiblePoints = useMemo(
-    () => points.filter((p) => matchesPeriodFilter(p.dateTime, {
-      filterDate,
-      filterDateEnd,
-      filterTime,
-      filterTimeEnd,
-    })),
+    () => points.filter((p) => matchesPeriodFilter(
+      { dateTime: p.dateTime, dateTimeLocal: p.dateTimeLocal },
+      { filterDate, filterDateEnd, filterTime, filterTimeEnd },
+    )),
     [points, filterDate, filterDateEnd, filterTime, filterTimeEnd],
   )
 
   const visibleAvailablePoints = useMemo(
-    () => availablePoints.filter((p) => matchesPeriodFilter(p.dateTime, {
-      filterDate,
-      filterDateEnd,
-      filterTime,
-      filterTimeEnd,
-    })),
+    () => availablePoints.filter((p) => matchesPeriodFilter(
+      { dateTime: p.dateTime, dateTimeLocal: p.dateTimeLocal },
+      { filterDate, filterDateEnd, filterTime, filterTimeEnd },
+    )),
     [availablePoints, filterDate, filterDateEnd, filterTime, filterTimeEnd],
   )
 

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Calendar, CaretDown, CaretUp, Clock } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import { toDateInputValue, type PeriodFilterState } from '../../../lib/periodFilter'
+import { getAppLocalDayOptions, type PeriodFilterState } from '../../../lib/periodFilter'
 
 export interface DriverMapPeriodFilterProps extends PeriodFilterState {
   pointCount: number
@@ -50,18 +50,7 @@ export default function DriverMapPeriodFilter({
     [onExpandedChange],
   )
 
-  const dayOptions = useMemo(() => {
-    const now = new Date()
-    const tomorrow = new Date(now)
-    tomorrow.setDate(now.getDate() + 1)
-    const dayAfterTomorrow = new Date(now)
-    dayAfterTomorrow.setDate(now.getDate() + 2)
-    return {
-      today: toDateInputValue(now),
-      tomorrow: toDateInputValue(tomorrow),
-      dayAfterTomorrow: toDateInputValue(dayAfterTomorrow),
-    }
-  }, [])
+  const dayOptions = useMemo(() => getAppLocalDayOptions(), [])
 
   const applySingleDay = useCallback(
     (dayValue: string) => {
