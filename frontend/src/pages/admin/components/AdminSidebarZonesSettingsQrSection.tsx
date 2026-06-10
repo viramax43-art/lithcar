@@ -13,6 +13,7 @@ import { inputCls } from './AdminSidebarShared'
 import Skeleton from '../../../components/Skeleton'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
 import type { AdminSidebarProps } from './AdminSidebar.types'
+import { AdminNotificationsSection } from './AdminNotificationsSection'
 
 type ZonesSettingsQrSectionProps = Pick<
   AdminSidebarProps,
@@ -35,6 +36,8 @@ type ZonesSettingsQrSectionProps = Pick<
   | 'handlePricingChange'
   | 'qrSales'
   | 'hasLoadedQrSalesOnce'
+  | 'drivers'
+  | 'adminSession'
 >
 
 export function AdminSidebarZonesSettingsQrSection({
@@ -57,6 +60,8 @@ export function AdminSidebarZonesSettingsQrSection({
   handlePricingChange,
   qrSales,
   hasLoadedQrSalesOnce,
+  drivers,
+  adminSession,
 }: ZonesSettingsQrSectionProps) {
   const { t } = useTranslation()
   const initialZonesSettingsUi = getInitialZonesSettingsUi()
@@ -216,8 +221,11 @@ export function AdminSidebarZonesSettingsQrSection({
         ? t('admin.settings.byRoute')
         : `€${((pricing.pointsPerRide * pricing.pointPriceCents) / 100).toFixed(2)}`
 
+    const canSendNotifications = adminSession.role === 'chief_admin' || adminSession.role === 'admin'
+
     return (
       <div className="space-y-4">
+        <AdminNotificationsSection drivers={drivers} canSend={canSendNotifications} />
         <AdminDynamicPricingSection pricing={pricing} onPricingChange={handlePricingChange} />
 
         <div className="rounded-card border-[1.5px] border-border p-4 space-y-3">

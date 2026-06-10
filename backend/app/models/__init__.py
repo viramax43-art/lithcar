@@ -19,6 +19,7 @@ from app.models.ride_rating import RideRating
 from app.models.driver_registration_settings import DriverRegistrationSettings
 from app.models.driver_application import DriverApplication
 from app.models.driver_login_token import DriverLoginToken
+from app.models.notification import Notification
 
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     "DriverRegistrationSettings",
     "DriverApplication",
     "DriverLoginToken",
+    "Notification",
 ]

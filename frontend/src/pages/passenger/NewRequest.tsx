@@ -1,6 +1,7 @@
 import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
+import NotificationBell from '../../components/notifications/NotificationBell'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -137,6 +138,7 @@ export default function NewRequest() {
           <List size={20} weight="bold" />
         </button>
         <div className="flex items-center gap-2">
+          <NotificationBell pool="passenger" />
           <button
             onClick={() => {
               hapticSelection()

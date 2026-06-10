@@ -1,4 +1,4 @@
-from . import admin_audit, admin_keys, auth, driver_portal, driver_registration, drivers, group_suggestions, map_drawings, map_marks, points_card, points_qr, pricing, ride_quote, ride_requests, service_zones
+from . import admin_audit, admin_keys, auth, driver_portal, driver_registration, drivers, group_suggestions, map_drawings, map_marks, notifications, points_card, points_qr, pricing, ride_quote, ride_requests, service_zones
 
 __all__ = [
     "auth",
@@ -10,6 +10,7 @@ __all__ = [
     "group_suggestions",
     "map_drawings",
     "map_marks",
+    "notifications",
     "points_card",
     "points_qr",
     "pricing",

@@ -20,6 +20,7 @@ from app.services.driver_notification_service import (
     notify_driver_application_rejected,
     notify_driver_application_submitted,
 )
+from app.services.notification_service import notify_admins_new_driver_application
 from app.services.driver_service import get_driver_by_user_id, touch_driver_online
 from app.services.driver_session_service import apply_driver_session_cookie
 from app.services.telegram_app_links import build_driver_cabinet_enter_url, build_permanent_driver_cabinet_enter_url
@@ -258,6 +259,16 @@ async def submit_driver_application(
     await notify_driver_application_submitted(
         user_id=current_user.user_id,
         language=application.language,
+    )
+    applicant_name = (
+        str(payload.answers.get("full_name") or "").strip()
+        or (current_user.username or "").strip()
+        or current_user.user_id
+    )
+    await notify_admins_new_driver_application(
+        db_session,
+        application_id=application.id,
+        applicant_name=applicant_name,
     )
     return await _application_out(db_session, application)
 

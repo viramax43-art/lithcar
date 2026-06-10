@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_DRIVER_REGISTRATION_FORM } from '../../lib/driverRegistrationDefaults'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
-import type { Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
+import type { AppNotification, Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import {
   approveDriverApplication,
   assignDriverBulk,
@@ -42,7 +42,7 @@ import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDr
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
-import { getInitialDashboardUi } from '../../lib/adminUiState'
+import { getInitialDashboardUi, getInitialDriverRegistrationUi } from '../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../lib/useAdminUiPersistence'
 import { GROUP_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
 
@@ -124,6 +124,22 @@ export default function AdminDashboard() {
     DEFAULT_DRIVER_REGISTRATION_FORM,
   )
   const [lastApprovedDriverApplicationKey, setLastApprovedDriverApplicationKey] = useState<string | null>(null)
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(
+    () => getInitialDriverRegistrationUi().selectedApplicationId,
+  )
+
+  const handleAdminNotificationSelect = useCallback((notification: AppNotification) => {
+    const payload = notification.payload
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      payload.kind === 'driver_application' &&
+      typeof payload.applicationId === 'string'
+    ) {
+      setActiveTab('drivers')
+      setSelectedApplicationId(payload.applicationId)
+    }
+  }, [])
 
   const dashboardUiPersistence = useMemo(
     () => ({
@@ -599,7 +615,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
-      <AdminHeader onlineDriversCount={onlineDrivers.length} adminSession={adminSession} onLogout={() => void handleAdminLogout()} />
+      <AdminHeader
+        onlineDriversCount={onlineDrivers.length}
+        adminSession={adminSession}
+        onLogout={() => void handleAdminLogout()}
+        onNotificationSelect={handleAdminNotificationSelect}
+      />
 
       <div className="flex flex-1 overflow-hidden relative">
         <AdminSidebar
@@ -695,6 +716,8 @@ export default function AdminDashboard() {
           handleSaveDriverRegistrationForm={handleSaveDriverRegistrationForm}
           handleApproveDriverApplication={handleApproveDriverApplication}
           handleRejectDriverApplication={handleRejectDriverApplication}
+          selectedApplicationId={selectedApplicationId}
+          onSelectedApplicationIdChange={setSelectedApplicationId}
         />
 
         <AdminMap

@@ -26,6 +26,8 @@ type AdminSidebarDriverRegistrationSectionProps = {
   pendingCount: number
   formSchema: DriverRegistrationFormSchema
   lastApprovedDriverKey: string | null
+  selectedApplicationId: string | null
+  onSelectedApplicationIdChange: (applicationId: string | null) => void
   copyState: CopyState
   copiedToken: string | null
   copyText: (value: string, token: string) => Promise<void>
@@ -48,6 +50,8 @@ export function AdminSidebarDriverRegistrationSection({
   pendingCount,
   formSchema,
   lastApprovedDriverKey,
+  selectedApplicationId,
+  onSelectedApplicationIdChange,
   copyState,
   copiedToken,
   copyText,
@@ -66,9 +70,6 @@ export function AdminSidebarDriverRegistrationSection({
   })
   const [expandedFieldId, setExpandedFieldId] = useState<string | null>(initialDriverRegistrationUi.expandedFieldId)
   const [showIntroText, setShowIntroText] = useState(false)
-  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(
-    initialDriverRegistrationUi.selectedApplicationId,
-  )
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -187,7 +188,7 @@ export function AdminSidebarDriverRegistrationSection({
                 <button
                   key={application.id}
                   type="button"
-                  onClick={() => setSelectedApplicationId(application.id)}
+                  onClick={() => onSelectedApplicationIdChange(application.id)}
                   className="w-full text-left rounded-xl border border-border bg-surface px-3 py-3.5 hover:border-black/20 transition-colors min-h-[44px]"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -444,7 +445,7 @@ export function AdminSidebarDriverRegistrationSection({
           application={selectedApplication}
           formSchema={formSchema}
           onClose={() => {
-            setSelectedApplicationId(null)
+            onSelectedApplicationIdChange(null)
             void onRefresh()
           }}
           onApprove={async (applicationId) => {

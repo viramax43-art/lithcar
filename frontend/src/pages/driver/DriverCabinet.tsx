@@ -43,6 +43,7 @@ import DriverMap from './components/DriverMap'
 import DriverMapPeriodFilter from './components/DriverMapPeriodFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import DriverSideMenu from './components/DriverSideMenu'
+import NotificationBell from '../../components/notifications/NotificationBell'
 
 const MAP_POLL_MS = 8_000
 const CABINET_POLL_MS = 30_000
@@ -677,7 +678,11 @@ export default function DriverCabinet() {
           </div>
         )}
 
-        <div className="w-12 flex-shrink-0" />
+        <NotificationBell
+          pool="driver"
+          enabled={!!session}
+          className="pointer-events-auto w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform relative touch-none"
+        />
       </div>
       )}
 

@@ -329,3 +329,21 @@ export interface DriverApplication {
   createdAt: string
   updatedAt: string
 }
+
+export type NotificationPool = 'passenger' | 'driver' | 'admin'
+
+export type NotificationPayload =
+  | { kind: 'driver_application'; applicationId: string; applicantName?: string }
+  | Record<string, unknown>
+
+export interface AppNotification {
+  id: string
+  pool: NotificationPool
+  type: string
+  title: string
+  body: string
+  payload: NotificationPayload | null
+  readAt: string | null
+  createdAt: string
+  sendTelegram: boolean
+}

@@ -14,6 +14,7 @@ from app.api import (
     group_suggestions,
     map_drawings,
     map_marks,
+    notifications,
     points_card,
     points_qr,
     pricing,
@@ -66,5 +67,7 @@ api_router.include_router(ride_quote.router, tags=["Ride Quote"])
 api_router.include_router(group_suggestions.router, tags=["Group Suggestions"])
 api_router.include_router(map_drawings.router, tags=["Map Drawings"])
 api_router.include_router(map_marks.router, tags=["Map Marks"])
+api_router.include_router(notifications.passenger_router, tags=["Notifications"])
+api_router.include_router(notifications.admin_router, tags=["Admin Notifications"])
 fastapi_app.include_router(api_router)
 

@@ -19,6 +19,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
+import NotificationBell from '../../components/notifications/NotificationBell'
 import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatRideDateTime } from '../../i18n/dateTime'
 import { enterDriverCabinet } from '../../lib/driverPortal'
@@ -143,6 +144,7 @@ export default function Profile() {
             <ArrowLeft size={20} weight="bold" />
           </button>
           <h1 className="text-base font-extrabold tracking-tight flex-1">{t('profile.title', { defaultValue: 'Profile' })}</h1>
+          <NotificationBell pool="passenger" />
         </div>
       </header>
 

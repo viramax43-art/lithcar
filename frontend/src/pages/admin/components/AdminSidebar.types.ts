@@ -127,4 +127,6 @@ export interface AdminSidebarProps {
   handleSaveDriverRegistrationForm: (schema: DriverRegistrationFormSchema) => Promise<void>
   handleApproveDriverApplication: (applicationId: string) => Promise<string>
   handleRejectDriverApplication: (applicationId: string, reason?: string) => Promise<void>
+  selectedApplicationId: string | null
+  onSelectedApplicationIdChange: (applicationId: string | null) => void
 }

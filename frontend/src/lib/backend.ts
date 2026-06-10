@@ -93,6 +93,24 @@ export {
 } from '../infrastructure/api/passengerApi'
 
 export {
+  getAdminUnreadCount,
+  getDriverUnreadCount,
+  getPassengerUnreadCount,
+  listAdminNotifications,
+  listDriverNotifications,
+  listPassengerNotifications,
+  markAdminNotificationRead,
+  markAllAdminNotificationsRead,
+  markAllDriverNotificationsRead,
+  markAllPassengerNotificationsRead,
+  markDriverNotificationRead,
+  markPassengerNotificationRead,
+  sendAdminNotification,
+} from '../infrastructure/api/notificationsApi'
+
+export type { AdminSendNotificationPayload, AdminSendNotificationResult } from '../infrastructure/api/notificationsApi'
+
+export {
   approveDriverApplication,
   getDriverApplication,
   getDriverCabinetEnterUrl,

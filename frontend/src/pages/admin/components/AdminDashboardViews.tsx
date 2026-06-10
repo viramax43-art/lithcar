@@ -2,6 +2,8 @@ import { SignOut, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import type { AdminSessionUser } from '../../../lib/backend'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
+import NotificationBell from '../../../components/notifications/NotificationBell'
+import type { AppNotification } from '../../../types'
 import { getAdminRoleLabel } from '../utils/adminRolePresentation'
 
 export function AdminSessionChecking() {
@@ -57,10 +59,12 @@ export function AdminHeader({
   onlineDriversCount,
   adminSession,
   onLogout,
+  onNotificationSelect,
 }: {
   onlineDriversCount: number
   adminSession: AdminSessionUser
   onLogout: () => void
+  onNotificationSelect?: (notification: AppNotification) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -74,6 +78,11 @@ export function AdminHeader({
         <span className="text-xs md:text-sm font-semibold text-white/80 hidden md:inline">{t('admin.panel', { defaultValue: 'Admin panel' })}</span>
       </div>
       <div className="flex items-center gap-2 md:gap-5">
+        <NotificationBell
+          pool="admin"
+          variant="dark"
+          onNotificationSelect={onNotificationSelect}
+        />
         <div className="hidden md:block flex-shrink-0">
           <LanguageSwitcher variant="header" />
         </div>

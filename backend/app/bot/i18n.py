@@ -393,6 +393,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "📍 Passenger changed a route point",
         "ru": "📍 Пассажир изменил точку маршрута",
     },
+    "notif.admin.driver_application_new.title": {
+        "lt": "Nauja vairuotojo paraiška",
+        "pl": "Nowe zgloszenie kierowcy",
+        "en": "New driver application",
+        "ru": "Новая заявка водителя",
+    },
+    "notif.admin.driver_application_new.body": {
+        "lt": "Gauta nauja vairuotojo paraiška nuo {applicant_name}. Perziurekite ir patvirtinkite arba atminkite.",
+        "pl": "Otrzymano nowe zgloszenie kierowcy od {applicant_name}. Sprawdz i zatwierdz lub odrzuc.",
+        "en": "A new driver application from {applicant_name} was received. Review and approve or reject.",
+        "ru": "Получена новая заявка водителя от {applicant_name}. Рассмотрите и одобрите или отклоните.",
+    },
     "driver.application.submitted": {
         "lt": "✅ Jusu vairuotojo paraiška gauta ir perduota perziurai.",
         "pl": "✅ Twoje zgloszenie kierowcy zostalo przyjete i przekazane do weryfikacji.",

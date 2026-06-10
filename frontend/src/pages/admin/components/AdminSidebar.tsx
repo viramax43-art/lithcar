@@ -120,6 +120,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     handleSaveDriverRegistrationForm,
     handleApproveDriverApplication,
     handleRejectDriverApplication,
+    selectedApplicationId,
+    onSelectedApplicationIdChange,
   } = props
 
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -308,6 +310,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               pendingCount={driverApplicationsPendingCount}
               formSchema={driverRegistrationFormSchema}
               lastApprovedDriverKey={lastApprovedDriverApplicationKey}
+              selectedApplicationId={selectedApplicationId}
+              onSelectedApplicationIdChange={onSelectedApplicationIdChange}
               copyState={copyState}
               copiedToken={copiedToken}
               copyText={copyText}
@@ -376,6 +380,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               handlePricingChange={handlePricingChange}
               qrSales={qrSales}
               hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
+              drivers={drivers}
+              adminSession={adminSession}
             />
 
             <AdminSidebarStaffSection
