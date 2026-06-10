@@ -138,7 +138,6 @@ export default function NewRequest() {
           <List size={20} weight="bold" />
         </button>
         <div className="flex items-center gap-2">
-          <NotificationBell pool="passenger" />
           <button
             onClick={() => {
               hapticSelection()
@@ -175,6 +174,7 @@ export default function NewRequest() {
           >
             <MagnifyingGlass size={18} weight="bold" />
           </button>
+          <NotificationBell pool="passenger" />
         </div>
       </header>
       )}

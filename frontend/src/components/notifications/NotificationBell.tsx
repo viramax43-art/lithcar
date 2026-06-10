@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Bell } from '@phosphor-icons/react'
 
 import type { AppNotification, NotificationPool } from '../../types'
@@ -18,6 +19,28 @@ const VARIANT_CLASS: Record<'light' | 'dark', string> = {
   dark: 'w-10 h-10 rounded-pill bg-white/10 hover:bg-white/20 text-white flex items-center justify-center active:scale-95 transition-transform relative touch-none',
 }
 
+const PANEL_MAX_WIDTH = 340
+const VIEWPORT_MARGIN = 12
+const PANEL_OFFSET_Y = 8
+
+interface PanelPosition {
+  top: number
+  left: number
+  width: number
+}
+
+function computePanelPosition(anchor: DOMRect): PanelPosition {
+  const width = Math.min(PANEL_MAX_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2)
+  const maxLeft = window.innerWidth - width - VIEWPORT_MARGIN
+  const preferredLeft = anchor.right - width
+  const left = Math.max(VIEWPORT_MARGIN, Math.min(preferredLeft, maxLeft))
+  return {
+    top: anchor.bottom + PANEL_OFFSET_Y,
+    left,
+    width,
+  }
+}
+
 export default function NotificationBell({
   pool,
   enabled = true,
@@ -27,11 +50,32 @@ export default function NotificationBell({
 }: NotificationBellProps) {
   const buttonClass = className ?? VARIANT_CLASS[variant]
   const [open, setOpen] = useState(false)
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const { items, unreadCount, isLoading, errorMessage, markRead, markAllRead, refresh } = useNotifications({
     pool,
     enabled,
   })
+
+  const updatePanelPosition = () => {
+    if (!buttonRef.current) return
+    setPanelPosition(computePanelPosition(buttonRef.current.getBoundingClientRect()))
+  }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPosition(null)
+      return undefined
+    }
+    updatePanelPosition()
+    window.addEventListener('resize', updatePanelPosition)
+    window.addEventListener('scroll', updatePanelPosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePanelPosition)
+      window.removeEventListener('scroll', updatePanelPosition, true)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return undefined
@@ -39,20 +83,10 @@ export default function NotificationBell({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
     }
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (rootRef.current?.contains(target)) return
-      setOpen(false)
-    }
 
     document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('touchstart', onPointerDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('touchstart', onPointerDown)
     }
   }, [open])
 
@@ -74,9 +108,36 @@ export default function NotificationBell({
     setOpen(false)
   }
 
+  const panelPortal = open && panelPosition && typeof document !== 'undefined'
+    ? createPortal(
+        <>
+          <div className="fixed inset-0 z-[5100]" aria-hidden onClick={() => setOpen(false)} />
+          <NotificationPanel
+            items={items}
+            unreadCount={unreadCount}
+            isLoading={isLoading}
+            errorMessage={errorMessage}
+            onSelect={(notification) => void handleSelect(notification)}
+            onMarkAllRead={async () => {
+              await markAllRead()
+            }}
+            style={{
+              position: 'fixed',
+              top: panelPosition.top,
+              left: panelPosition.left,
+              width: panelPosition.width,
+              zIndex: 5101,
+            }}
+          />
+        </>,
+        document.body,
+      )
+    : null
+
   return (
     <div ref={rootRef} className="relative flex-shrink-0 pointer-events-auto">
       <button
+        ref={buttonRef}
         type="button"
         onClick={handleToggle}
         aria-expanded={open}
@@ -90,20 +151,7 @@ export default function NotificationBell({
           </span>
         )}
       </button>
-
-      {open && (
-        <NotificationPanel
-          items={items}
-          unreadCount={unreadCount}
-          isLoading={isLoading}
-          errorMessage={errorMessage}
-          onSelect={(notification) => void handleSelect(notification)}
-          onMarkAllRead={async () => {
-            await markAllRead()
-          }}
-          className="absolute right-0 top-[calc(100%+8px)] z-[320]"
-        />
-      )}
+      {panelPortal}
     </div>
   )
 }

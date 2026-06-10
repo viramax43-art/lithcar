@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { formatDate, formatTime } from '../../i18n/dateTime'
@@ -10,7 +11,7 @@ interface NotificationPanelProps {
   errorMessage: string | null
   onSelect: (notification: AppNotification) => void
   onMarkAllRead: () => void
-  className?: string
+  style?: CSSProperties
 }
 
 export default function NotificationPanel({
@@ -20,18 +21,19 @@ export default function NotificationPanel({
   errorMessage,
   onSelect,
   onMarkAllRead,
-  className = '',
+  style,
 }: NotificationPanelProps) {
   const { t } = useTranslation()
 
   return (
     <div
-      className={`w-[min(340px,calc(100vw-24px))] rounded-2xl bg-white shadow-card border border-border/60 overflow-hidden animate-slide-up ${className}`}
+      className="rounded-2xl bg-white shadow-card border border-border/60 overflow-hidden animate-slide-up"
+      style={style}
       role="dialog"
       aria-label={t('notifications.title')}
     >
       <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/40">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-extrabold text-black">{t('notifications.title')}</p>
           <p className="text-xs text-muted mt-0.5">
             {t('notifications.unreadCount', { count: unreadCount })}
