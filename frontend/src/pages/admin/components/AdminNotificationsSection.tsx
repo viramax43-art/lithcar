@@ -17,6 +17,8 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
   const [items, setItems] = useState<InfoBlock[]>([])
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [audience, setAudience] = useState<'all' | 'user'>('all')
+  const [targetUsername, setTargetUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,12 +43,23 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
 
   const handleCreate = async () => {
     if (!title.trim() || !body.trim()) return
+    if (audience === 'user' && !targetUsername.trim()) {
+      setErrorMessage(t('notifications.send.recipientRequired'))
+      return
+    }
     setIsSaving(true)
     setErrorMessage(null)
     try {
-      await createAdminInfoBlock({ pool, title: title.trim(), body: body.trim() })
+      await createAdminInfoBlock({
+        pool,
+        title: title.trim(),
+        body: body.trim(),
+        audience,
+        targetUsername: audience === 'user' ? targetUsername.trim() : null,
+      })
       setTitle('')
       setBody('')
+      setTargetUsername('')
       await loadItems()
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : t('common.error'))
@@ -105,7 +118,14 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
           {items.map((item) => (
             <div key={item.id} className="rounded-xl border border-border bg-surface px-3 py-3 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-bold text-black leading-snug">{item.title}</p>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-bold text-black leading-snug">{item.title}</p>
+                  <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+                    {item.audience === 'user' && item.targetUsername
+                      ? `@${item.targetUsername}`
+                      : t('notifications.infoBlocks.audienceAll')}
+                  </span>
+                </div>
                 <InlineConfirm
                   label={t('common.delete')}
                   confirmLabel={t('common.confirmDelete')}
@@ -122,6 +142,34 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
             {t('notifications.infoBlocks.addNew')}
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAudience('all')}
+              className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                audience === 'all' ? 'bg-black text-white border-black' : 'bg-surface text-muted border-border'
+              }`}
+            >
+              {t('notifications.send.modeBroadcast')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudience('user')}
+              className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                audience === 'user' ? 'bg-black text-white border-black' : 'bg-surface text-muted border-border'
+              }`}
+            >
+              {t('notifications.send.modeSingle')}
+            </button>
+          </div>
+          {audience === 'user' && (
+            <input
+              value={targetUsername}
+              onChange={(e) => setTargetUsername(e.target.value)}
+              placeholder={t('notifications.send.usernamePlaceholder')}
+              className={inputCls}
+            />
+          )}
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -138,9 +186,11 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
           <button
             type="button"
             onClick={() => void handleCreate()}
-            disabled={isSaving || !title.trim() || !body.trim()}
+            disabled={
+              isSaving || !title.trim() || !body.trim() || (audience === 'user' && !targetUsername.trim())
+            }
             className={`w-full py-2.5 rounded-xl font-bold text-sm inline-flex items-center justify-center gap-2 transition-all ${
-              !isSaving && title.trim() && body.trim()
+              !isSaving && title.trim() && body.trim() && (audience === 'all' || targetUsername.trim())
                 ? 'bg-black text-white active:scale-[0.98]'
                 : 'bg-surface text-muted'
             }`}

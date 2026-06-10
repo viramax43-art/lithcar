@@ -23,6 +23,8 @@ export interface CreateInfoBlockPayload {
   pool: 'passenger' | 'driver'
   title: string
   body: string
+  audience?: 'all' | 'user'
+  targetUsername?: string | null
 }
 
 function passengerBase() {

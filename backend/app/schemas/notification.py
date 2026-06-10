@@ -33,6 +33,8 @@ class InfoBlockOut(BaseModel):
     pool: str
     title: str
     body: str
+    audience: Literal["all", "user"] = "all"
+    targetUsername: str | None = None
     isActive: bool
     sortOrder: int
     createdAt: datetime
@@ -48,6 +50,8 @@ class CreateInfoBlockIn(BaseModel):
     pool: Literal["passenger", "driver"]
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=4000)
+    audience: Literal["all", "user"] = "all"
+    targetUsername: str | None = Field(default=None, max_length=64)
 
 
 class UpdateInfoBlockIn(BaseModel):
@@ -75,6 +79,8 @@ def info_block_to_out(entity) -> InfoBlockOut:
         pool=entity.pool,
         title=entity.title,
         body=entity.body,
+        audience=entity.audience or "all",
+        targetUsername=entity.target_username,
         isActive=bool(entity.is_active),
         sortOrder=int(entity.sort_order or 0),
         createdAt=entity.created_at,

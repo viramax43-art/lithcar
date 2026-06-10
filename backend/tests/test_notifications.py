@@ -118,6 +118,57 @@ async def test_delete_info_block_removes_from_pool(client):
     assert not any(item["id"] == block_id for item in inbox.json()["items"])
 
 
+async def test_targeted_info_block_visible_only_to_username(client):
+    await _admin_login(client)
+    token_target = await _passenger_token(client, user_id="306", username="only_me")
+    token_other = await _passenger_token(client, user_id="307", username="someone_else")
+
+    created = await client.post(
+        "/api/admin/info-blocks",
+        json={
+            "pool": "passenger",
+            "title": "Personal",
+            "body": "Only for @only_me",
+            "audience": "user",
+            "targetUsername": "@only_me",
+        },
+    )
+    assert created.status_code == 201
+    block_id = created.json()["id"]
+    assert created.json()["targetUsername"] == "only_me"
+
+    inbox_target = await client.get(
+        "/api/notifications/passenger",
+        headers={"Authorization": f"Bearer {token_target}"},
+    )
+    assert inbox_target.status_code == 200
+    assert any(item["id"] == block_id for item in inbox_target.json()["items"])
+
+    inbox_other = await client.get(
+        "/api/notifications/passenger",
+        headers={"Authorization": f"Bearer {token_other}"},
+    )
+    assert inbox_other.status_code == 200
+    assert not any(item["id"] == block_id for item in inbox_other.json()["items"])
+
+
+async def test_targeted_info_block_rejects_unknown_username(client):
+    await _admin_login(client)
+
+    created = await client.post(
+        "/api/admin/info-blocks",
+        json={
+            "pool": "passenger",
+            "title": "Missing user",
+            "body": "Nobody",
+            "audience": "user",
+            "targetUsername": "@ghost_user",
+        },
+    )
+    assert created.status_code == 400
+    assert created.json()["detail"] == "User not found."
+
+
 async def test_moderator_cannot_manage_info_blocks(client):
     await _admin_login(client)
     created_key = await client.post(

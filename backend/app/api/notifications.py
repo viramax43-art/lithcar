@@ -23,6 +23,7 @@ from app.schemas.notification import (
 )
 from app.services.info_block_service import (
     InfoBlockRecipient,
+    InfoBlockTargetError,
     count_unread_info_blocks,
     create_info_block,
     delete_info_block,
@@ -208,13 +209,18 @@ async def create_info_block_endpoint(
     session: AdminSession = Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    entity = await create_info_block(
-        db_session,
-        pool=payload.pool,
-        title=payload.title,
-        body=payload.body,
-        created_by_admin_key_id=session.admin_key_id,
-    )
+    try:
+        entity = await create_info_block(
+            db_session,
+            pool=payload.pool,
+            title=payload.title,
+            body=payload.body,
+            created_by_admin_key_id=session.admin_key_id,
+            audience=payload.audience,
+            target_username=payload.targetUsername,
+        )
+    except InfoBlockTargetError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return info_block_to_out(entity)
 
 

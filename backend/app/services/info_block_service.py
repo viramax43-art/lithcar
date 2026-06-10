@@ -3,16 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.driver import Driver
 from app.models.info_block import (
     InfoBlock,
+    InfoBlockAudience,
     InfoBlockPool,
     InfoBlockRead,
     InfoBlockReadRecipientType,
 )
 from app.models.notification import NotificationType
+from app.models.user import User
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,72 @@ def info_block_to_notification_out(view: InfoBlockView):
     )
 
 
+class InfoBlockTargetError(ValueError):
+    pass
+
+
+def normalize_username(raw: str) -> str:
+    return raw.strip().lstrip("@").lower()
+
+
+def _audience_filter(*, recipient_type: str, recipient_id: str):
+    if recipient_type == InfoBlockReadRecipientType.USER:
+        return or_(
+            InfoBlock.audience == InfoBlockAudience.ALL,
+            and_(
+                InfoBlock.audience == InfoBlockAudience.USER,
+                InfoBlock.target_user_id == recipient_id,
+            ),
+        )
+    return or_(
+        InfoBlock.audience == InfoBlockAudience.ALL,
+        and_(
+            InfoBlock.audience == InfoBlockAudience.USER,
+            InfoBlock.target_driver_id == recipient_id,
+        ),
+    )
+
+
+def _block_visible_to_recipient(block: InfoBlock, *, recipient: InfoBlockRecipient) -> bool:
+    if not block.is_active or block.pool != recipient.pool:
+        return False
+    if block.audience == InfoBlockAudience.ALL:
+        return True
+    if recipient.recipient_type == InfoBlockReadRecipientType.USER:
+        return block.target_user_id == recipient.recipient_id
+    return block.target_driver_id == recipient.recipient_id
+
+
+async def resolve_info_block_target(
+    db_session: AsyncSession,
+    *,
+    pool: str,
+    username: str,
+) -> tuple[str, str | None, str]:
+    normalized = normalize_username(username)
+    if not normalized:
+        raise InfoBlockTargetError("Username is required.")
+
+    result = await db_session.execute(
+        select(User).where(func.lower(User.username) == normalized)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise InfoBlockTargetError("User not found.")
+
+    display_username = user.username or normalized
+    if pool == InfoBlockPool.DRIVER:
+        driver_result = await db_session.execute(
+            select(Driver).where(Driver.user_id == user.user_id)
+        )
+        driver = driver_result.scalar_one_or_none()
+        if driver is None:
+            raise InfoBlockTargetError("User is not a driver.")
+        return user.user_id, driver.id, display_username
+
+    return user.user_id, None, display_username
+
+
 def _blocks_base_query(
     *,
     pool: str,
@@ -64,7 +133,10 @@ def _blocks_base_query(
                 InfoBlockRead.recipient_id == recipient_id,
             ),
         )
-        .where(InfoBlock.pool == pool)
+        .where(
+            InfoBlock.pool == pool,
+            _audience_filter(recipient_type=recipient_type, recipient_id=recipient_id),
+        )
     )
     if active_only:
         stmt = stmt.where(InfoBlock.is_active.is_(True))
@@ -128,7 +200,7 @@ async def mark_info_block_read(
     recipient: InfoBlockRecipient,
 ) -> InfoBlockView | None:
     block = await db_session.get(InfoBlock, info_block_id)
-    if block is None or not block.is_active or block.pool != recipient.pool:
+    if block is None or not _block_visible_to_recipient(block, recipient=recipient):
         return None
 
     result = await db_session.execute(
@@ -171,6 +243,10 @@ async def mark_all_info_blocks_read(
         select(InfoBlock).where(
             InfoBlock.pool == recipient.pool,
             InfoBlock.is_active.is_(True),
+            _audience_filter(
+                recipient_type=recipient.recipient_type,
+                recipient_id=recipient.recipient_id,
+            ),
         )
     )
     blocks = list(result.scalars().all())
@@ -227,13 +303,34 @@ async def create_info_block(
     title: str,
     body: str,
     created_by_admin_key_id: str,
+    audience: str = InfoBlockAudience.ALL,
+    target_username: str | None = None,
 ) -> InfoBlock:
     if pool not in {InfoBlockPool.PASSENGER, InfoBlockPool.DRIVER}:
         raise ValueError("Invalid info block pool.")
+    if audience not in {InfoBlockAudience.ALL, InfoBlockAudience.USER}:
+        raise ValueError("Invalid info block audience.")
+
+    target_user_id: str | None = None
+    target_driver_id: str | None = None
+    resolved_username: str | None = None
+    if audience == InfoBlockAudience.USER:
+        if not target_username or not target_username.strip():
+            raise InfoBlockTargetError("Username is required.")
+        target_user_id, target_driver_id, resolved_username = await resolve_info_block_target(
+            db_session,
+            pool=pool,
+            username=target_username,
+        )
+
     entity = InfoBlock(
         pool=pool,
         title=title.strip(),
         body=body.strip(),
+        audience=audience,
+        target_username=resolved_username,
+        target_user_id=target_user_id,
+        target_driver_id=target_driver_id,
         created_by_admin_key_id=created_by_admin_key_id,
     )
     db_session.add(entity)

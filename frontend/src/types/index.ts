@@ -352,6 +352,8 @@ export interface InfoBlock {
   pool: 'passenger' | 'driver'
   title: string
   body: string
+  audience: 'all' | 'user'
+  targetUsername: string | null
   isActive: boolean
   sortOrder: number
   createdAt: string

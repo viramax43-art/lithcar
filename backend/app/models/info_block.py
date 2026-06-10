@@ -17,6 +17,11 @@ class InfoBlockReadRecipientType:
     DRIVER = "driver"
 
 
+class InfoBlockAudience:
+    ALL = "all"
+    USER = "user"
+
+
 class InfoBlock(Base):
     __tablename__ = "info_blocks"
 
@@ -26,6 +31,10 @@ class InfoBlock(Base):
     body = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, server_default="true")
     sort_order = Column(Integer, nullable=False, server_default="0")
+    audience = Column(String, nullable=False, server_default=InfoBlockAudience.ALL)
+    target_username = Column(String, nullable=True)
+    target_user_id = Column(String, nullable=True, index=True)
+    target_driver_id = Column(String, nullable=True, index=True)
     created_by_admin_key_id = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
