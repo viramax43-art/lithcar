@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, ZoomControl, useMap } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { formatRideTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
+import { isCoarsePointer } from '../../../lib/pointer'
 import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
 
 interface DriverMapProps {
@@ -148,6 +149,13 @@ export default function DriverMap({
   const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
+  // Dragged point waits for explicit save/cancel instead of hitting the API immediately.
+  const [dragPreview, setDragPreview] = useState<{
+    pointId: string
+    rideId: string
+    pointType: 'pickup' | 'dropoff'
+    latlng: LatLng
+  } | null>(null)
   const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
 
   useEffect(() => {
@@ -196,6 +204,8 @@ export default function DriverMap({
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
       <LocalizedTileLayer />
+      {/* Locate button occupies bottom-right, so zoom goes bottom-left (desktop only) */}
+      {!isCoarsePointer && !isMapMarkViewMode && <ZoomControl position="bottomleft" />}
       <FitBoundsOnce points={points} driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
       {!isMapMarkViewMode && <LocateButton />}
@@ -252,7 +262,7 @@ export default function DriverMap({
           }}
         >
           <Popup autoPan className="map-mark-popup">
-            <div className="text-xs min-w-[220px]">
+            <div className="text-xs min-w-[min(220px,70vw)] max-w-[80vw]">
               <p className="font-bold">{mark.title}</p>
               {mark.photoUrl && (
                 <button
@@ -273,25 +283,67 @@ export default function DriverMap({
       ))}
 
       {/* Point markers */}
-      {points.map((pt) => (
-        <Marker
-          key={pt.id}
-          position={[pt.latLng.lat, pt.latLng.lng]}
-          icon={makePointIcon(pt, {
-            isSelected: pt.id === selectedPointId,
-            isNext: pt.id === nextPointId && pt.pointStatus !== 'done',
-          })}
-          draggable={pt.canEdit && pt.pointKind !== 'available'}
-          eventHandlers={{
-            click: () => onSelectPoint(pt),
-            dragend: (e) => {
-              const m = e.target as L.Marker
-              const pos = m.getLatLng()
-              onPointDragEnd(pt.rideId, pt.pointType, { lat: pos.lat, lng: pos.lng })
-            },
-          }}
-        />
-      ))}
+      {points.map((pt) => {
+        const preview = dragPreview?.pointId === pt.id ? dragPreview : null
+        return (
+          <Marker
+            key={pt.id}
+            position={preview ? [preview.latlng.lat, preview.latlng.lng] : [pt.latLng.lat, pt.latLng.lng]}
+            icon={makePointIcon(pt, {
+              isSelected: pt.id === selectedPointId,
+              isNext: pt.id === nextPointId && pt.pointStatus !== 'done',
+            })}
+            draggable={pt.canEdit && pt.pointKind !== 'available'}
+            eventHandlers={{
+              click: () => {
+                if (dragPreview) return
+                onSelectPoint(pt)
+              },
+              dragend: (e) => {
+                const m = e.target as L.Marker
+                const pos = m.getLatLng()
+                setDragPreview({
+                  pointId: pt.id,
+                  rideId: pt.rideId,
+                  pointType: pt.pointType,
+                  latlng: { lat: pos.lat, lng: pos.lng },
+                })
+              },
+            }}
+          />
+        )
+      })}
+
+      {/* Drag preview confirm bar */}
+      {dragPreview && (
+        <div
+          className="absolute left-4 right-4 z-[1100] bg-white rounded-card shadow-card p-4 space-y-3 md:max-w-md md:mx-auto"
+          style={{ bottom: 'calc(var(--app-safe-area-bottom-total, 0px) + 24px)' }}
+        >
+          <p className="text-sm font-bold leading-snug">
+            {t('driver.dragPreviewTitle', { defaultValue: 'Save new point position?' })}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDragPreview(null)}
+              className="flex-1 h-11 rounded-xl bg-surface text-sm font-bold"
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onPointDragEnd(dragPreview.rideId, dragPreview.pointType, dragPreview.latlng)
+                setDragPreview(null)
+              }}
+              className="flex-1 h-11 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              {t('common.save', { defaultValue: 'Save' })}
+            </button>
+          </div>
+        </div>
+      )}
 
       {fullscreenPhoto && (
         <div

@@ -6,6 +6,11 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n_text import (
+    has_user_info_text,
+    normalize_user_info_text_i18n,
+    resolve_user_info_text,
+)
 from app.models.driver import Driver
 from app.models.info_block import (
     InfoBlock,
@@ -15,7 +20,7 @@ from app.models.info_block import (
     InfoBlockReadRecipientType,
 )
 from app.models.notification import NotificationType
-from app.models.user import User
+from app.models.user import DEFAULT_USER_LANGUAGE, User
 
 
 @dataclass(frozen=True)
@@ -23,6 +28,7 @@ class InfoBlockRecipient:
     pool: str
     recipient_type: str
     recipient_id: str
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,44 @@ def info_block_to_notification_out(view: InfoBlockView):
 
 class InfoBlockTargetError(ValueError):
     pass
+
+
+class InfoBlockContentError(ValueError):
+    pass
+
+
+async def resolve_recipient_language(
+    db_session: AsyncSession,
+    *,
+    recipient: InfoBlockRecipient,
+) -> str:
+    if recipient.language:
+        return recipient.language
+    if recipient.recipient_type == InfoBlockReadRecipientType.USER:
+        user = await db_session.get(User, recipient.recipient_id)
+        return user.language if user else DEFAULT_USER_LANGUAGE
+    driver = await db_session.get(Driver, recipient.recipient_id)
+    if driver and driver.user_id:
+        user = await db_session.get(User, driver.user_id)
+        if user:
+            return user.language
+    return DEFAULT_USER_LANGUAGE
+
+
+def _block_to_view(
+    block: InfoBlock,
+    *,
+    read_at: datetime | None,
+    language: str,
+) -> InfoBlockView:
+    return InfoBlockView(
+        id=block.id,
+        pool=block.pool,
+        title=resolve_user_info_text(block.title_i18n, language),
+        body=resolve_user_info_text(block.body_i18n, language),
+        read_at=read_at,
+        created_at=block.created_at,
+    )
 
 
 def normalize_username(raw: str) -> str:
@@ -163,16 +207,10 @@ async def list_info_blocks_for_recipient(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = int((await db_session.execute(count_stmt)).scalar_one() or 0)
 
+    language = await resolve_recipient_language(db_session, recipient=recipient)
     result = await db_session.execute(stmt.limit(limit).offset(offset))
     views = [
-        InfoBlockView(
-            id=block.id,
-            pool=block.pool,
-            title=block.title,
-            body=block.body,
-            read_at=read_at,
-            created_at=block.created_at,
-        )
+        _block_to_view(block, read_at=read_at, language=language)
         for block, read_at in result.all()
     ]
     return views, total
@@ -224,14 +262,8 @@ async def mark_info_block_read(
         read_row.read_at = now
     await db_session.commit()
 
-    return InfoBlockView(
-        id=block.id,
-        pool=block.pool,
-        title=block.title,
-        body=block.body,
-        read_at=now,
-        created_at=block.created_at,
-    )
+    language = await resolve_recipient_language(db_session, recipient=recipient)
+    return _block_to_view(block, read_at=now, language=language)
 
 
 async def mark_all_info_blocks_read(
@@ -300,8 +332,8 @@ async def create_info_block(
     db_session: AsyncSession,
     *,
     pool: str,
-    title: str,
-    body: str,
+    title_i18n: dict[str, str] | None,
+    body_i18n: dict[str, str] | None,
     created_by_admin_key_id: str,
     audience: str = InfoBlockAudience.ALL,
     target_username: str | None = None,
@@ -310,6 +342,13 @@ async def create_info_block(
         raise ValueError("Invalid info block pool.")
     if audience not in {InfoBlockAudience.ALL, InfoBlockAudience.USER}:
         raise ValueError("Invalid info block audience.")
+
+    normalized_title = normalize_user_info_text_i18n(title_i18n)
+    normalized_body = normalize_user_info_text_i18n(body_i18n)
+    if not has_user_info_text(normalized_title):
+        raise InfoBlockContentError("Title is required.")
+    if not has_user_info_text(normalized_body):
+        raise InfoBlockContentError("Body is required.")
 
     target_user_id: str | None = None
     target_driver_id: str | None = None
@@ -325,8 +364,8 @@ async def create_info_block(
 
     entity = InfoBlock(
         pool=pool,
-        title=title.strip(),
-        body=body.strip(),
+        title_i18n=normalized_title,
+        body_i18n=normalized_body,
         audience=audience,
         target_username=resolved_username,
         target_user_id=target_user_id,
@@ -356,17 +395,23 @@ async def update_info_block(
     db_session: AsyncSession,
     *,
     info_block_id: str,
-    title: str | None = None,
-    body: str | None = None,
+    title_i18n: dict[str, str] | None = None,
+    body_i18n: dict[str, str] | None = None,
     is_active: bool | None = None,
 ) -> InfoBlock | None:
     entity = await db_session.get(InfoBlock, info_block_id)
     if entity is None:
         return None
-    if title is not None:
-        entity.title = title.strip()
-    if body is not None:
-        entity.body = body.strip()
+    if title_i18n is not None:
+        normalized_title = normalize_user_info_text_i18n(title_i18n)
+        if not has_user_info_text(normalized_title):
+            raise InfoBlockContentError("Title is required.")
+        entity.title_i18n = normalized_title
+    if body_i18n is not None:
+        normalized_body = normalize_user_info_text_i18n(body_i18n)
+        if not has_user_info_text(normalized_body):
+            raise InfoBlockContentError("Body is required.")
+        entity.body_i18n = normalized_body
     if is_active is not None:
         entity.is_active = is_active
     await db_session.commit()

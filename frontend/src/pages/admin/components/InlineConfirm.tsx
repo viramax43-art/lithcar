@@ -44,7 +44,7 @@ export default function InlineConfirm({
     return (
       <button
         onClick={handleClick}
-        className={`text-[10px] font-bold px-2.5 py-1 rounded-pill bg-red-600 text-white transition-all active:scale-[0.97] ${className}`}
+        className={`min-h-[36px] text-[11px] font-bold px-3 py-1.5 rounded-pill bg-red-600 text-white transition-all active:scale-[0.97] ${className}`}
       >
         {resolvedConfirmLabel}
       </button>
@@ -53,7 +53,7 @@ export default function InlineConfirm({
   return (
     <button
       onClick={handleClick}
-      className={`text-[10px] font-semibold px-2.5 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors ${className}`}
+      className={`min-h-[36px] text-[11px] font-semibold px-3 py-1.5 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors ${className}`}
     >
       {label}
     </button>

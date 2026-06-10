@@ -113,7 +113,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
             {state === 'idle' && (
               <button
                 onClick={() => void start()}
-                className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold active:scale-[0.97] transition-transform"
+                className="min-h-11 px-5 py-2 rounded-pill bg-white text-black text-xs font-bold active:scale-[0.97] transition-transform"
               >
                 {t('qr.enableCamera', { defaultValue: 'Enable camera' })}
               </button>
@@ -129,7 +129,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
                     startedRef.current = false
                     void start()
                   }}
-                  className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold"
+                  className="min-h-11 px-5 py-2 rounded-pill bg-white text-black text-xs font-bold"
                 >
                   {t('common.tryAgain', { defaultValue: 'Try again' })}
                 </button>
@@ -144,7 +144,7 @@ export default function QrScanner({ onTokenRead, autoStart = true }: QrScannerPr
                     startedRef.current = false
                     void start()
                   }}
-                  className="px-4 py-2 rounded-pill bg-white text-black text-xs font-bold"
+                  className="min-h-11 px-5 py-2 rounded-pill bg-white text-black text-xs font-bold"
                 >
                   {t('common.retry', { defaultValue: 'Retry' })}
                 </button>

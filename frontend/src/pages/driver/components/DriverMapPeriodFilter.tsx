@@ -2,10 +2,19 @@ import { useCallback, useMemo, useState } from 'react'
 import { Calendar, CaretDown, CaretUp, Clock } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import { formatDate } from '../../../i18n/dateTime'
 import { getAppLocalDayOptions, type PeriodFilterState } from '../../../lib/periodFilter'
+
+/** "2026-06-10" → localized short label; noon avoids timezone day-shift. */
+function formatDayLabel(isoDate: string): string {
+  const parsed = new Date(`${isoDate}T12:00:00`)
+  if (Number.isNaN(parsed.getTime())) return isoDate
+  return formatDate(parsed, { day: 'numeric', month: 'short' })
+}
 
 export interface DriverMapPeriodFilterProps extends PeriodFilterState {
   pointCount: number
+  hiddenCount?: number
   topOffset?: string
   showAvailableLegend?: boolean
   onFilterDateChange: (value: string) => void
@@ -27,6 +36,7 @@ function isDefaultTodayFilter(
 
 export default function DriverMapPeriodFilter({
   pointCount,
+  hiddenCount = 0,
   topOffset = 'calc(var(--app-safe-area-top-total) + 64px)',
   showAvailableLegend = false,
   filterDate,
@@ -81,10 +91,10 @@ export default function DriverMapPeriodFilter({
       return t('common.dayAfterTomorrow')
     }
     if (filterDate && filterDateEnd && filterDate === filterDateEnd) {
-      return filterDate
+      return formatDayLabel(filterDate)
     }
     if (filterDate && filterDateEnd) {
-      return `${filterDate} – ${filterDateEnd}`
+      return `${formatDayLabel(filterDate)} – ${formatDayLabel(filterDateEnd)}`
     }
     return t('common.periodFilter')
   }, [filterDate, filterDateEnd, dayOptions, t])
@@ -99,7 +109,7 @@ export default function DriverMapPeriodFilter({
 
   return (
     <div
-      className="driver-map-period-filter absolute left-3 right-3 z-[12] bg-white rounded-card shadow-card overflow-hidden"
+      className="driver-map-period-filter absolute left-3 right-3 z-[12] bg-white rounded-card shadow-card overflow-hidden md:max-w-md md:mx-auto"
       style={{ top: topOffset }}
     >
       <button
@@ -115,7 +125,13 @@ export default function DriverMapPeriodFilter({
             · {t('driver.map.periodFilterCount', { count: pointCount })}
           </span>
         </span>
-        {hasCustomFilter && (
+        {/* Make hidden trips visible so "today" default doesn't silently swallow tomorrow's rides */}
+        {hiddenCount > 0 && (
+          <span className="flex-shrink-0 inline-flex items-center min-h-[20px] px-2 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+            {t('driver.map.hiddenByFilter', { count: hiddenCount, defaultValue: '+{{count}} hidden' })}
+          </span>
+        )}
+        {hasCustomFilter && hiddenCount === 0 && (
           <span className="text-[10px] text-muted flex-shrink-0">{t('common.filterActive')}</span>
         )}
         <span className="w-8 h-8 rounded-lg border border-border flex items-center justify-center flex-shrink-0">

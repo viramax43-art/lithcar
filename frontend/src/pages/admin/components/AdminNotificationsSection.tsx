@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Plus } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
 import { createAdminInfoBlock, deleteAdminInfoBlock, listAdminInfoBlocks } from '../../../infrastructure/api/notificationsApi'
+import {
+  EMPTY_USER_INFO_TEXT,
+  hasUserInfoText,
+  resolveUserInfoText,
+  type UserInfoTextI18n,
+} from '../../../lib/userInfoText'
 import type { InfoBlock } from '../../../types'
 import InlineConfirm from './InlineConfirm'
 import { inputCls, Section } from './AdminSidebarShared'
@@ -12,11 +19,11 @@ type AdminNotificationsSectionProps = {
 }
 
 export function AdminNotificationsSection({ canManage }: AdminNotificationsSectionProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [pool, setPool] = useState<'passenger' | 'driver'>('passenger')
   const [items, setItems] = useState<InfoBlock[]>([])
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
+  const [titleDraft, setTitleDraft] = useState<UserInfoTextI18n>({ ...EMPTY_USER_INFO_TEXT })
+  const [bodyDraft, setBodyDraft] = useState<UserInfoTextI18n>({ ...EMPTY_USER_INFO_TEXT })
   const [audience, setAudience] = useState<'all' | 'user'>('all')
   const [targetUsername, setTargetUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -41,8 +48,11 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
     void loadItems()
   }, [loadItems])
 
+  const canSubmit =
+    hasUserInfoText(titleDraft) && hasUserInfoText(bodyDraft) && (audience === 'all' || targetUsername.trim())
+
   const handleCreate = async () => {
-    if (!title.trim() || !body.trim()) return
+    if (!canSubmit) return
     if (audience === 'user' && !targetUsername.trim()) {
       setErrorMessage(t('notifications.send.recipientRequired'))
       return
@@ -52,13 +62,13 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
     try {
       await createAdminInfoBlock({
         pool,
-        title: title.trim(),
-        body: body.trim(),
+        titleI18n: titleDraft,
+        bodyI18n: bodyDraft,
         audience,
         targetUsername: audience === 'user' ? targetUsername.trim() : null,
       })
-      setTitle('')
-      setBody('')
+      setTitleDraft({ ...EMPTY_USER_INFO_TEXT })
+      setBodyDraft({ ...EMPTY_USER_INFO_TEXT })
       setTargetUsername('')
       await loadItems()
     } catch (err) {
@@ -119,7 +129,9 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
             <div key={item.id} className="rounded-xl border border-border bg-surface px-3 py-3 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-bold text-black leading-snug">{item.title}</p>
+                  <p className="text-sm font-bold text-black leading-snug">
+                    {resolveUserInfoText(item.titleI18n, i18n.language)}
+                  </p>
                   <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
                     {item.audience === 'user' && item.targetUsername
                       ? `@${item.targetUsername}`
@@ -133,7 +145,9 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
                   className="flex-shrink-0"
                 />
               </div>
-              <p className="text-xs text-muted whitespace-pre-wrap line-clamp-4">{item.body}</p>
+              <p className="text-xs text-muted whitespace-pre-wrap line-clamp-4">
+                {resolveUserInfoText(item.bodyI18n, i18n.language)}
+              </p>
             </div>
           ))}
         </div>
@@ -170,29 +184,58 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
               className={inputCls}
             />
           )}
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('notifications.send.titlePlaceholder')}
-            className={inputCls}
-          />
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={t('notifications.send.bodyPlaceholder')}
-            rows={4}
-            className={`${inputCls} resize-y min-h-[96px]`}
-          />
+
+          <div className="rounded-xl border border-border p-3 space-y-3">
+            <p className="text-xs font-bold">{t('notifications.infoBlocks.titleField')}</p>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <div key={`title-${lang}`} className="space-y-1">
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t(`language.${lang}`)}
+                </label>
+                <input
+                  value={titleDraft[lang]}
+                  onChange={(e) =>
+                    setTitleDraft((prev) => ({
+                      ...prev,
+                      [lang]: e.target.value,
+                    }))
+                  }
+                  placeholder={t('notifications.send.titlePlaceholder')}
+                  className={inputCls}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-border p-3 space-y-3">
+            <p className="text-xs font-bold">{t('notifications.infoBlocks.bodyField')}</p>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <div key={`body-${lang}`} className="space-y-1">
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t(`language.${lang}`)}
+                </label>
+                <textarea
+                  value={bodyDraft[lang]}
+                  onChange={(e) =>
+                    setBodyDraft((prev) => ({
+                      ...prev,
+                      [lang]: e.target.value,
+                    }))
+                  }
+                  placeholder={t('notifications.send.bodyPlaceholder')}
+                  rows={3}
+                  className={`${inputCls} resize-y min-h-[72px]`}
+                />
+              </div>
+            ))}
+          </div>
+
           <button
             type="button"
             onClick={() => void handleCreate()}
-            disabled={
-              isSaving || !title.trim() || !body.trim() || (audience === 'user' && !targetUsername.trim())
-            }
+            disabled={isSaving || !canSubmit}
             className={`w-full py-2.5 rounded-xl font-bold text-sm inline-flex items-center justify-center gap-2 transition-all ${
-              !isSaving && title.trim() && body.trim() && (audience === 'all' || targetUsername.trim())
-                ? 'bg-black text-white active:scale-[0.98]'
-                : 'bg-surface text-muted'
+              !isSaving && canSubmit ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted'
             }`}
           >
             <Plus size={16} weight="bold" />

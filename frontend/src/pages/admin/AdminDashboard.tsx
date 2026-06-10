@@ -268,6 +268,10 @@ export default function AdminDashboard() {
   const startRouteEdit = useCallback((request: RideRequest) => {
     setRouteEditDraft(toRideDraft(request))
     setSelectedReqId(request.id)
+    // On mobile the bottom drawer (z-2000) covers the route edit bar — collapse it.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+      setSidebarCollapsed(true)
+    }
   }, [])
 
   const cancelRouteEdit = useCallback(() => {

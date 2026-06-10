@@ -28,7 +28,7 @@ export default function AdminRouteEditBar({
 
   return (
     <div
-      className="admin-route-edit-bar absolute left-0 right-0 bottom-0 z-[1100] bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+      className="admin-route-edit-bar absolute left-0 right-0 bottom-0 z-[1100] bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.08)] md:left-4 md:right-auto md:bottom-4 md:w-[420px] md:max-w-[calc(100%-32px)] md:rounded-card md:border md:shadow-card"
       style={{ paddingBottom: 'var(--app-safe-area-bottom-total, 0px)' }}
     >
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
@@ -41,10 +41,10 @@ export default function AdminRouteEditBar({
         <button
           type="button"
           onClick={onCancel}
-          className="p-2 hover:bg-surface rounded-xl transition-colors flex-shrink-0"
+          className="w-11 h-11 -my-1 flex items-center justify-center hover:bg-surface rounded-xl transition-colors flex-shrink-0"
           aria-label={t('common.cancel', { defaultValue: 'Cancel' })}
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       </div>
 
@@ -53,7 +53,7 @@ export default function AdminRouteEditBar({
           <button
             type="button"
             onClick={() => onDraftChange({ ...draft, active: 'from' })}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center gap-1.5 ${
               draft.active === 'from' ? 'bg-white shadow-sm text-black' : 'text-muted hover:text-black'
             }`}
           >
@@ -63,7 +63,7 @@ export default function AdminRouteEditBar({
           <button
             type="button"
             onClick={() => onDraftChange({ ...draft, active: 'to' })}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center gap-1.5 ${
               draft.active === 'to' ? 'bg-white shadow-sm text-black' : 'text-muted hover:text-black'
             }`}
           >
@@ -108,10 +108,11 @@ export default function AdminRouteEditBar({
       )}
 
       <div className="px-4 pb-4 flex gap-2">
+        {/* On desktop the header X already covers cancel — avoid two equal cancel controls */}
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 h-11 rounded-xl border border-border text-sm font-bold"
+          className="flex-1 h-11 rounded-xl border border-border text-sm font-bold hover:bg-surface transition-colors md:hidden"
         >
           {t('common.cancel', { defaultValue: 'Cancel' })}
         </button>
@@ -120,7 +121,7 @@ export default function AdminRouteEditBar({
             type="button"
             onClick={onReset}
             disabled={isSaving}
-            className="h-11 px-4 rounded-xl border border-border bg-surface text-sm font-bold disabled:opacity-50"
+            className="h-11 px-4 rounded-xl border border-border bg-surface text-sm font-bold hover:bg-border transition-colors disabled:opacity-50"
           >
             {t('common.reset', { defaultValue: 'Reset' })}
           </button>
@@ -129,7 +130,7 @@ export default function AdminRouteEditBar({
           type="button"
           disabled={isSaving || !changed}
           onClick={onSave}
-          className="flex-1 h-11 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-50"
+          className="flex-1 h-11 rounded-xl bg-black text-white text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
         >
           {isSaving ? t('common.saving', { defaultValue: 'Saving...' }) : t('common.save', { defaultValue: 'Save' })}
         </button>

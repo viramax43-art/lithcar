@@ -33,22 +33,31 @@ export function AdminLoginScreen({
           <p className="text-sm text-muted mt-1">{t('admin.panel', { defaultValue: 'Admin panel' })}</p>
         </div>
         <p className="text-sm text-muted">{t('admin.enterAccessKey', { defaultValue: 'Enter access key. Login/password is not required.' })}</p>
-        <input
-          type="password"
-          value={adminKeyInput}
-          onChange={(event) => onChangeKey(event.target.value)}
-          placeholder="ride_admin_..."
-          className="w-full px-4 py-3 rounded-xl border-[1.5px] border-border bg-surface outline-none focus:border-black focus:bg-white transition-colors"
-        />
-        <button
-          onClick={onLogin}
-          disabled={!adminKeyInput.trim() || isAdminAuthorizing}
-          className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${adminKeyInput.trim() && !isAdminAuthorizing ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted'}`}
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (adminKeyInput.trim() && !isAdminAuthorizing) onLogin()
+          }}
         >
-          {isAdminAuthorizing
-            ? t('admin.verifyingKey', { defaultValue: 'Verifying key...' })
-            : t('driver.login', { defaultValue: 'Sign in' })}
-        </button>
+          <input
+            type="password"
+            value={adminKeyInput}
+            onChange={(event) => onChangeKey(event.target.value)}
+            placeholder="ride_admin_..."
+            autoComplete="current-password"
+            className="w-full px-4 py-3 rounded-xl border-[1.5px] border-border bg-surface outline-none focus:border-black focus:bg-white transition-colors"
+          />
+          <button
+            type="submit"
+            disabled={!adminKeyInput.trim() || isAdminAuthorizing}
+            className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${adminKeyInput.trim() && !isAdminAuthorizing ? 'bg-black text-white hover:bg-zinc-800 active:scale-[0.97]' : 'bg-surface text-muted'}`}
+          >
+            {isAdminAuthorizing
+              ? t('admin.verifyingKey', { defaultValue: 'Verifying key...' })
+              : t('driver.login', { defaultValue: 'Sign in' })}
+          </button>
+        </form>
         {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
       </div>
     </div>
@@ -83,7 +92,7 @@ export function AdminHeader({
           variant="dark"
           onNotificationSelect={onNotificationSelect}
         />
-        <div className="hidden md:block flex-shrink-0">
+        <div className="flex-shrink-0">
           <LanguageSwitcher variant="header" />
         </div>
         <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-2 rounded-pill bg-white/10">
@@ -119,7 +128,7 @@ export function AdminErrorToast({ errorMessage, onClose }: { errorMessage: strin
         <p className="text-xs font-bold text-red-900">{t('common.error', { defaultValue: 'Error' })}</p>
         <p className="text-xs text-red-700 mt-0.5 break-words">{errorMessage}</p>
       </div>
-      <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-surface rounded-lg flex-shrink-0 transition-colors touch-none">
+      <button onClick={onClose} className="w-10 h-10 -m-1 flex items-center justify-center hover:bg-surface rounded-lg flex-shrink-0 transition-colors touch-none">
         <X size={14} className="text-muted" />
       </button>
     </div>

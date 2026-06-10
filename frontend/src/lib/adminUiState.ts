@@ -9,6 +9,11 @@ export const ADMIN_UI_STATE_VERSION = 1
 const VILNIUS_CENTER = { lat: 54.6872, lng: 25.2797 }
 const DEFAULT_PERIOD = getDefaultPeriodFilter()
 
+function isMobileViewport(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(max-width: 768px)').matches
+}
+
 export interface AdminDashboardUiSlice {
   activeTab: AdminTab
   filterStatus: string
@@ -108,7 +113,8 @@ export const DEFAULT_ADMIN_DASHBOARD_UI: AdminDashboardUiSlice = {
   selectedGroupId: null,
   selectedZoneId: null,
   expandedDriverId: null,
-  sidebarCollapsed: true,
+  // On mobile start with the drawer expanded so new admins see the content lists.
+  sidebarCollapsed: !isMobileViewport(),
   filterDate: DEFAULT_PERIOD.filterDate,
   filterDateEnd: DEFAULT_PERIOD.filterDateEnd,
   filterTime: DEFAULT_PERIOD.filterTime,
@@ -134,8 +140,7 @@ export const DEFAULT_ADMIN_DASHBOARD_UI: AdminDashboardUiSlice = {
 }
 
 function defaultMapFilterCollapsed(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia('(max-width: 768px)').matches
+  return isMobileViewport()
 }
 
 export const DEFAULT_ADMIN_MAP_UI: AdminMapUiSlice = {

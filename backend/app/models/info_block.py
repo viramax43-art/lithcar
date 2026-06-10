@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models import Base
 
@@ -27,8 +28,8 @@ class InfoBlock(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     pool = Column(String, nullable=False, index=True)
-    title = Column(String, nullable=False)
-    body = Column(String, nullable=False)
+    title_i18n = Column(JSONB, nullable=False, server_default="{}")
+    body_i18n = Column(JSONB, nullable=False, server_default="{}")
     is_active = Column(Boolean, nullable=False, server_default="true")
     sort_order = Column(Integer, nullable=False, server_default="0")
     audience = Column(String, nullable=False, server_default=InfoBlockAudience.ALL)

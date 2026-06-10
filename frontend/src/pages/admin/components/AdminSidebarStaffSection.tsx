@@ -128,13 +128,13 @@ export function AdminSidebarStaffSection({
             <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
               <button
                 onClick={() => setEditingStaff(item)}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-pill bg-surface hover:bg-border transition-colors"
+                className="min-h-[36px] inline-flex items-center gap-1 text-[10px] font-semibold px-3 py-2 rounded-pill bg-surface hover:bg-border transition-colors"
               >
                 <PencilSimple size={11} /> {t('common.edit')}
               </button>
               <button
                 onClick={() => void handleRotateManagedKey(item.id)}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-pill bg-surface hover:bg-border transition-colors"
+                className="min-h-[36px] inline-flex items-center gap-1 text-[10px] font-semibold px-3 py-2 rounded-pill bg-surface hover:bg-border transition-colors"
               >
                 <Key size={11} /> {t('common.newKey')}
               </button>

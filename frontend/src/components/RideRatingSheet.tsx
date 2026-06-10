@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import StarRatingInput from './StarRatingInput'
+import { useEscapeClose } from '../lib/useEscapeClose'
 
 interface RideRatingSheetProps {
   open: boolean
@@ -26,6 +27,8 @@ export default function RideRatingSheet({
   const [score, setScore] = useState(0)
   const [comment, setComment] = useState('')
 
+  useEscapeClose(open && !isSubmitting, onClose)
+
   if (!open) return null
 
   const handleSubmit = () => {
@@ -37,7 +40,7 @@ export default function RideRatingSheet({
   return (
     <>
       <div className="absolute inset-0 z-[25] bg-black/40" onClick={onClose} />
-      <div className="absolute left-0 right-0 bottom-0 z-[30] bg-white rounded-t-3xl overflow-hidden animate-slide-up">
+      <div className="absolute left-0 right-0 bottom-0 z-[30] bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl">
         <div className="flex justify-center pt-3">
           <div className="w-9 h-1 rounded-full bg-border" />
         </div>
@@ -49,12 +52,15 @@ export default function RideRatingSheet({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0"
+            className="w-11 h-11 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0"
           >
-            <X size={15} weight="bold" className="text-muted" />
+            <X size={16} weight="bold" className="text-muted" />
           </button>
         </div>
-        <div className="px-5 pb-6 space-y-4">
+        <div
+          className="px-5 pb-6 space-y-4"
+          style={{ paddingBottom: 'calc(1.5rem + var(--app-safe-area-bottom-total, 0px))' }}
+        >
           <StarRatingInput value={score} onChange={setScore} disabled={isSubmitting} />
           <textarea
             value={comment}

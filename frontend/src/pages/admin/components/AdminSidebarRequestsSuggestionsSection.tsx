@@ -113,7 +113,7 @@ export function AdminSidebarRequestsSuggestionsSection({
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center hover:bg-border rounded-lg transition-colors touch-none"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center hover:bg-border rounded-lg transition-colors touch-none"
           >
             <X size={14} />
           </button>
@@ -153,19 +153,16 @@ export function AdminSidebarRequestsSuggestionsSection({
           return (
             <div
               key={request.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedReqId(selected ? null : request.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  setSelectedReqId(selected ? null : request.id)
-                }
-              }}
-              className={`w-full text-left p-3.5 rounded-card border-[1.5px] transition-all cursor-pointer ${
+              className={`w-full p-3.5 rounded-card border-[1.5px] transition-all ${
                 selected ? 'border-black bg-surface' : inManualGroup ? 'border-violet-400 bg-violet-50/30' : 'border-border hover:border-muted'
               }`}
             >
+              {/* Selectable area is a real button; footer actions live outside to avoid nested interactive elements */}
+              <button
+                type="button"
+                onClick={() => setSelectedReqId(selected ? null : request.id)}
+                className="w-full text-left block cursor-pointer"
+              >
               <div className="flex items-center justify-between mb-2.5 gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   {/* Color dot matching map marker color */}
@@ -211,6 +208,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                   <p className="truncate">{request.to.address}</p>
                 </div>
               </div>
+              </button>
               <div className="mt-2.5 pt-2.5 border-t border-border flex items-center justify-between">
                 <span className="text-[11px] text-muted flex items-center gap-1.5">
                   <Clock size={11} />
@@ -223,8 +221,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={(event) => {
-                      event.stopPropagation()
+                    onClick={() => {
                       setManualGroupIds((prev) => prev.includes(request.id) ? prev.filter((id) => id !== request.id) : [...prev, request.id])
                     }}
                     className={`text-[11px] font-bold px-3 py-2 rounded-pill transition-colors min-h-[44px] ${
@@ -239,10 +236,7 @@ export function AdminSidebarRequestsSuggestionsSection({
                   </button>
                   {!request.driverId && (
                     <button
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setAssignModalReqIds([request.id])
-                      }}
+                      onClick={() => setAssignModalReqIds([request.id])}
                       className="text-[11px] font-bold text-accent-dark bg-accent/10 hover:bg-accent/20 px-3 py-2 rounded-pill transition-colors min-h-[44px]"
                     >
                       {t('admin.requests.assign', { defaultValue: 'Assign' })}

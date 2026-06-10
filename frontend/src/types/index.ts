@@ -350,8 +350,8 @@ export interface AppNotification {
 export interface InfoBlock {
   id: string
   pool: 'passenger' | 'driver'
-  title: string
-  body: string
+  titleI18n: UserInfoTextI18n
+  bodyI18n: UserInfoTextI18n
   audience: 'all' | 'user'
   targetUsername: string | null
   isActive: boolean

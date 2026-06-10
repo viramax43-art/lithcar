@@ -22,6 +22,7 @@ from app.schemas.notification import (
     notification_to_out,
 )
 from app.services.info_block_service import (
+    InfoBlockContentError,
     InfoBlockRecipient,
     InfoBlockTargetError,
     count_unread_info_blocks,
@@ -40,6 +41,7 @@ from app.services.notification_service import (
     list_notifications,
     mark_all_read,
     mark_read,
+    normalize_notification_language,
 )
 
 passenger_router = APIRouter(prefix="/notifications/passenger")
@@ -47,11 +49,12 @@ admin_router = APIRouter(prefix="/admin/notifications")
 info_blocks_router = APIRouter(prefix="/admin/info-blocks")
 
 
-def _passenger_recipient(user: User) -> InfoBlockRecipient:
+def _passenger_recipient(user: User, *, lang: str | None = None) -> InfoBlockRecipient:
     return InfoBlockRecipient(
         pool=InfoBlockPool.PASSENGER,
         recipient_type=InfoBlockReadRecipientType.USER,
         recipient_id=user.user_id,
+        language=normalize_notification_language(lang) if lang else user.language,
     )
 
 
@@ -68,12 +71,13 @@ async def list_passenger_notifications(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     unreadOnly: bool = False,
+    lang: str | None = Query(default=None, max_length=8),
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     items, total = await list_info_blocks_for_recipient(
         db_session,
-        recipient=_passenger_recipient(current_user),
+        recipient=_passenger_recipient(current_user, lang=lang),
         limit=limit,
         offset=offset,
         unread_only=unreadOnly,
@@ -98,13 +102,14 @@ async def passenger_unread_count(
 @passenger_router.patch("/{notification_id}/read", response_model=NotificationOut)
 async def mark_passenger_notification_read(
     notification_id: str,
+    lang: str | None = Query(default=None, max_length=8),
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     view = await mark_info_block_read(
         db_session,
         info_block_id=notification_id,
-        recipient=_passenger_recipient(current_user),
+        recipient=_passenger_recipient(current_user, lang=lang),
     )
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
@@ -125,6 +130,7 @@ async def list_admin_notifications(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     unreadOnly: bool = False,
+    lang: str | None = Query(default=None, max_length=8),
     session: AdminSession = Depends(require_admin_roles(
         AdminApiRole.CHIEF_ADMIN,
         AdminApiRole.ADMIN,
@@ -140,7 +146,7 @@ async def list_admin_notifications(
         unread_only=unreadOnly,
     )
     return NotificationPage(
-        items=[notification_to_out(item) for item in items],
+        items=[notification_to_out(item, language=lang) for item in items],
         total=total,
         limit=limit,
         offset=offset,
@@ -163,6 +169,7 @@ async def admin_unread_count(
 @admin_router.patch("/{notification_id}/read", response_model=NotificationOut)
 async def mark_admin_notification_read(
     notification_id: str,
+    lang: str | None = Query(default=None, max_length=8),
     session: AdminSession = Depends(require_admin_roles(
         AdminApiRole.CHIEF_ADMIN,
         AdminApiRole.ADMIN,
@@ -177,7 +184,7 @@ async def mark_admin_notification_read(
     )
     if entity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
-    return notification_to_out(entity)
+    return notification_to_out(entity, language=lang)
 
 
 @admin_router.post("/read-all", response_model=UnreadCountOut)
@@ -213,13 +220,13 @@ async def create_info_block_endpoint(
         entity = await create_info_block(
             db_session,
             pool=payload.pool,
-            title=payload.title,
-            body=payload.body,
+            title_i18n=payload.titleI18n.model_dump(),
+            body_i18n=payload.bodyI18n.model_dump(),
             created_by_admin_key_id=session.admin_key_id,
             audience=payload.audience,
             target_username=payload.targetUsername,
         )
-    except InfoBlockTargetError as exc:
+    except (InfoBlockTargetError, InfoBlockContentError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return info_block_to_out(entity)
 
@@ -231,13 +238,16 @@ async def update_info_block_endpoint(
     _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    entity = await update_info_block(
-        db_session,
-        info_block_id=info_block_id,
-        title=payload.title,
-        body=payload.body,
-        is_active=payload.isActive,
-    )
+    try:
+        entity = await update_info_block(
+            db_session,
+            info_block_id=info_block_id,
+            title_i18n=payload.titleI18n.model_dump() if payload.titleI18n is not None else None,
+            body_i18n=payload.bodyI18n.model_dump() if payload.bodyI18n is not None else None,
+            is_active=payload.isActive,
+        )
+    except InfoBlockContentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if entity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Info block not found.")
     return info_block_to_out(entity)

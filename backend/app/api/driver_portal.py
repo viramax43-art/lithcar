@@ -34,7 +34,9 @@ from app.services.info_block_service import (
     list_info_blocks_for_recipient,
     mark_all_info_blocks_read,
     mark_info_block_read,
+    resolve_recipient_language,
 )
+from app.services.notification_service import normalize_notification_language
 from app.services.passenger_notification_service import (
     notify_passenger_driver_assigned,
     notify_passenger_status_changed,
@@ -595,11 +597,27 @@ async def driver_session_me(
     )
 
 
-def _driver_recipient(session: DriverSession) -> InfoBlockRecipient:
+async def _driver_recipient(
+    db_session: AsyncSession,
+    session: DriverSession,
+    *,
+    lang: str | None = None,
+) -> InfoBlockRecipient:
+    base = InfoBlockRecipient(
+        pool=InfoBlockPool.DRIVER,
+        recipient_type=InfoBlockReadRecipientType.DRIVER,
+        recipient_id=session.driver_id,
+    )
+    language = (
+        normalize_notification_language(lang)
+        if lang
+        else await resolve_recipient_language(db_session, recipient=base)
+    )
     return InfoBlockRecipient(
         pool=InfoBlockPool.DRIVER,
         recipient_type=InfoBlockReadRecipientType.DRIVER,
         recipient_id=session.driver_id,
+        language=language,
     )
 
 
@@ -608,12 +626,14 @@ async def list_driver_notifications(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     unreadOnly: bool = False,
+    lang: str | None = Query(default=None, max_length=8),
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    recipient = await _driver_recipient(db_session, session, lang=lang)
     items, total = await list_info_blocks_for_recipient(
         db_session,
-        recipient=_driver_recipient(session),
+        recipient=recipient,
         limit=limit,
         offset=offset,
         unread_only=unreadOnly,
@@ -631,20 +651,23 @@ async def driver_unread_count(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    count = await count_unread_info_blocks(db_session, recipient=_driver_recipient(session))
+    recipient = await _driver_recipient(db_session, session)
+    count = await count_unread_info_blocks(db_session, recipient=recipient)
     return UnreadCountOut(count=count)
 
 
 @router.patch("/notifications/{notification_id}/read", response_model=NotificationOut)
 async def mark_driver_notification_read(
     notification_id: str,
+    lang: str | None = Query(default=None, max_length=8),
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    recipient = await _driver_recipient(db_session, session, lang=lang)
     view = await mark_info_block_read(
         db_session,
         info_block_id=notification_id,
-        recipient=_driver_recipient(session),
+        recipient=recipient,
     )
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
@@ -656,7 +679,8 @@ async def mark_all_driver_notifications_read(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    await mark_all_info_blocks_read(db_session, recipient=_driver_recipient(session))
+    recipient = await _driver_recipient(db_session, session)
+    await mark_all_info_blocks_read(db_session, recipient=recipient)
     return UnreadCountOut(count=0)
 
 

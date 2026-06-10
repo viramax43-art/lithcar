@@ -11,6 +11,7 @@ import {
   isImageFile,
   resolveApplicationFileUrl,
 } from '../../../lib/driverApplicationDisplay'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { DriverApplication, DriverApplicationStatus, DriverRegistrationFormSchema } from '../../../types'
 import { inputCls } from './AdminSidebarShared'
 
@@ -61,6 +62,8 @@ export default function AdminDriverApplicationDetail({
     }
   }, [])
 
+  useEscapeClose(!isProcessing, onClose)
+
   const handleApprove = async () => {
     setIsProcessing(true)
     setErrorMessage(null)
@@ -89,8 +92,16 @@ export default function AdminDriverApplicationDetail({
   }
 
   const modal = (
-    <div className="fixed inset-0 z-[3500] bg-black/55 flex flex-col sm:items-center sm:justify-center sm:p-4">
-      <div className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[92dvh] bg-white sm:rounded-card border-border sm:border flex flex-col min-h-0 shadow-card">
+    <div
+      className="fixed inset-0 z-[3500] bg-black/55 flex flex-col sm:items-center sm:justify-center sm:p-4"
+      onClick={() => !isProcessing && onClose()}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[92dvh] bg-white sm:rounded-card border-border sm:border flex flex-col min-h-0 shadow-card"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex-shrink-0 px-4 pt-3 pb-3 border-b border-border bg-white">
           <div className="flex justify-center sm:hidden pb-2">
             <div className="w-9 h-1 rounded-full bg-border" />
@@ -247,6 +258,7 @@ export default function AdminDriverApplicationDetail({
                       {t('admin.driverApplications.approve')}
                     </button>
                   )}
+                  {/* Destructive action is visually secondary so it can't be mistaken for the primary CTA */}
                   <button
                     type="button"
                     disabled={isProcessing}
@@ -254,7 +266,7 @@ export default function AdminDriverApplicationDetail({
                       setApproveArmed(false)
                       setShowRejectForm(true)
                     }}
-                    className="flex-1 h-12 rounded-2xl border border-red-200 text-red-600 text-sm font-bold disabled:opacity-50"
+                    className="h-12 px-5 rounded-2xl text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
                     {t('admin.driverApplications.reject')}
                   </button>

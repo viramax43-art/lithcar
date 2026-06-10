@@ -1,4 +1,4 @@
-import type { AppNotification, InfoBlock } from '../../types'
+import type { AppNotification, InfoBlock, UserInfoTextI18n } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type { PaginatedResult, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
@@ -21,10 +21,29 @@ interface InfoBlockPageApi {
 
 export interface CreateInfoBlockPayload {
   pool: 'passenger' | 'driver'
-  title: string
-  body: string
+  titleI18n: UserInfoTextI18n
+  bodyI18n: UserInfoTextI18n
   audience?: 'all' | 'user'
   targetUsername?: string | null
+}
+
+export interface NotificationListParams extends PaginationParams {
+  unreadOnly?: boolean
+  lang?: string
+}
+
+function notificationQuery(params?: NotificationListParams): string {
+  const parts: string[] = []
+  if (params?.unreadOnly) parts.push('unreadOnly=true')
+  if (params?.lang) parts.push(`lang=${encodeURIComponent(params.lang)}`)
+  const page = toPageQuery(params)
+  if (page) parts.push(page.replace(/^&/, ''))
+  return parts.length > 0 ? `${parts.join('&')}` : ''
+}
+
+function withNotificationQuery(base: string, params?: NotificationListParams): string {
+  const query = notificationQuery(params)
+  return query ? `${base}?${query}` : base
 }
 
 function passengerBase() {
@@ -40,10 +59,9 @@ function infoBlocksBase() {
 }
 
 export async function listPassengerNotifications(
-  params?: PaginationParams & { unreadOnly?: boolean },
+  params?: NotificationListParams,
 ): Promise<PaginatedResult<AppNotification>> {
-  const unreadPart = params?.unreadOnly ? 'unreadOnly=true&' : ''
-  return apiRequest<NotificationPageApi>(`${passengerBase()}?${unreadPart}${toPageQuery(params)}`)
+  return apiRequest<NotificationPageApi>(withNotificationQuery(passengerBase(), params))
 }
 
 export async function getPassengerUnreadCount(): Promise<number> {
@@ -51,8 +69,12 @@ export async function getPassengerUnreadCount(): Promise<number> {
   return result.count
 }
 
-export async function markPassengerNotificationRead(notificationId: string): Promise<AppNotification> {
-  return apiRequest<AppNotification>(`${passengerBase()}/${notificationId}/read`, { method: 'PATCH' })
+export async function markPassengerNotificationRead(
+  notificationId: string,
+  lang?: string,
+): Promise<AppNotification> {
+  const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+  return apiRequest<AppNotification>(`${passengerBase()}/${notificationId}/read${suffix}`, { method: 'PATCH' })
 }
 
 export async function markAllPassengerNotificationsRead(): Promise<void> {
@@ -60,10 +82,9 @@ export async function markAllPassengerNotificationsRead(): Promise<void> {
 }
 
 export async function listDriverNotifications(
-  params?: PaginationParams & { unreadOnly?: boolean },
+  params?: NotificationListParams,
 ): Promise<PaginatedResult<AppNotification>> {
-  const unreadPart = params?.unreadOnly ? 'unreadOnly=true&' : ''
-  return apiRequest<NotificationPageApi>(`/api/driver/notifications?${unreadPart}${toPageQuery(params)}`, {
+  return apiRequest<NotificationPageApi>(withNotificationQuery('/api/driver/notifications', params), {
     authMode: 'cookie',
   })
 }
@@ -73,8 +94,12 @@ export async function getDriverUnreadCount(): Promise<number> {
   return result.count
 }
 
-export async function markDriverNotificationRead(notificationId: string): Promise<AppNotification> {
-  return apiRequest<AppNotification>(`/api/driver/notifications/${notificationId}/read`, {
+export async function markDriverNotificationRead(
+  notificationId: string,
+  lang?: string,
+): Promise<AppNotification> {
+  const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+  return apiRequest<AppNotification>(`/api/driver/notifications/${notificationId}/read${suffix}`, {
     method: 'PATCH',
     authMode: 'cookie',
   })
@@ -85,10 +110,9 @@ export async function markAllDriverNotificationsRead(): Promise<void> {
 }
 
 export async function listAdminNotifications(
-  params?: PaginationParams & { unreadOnly?: boolean },
+  params?: NotificationListParams,
 ): Promise<PaginatedResult<AppNotification>> {
-  const unreadPart = params?.unreadOnly ? 'unreadOnly=true&' : ''
-  return apiRequest<NotificationPageApi>(`${adminBase()}?${unreadPart}${toPageQuery(params)}`, { authMode: 'cookie' })
+  return apiRequest<NotificationPageApi>(withNotificationQuery(adminBase(), params), { authMode: 'cookie' })
 }
 
 export async function getAdminUnreadCount(): Promise<number> {
@@ -96,8 +120,12 @@ export async function getAdminUnreadCount(): Promise<number> {
   return result.count
 }
 
-export async function markAdminNotificationRead(notificationId: string): Promise<AppNotification> {
-  return apiRequest<AppNotification>(`${adminBase()}/${notificationId}/read`, {
+export async function markAdminNotificationRead(
+  notificationId: string,
+  lang?: string,
+): Promise<AppNotification> {
+  const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+  return apiRequest<AppNotification>(`${adminBase()}/${notificationId}/read${suffix}`, {
     method: 'PATCH',
     authMode: 'cookie',
   })

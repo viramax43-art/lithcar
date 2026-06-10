@@ -97,14 +97,20 @@ async def list_passenger_requests(
     passenger_id: str,
     limit: int,
     offset: int,
+    scope: str | None = None,
 ) -> tuple[list[RideRequest], int]:
+    conditions = [RideRequest.passenger_id == passenger_id]
+    if scope == "active":
+        conditions.append(RideRequest.status != "completed")
+    elif scope == "completed":
+        conditions.append(RideRequest.status == "completed")
     total_query = await db_session.execute(
-        select(func.count()).select_from(RideRequest).where(RideRequest.passenger_id == passenger_id)
+        select(func.count()).select_from(RideRequest).where(*conditions)
     )
     total = int(total_query.scalar_one() or 0)
     result = await db_session.execute(
         select(RideRequest)
-        .where(RideRequest.passenger_id == passenger_id)
+        .where(*conditions)
         .order_by(RideRequest.created_at.desc())
         .limit(limit)
         .offset(offset)

@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.i18n_text import normalize_user_info_text_i18n
+
+
+class UserInfoTextI18nOut(BaseModel):
+    lt: str = ""
+    pl: str = ""
+    en: str = ""
+    ru: str = ""
 
 
 class NotificationOut(BaseModel):
@@ -31,8 +40,8 @@ class UnreadCountOut(BaseModel):
 class InfoBlockOut(BaseModel):
     id: str
     pool: str
-    title: str
-    body: str
+    titleI18n: UserInfoTextI18nOut
+    bodyI18n: UserInfoTextI18nOut
     audience: Literal["all", "user"] = "all"
     targetUsername: str | None = None
     isActive: bool
@@ -48,25 +57,52 @@ class InfoBlockPage(BaseModel):
 
 class CreateInfoBlockIn(BaseModel):
     pool: Literal["passenger", "driver"]
-    title: str = Field(min_length=1, max_length=200)
-    body: str = Field(min_length=1, max_length=4000)
+    titleI18n: UserInfoTextI18nOut | str
+    bodyI18n: UserInfoTextI18nOut | str
     audience: Literal["all", "user"] = "all"
     targetUsername: str | None = Field(default=None, max_length=64)
 
+    @field_validator("titleI18n", mode="before")
+    @classmethod
+    def normalize_title_i18n(cls, value: Any) -> UserInfoTextI18nOut:
+        return UserInfoTextI18nOut(**normalize_user_info_text_i18n(value))
+
+    @field_validator("bodyI18n", mode="before")
+    @classmethod
+    def normalize_body_i18n(cls, value: Any) -> UserInfoTextI18nOut:
+        return UserInfoTextI18nOut(**normalize_user_info_text_i18n(value))
+
 
 class UpdateInfoBlockIn(BaseModel):
-    title: str | None = Field(default=None, min_length=1, max_length=200)
-    body: str | None = Field(default=None, min_length=1, max_length=4000)
+    titleI18n: UserInfoTextI18nOut | str | None = None
+    bodyI18n: UserInfoTextI18nOut | str | None = None
     isActive: bool | None = None
 
+    @field_validator("titleI18n", mode="before")
+    @classmethod
+    def normalize_title_i18n(cls, value: Any) -> UserInfoTextI18nOut | None:
+        if value is None:
+            return None
+        return UserInfoTextI18nOut(**normalize_user_info_text_i18n(value))
 
-def notification_to_out(entity) -> NotificationOut:
+    @field_validator("bodyI18n", mode="before")
+    @classmethod
+    def normalize_body_i18n(cls, value: Any) -> UserInfoTextI18nOut | None:
+        if value is None:
+            return None
+        return UserInfoTextI18nOut(**normalize_user_info_text_i18n(value))
+
+
+def notification_to_out(entity, *, language: str | None = None) -> NotificationOut:
+    from app.services.notification_service import resolve_notification_text
+
+    title, body = resolve_notification_text(entity, language=language)
     return NotificationOut(
         id=entity.id,
         pool=entity.pool,
         type=entity.type,
-        title=entity.title,
-        body=entity.body,
+        title=title,
+        body=body,
         payload=entity.payload,
         readAt=entity.read_at,
         createdAt=entity.created_at,
@@ -77,8 +113,8 @@ def info_block_to_out(entity) -> InfoBlockOut:
     return InfoBlockOut(
         id=entity.id,
         pool=entity.pool,
-        title=entity.title,
-        body=entity.body,
+        titleI18n=UserInfoTextI18nOut(**normalize_user_info_text_i18n(entity.title_i18n)),
+        bodyI18n=UserInfoTextI18nOut(**normalize_user_info_text_i18n(entity.body_i18n)),
         audience=entity.audience or "all",
         targetUsername=entity.target_username,
         isActive=bool(entity.is_active),

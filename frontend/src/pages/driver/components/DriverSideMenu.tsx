@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Check,
   QrCode,
@@ -15,6 +15,7 @@ import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 
 interface DriverSideMenuProps {
   isOpen: boolean
@@ -34,6 +35,17 @@ export default function DriverSideMenu({
   const { t } = useTranslation()
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [isRedeeming, setIsRedeeming] = useState(false)
+  const [logoutArmed, setLogoutArmed] = useState(false)
+  const logoutArmTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) setLogoutArmed(false)
+    return () => {
+      if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
+    }
+  }, [isOpen])
+
+  useEscapeClose(isOpen, onClose)
 
   return (
     <>
@@ -129,14 +141,30 @@ export default function DriverSideMenu({
           </section>
         </div>
 
-        {/* Logout */}
+        {/* Logout — two-step confirmation */}
         <div className="px-4 py-4 border-t border-border">
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-surface text-sm font-semibold text-muted active:bg-border transition-colors"
+            onClick={() => {
+              if (!logoutArmed) {
+                setLogoutArmed(true)
+                if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
+                logoutArmTimer.current = window.setTimeout(() => setLogoutArmed(false), 3500)
+                return
+              }
+              if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
+              setLogoutArmed(false)
+              onLogout()
+            }}
+            className={`w-full flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold transition-colors ${
+              logoutArmed
+                ? 'bg-red-600 text-white'
+                : 'bg-surface text-muted active:bg-border'
+            }`}
           >
             <SignOut size={16} weight="bold" />
-            {t('driver.logoutAccount', { defaultValue: 'Sign out' })}
+            {logoutArmed
+              ? t('driver.logoutConfirm', { defaultValue: 'Sign out for sure?' })
+              : t('driver.logoutAccount', { defaultValue: 'Sign out' })}
           </button>
         </div>
       </div>

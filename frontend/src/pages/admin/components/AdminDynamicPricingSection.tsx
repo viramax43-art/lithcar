@@ -470,6 +470,7 @@ function EuroField({
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">€</span>
         <input
           type="number"
+          inputMode="decimal"
           min={0}
           step={step}
           value={value}
@@ -502,6 +503,7 @@ function NumberField({
       {hint && <p className="text-[10px] text-muted mb-1">{hint}</p>}
       <input
         type="number"
+        inputMode="decimal"
         min={min}
         step={step}
         value={value}

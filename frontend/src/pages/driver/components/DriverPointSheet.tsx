@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import type { DriverMapPoint } from '../../../types'
 import { directionsHref } from '../../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
@@ -69,13 +70,14 @@ export default function DriverPointSheet({
   onClose,
   onAction,
 }: DriverPointSheetProps) {
+  useEscapeClose(Boolean(point) && !isActioning, onClose)
   return (
     <>
       {point && (
         <div className="absolute inset-0 z-[18]" onClick={onClose} />
       )}
       <div
-        className="absolute left-0 right-0 bottom-0 z-[20] bg-white rounded-t-3xl overflow-hidden"
+        className="absolute left-0 right-0 bottom-0 z-[20] bg-white rounded-t-3xl overflow-hidden md:max-w-lg md:mx-auto md:rounded-t-2xl"
         style={{
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
           transform: point ? 'translateY(0)' : 'translateY(100%)',
@@ -161,9 +163,9 @@ function SheetBody({
         </div>
         <button
           onClick={onClose}
-          className="w-9 h-9 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
+          className="w-11 h-11 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
         >
-          <X size={15} weight="bold" className="text-muted" />
+          <X size={16} weight="bold" className="text-muted" />
         </button>
       </div>
 

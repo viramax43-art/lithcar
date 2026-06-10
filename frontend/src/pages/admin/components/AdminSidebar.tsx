@@ -197,9 +197,24 @@ export default function AdminSidebar(props: AdminSidebarProps) {
           onClick={onToggleCollapse}
         />
       )}
-      <aside className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}>
+      <aside
+        className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}
+        onClickCapture={(event) => {
+          // On mobile, any tap on the collapsed peek strip should expand the drawer.
+          if (!collapsed) return
+          if (typeof window === 'undefined') return
+          if (!window.matchMedia('(max-width: 768px)').matches) return
+          event.stopPropagation()
+          onToggleCollapse()
+        }}
+      >
         {/* Drawer handle for mobile */}
-        <div className="admin-drawer-handle" onClick={onToggleCollapse} />
+        <button
+          type="button"
+          className="admin-drawer-handle"
+          aria-label={collapsed ? t('admin.sidebar.expandPanel', { defaultValue: 'Expand panel' }) : t('admin.sidebar.collapsePanel')}
+          onClick={onToggleCollapse}
+        />
         {/* Collapse toggle (desktop only, visible when panel is open) */}
         {!collapsed && (
           <button
@@ -217,7 +232,13 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  // Desktop: clicking a tab on the collapsed rail re-opens the panel.
+                  if (collapsed && typeof window !== 'undefined' && window.matchMedia('(min-width: 769px)').matches) {
+                    onToggleCollapse()
+                  }
+                }}
                 className={`w-[52px] min-h-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all ${
                   active ? 'bg-black text-white' : 'text-muted hover:bg-white hover:text-black'
                 }`}
@@ -259,7 +280,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             {activeTab === 'drivers' && (
               <button
                 onClick={() => setShowDriverForm((value) => !value)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all hover:bg-zinc-800 active:scale-[0.97]"
               >
                 {showDriverForm ? <X size={14} /> : <Plus size={14} />}
                 {showDriverForm ? t('common.close') : t('common.create')}
@@ -268,7 +289,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             {activeTab === 'staff' && adminSession.role === 'chief_admin' && (
               <button
                 onClick={() => setShowStaffForm((value) => !value)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all hover:bg-zinc-800 active:scale-[0.97]"
               >
                 {showStaffForm ? <X size={14} /> : <Plus size={14} />}
                 {showStaffForm ? t('common.close') : t('common.create')}
@@ -277,7 +298,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             {activeTab === 'zones' && !isDrawing && (
               <button
                 onClick={() => setIsDrawing(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all hover:bg-zinc-800 active:scale-[0.97]"
               >
                 <Plus size={14} />
                 {t('admin.sidebar.newZone')}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
+import NotificationBell from '../../components/notifications/NotificationBell'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
@@ -36,26 +37,43 @@ export default function MyRequests() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [tab, setTab] = useState<'active' | 'completed' | 'all'>('active')
 
+  const tabScope = tab === 'all' ? undefined : tab
+
+  // Each tab is paginated server-side so "Completed" sees the full history,
+  // not just whatever happens to be on the loaded pages.
   useEffect(() => {
     let cancelled = false
+    setIsLoading(true)
+    setErrorMessage(null)
+    setRequests([])
+    setTotal(0)
     ;(async () => {
       try {
-        const requestsData = await listMyRequests({ limit: PAGE_SIZE, offset: 0 })
+        const requestsData = await listMyRequests({ limit: PAGE_SIZE, offset: 0, scope: tabScope })
         if (!cancelled) {
           setRequests(requestsData.items)
           setTotal(requestsData.total)
         }
       } catch (error) {
         if (!cancelled) setErrorMessage(error instanceof Error ? error.message : t('errors.loadRequestsFailed', { defaultValue: 'Failed to load requests.' }))
+      } finally {
+        if (!cancelled) setIsLoading(false)
       }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tabScope])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
       try {
         // Passenger endpoint may return 403 — that is acceptable.
         const driversData = await listDrivers(false, { limit: 200, offset: 0 })
         if (!cancelled) setDrivers(driversData.items)
       } catch {
         if (!cancelled) setDrivers([])
-      } finally {
-        if (!cancelled) setIsLoading(false)
       }
     })()
     return () => {
@@ -67,7 +85,7 @@ export default function MyRequests() {
     if (isLoadingMore || requests.length >= total) return
     setIsLoadingMore(true)
     try {
-      const page = await listMyRequests({ limit: PAGE_SIZE, offset: requests.length })
+      const page = await listMyRequests({ limit: PAGE_SIZE, offset: requests.length, scope: tabScope })
       setRequests((prev) => [...prev, ...page.items])
       setTotal(page.total)
     } catch (error) {
@@ -75,18 +93,13 @@ export default function MyRequests() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [isLoadingMore, requests.length, total])
+  }, [isLoadingMore, requests.length, total, tabScope])
 
   const sorted = useMemo(() => {
-    const filtered = tab === 'active'
-      ? requests.filter((r) => r.status !== 'completed')
-      : tab === 'completed'
-        ? requests.filter((r) => r.status === 'completed')
-        : requests
-    return [...filtered].sort(
+    return [...requests].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
-  }, [requests, tab])
+  }, [requests])
 
   const canLoadMore = requests.length < total
 
@@ -97,7 +110,7 @@ export default function MyRequests() {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
-        <div className="flex items-center gap-3 px-3 h-14">
+        <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors flex-shrink-0"
@@ -105,9 +118,10 @@ export default function MyRequests() {
             <ArrowLeft size={20} weight="bold" />
           </button>
           <h1 className="text-base font-extrabold tracking-tight flex-1">{t('passenger.myRidesTitle', { defaultValue: 'My rides' })}</h1>
+          <NotificationBell pool="passenger" />
         </div>
         {/* Status tabs */}
-        <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto">
+        <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto w-full max-w-2xl mx-auto">
           {STATUS_TABS.map((tabItem) => (
             <button
               key={tabItem.key}
@@ -127,7 +141,8 @@ export default function MyRequests() {
       </header>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto flex flex-col" style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}>
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}>
+      <div className="flex flex-col w-full max-w-2xl mx-auto">
         {errorMessage && <p className="px-5 py-3 text-xs font-medium text-red-600">{errorMessage}</p>}
         {isLoading &&
           [0, 1, 2, 3].map((index) => (
@@ -159,7 +174,7 @@ export default function MyRequests() {
             <button
               key={req.id}
               onClick={() => navigate(`/requests/${req.id}`)}
-              className="flex flex-col gap-2 px-5 py-4 border-b border-surface text-left active:bg-surface/80 transition-colors"
+              className="flex flex-col gap-2 px-5 py-4 border-b border-surface text-left hover:bg-surface/60 active:bg-surface/80 transition-colors cursor-pointer"
             >
               {/* Top row: status + time */}
               <div className="flex items-center justify-between">
@@ -258,6 +273,7 @@ export default function MyRequests() {
             )}
           </div>
         )}
+      </div>
       </div>
 
     </div>

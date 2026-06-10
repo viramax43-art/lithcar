@@ -16,6 +16,7 @@ import { getAppLocalDayOptions, matchesPeriodFilter } from '../../../lib/periodF
 import { createMapMark, deleteMapMark, listMapMarks, uploadMapMarkPhoto } from '../../../lib/backend'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG, type MapColorGroupKey } from '../constants'
 import { showOnMapHref } from '../../../lib/navigation'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 import MarkerClusterGroup from './MarkerClusterGroup'
 import { buildSimilarTripGroups, type SimilarTripGroup } from '../utils/similarTrips'
 import AdminRouteEditBar from './AdminRouteEditBar'
@@ -155,6 +156,12 @@ function MapViewportPersistence({
   })
   return null
 }
+
+const IS_COARSE_POINTER =
+  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
+// Small dot markers are hard to tap on touch devices — enforce a minimum size.
+const SMALL_POINT_SIZE = IS_COARSE_POINTER ? 32 : 14
 
 function makeSolidPointIcon(color: string, size: number, label?: string): L.DivIcon {
   const borderWidth = size >= 28 ? 3 : 2
@@ -346,6 +353,8 @@ export default function AdminMap({
   )
   const isMapMarkViewMode = Boolean(openedMarkPopupId || fullscreenPhoto)
   const floatingPanelsTop = isFilterBarCollapsed ? 124 : 252
+
+  useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
 
   const getPickupColor = useCallback((request: RideRequest): string => {
     if (request.status === 'completed') return '#22C55E'
@@ -683,12 +692,16 @@ export default function AdminMap({
     onFilterTimeEndChange('')
   }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
 
+  const hasBottomPanel =
+    !isMapMarkViewMode &&
+    ((!isRouteEditMode && Boolean(selectedReq) && Boolean(status)) || (!isRouteEditMode && showSimilarPanel))
+
   return (
-    <main className="flex-1 relative">
+    <main className={`flex-1 relative ${hasBottomPanel ? 'admin-map--panel-open' : ''}`}>
       {/* === Date/Time Filter Bar === */}
       {!isMapMarkViewMode && (
       <div
-        className={`admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100vw-24px))] bg-white rounded-card shadow-card px-3 py-3 space-y-2.5 ${
+        className={`admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100%-24px))] max-w-full bg-white rounded-card shadow-card px-3 py-3 space-y-2.5 ${
           isFilterBarCollapsed ? 'admin-map-filter-bar--collapsed' : ''
         }`}
       >
@@ -703,7 +716,7 @@ export default function AdminMap({
             <button
               type="button"
               onClick={() => setIsFilterBarCollapsed((prev) => !prev)}
-              className="w-7 h-7 rounded-lg border border-border bg-white flex items-center justify-center"
+              className="w-9 h-9 rounded-lg border border-border bg-white hover:bg-surface transition-colors flex items-center justify-center"
               title={isFilterBarCollapsed ? t('common.open') : t('common.close')}
             >
               {isFilterBarCollapsed ? <CaretDown size={14} /> : <CaretUp size={14} />}
@@ -750,7 +763,7 @@ export default function AdminMap({
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => applySingleDay(dayOptions.today)}
-            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+            className={`h-9 px-3 rounded-lg border text-xs font-semibold transition-colors touch-compact ${
               filterDate === dayOptions.today && filterDateEnd === dayOptions.today
                 ? 'border-black bg-black text-white'
                 : 'border-border hover:bg-surface'
@@ -760,7 +773,7 @@ export default function AdminMap({
           </button>
           <button
             onClick={() => applySingleDay(dayOptions.tomorrow)}
-            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+            className={`h-9 px-3 rounded-lg border text-xs font-semibold transition-colors touch-compact ${
               filterDate === dayOptions.tomorrow && filterDateEnd === dayOptions.tomorrow
                 ? 'border-black bg-black text-white'
                 : 'border-border hover:bg-surface'
@@ -770,7 +783,7 @@ export default function AdminMap({
           </button>
           <button
             onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
-            className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+            className={`h-9 px-3 rounded-lg border text-xs font-semibold transition-colors touch-compact ${
               filterDate === dayOptions.dayAfterTomorrow && filterDateEnd === dayOptions.dayAfterTomorrow
                 ? 'border-black bg-black text-white'
                 : 'border-border hover:bg-surface'
@@ -780,7 +793,7 @@ export default function AdminMap({
           </button>
           <button
             onClick={showAllTrips}
-            className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+            className="h-9 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-compact"
           >
             {t('common.allTrips')}
           </button>
@@ -795,8 +808,8 @@ export default function AdminMap({
               <button
                 key={group.key}
                 onClick={() => onToggleColor(group.key)}
-                className={`h-7 pl-1.5 pr-2.5 rounded-lg border text-xs font-semibold transition-colors touch-none flex items-center gap-1.5 ${
-                  active ? 'border-transparent text-white' : 'border-border text-muted bg-white'
+                className={`h-9 pl-2 pr-3 rounded-lg border text-xs font-semibold transition-colors touch-compact flex items-center gap-1.5 ${
+                  active ? 'border-transparent text-white' : 'border-border text-muted bg-white hover:bg-surface'
                 }`}
                 style={active ? { backgroundColor: group.hex, borderColor: group.hex } : {}}
                 title={t(group.labelKey)}
@@ -837,13 +850,13 @@ export default function AdminMap({
               <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
                 <MagnifyingGlass size={16} className="text-muted flex-shrink-0" />
                 <input
-                  autoFocus
+                  autoFocus={!IS_COARSE_POINTER}
                   value={searchQuery}
                   onChange={(e) => handleSearchInput(e.target.value)}
                   placeholder={t('common.searchAddressPlaceholder')}
                   className="flex-1 text-sm outline-none bg-transparent min-w-0 h-6"
                 />
-                <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]) }} className="w-8 h-8 flex items-center justify-center hover:bg-surface rounded-lg touch-none">
+                <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]) }} className="w-10 h-10 -my-1 flex items-center justify-center hover:bg-surface rounded-lg touch-none">
                   <X size={16} />
                 </button>
               </div>
@@ -946,10 +959,10 @@ export default function AdminMap({
                 <button
                   type="button"
                   onClick={() => setIsMarksPanelCollapsed((prev) => !prev)}
-                  className="w-6 h-6 rounded-md border border-border bg-white flex items-center justify-center"
+                  className="w-9 h-9 rounded-lg border border-border bg-white hover:bg-surface transition-colors flex items-center justify-center"
                   title={isMarksPanelCollapsed ? t('common.open') : t('common.close')}
                 >
-                  {isMarksPanelCollapsed ? <CaretDown size={12} /> : <CaretUp size={12} />}
+                  {isMarksPanelCollapsed ? <CaretDown size={14} /> : <CaretUp size={14} />}
                 </button>
               </div>
             </div>
@@ -974,7 +987,7 @@ export default function AdminMap({
                           key={color}
                           type="button"
                           onClick={() => setMarkColor(color)}
-                          className={`w-6 h-6 rounded-full border-2 transition-transform ${selected ? 'border-black scale-110' : 'border-white/80'}`}
+                          className={`w-9 h-9 touch-none rounded-full border-2 transition-transform ${selected ? 'border-black scale-110' : 'border-white/80'}`}
                           style={{ backgroundColor: color }}
                           title={color}
                         />
@@ -1071,10 +1084,10 @@ export default function AdminMap({
                   </button>
                   <button
                     onClick={() => void handleDeleteMapMark(mark.id)}
-                    className="w-6 h-6 rounded-md bg-surface flex items-center justify-center"
+                    className="w-9 h-9 rounded-lg bg-surface hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center flex-shrink-0"
                     title={t('admin.map.deleteMapMark')}
                   >
-                    <Trash size={12} />
+                    <Trash size={14} />
                   </button>
                 </div>
               ))}
@@ -1141,7 +1154,7 @@ export default function AdminMap({
                 <div key={request.id}>
                   <Marker
                     position={[request.to.latlng.lat, request.to.latlng.lng]}
-                    icon={makeSolidPointIcon(dropoffColor, highlighted ? 36 : 14, highlighted ? 'B' : undefined)}
+                    icon={makeSolidPointIcon(dropoffColor, highlighted ? 36 : SMALL_POINT_SIZE, highlighted ? 'B' : undefined)}
                     eventHandlers={{ click: () => handleSelectRequest(request.id) }}
                   />
                   <Polyline
@@ -1259,7 +1272,7 @@ export default function AdminMap({
               }}
             >
               <Popup autoPan className="map-mark-popup">
-                <div className="text-xs min-w-[220px]">
+                <div className="text-xs min-w-[min(220px,70vw)] max-w-[80vw]">
                   <p className="font-bold">{mark.title}</p>
                   <p className="text-[11px] text-muted">
                     {mark.visibility === 'public' ? t('admin.map.visibleForEveryone') : t('admin.map.visibleForAdminsOnly')}

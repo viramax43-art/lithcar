@@ -6,6 +6,7 @@ import { getPricing } from '../../../lib/backend'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import { addAppLocalDays, rideLocalDateInput, rideLocalTimeInput, toAppLocalDateInput } from '../../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { PricingSettings, RideRequest } from '../../../types'
 
 interface EditRequestSheetProps {
@@ -46,6 +47,8 @@ export default function EditRequestSheet({
   const [date, setDate] = useState(() => rideLocalDateInput(request))
   const [time, setTime] = useState(() => rideLocalTimeInput(request))
 
+  useEscapeClose(open && !isSaving, onClose)
+
   useEffect(() => {
     if (!open) return
     setRouteValue({
@@ -85,11 +88,12 @@ export default function EditRequestSheet({
   return (
     <>
       <div className="fixed inset-0 z-[300] bg-black/40" onClick={onClose} />
+      {/* Bottom sheet on mobile, centered dialog on desktop */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-[310] bg-white rounded-t-3xl overflow-hidden animate-slide-up max-h-[92dvh] overflow-y-auto"
+        className="fixed left-0 right-0 bottom-0 z-[310] bg-white rounded-t-3xl overflow-hidden animate-slide-up max-h-[92dvh] overflow-y-auto sm:left-1/2 sm:right-auto sm:bottom-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md sm:rounded-card sm:shadow-card sm:max-h-[88dvh]"
         style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
       >
-        <div className="flex justify-center pt-3">
+        <div className="flex justify-center pt-3 sm:hidden">
           <div className="w-9 h-1 rounded-full bg-border" />
         </div>
         <div className="px-5 pt-4 pb-3 flex items-start gap-3">

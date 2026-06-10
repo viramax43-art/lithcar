@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { X } from '@phosphor-icons/react'
 
+import { useEscapeClose } from '../../../lib/useEscapeClose'
+
 interface AdminModalShellProps {
   onClose: () => void
   children: ReactNode
@@ -16,8 +18,14 @@ export default function AdminModalShell({
   subtitle,
   maxWidthClass = 'max-w-lg',
 }: AdminModalShellProps) {
+  useEscapeClose(true, onClose)
   return (
-    <div className="admin-modal-root fixed inset-0 bg-black/50 flex items-center justify-center z-[3500] p-4" onClick={onClose}>
+    <div
+      className="admin-modal-root fixed inset-0 bg-black/50 flex items-center justify-center z-[3500] p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
       <div
         className={`admin-modal-panel bg-white rounded-card shadow-card w-full ${maxWidthClass} max-h-[96vh] flex flex-col overflow-hidden`}
         onClick={(event) => event.stopPropagation()}

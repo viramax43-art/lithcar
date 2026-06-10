@@ -174,6 +174,15 @@ export function useNewRequestController() {
     [activeZones, hasZones, showSearch, showZoneWarning, fromPoint, toPoint, t],
   )
 
+  const armPinFromMapCenter = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+    const size = map.getSize()
+    const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
+    const ll = map.containerPointToLatLng(px)
+    commitPin({ lat: ll.lat, lng: ll.lng })
+  }, [commitPin])
+
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
     if (hasZones && !isPointInAnyZone(pinLatLng, activeZones)) {
@@ -186,6 +195,7 @@ export function useNewRequestController() {
       setFromAddress(resolved)
       setActiveField('to')
       hapticImpact('light')
+      window.setTimeout(() => armPinFromMapCenter(), 200)
     } else if (!toPoint) {
       setToPoint(pinLatLng)
       setToAddress(resolved)
@@ -201,16 +211,7 @@ export function useNewRequestController() {
       reverseAbort.current.abort()
       reverseAbort.current = null
     }
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning, t])
-
-  const armPinFromMapCenter = useCallback(() => {
-    const map = mapRef.current
-    if (!map) return
-    const size = map.getSize()
-    const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
-    const ll = map.containerPointToLatLng(px)
-    commitPin({ lat: ll.lat, lng: ll.lng })
-  }, [commitPin])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning, armPinFromMapCenter, t])
 
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
@@ -292,9 +293,13 @@ export function useNewRequestController() {
     }
 
     if (pinLatLng) {
+      // Participate in the seq mechanism so a slow language-refresh response
+      // cannot overwrite the address of a newer pin position.
+      const seq = ++reverseSeq.current
       void (async () => {
         try {
           const addr = await nominatimReverse(pinLatLng)
+          if (seq !== reverseSeq.current) return
           setPinAddress(addr || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`)
         } catch {
           /* keep coordinates */
@@ -377,7 +382,8 @@ export function useNewRequestController() {
   }, [panMapToTarget, showZoneWarning, t])
 
   const handleSubmit = useCallback(async () => {
-    if (!fromPoint || !toPoint || !dateTime) return
+    const [datePart, timePart] = dateTime.split('T')
+    if (!fromPoint || !toPoint || !datePart || !timePart) return
     setSubmitting(true)
     setErrorMessage(null)
     try {
@@ -440,6 +446,13 @@ export function useNewRequestController() {
   }, [fromPoint, toPoint, fromAddress, toAddress, dateTime, activeField])
 
   useEffect(() => {
+    if (fromPoint && toPoint) return
+    if (showSearch) return
+    const timer = window.setTimeout(() => armPinFromMapCenter(), 350)
+    return () => window.clearTimeout(timer)
+  }, [fromPoint, toPoint, activeField, showSearch, armPinFromMapCenter])
+
+  useEffect(() => {
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current)
       if (zoneWarningTimer.current) clearTimeout(zoneWarningTimer.current)
@@ -450,10 +463,16 @@ export function useNewRequestController() {
     }
   }, [])
 
-  const canSubmit = Boolean(fromPoint && toPoint && dateTime && !submitting)
+  // Both date and time parts must be set ("2026-06-10T" with an empty time is invalid).
+  const [draftDatePart, draftTimePart] = dateTime.split('T')
+  const hasValidDateTime = Boolean(draftDatePart && draftTimePart)
+  const canSubmit = Boolean(fromPoint && toPoint && hasValidDateTime && !submitting)
   const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
   const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
+  const isPickingPointA = !fromPoint
+  const isPickingPointB = Boolean(fromPoint && !toPoint)
+  const pinReadyForConfirm = Boolean(pinLatLng && !pinOutOfZone && !isResolving)
 
   const displayPoints =
     quote?.points ??
@@ -508,7 +527,11 @@ export function useNewRequestController() {
     handleLocateMe,
     handleSubmit,
     canSubmit,
+    hasValidDateTime,
     activeIsFrom,
     isPinLive,
+    isPickingPointA,
+    isPickingPointB,
+    pinReadyForConfirm,
   }
 }

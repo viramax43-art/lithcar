@@ -29,6 +29,11 @@ def normalize_user_info_text_i18n(raw: Any) -> UserInfoTextI18n:
     return dict(EMPTY_USER_INFO_TEXT)
 
 
+def has_user_info_text(texts: UserInfoTextI18n | None) -> bool:
+    normalized = normalize_user_info_text_i18n(texts)
+    return any(normalized.get(lang) for lang in SUPPORTED_USER_LANGUAGES)
+
+
 def resolve_user_info_text(texts: UserInfoTextI18n | None, language: str | None) -> str:
     normalized = normalize_user_info_text_i18n(texts)
     lang = language if language in SUPPORTED_USER_LANGUAGES else DEFAULT_USER_LANGUAGE

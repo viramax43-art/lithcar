@@ -27,6 +27,7 @@ export default function DriverRegistration() {
   const [application, setApplication] = useState<DriverApplication | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [files, setFiles] = useState<Record<string, DriverApplicationFileEntry>>({})
+  const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({})
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -134,22 +135,31 @@ export default function DriverRegistration() {
       setFieldErrors((prev) => ({ ...prev, [fieldId]: t('driverRegistration.fileTooLarge') }))
       return
     }
-    const uploaded = await uploadDriverApplicationFile(file)
-    setFiles((prev) => ({
-      ...prev,
-      [fieldId]: {
-        objectKey: uploaded.objectKey,
-        fileName: uploaded.fileName,
-        contentType: uploaded.contentType,
-        sizeBytes: uploaded.sizeBytes,
-        fileUrl: uploaded.fileUrl,
-      },
-    }))
-    setFieldErrors((prev) => {
-      const next = { ...prev }
-      delete next[fieldId]
-      return next
-    })
+    setUploadingFields((prev) => ({ ...prev, [fieldId]: true }))
+    try {
+      const uploaded = await uploadDriverApplicationFile(file)
+      setFiles((prev) => ({
+        ...prev,
+        [fieldId]: {
+          objectKey: uploaded.objectKey,
+          fileName: uploaded.fileName,
+          contentType: uploaded.contentType,
+          sizeBytes: uploaded.sizeBytes,
+          fileUrl: uploaded.fileUrl,
+        },
+      }))
+      setFieldErrors((prev) => {
+        const next = { ...prev }
+        delete next[fieldId]
+        return next
+      })
+    } finally {
+      setUploadingFields((prev) => {
+        const next = { ...prev }
+        delete next[fieldId]
+        return next
+      })
+    }
   }
 
   if (!session.isReady || isLoading) {
@@ -242,6 +252,12 @@ export default function DriverRegistration() {
           </div>
         )}
 
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!isSubmitting && schema && Object.keys(uploadingFields).length === 0) void handleSubmit()
+          }}
+        >
         <div className="mt-6 space-y-5">
           {sortedFields.map((field) => (
             <DynamicFormField
@@ -252,6 +268,7 @@ export default function DriverRegistration() {
               fileEntry={files[field.id] ?? null}
               error={fieldErrors[field.id]}
               disabled={isSubmitting}
+              isUploading={Boolean(uploadingFields[field.id])}
               onValueChange={(value) => {
                 setAnswers((prev) => ({ ...prev, [field.id]: value }))
                 setFieldErrors((prev) => {
@@ -276,13 +293,13 @@ export default function DriverRegistration() {
         {errorMessage && <p className="text-sm text-red-600 mt-4">{errorMessage}</p>}
 
         <button
-          type="button"
-          disabled={isSubmitting || !schema}
-          onClick={() => void handleSubmit()}
-          className="mt-6 w-full h-12 rounded-pill bg-black text-white text-sm font-bold disabled:opacity-50"
+          type="submit"
+          disabled={isSubmitting || !schema || Object.keys(uploadingFields).length > 0}
+          className="mt-6 w-full h-12 rounded-pill bg-black text-white text-sm font-bold disabled:opacity-50 hover:bg-zinc-800 transition-colors"
         >
           {isSubmitting ? t('driverRegistration.submitting') : t('driverRegistration.submit')}
         </button>
+        </form>
       </div>
     </div>
   )

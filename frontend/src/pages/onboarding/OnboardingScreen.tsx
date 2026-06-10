@@ -1,5 +1,5 @@
 import { Car, UserCircle } from '@phosphor-icons/react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
@@ -19,14 +19,8 @@ export default function OnboardingScreen({ onCompleted }: OnboardingScreenProps)
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [languageChosen, setLanguageChosen] = useState(true)
-
-  useEffect(() => {
-    setLanguageChosen(true)
-  }, [])
 
   const handleLanguageChange = async (language: AppLanguage) => {
-    setLanguageChosen(true)
     try {
       await updateCurrentUserLanguage(language)
     } catch {
@@ -35,10 +29,6 @@ export default function OnboardingScreen({ onCompleted }: OnboardingScreenProps)
   }
 
   const handleRoleSelect = async (role: OnboardingRole) => {
-    if (!languageChosen) {
-      setErrorMessage(t('onboarding.languageRequired'))
-      return
-    }
     hapticSelection()
     setIsSubmitting(true)
     setErrorMessage(null)
@@ -61,7 +51,7 @@ export default function OnboardingScreen({ onCompleted }: OnboardingScreenProps)
 
   return (
     <div className="min-h-[100dvh] bg-white flex flex-col user-safe-top user-safe-bottom">
-      <div className="px-5 pt-2 pb-4">
+      <div className="px-5 pt-2 pb-4 w-full max-w-md mx-auto">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted">{t('app.title')}</p>
@@ -70,13 +60,10 @@ export default function OnboardingScreen({ onCompleted }: OnboardingScreenProps)
         </div>
         <div className="mt-5 rounded-card border border-border bg-surface p-4">
           <LanguageSwitcher onChangeLanguage={handleLanguageChange} />
-          {!languageChosen && (
-            <p className="text-xs text-muted mt-3">{t('onboarding.languageHint')}</p>
-          )}
         </div>
       </div>
 
-      <div className="flex-1 px-5 pb-6 flex flex-col justify-center gap-4">
+      <div className="flex-1 px-5 pb-6 flex flex-col justify-center gap-4 w-full max-w-md mx-auto">
         <p className="text-sm text-muted text-center px-2">{t('onboarding.subtitle')}</p>
 
         <button

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, Marker, Polyline } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import type { RideRequest } from '../../types'
+import Skeleton from '../../components/Skeleton'
+import NotificationBell from '../../components/notifications/NotificationBell'
 import StarRatingInput from '../../components/StarRatingInput'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import EditRequestSheet from './components/EditRequestSheet'
+import { useEscapeClose } from '../../lib/useEscapeClose'
+import { isCoarsePointer } from '../../lib/pointer'
 
 const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
   pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -37,6 +41,9 @@ export default function RequestDetail() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  useEscapeClose(showDeleteConfirm && !isDeleting, () => setShowDeleteConfirm(false))
   const [isConfirmingPickup, setIsConfirmingPickup] = useState(false)
   const [ratingScore, setRatingScore] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
@@ -86,8 +93,33 @@ export default function RequestDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[100dvh]">
-        <p className="text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
+      <div className="min-h-[100dvh] bg-white">
+        <header
+          className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
+          style={{ paddingTop: 'var(--app-user-safe-top)' }}
+        >
+          <div className="flex items-center gap-3 px-4 h-14">
+            <button onClick={() => navigate(-1)} className="p-1">
+              <ArrowLeft size={22} weight="bold" />
+            </button>
+            <Skeleton width={140} height={16} />
+          </div>
+        </header>
+        <Skeleton width="100%" height={256} rounded="sm" />
+        <div className="px-5 py-5 space-y-5">
+          <div className="bg-surface rounded-card p-4 space-y-3">
+            <Skeleton width="70%" height={14} />
+            <Skeleton width="55%" height={14} />
+          </div>
+          <div className="bg-surface rounded-card p-4 space-y-3">
+            <Skeleton width={120} height={12} />
+            <Skeleton width={90} height={12} />
+          </div>
+          <div className="bg-surface rounded-card p-6 space-y-3">
+            <Skeleton width="50%" height={14} />
+            <Skeleton width="80%" height={12} />
+          </div>
+        </div>
       </div>
     )
   }
@@ -128,9 +160,12 @@ export default function RequestDetail() {
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
-        <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate(-1)} className="p-1">
-            <ArrowLeft size={22} weight="bold" />
+        <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={20} weight="bold" />
           </button>
           <h1 className="text-base font-bold flex-1">
             {t('passenger.requestTitle', { number: request.rideNumber, defaultValue: `Request #${request.rideNumber}` })}
@@ -141,11 +176,12 @@ export default function RequestDetail() {
           >
             {t(`status.${request.status}`, { defaultValue: request.status })}
           </span>
+          <NotificationBell pool="passenger" />
         </div>
       </header>
 
       {/* Map */}
-      <div className="h-64 w-full">
+      <div className="h-64 md:h-80 lg:h-96 w-full">
         <MapContainer
           center={center}
           zoom={12}
@@ -156,6 +192,7 @@ export default function RequestDetail() {
           attributionControl={false}
         >
           <LocalizedTileLayer />
+          {!isCoarsePointer && <ZoomControl position="bottomright" />}
 
           <Marker position={[request.from.latlng.lat, request.from.latlng.lng]} icon={iconA} />
           <Marker position={[request.to.latlng.lat, request.to.latlng.lng]} icon={iconB} />
@@ -178,13 +215,16 @@ export default function RequestDetail() {
       </div>
 
       {/* Content */}
-      <div className="px-5 py-5 space-y-5">
+      <div
+        className="px-5 py-5 space-y-5 w-full max-w-2xl mx-auto"
+        style={{ paddingBottom: 'calc(1.25rem + var(--app-user-safe-bottom, 0px))' }}
+      >
         {request.status !== 'completed' && (
           <div className="flex gap-2">
             <button
               onClick={() => setShowEditSheet(true)}
-              disabled={isSaving}
-              className="flex-1 py-2 rounded-xl border border-border text-sm font-semibold"
+              disabled={isSaving || isDeleting}
+              className="flex-1 py-2 rounded-xl border border-border text-sm font-semibold disabled:opacity-60"
             >
               {isSaving
                 ? t('common.saving', { defaultValue: 'Saving...' })
@@ -194,28 +234,11 @@ export default function RequestDetail() {
             </button>
             {request.status === 'pending' && (
               <button
-                onClick={async () => {
-                  const confirmed = window.confirm(
-                    t('passenger.deleteRequestConfirm', { defaultValue: 'Delete request?' }),
-                  )
-                  if (!confirmed) return
-                  setIsSaving(true)
-                  setErrorMessage(null)
-                  try {
-                    await deleteRequest(request.id)
-                    navigate('/requests', { replace: true })
-                  } catch (error) {
-                    setErrorMessage(
-                      error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),
-                    )
-                  } finally {
-                    setIsSaving(false)
-                  }
-                }}
-                disabled={isSaving}
-                className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isSaving || isDeleting}
+                className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold disabled:opacity-60"
               >
-                {t('common.delete', { defaultValue: 'Delete' })}
+                {isDeleting ? t('common.deleting', { defaultValue: 'Deleting...' }) : t('common.delete', { defaultValue: 'Delete' })}
               </button>
             )}
           </div>
@@ -546,6 +569,67 @@ export default function RequestDetail() {
           }
         }}
       />
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[3300] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label={t('common.cancel', { defaultValue: 'Cancel' })}
+            onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+          />
+          <div
+            className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card p-5 space-y-4 animate-slide-up"
+            style={{ paddingBottom: 'calc(1.25rem + var(--app-user-safe-bottom, 0px))' }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                <Warning size={20} weight="fill" className="text-red-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-base font-extrabold tracking-tight">
+                  {t('passenger.deleteRequestConfirm', { defaultValue: 'Delete request?' })}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  №{request.rideNumber} · {request.from.address}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="flex-1 h-12 rounded-2xl bg-surface text-sm font-bold disabled:opacity-60"
+              >
+                {t('common.cancel', { defaultValue: 'Cancel' })}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsDeleting(true)
+                  setErrorMessage(null)
+                  try {
+                    await deleteRequest(request.id)
+                    navigate('/requests', { replace: true })
+                  } catch (error) {
+                    setShowDeleteConfirm(false)
+                    setErrorMessage(
+                      error instanceof Error ? error.message : t('errors.deleteRequestFailed', { defaultValue: 'Failed to delete request.' }),
+                    )
+                  } finally {
+                    setIsDeleting(false)
+                  }
+                }}
+                disabled={isDeleting}
+                className="flex-1 h-12 rounded-2xl bg-red-600 text-white text-sm font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
+              >
+                {isDeleting ? t('common.deleting', { defaultValue: 'Deleting...' }) : t('common.delete', { defaultValue: 'Delete' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isSignalMode && (
         <div className="fixed inset-0 z-[3400] signal-attention-screen flex flex-col items-center justify-center text-center px-6">

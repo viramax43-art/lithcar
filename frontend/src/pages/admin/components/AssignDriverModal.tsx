@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { Driver, RideRequest } from '../../../types'
 import LithuanianPlate from '../../../components/LithuanianPlate'
 import AdminModalShell from './AdminModalShell'
+import { isCoarsePointer } from '../../../lib/pointer'
 
 interface AssignDriverModalProps {
   requestIds: string[]
@@ -77,7 +78,7 @@ export default function AssignDriverModal({
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-[1.5px] border-border bg-white focus-within:border-black transition-colors">
               <MagnifyingGlass size={14} className="text-muted flex-shrink-0" />
               <input
-                autoFocus
+                autoFocus={!isCoarsePointer}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('admin.assignModal.searchPlaceholder')}

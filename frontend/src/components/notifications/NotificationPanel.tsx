@@ -43,7 +43,7 @@ export default function NotificationPanel({
           <button
             type="button"
             onClick={() => void onMarkAllRead()}
-            className="text-xs font-bold text-green-600 hover:text-green-700 transition-colors flex-shrink-0 pt-0.5"
+            className="min-h-[36px] px-2 -mr-2 -mt-1 rounded-lg text-xs font-bold text-green-600 hover:text-green-700 active:bg-surface transition-colors flex-shrink-0"
           >
             {t('notifications.markAllRead')}
           </button>

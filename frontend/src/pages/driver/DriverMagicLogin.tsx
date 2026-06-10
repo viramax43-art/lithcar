@@ -12,7 +12,13 @@ export default function DriverMagicLogin() {
   }, [token])
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-white px-6">
+    <div
+      className="min-h-[100dvh] flex items-center justify-center bg-white px-6"
+      style={{
+        paddingTop: 'var(--app-user-safe-top)',
+        paddingBottom: 'var(--app-user-safe-bottom)',
+      }}
+    >
       <p className="text-sm text-muted text-center">
         {t('driver.magicLogin.redirecting', { defaultValue: 'Signing you in…' })}
       </p>

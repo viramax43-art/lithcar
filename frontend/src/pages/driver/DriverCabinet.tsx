@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Car, CaretRight, Clock, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
+import { Car, CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
@@ -35,6 +35,7 @@ import { formatRideTime } from '../../i18n/dateTime'
 import { ApiError } from '../../infrastructure/http/httpClient'
 import { getDefaultPeriodFilter, matchesPeriodFilter } from '../../lib/periodFilter'
 import { hapticImpact, hapticNotification } from '../../lib/telegram'
+import { useEscapeClose } from '../../lib/useEscapeClose'
 import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng } from '../../types'
 
 import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
@@ -170,15 +171,34 @@ function NextStopBar({
   onOpenSheet,
   onQuickAction,
   onResetPickup,
+  onHeightChange,
 }: {
   point: DriverMapPoint
   isActioning: boolean
   isResetting: boolean
   onOpenSheet: () => void
   onQuickAction: () => void
+  onHeightChange?: (height: number) => void
   onResetPickup: () => void
 }) {
   const { t } = useTranslation()
+  const [resetArmed, setResetArmed] = useState(false)
+  const resetArmTimer = useRef<number | null>(null)
+  useEffect(() => {
+    return () => {
+      if (resetArmTimer.current) window.clearTimeout(resetArmTimer.current)
+    }
+  }, [])
+  // Real bar height varies (e.g. reset row) — report it so the map reserves the right space.
+  const barRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = barRef.current
+    if (!el || !onHeightChange) return
+    onHeightChange(el.offsetHeight)
+    const observer = new ResizeObserver(() => onHeightChange(el.offsetHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onHeightChange])
   const actionLabelKey = getQuickActionLabelKey(point)
   const action = getQuickAction(point)
   const arrivalTime = formatRideTime(point)
@@ -200,7 +220,8 @@ function NextStopBar({
 
   return (
     <div
-      className="absolute left-0 right-0 bottom-0 z-[15] bg-white border-t border-border/50"
+      ref={barRef}
+      className="absolute left-0 right-0 bottom-0 z-[15] bg-white border-t border-border/50 md:max-w-lg md:mx-auto md:rounded-t-2xl md:border md:border-border/60"
       style={{
         paddingBottom: 'var(--app-safe-area-bottom-total)',
         boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
@@ -256,13 +277,29 @@ function NextStopBar({
       {showPickupQuickActions && (
         <div className="px-4 pb-3">
           <button
-            onClick={onResetPickup}
+            onClick={() => {
+              if (!resetArmed) {
+                setResetArmed(true)
+                if (resetArmTimer.current) window.clearTimeout(resetArmTimer.current)
+                resetArmTimer.current = window.setTimeout(() => setResetArmed(false), 3500)
+                return
+              }
+              if (resetArmTimer.current) window.clearTimeout(resetArmTimer.current)
+              setResetArmed(false)
+              onResetPickup()
+            }}
             disabled={isResetting}
-            className="w-full h-11 rounded-xl border border-border bg-surface text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+            className={`w-full h-11 rounded-xl text-sm font-bold active:scale-[0.98] transition-all disabled:opacity-60 ${
+              resetArmed
+                ? 'bg-red-600 text-white'
+                : 'border border-border bg-surface'
+            }`}
           >
             {isResetting
               ? t('common.resetting', { defaultValue: 'Resetting...' })
-              : t('common.reset', { defaultValue: 'Reset' })}
+              : resetArmed
+                ? t('driver.confirmResetPickup', { defaultValue: 'Confirm reset?' })
+                : t('common.reset', { defaultValue: 'Reset' })}
           </button>
         </div>
       )}
@@ -283,6 +320,12 @@ export default function DriverCabinet() {
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [isActioning, setIsActioning] = useState(false)
   const [isResettingPickup, setIsResettingPickup] = useState(false)
+  const [pendingCritical, setPendingCritical] = useState<{ point: DriverMapPoint; action: string; labelKey: string } | null>(null)
+  useEscapeClose(Boolean(pendingCritical) && !isActioning, () => setPendingCritical(null))
+  useEscapeClose(sideMenuOpen && !pendingCritical, () => setSideMenuOpen(false))
+  const [nextBarHeight, setNextBarHeight] = useState(108)
+  const [geoBlocked, setGeoBlocked] = useState(false)
+  const [geoBannerDismissed, setGeoBannerDismissed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string } | null>(null)
@@ -391,10 +434,15 @@ export default function DriverCabinet() {
 
   const lastSentRef = useRef(0)
   useEffect(() => {
-    if (!session || !navigator.geolocation) return
+    if (!session) return
+    if (!navigator.geolocation) {
+      setGeoBlocked(true)
+      return
+    }
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
+        setGeoBlocked(false)
         setDriverLocation({ lat, lng })
         const now = Date.now()
         if (now - lastSentRef.current >= LOCATION_INTERVAL_MS) {
@@ -402,7 +450,12 @@ export default function DriverCabinet() {
           void sendDriverLocation(lat, lng).catch(() => undefined)
         }
       },
-      () => {},
+      (err) => {
+        // Surface permission problems instead of failing silently.
+        if (err.code === err.PERMISSION_DENIED || err.code === err.POSITION_UNAVAILABLE) {
+          setGeoBlocked(true)
+        }
+      },
       { enableHighAccuracy: true, maximumAge: 3_000, timeout: 15_000 },
     )
     return () => navigator.geolocation.clearWatch(watchId)
@@ -514,16 +567,30 @@ export default function DriverCabinet() {
     }
   }
 
+  // Irreversible ride-state transitions get an explicit confirmation step.
+  const requestAction = (point: DriverMapPoint, action: string) => {
+    const isCritical =
+      (point.pointType === 'pickup' && action === 'complete') ||
+      (point.pointType === 'dropoff' && action === 'arrived' && point.rideStatus === 'in_progress')
+    if (isCritical) {
+      const labelKey =
+        point.pointType === 'pickup' ? 'driver.actionPassengerOnBoard' : 'driver.actionArrivedFinish'
+      setPendingCritical({ point, action, labelKey })
+      return
+    }
+    void performAction(point, action)
+  }
+
   const handleAction = (action: string) => {
     if (!selectedPoint) return
-    void performAction(selectedPoint, action)
+    requestAction(selectedPoint, action)
   }
 
   const handleNextStopQuickAction = () => {
     if (!nextPoint) return
     const action = getQuickAction(nextPoint)
     if (!action) return
-    void performAction(nextPoint, action)
+    requestAction(nextPoint, action)
   }
 
   const handleClaimRide = async () => {
@@ -619,9 +686,8 @@ export default function DriverCabinet() {
     )
   }
 
-  // Height of the bottom next-stop bar (approx), so map knows not to cover it.
-  // We reserve space via CSS variables or a placeholder — map fits within the remaining area.
-  const NEXT_BAR_H = cabinetMode === 'my' && nextPoint ? 108 : 0 // px (rough height incl. safe area)
+  // Height of the bottom next-stop bar — measured live (reset row makes it taller).
+  const NEXT_BAR_H = cabinetMode === 'my' && nextPoint ? nextBarHeight : 0
 
   return (
     <div
@@ -682,6 +748,18 @@ export default function DriverCabinet() {
           pool="driver"
           enabled={!!session}
           className="pointer-events-auto w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform relative touch-none"
+          onNotificationSelect={(notification) => {
+            // Deep link: focus the related ride on the map when the payload references one.
+            const rideId = (notification.payload as Record<string, unknown> | null)?.rideId
+            if (typeof rideId !== 'string') return
+            const target =
+              points.find((p) => p.rideId === rideId && p.pointStatus !== 'done')
+              ?? points.find((p) => p.rideId === rideId)
+            if (target) {
+              setCabinetMode('my')
+              setSelectedPointId(target.id)
+            }
+          }}
         />
       </div>
       )}
@@ -700,6 +778,9 @@ export default function DriverCabinet() {
       {!isMapMarkViewMode && (
         <DriverMapPeriodFilter
           pointCount={mapDisplayPoints.length}
+          hiddenCount={
+            (cabinetMode === 'available' ? availablePoints.length : points.length) - mapDisplayPoints.length
+          }
           topOffset={filterTopOffset}
           showAvailableLegend={cabinetMode === 'available'}
           filterDate={filterDate}
@@ -712,6 +793,29 @@ export default function DriverCabinet() {
           onFilterTimeEndChange={setFilterTimeEnd}
           onExpandedChange={setFilterExpanded}
         />
+      )}
+
+      {/* ── Geolocation disabled banner ─────────────────────────────────── */}
+      {!isMapMarkViewMode && geoBlocked && !geoBannerDismissed && (
+        <div
+          className="absolute left-4 right-4 z-[12] bg-amber-50 border-[1.5px] border-amber-200 rounded-card shadow-card p-3.5 flex items-start gap-2.5 md:max-w-md md:mx-auto"
+          style={{ top: mapInsetTop }}
+        >
+          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Crosshair size={15} className="text-amber-700" weight="bold" />
+          </div>
+          <p className="flex-1 min-w-0 text-xs text-amber-900 font-semibold leading-snug pt-1">
+            {t('driver.geoDisabledBanner', { defaultValue: 'Enable geolocation so passengers can see you on the map' })}
+          </p>
+          <button
+            type="button"
+            onClick={() => setGeoBannerDismissed(true)}
+            className="w-9 h-9 -mt-0.5 -mr-1 rounded-full flex items-center justify-center flex-shrink-0 text-amber-700 active:bg-amber-100 transition-colors"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
+            <X size={15} weight="bold" />
+          </button>
+        </div>
       )}
 
       {/* ── Empty state ─────────────────────────────────────────────────── */}
@@ -783,7 +887,58 @@ export default function DriverCabinet() {
           onOpenSheet={() => setSelectedPointId(nextPoint.id)}
           onQuickAction={handleNextStopQuickAction}
           onResetPickup={() => void handleResetPickup()}
+          onHeightChange={setNextBarHeight}
         />
+      )}
+
+      {/* ── Critical action confirm ─────────────────────────────────────── */}
+      {pendingCritical && (
+        <div className="absolute inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label={t('common.cancel', { defaultValue: 'Cancel' })}
+            onClick={() => !isActioning && setPendingCritical(null)}
+          />
+          <div
+            className="relative w-full bg-white rounded-t-3xl shadow-card p-5 space-y-4 md:max-w-md md:rounded-t-2xl"
+            style={{ paddingBottom: 'calc(1.25rem + var(--app-safe-area-bottom-total, 0px))' }}
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                {t('driver.confirmActionTitle', { defaultValue: 'Confirm action' })}
+              </p>
+              <p className="text-lg font-extrabold tracking-tight mt-0.5">
+                {t(pendingCritical.labelKey, { defaultValue: pendingCritical.labelKey })}
+              </p>
+              <p className="text-xs text-muted mt-1 truncate">
+                №{pendingCritical.point.rideNumber} · {pendingCritical.point.passengerName}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingCritical(null)}
+                disabled={isActioning}
+                className="flex-1 h-12 rounded-2xl bg-surface text-sm font-bold disabled:opacity-60"
+              >
+                {t('common.cancel', { defaultValue: 'Cancel' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { point, action } = pendingCritical
+                  setPendingCritical(null)
+                  void performAction(point, action)
+                }}
+                disabled={isActioning}
+                className="flex-1 h-12 rounded-2xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
+              >
+                {t('common.confirm', { defaultValue: 'Confirm' })}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <RideRatingSheet
@@ -824,7 +979,7 @@ export default function DriverCabinet() {
       {/* ── Error toast ──────────────────────────────────────────────────── */}
       {!isMapMarkViewMode && errorMessage && (
         <div
-          className="absolute left-4 right-4 z-[60] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3"
+          className="absolute left-4 right-4 z-[60] bg-white border-[1.5px] border-red-200 rounded-card shadow-card p-4 flex items-start gap-3 md:max-w-md md:mx-auto"
           style={{ bottom: `calc(${NEXT_BAR_H}px + 12px)` }}
         >
           <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
@@ -836,9 +991,10 @@ export default function DriverCabinet() {
           </div>
           <button
             onClick={() => setErrorMessage(null)}
-            className="p-1 hover:bg-surface rounded-lg flex-shrink-0"
+            className="w-10 h-10 -m-2 hover:bg-surface rounded-lg flex items-center justify-center flex-shrink-0"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
           >
-            <X size={13} className="text-muted" />
+            <X size={15} className="text-muted" />
           </button>
         </div>
       )}

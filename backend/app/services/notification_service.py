@@ -14,6 +14,7 @@ from app.models.notification import (
     NotificationRecipientType,
     NotificationType,
 )
+from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,28 @@ class NotificationRecipient:
     pool: str
     recipient_type: str
     recipient_id: str
+
+
+def normalize_notification_language(language: str | None) -> str:
+    if language in SUPPORTED_USER_LANGUAGES:
+        return language
+    return DEFAULT_USER_LANGUAGE
+
+
+def resolve_notification_text(
+    entity: Notification,
+    *,
+    language: str | None,
+) -> tuple[str, str]:
+    lang = normalize_notification_language(language)
+    if entity.type == NotificationType.DRIVER_APPLICATION_NEW:
+        payload = entity.payload if isinstance(entity.payload, dict) else {}
+        applicant_name = str(payload.get("applicantName") or "")
+        title = t("notif.admin.driver_application_new.title", lang)
+        body_template = t("notif.admin.driver_application_new.body", lang)
+        body = body_template.replace("{applicant_name}", applicant_name)
+        return title, body
+    return entity.title, entity.body
 
 
 def _recipient_filter(recipient: NotificationRecipient):

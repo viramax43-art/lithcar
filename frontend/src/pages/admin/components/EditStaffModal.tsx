@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { AdminKeyInfo } from '../../../lib/backend'
 import AdminModalShell from './AdminModalShell'
 import { getAdminRoleLabel } from '../utils/adminRolePresentation'
+import { isCoarsePointer } from '../../../lib/pointer'
 
 interface EditStaffModalProps {
   staff: AdminKeyInfo
@@ -43,10 +44,16 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
 
   return (
     <AdminModalShell onClose={onClose} title={t('admin.editStaff.title')} maxWidthClass="max-w-sm">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          void handleSubmit()
+        }}
+      >
         <div className="px-5 py-4 space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">{t('common.name')}</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} autoFocus />
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} autoFocus={!isCoarsePointer} />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">{t('common.role')}</label>
@@ -54,6 +61,7 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
               {(['admin', 'moderator'] as const).map((r) => (
                 <button
                   key={r}
+                  type="button"
                   onClick={() => setRole(r)}
                   className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     role === r ? 'bg-black text-white' : 'bg-surface text-muted'
@@ -70,17 +78,18 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
           className="flex gap-3 px-5 py-4 border-t border-border"
           style={{ paddingBottom: 'max(1rem, var(--app-safe-area-bottom-total, 0px))' }}
         >
-          <button onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
+          <button type="button" onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface hover:bg-border text-sm font-semibold transition-all active:scale-[0.97]">
             {t('common.cancel')}
           </button>
           <button
-            onClick={() => void handleSubmit()}
+            type="submit"
             disabled={submitting || !name.trim()}
-            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all hover:bg-zinc-800 active:scale-[0.97] disabled:opacity-50"
           >
             {submitting ? t('common.saving') : t('common.save')}
           </button>
         </div>
+      </form>
     </AdminModalShell>
   )
 }

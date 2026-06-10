@@ -483,13 +483,15 @@ body {
   height: 100%;
 }
 
-/* === Sidebar collapse transition (desktop: fully hidden for max map) === */
+/* === Sidebar collapse (desktop: keep a slim icon rail so tab navigation never disappears) === */
 @media (min-width: 769px) {
   .admin-sidebar-collapsed {
-    width: 0 !important;
-    min-width: 0 !important;
+    width: 64px !important;
+    min-width: 64px !important;
     overflow: hidden;
-    border: none !important;
+  }
+  .admin-sidebar-collapsed .admin-sidebar-panel {
+    display: none;
   }
 }
 .admin-sidebar-wrap {
@@ -529,10 +531,15 @@ body {
     padding: 8px 4px !important;
     overflow-x: auto;
     gap: 2px !important;
+    /* Fade edge hints that the tab rail scrolls horizontally */
+    mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 20px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 20px), transparent 100%);
+    scroll-snap-type: x proximity;
   }
   .admin-sidebar-wrap .admin-sidebar-icon-rail button {
     min-width: 52px;
     flex-shrink: 0;
+    scroll-snap-align: start;
   }
   .admin-drawer-handle {
     display: block;
@@ -540,7 +547,7 @@ body {
 }
 @media (min-width: 769px) {
   .admin-drawer-handle {
-    display: none;
+    display: none !important;
   }
 }
 
@@ -601,8 +608,21 @@ body {
     width: auto !important;
     max-width: calc(100vw - 16px) !important;
   }
+  /* Compact status legend on mobile (was hidden entirely) */
   .admin-map-controls .admin-legend-bar {
-    display: none;
+    flex-wrap: wrap;
+    gap: 4px 10px !important;
+    padding: 5px 10px !important;
+    max-width: calc(100vw - 16px);
+  }
+  /* When a bottom panel (detail card / similar trips) is open it occupies the
+     same bottom slot — lift the floating controls above it */
+  .admin-map--panel-open .admin-map-controls {
+    bottom: calc(50vh + 56px + var(--app-safe-area-bottom-total, 0px) + 16px) !important;
+  }
+  /* Leaflet zoom controls: keep above the collapsed drawer peek strip */
+  .leaflet-bottom.leaflet-right {
+    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
   }
   .admin-map-detail-card {
     top: auto !important;
@@ -678,16 +698,28 @@ body {
 
 /* === Pull affordance for bottom drawer === */
 .admin-drawer-handle {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  padding: 10px 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-drawer-handle::after {
+  content: '';
+  display: block;
   width: 48px;
   height: 6px;
   border-radius: 3px;
   background: #d1d1d1;
-  margin: 12px auto 8px;
+  margin: 0 auto;
   transition: background 0.2s;
-  cursor: pointer;
 }
-.admin-sidebar-wrap:active .admin-drawer-handle,
-.admin-drawer-handle:active {
+.admin-sidebar-wrap:active .admin-drawer-handle::after,
+.admin-drawer-handle:active::after {
   background: #999;
 }
 

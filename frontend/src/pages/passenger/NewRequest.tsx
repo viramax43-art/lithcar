@@ -1,5 +1,5 @@
-import { Calendar, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
+import { Calendar, CaretDown, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
+import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import { useEffect, useState } from 'react'
@@ -18,6 +18,8 @@ import { useNewRequestController } from './new-request/useNewRequestController'
 import type { MapMark } from '../../types'
 import { addAppLocalDays, toAppLocalDateInput } from '../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
+import { isCoarsePointer } from '../../lib/pointer'
+import { useEscapeClose } from '../../lib/useEscapeClose'
 
 const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 
@@ -37,6 +39,16 @@ export default function NewRequest() {
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
   const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
+  const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
+  const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
+  const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
+
+  useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
+  useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
+    model.setShowSearch(false)
+    model.setSearchResults([])
+  })
+  useEscapeClose(menuOpen, () => setMenuOpen(false))
 
   useEffect(() => {
     let cancelled = false
@@ -58,6 +70,7 @@ export default function NewRequest() {
       <div className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
+          {!isCoarsePointer && <ZoomControl position="bottomright" />}
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map
@@ -162,18 +175,7 @@ export default function NewRequest() {
           >
             {model.isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
-          <button
-            onClick={() => {
-              hapticSelection()
-              model.setShowSearch(true)
-              model.setSearchQuery('')
-              model.setSearchResults([])
-            }}
-            className="w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
-            title={t('common.searchAddress', { defaultValue: 'Search address' })}
-          >
-            <MagnifyingGlass size={18} weight="bold" />
-          </button>
+          {/* Address search lives next to the A/B fields in the bottom panel — no duplicate trigger here */}
           <NotificationBell pool="passenger" />
         </div>
       </header>
@@ -191,7 +193,7 @@ export default function NewRequest() {
             style={{ paddingTop: 'var(--app-user-safe-top)', paddingBottom: 'var(--app-user-safe-bottom)' }}
           >
             <div className="flex items-center justify-between px-4 h-14 border-b border-border/50">
-              <h2 className="text-lg font-extrabold tracking-tight">RIDE</h2>
+              <h2 className="text-lg font-extrabold tracking-tight">{t('app.name', { defaultValue: 'RIDE' })}</h2>
               <button
                 onClick={() => setMenuOpen(false)}
                 className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors"
@@ -265,10 +267,8 @@ export default function NewRequest() {
               {model.pinAddress}
             </div>
           ) : (
-            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
-              {model.activeIsFrom
-                ? t('passenger.pinHintPickup', { defaultValue: 'Where should the car arrive?' })
-                : t('passenger.pinHintDestination', { defaultValue: 'Where are you going?' })}
+            <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card max-w-[80vw] text-center leading-snug ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
+              {activeSetupHint}
             </div>
           )}
         </div>
@@ -281,7 +281,11 @@ export default function NewRequest() {
         >
           <Warning size={16} weight="fill" className="text-red-500 flex-shrink-0" />
           <span className="text-xs font-semibold text-red-700 flex-1 truncate">{model.zoneWarning}</span>
-          <button onClick={() => model.setZoneWarning(null)} className="flex-shrink-0">
+          <button
+            onClick={() => model.setZoneWarning(null)}
+            className="flex-shrink-0 w-8 h-8 -my-1 flex items-center justify-center rounded-full touch-compact"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+          >
             <X size={14} className="text-red-400" />
           </button>
         </div>
@@ -289,7 +293,7 @@ export default function NewRequest() {
 
       {!isMapMarkViewMode && (
       <div
-        className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out"
+        className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
         style={{
           bottom: 0,
           transform: model.isPanning ? 'translateY(100%)' : 'translateY(0)',
@@ -299,12 +303,12 @@ export default function NewRequest() {
         {hasInfo && (
           <div className="mx-3 mb-2 flex items-center gap-2.5 bg-white border border-border rounded-xl shadow-card px-3 py-2.5">
             <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
-            <p className="flex-1 text-xs text-black leading-none">{userInfoMessage}</p>
+            <p className="flex-1 text-xs text-black leading-snug">{userInfoMessage}</p>
           </div>
         )}
 
         <div
-          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3"
+          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
           <div className="flex flex-col gap-1.5">
@@ -312,7 +316,9 @@ export default function NewRequest() {
               dotClass="bg-point-a"
               label={t('passenger.fromLabel', { defaultValue: 'From' })}
               value={model.fromAddress}
-              placeholder={t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })}
+              placeholder={model.fromPoint
+                ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+                : pointASetupHint}
               active={model.activeIsFrom}
               onClick={() => model.setActiveField('from')}
               onClear={model.fromPoint ? () => {
@@ -334,7 +340,9 @@ export default function NewRequest() {
               label={t('passenger.toLabel', { defaultValue: 'To' })}
               value={model.toAddress}
               placeholder={model.fromPoint
-                ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+                ? (model.toPoint
+                  ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+                  : pointBSetupHint)
                 : t('passenger.pickPointAFirst', { defaultValue: 'Pick point A first' })}
               active={!model.activeIsFrom}
               onClick={() => model.setActiveField('to')}
@@ -388,6 +396,7 @@ export default function NewRequest() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+              <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
             </div>
           </div>
 
@@ -418,24 +427,28 @@ export default function NewRequest() {
           ) : !model.fromPoint ? (
             <button
               onClick={model.confirmPoint}
-              disabled={!model.pinLatLng || model.pinOutOfZone}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${model.pinLatLng && !model.pinOutOfZone ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
+              disabled={!model.pinReadyForConfirm}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all text-center leading-snug ${model.pinReadyForConfirm ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
             >
               {model.pinOutOfZone
                 ? t('passenger.pointAOutOfZone', { defaultValue: 'Point A is outside service area' })
-                : t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })}
-              <CaretRight size={14} weight="bold" />
+                : model.pinReadyForConfirm
+                  ? t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })
+                  : pointASetupHint}
+              <CaretRight size={14} weight="bold" className="flex-shrink-0" />
             </button>
           ) : !model.toPoint ? (
             <button
               onClick={model.confirmPoint}
-              disabled={!model.pinLatLng || model.pinOutOfZone}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${model.pinLatLng && !model.pinOutOfZone ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
+              disabled={!model.pinReadyForConfirm}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all text-center leading-snug ${model.pinReadyForConfirm ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'}`}
             >
               {model.pinOutOfZone
                 ? t('passenger.pointBOutOfZone', { defaultValue: 'Point B is outside service area' })
-                : t('passenger.confirmPointB', { defaultValue: 'Confirm point B' })}
-              <CaretRight size={14} weight="bold" />
+                : model.pinReadyForConfirm
+                  ? t('passenger.confirmPointB', { defaultValue: 'Confirm point B' })
+                  : pointBSetupHint}
+              <CaretRight size={14} weight="bold" className="flex-shrink-0" />
             </button>
           ) : (
             <button
@@ -445,7 +458,9 @@ export default function NewRequest() {
             >
               {model.submitting
                 ? t('common.sending', { defaultValue: 'Sending...' })
-                : t('passenger.bookRide', { defaultValue: 'Book ride' })}
+                : !model.hasValidDateTime
+                  ? t('passenger.selectTime', { defaultValue: 'Select time' })
+                  : t('passenger.bookRide', { defaultValue: 'Book ride' })}
               <CaretRight size={14} weight="bold" />
             </button>
           )}
@@ -459,12 +474,21 @@ export default function NewRequest() {
 
       {!isMapMarkViewMode && model.showSearch && (
         <div
-          className="absolute inset-0 z-[600] bg-white flex flex-col animate-fade-in"
+          className="absolute inset-0 z-[600] bg-white md:bg-black/40 md:backdrop-blur-[1px] flex flex-col md:items-center md:justify-start md:pt-20 md:px-4 animate-fade-in"
           style={{
             paddingTop: 'var(--app-user-safe-top)',
             paddingBottom: 'var(--app-user-safe-bottom)',
           }}
+          onClick={() => {
+            model.setShowSearch(false)
+            model.setSearchResults([])
+          }}
         >
+          {/* Fullscreen on mobile, centered panel over a dimmed map on desktop */}
+          <div
+            className="flex flex-col flex-1 min-h-0 w-full bg-white md:flex-none md:max-w-xl md:rounded-card md:shadow-card md:max-h-[72vh] md:overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
           <header className="flex items-center gap-3 px-3 py-3 border-b border-border">
             <button
               onClick={() => {
@@ -478,7 +502,7 @@ export default function NewRequest() {
             <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-surface">
               <MagnifyingGlass size={16} className="text-muted flex-shrink-0" />
               <input
-                autoFocus
+                autoFocus={!isCoarsePointer}
                 type="text"
                 value={model.searchQuery}
                 onChange={(e) => model.handleSearch(e.target.value)}
@@ -535,6 +559,7 @@ export default function NewRequest() {
             ))}
             {!model.isSearching && model.searchQuery.length >= 3 && model.searchResults.length === 0 && <p className="px-4 py-3 text-sm text-muted">{t('common.notFound', { defaultValue: 'Nothing found.' })}</p>}
             {model.searchQuery.length < 3 && !model.isSearching && <p className="px-4 py-3 text-sm text-muted">{t('passenger.searchMinChars', { defaultValue: 'Start typing address - minimum 3 characters.' })}</p>}
+          </div>
           </div>
         </div>
       )}

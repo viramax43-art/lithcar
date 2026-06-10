@@ -274,6 +274,7 @@ async def list_my_requests(
     current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR, UserRole.DRIVER)),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    scope: str | None = Query(default=None, pattern="^(active|completed)$"),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     requests, total = await list_passenger_requests(
@@ -281,6 +282,7 @@ async def list_my_requests(
         passenger_id=current_user.user_id,
         limit=limit,
         offset=offset,
+        scope=scope,
     )
     items = []
     for request in requests:

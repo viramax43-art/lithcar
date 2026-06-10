@@ -74,6 +74,13 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
       subtitle={`${driver.keyPrefix}…`}
       maxWidthClass="max-w-md"
     >
+      <form
+        className="flex flex-col flex-1 min-h-0"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void handleSubmit()
+        }}
+      >
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted">{t('common.name')}</label>
@@ -103,6 +110,7 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
             <label className="text-xs font-semibold text-muted">{t('common.seats')}</label>
             <input
               type="number"
+              inputMode="numeric"
               min={1}
               max={12}
               value={seatsCount}
@@ -140,17 +148,18 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
           className="flex gap-3 px-5 py-4 border-t border-border flex-shrink-0"
           style={{ paddingBottom: 'max(1rem, var(--app-safe-area-bottom-total, 0px))' }}
         >
-          <button onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface text-sm font-semibold transition-all active:scale-[0.97]">
+          <button type="button" onClick={onClose} className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-surface hover:bg-border text-sm font-semibold transition-all active:scale-[0.97]">
             {t('common.cancel')}
           </button>
           <button
-            onClick={() => void handleSubmit()}
+            type="submit"
             disabled={submitting}
-            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all hover:bg-zinc-800 active:scale-[0.97] disabled:opacity-50"
           >
             {submitting ? t('common.saving') : t('common.save')}
           </button>
         </div>
+      </form>
     </AdminModalShell>
   )
 }

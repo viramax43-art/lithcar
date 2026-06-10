@@ -26,6 +26,7 @@ import { enterDriverCabinet } from '../../lib/driverPortal'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
+import { useEscapeClose } from '../../lib/useEscapeClose'
 import type { AppLanguage } from '../../i18n/languages'
 import type { DriverApplication, PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
@@ -49,6 +50,7 @@ export default function Profile() {
   const [historyTotal, setHistoryTotal] = useState(0)
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [isQrSheetOpen, setIsQrSheetOpen] = useState(false)
   const [isBuySheetOpen, setIsBuySheetOpen] = useState(false)
   const [lastReceipt, setLastReceipt] = useState<RedeemReceipt | null>(null)
@@ -76,12 +78,15 @@ export default function Profile() {
 
   const loadCabinet = async (offset: number, append: boolean) => {
     if (append) setIsHistoryLoading(true)
+    if (!append) setLoadFailed(false)
     try {
       const response = await getUserCabinet({ limit: historyPageSize, offset })
       setCabinet(response)
       setHistoryTotal(response.rideHistoryTotal)
       setHistoryItems((prev) => (append ? [...prev, ...response.rideHistory] : response.rideHistory))
+      setErrorMessage(null)
     } catch (error) {
+      if (!append) setLoadFailed(true)
       setErrorMessage(error instanceof Error ? error.message : t('errors.loadProfileFailed', { defaultValue: 'Failed to load profile.' }))
     } finally {
       setIsHistoryLoading(false)
@@ -136,7 +141,7 @@ export default function Profile() {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
-        <div className="flex items-center gap-3 px-3 h-14">
+        <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors flex-shrink-0"
@@ -149,9 +154,25 @@ export default function Profile() {
       </header>
 
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}>
-      <div className="p-4 space-y-4">
-        {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
+      <div className="p-4 space-y-4 w-full max-w-2xl mx-auto">
+        {loadFailed && !cabinet ? (
+          <section className="bg-white border border-border rounded-card p-6 flex flex-col items-center text-center gap-3">
+            <SealWarning size={32} className="text-red-500" weight="duotone" />
+            <p className="text-sm font-bold">{t('errors.loadProfileFailed', { defaultValue: 'Failed to load profile.' })}</p>
+            {errorMessage && <p className="text-xs text-muted break-words max-w-full">{errorMessage}</p>}
+            <button
+              type="button"
+              onClick={() => void loadCabinet(0, false)}
+              className="mt-1 px-6 py-2.5 bg-black text-white text-sm font-bold rounded-pill active:scale-[0.97] transition-transform"
+            >
+              {t('common.retry', { defaultValue: 'Retry' })}
+            </button>
+          </section>
+        ) : (
+          errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>
+        )}
 
+        {!(loadFailed && !cabinet) && (
         <section className="bg-black text-white rounded-card p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
@@ -235,6 +256,7 @@ export default function Profile() {
             </div>
           )}
         </section>
+        )}
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">{t('profile.becomeDriver.title')}</p>
@@ -244,7 +266,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => navigate('/driver/register')}
-              className="w-full flex items-center gap-3 rounded-xl bg-surface px-3 py-3 text-left active:bg-border/40 transition-colors"
+              className="w-full flex items-center gap-3 rounded-xl bg-surface px-3 py-3 text-left hover:bg-border/30 active:bg-border/40 transition-colors"
             >
               <span className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center flex-shrink-0">
                 <Car size={18} weight="duotone" />
@@ -310,10 +332,10 @@ export default function Profile() {
           {hasUserInfoText(pricing.userInfoTextProfile) && userInfoMessage && (
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
               <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
-              <p className="text-xs text-black leading-none">{userInfoMessage}</p>
+              <p className="text-xs text-black leading-snug">{userInfoMessage}</p>
             </div>
           )}
-          {!cabinet && (
+          {!cabinet && !loadFailed && (
             <div className="space-y-2">
               {[0, 1, 2].map((index) => (
                 <div key={index} className="rounded-xl bg-surface p-3 space-y-2">
@@ -333,7 +355,7 @@ export default function Profile() {
               key={ride.id}
               type="button"
               onClick={() => navigate(`/requests/${ride.id}`)}
-              className="w-full text-left rounded-xl bg-surface p-3 space-y-1 active:bg-border/40 transition-colors"
+              className="w-full text-left rounded-xl bg-surface p-3 space-y-1 hover:bg-border/30 active:bg-border/40 transition-colors"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold truncate min-w-0">{ride.from.address}</p>
@@ -407,6 +429,7 @@ function QrIssueSheet({
   const { t } = useTranslation()
   const [points, setPoints] = useState<number>(100)
   const [isCreating, setIsCreating] = useState(false)
+  useEscapeClose(!isCreating, onClose)
   const [error, setError] = useState<string | null>(null)
   const [issue, setIssue] = useState<{
     token: string
@@ -472,10 +495,14 @@ function QrIssueSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
+    <div
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      onClick={() => !isCreating && onClose()}
+    >
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
         style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
@@ -555,6 +582,8 @@ function BuyPointsSheet({
   const { t } = useTranslation()
   const [points, setPoints] = useState<number>(100)
   const [stage, setStage] = useState<'form' | 'processing' | 'success'>('form')
+  const [payError, setPayError] = useState<string | null>(null)
+  useEscapeClose(stage !== 'processing', onClose)
 
   useEffect(() => {
     const previous = document.body.style.overflow
@@ -575,13 +604,19 @@ function BuyPointsSheet({
     if (!canPay) return
     hapticSelection()
     setStage('processing')
+    setPayError(null)
     try {
       const result = await purchasePointsByCard(points)
       hapticNotification('success')
       setStage('success')
       onPurchased(result.pointsAdded, result.pointsBalance, result.eurAmountCents / 100)
-    } catch {
+    } catch (error) {
       hapticNotification('error')
+      setPayError(
+        error instanceof Error
+          ? error.message
+          : t('profile.paymentFailed', { defaultValue: 'Payment failed. Please try again.' }),
+      )
       setStage('form')
     }
   }
@@ -594,10 +629,14 @@ function BuyPointsSheet({
         : t('profile.buyPoints', { defaultValue: 'Buy points' })
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
+    <div
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      onClick={() => stage !== 'processing' && onClose()}
+    >
       <div
         className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
         style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="min-w-0">
@@ -686,6 +725,10 @@ function BuyPointsSheet({
                 </div>
               </div>
 
+              {payError && (
+                <p className="text-xs font-medium text-red-600 break-words">{payError}</p>
+              )}
+
               <button
                 onClick={() => void handlePay()}
                 disabled={!canPay}
@@ -759,11 +802,7 @@ function CardSuccessView({
         <p className="text-3xl font-extrabold tracking-tight">+{points} pts</p>
         <p className="text-xs text-muted mt-1">{t('profile.creditedToBalance', { defaultValue: 'Credited to your balance' })}</p>
       </div>
-      <div className="w-full rounded-2xl bg-surface px-4 py-3 mt-1 space-y-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted">{t('profile.paymentMethod', { defaultValue: 'Payment method' })}</span>
-          <span className="text-xs font-semibold">{t('profile.cardMasked', { defaultValue: 'Card · •••• 4242' })}</span>
-        </div>
+      <div className="w-full rounded-2xl bg-surface px-4 py-3 mt-1">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] text-muted">{t('profile.charged', { defaultValue: 'Charged' })}</span>
           <span className="text-xs font-bold">€{eurAmount.toFixed(2)}</span>

@@ -1,5 +1,6 @@
 import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
 import type { MutableRefObject } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { showOnMapHref } from '../../../lib/navigation'
 import { formatDate } from '../../../i18n/dateTime'
@@ -88,6 +89,7 @@ export function AdminSidebarDriversSection({
   driverCardRefs,
 }: DriversSectionProps) {
   const { t } = useTranslation()
+  const [isCreatingDriver, setIsCreatingDriver] = useState(false)
 
   if (activeTab !== 'drivers') {
     return null
@@ -136,6 +138,7 @@ export function AdminSidebarDriversSection({
             <label className="text-xs font-semibold text-muted">{t('admin.drivers.seatsInCar')}</label>
             <input
               type="number"
+              inputMode="numeric"
               min={1}
               max={12}
               value={newDriverSeatsCount}
@@ -191,10 +194,15 @@ export function AdminSidebarDriversSection({
             )}
           </div>
           <button
-            onClick={() => void handleCreateDriver()}
-            className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all active:scale-[0.97]"
+            onClick={() => {
+              if (isCreatingDriver) return
+              setIsCreatingDriver(true)
+              void handleCreateDriver().finally(() => setIsCreatingDriver(false))
+            }}
+            disabled={isCreatingDriver}
+            className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-bold transition-all hover:bg-zinc-800 active:scale-[0.97] disabled:opacity-60"
           >
-            {t('admin.drivers.createDriver')}
+            {isCreatingDriver ? t('common.saving') : t('admin.drivers.createDriver')}
           </button>
           {lastCreatedDriverKey && (
             <KeyReveal
@@ -367,12 +375,7 @@ export function AdminSidebarDriversSection({
                           </p>
                           <p className="text-xs font-mono font-semibold truncate">{driver.keyPrefix}…</p>
                         </div>
-                        <button
-                          onClick={() => void handleRotateDriverKey(driver.id)}
-                          className="text-[10px] font-bold px-2.5 py-1 rounded-pill bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"
-                        >
-                          {t('admin.drivers.rotateKey')}
-                        </button>
+                        {/* Rotation lives in the action row below («New key») — no duplicate button here */}
                       </div>
                     </div>
                   </Section>
@@ -403,7 +406,7 @@ export function AdminSidebarDriversSection({
                           href={showOnMapHref(driver.currentLocation, driver.name)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[10px] font-bold px-2.5 py-1 rounded-pill bg-accent/15 hover:bg-accent/25 text-accent-dark transition-colors flex-shrink-0"
+                          className="min-h-[36px] inline-flex items-center text-[10px] font-bold px-3 py-2 rounded-pill bg-accent/15 hover:bg-accent/25 text-accent-dark transition-colors flex-shrink-0"
                           title={t('driver.openInNavigator')}
                         >
                           {t('common.open')}
@@ -422,13 +425,13 @@ export function AdminSidebarDriversSection({
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                     <button
                       onClick={() => setEditingDriver(driver)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-black text-white hover:bg-zinc-800 transition-colors"
+                      className="min-h-[36px] inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-pill bg-black text-white hover:bg-zinc-800 transition-colors"
                     >
                       <PencilSimple size={12} /> {t('common.edit')}
                     </button>
                     <button
                       onClick={() => void handleRotateDriverKey(driver.id)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-pill bg-white border border-border hover:bg-surface transition-colors"
+                      className="min-h-[36px] inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-pill bg-white border border-border hover:bg-surface transition-colors"
                     >
                       <Key size={12} /> {t('common.newKey')}
                     </button>
@@ -436,7 +439,7 @@ export function AdminSidebarDriversSection({
                       label={t('common.delete')}
                       confirmLabel={t('common.confirmDelete')}
                       onConfirm={() => void handleDeleteDriver(driver.id)}
-                      className="ml-auto !text-xs !px-3 !py-1.5"
+                      className="ml-auto !text-xs"
                     />
                   </div>
 

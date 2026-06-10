@@ -2,6 +2,7 @@ import { Clock, Star, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
+import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { DriverMapPoint } from '../../../types'
 
 interface DriverAvailableRideSheetProps {
@@ -22,6 +23,7 @@ export default function DriverAvailableRideSheet({
   const { t } = useTranslation()
   const point = pickup ?? dropoff
   const open = Boolean(point)
+  useEscapeClose(open && !isClaiming, onClose)
 
   if (!point) {
     return null
@@ -34,7 +36,7 @@ export default function DriverAvailableRideSheet({
     <>
       <div className="absolute inset-0 z-[18]" onClick={onClose} />
       <div
-        className="absolute left-0 right-0 bottom-0 z-[20] bg-white rounded-t-3xl overflow-hidden"
+        className="absolute left-0 right-0 bottom-0 z-[20] bg-white rounded-t-3xl overflow-hidden md:max-w-lg md:mx-auto md:rounded-t-2xl"
         style={{
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
           transform: open ? 'translateY(0)' : 'translateY(100%)',
@@ -65,9 +67,9 @@ export default function DriverAvailableRideSheet({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0"
+            className="w-11 h-11 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0"
           >
-            <X size={15} weight="bold" className="text-muted" />
+            <X size={16} weight="bold" className="text-muted" />
           </button>
         </div>
 

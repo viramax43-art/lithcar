@@ -26,9 +26,13 @@ export async function completeOnboarding(): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>('/api/users/me/complete-onboarding', { method: 'POST' })
 }
 
-export async function listMyRequests(params?: PaginationParams): Promise<PaginatedResult<RideRequest>> {
+export async function listMyRequests(
+  params?: PaginationParams & { scope?: 'active' | 'completed' },
+): Promise<PaginatedResult<RideRequest>> {
+  const query = toPageQuery(params)
+  const scopeSuffix = params?.scope ? `&scope=${params.scope}` : ''
   const page = await apiRequest<{ items: RideRequestApi[]; total: number; limit: number; offset: number }>(
-    `/api/ride-requests/me?${toPageQuery(params)}`
+    `/api/ride-requests/me?${query}${scopeSuffix}`
   )
   return { items: page.items.map(mapRideRequest), total: page.total, limit: page.limit, offset: page.offset }
 }

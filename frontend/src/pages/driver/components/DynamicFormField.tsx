@@ -13,6 +13,7 @@ type DynamicFormFieldProps = {
   fileEntry: DriverApplicationFileEntry | null
   error?: string | null
   disabled?: boolean
+  isUploading?: boolean
   onValueChange: (value: string) => void
   onFileSelect: (file: File) => Promise<void>
   onFileClear: () => void
@@ -26,6 +27,7 @@ export function DynamicFormField({
   fileEntry,
   error,
   disabled,
+  isUploading,
   onValueChange,
   onFileSelect,
   onFileClear,
@@ -105,6 +107,13 @@ export function DynamicFormField({
             >
               <X size={16} />
             </button>
+          </div>
+        ) : isUploading ? (
+          <div className="mt-2 w-full rounded-xl border border-dashed border-border bg-surface px-4 py-6 flex flex-col items-center gap-2">
+            <div className="w-6 h-6 rounded-full border-2 border-border border-t-black animate-spin" />
+            <span className="text-sm font-semibold text-black">
+              {t('driverRegistration.uploadingFile', { defaultValue: 'Uploading file...' })}
+            </span>
           </div>
         ) : (
           <button

@@ -5,6 +5,7 @@ import { Bell } from '@phosphor-icons/react'
 import type { AppNotification, NotificationPool } from '../../types'
 import NotificationPanel from './NotificationPanel'
 import { useNotifications } from './useNotifications'
+import { hapticSelection } from '../../lib/telegram'
 
 interface NotificationBellProps {
   pool: NotificationPool
@@ -22,9 +23,12 @@ const VARIANT_CLASS: Record<'light' | 'dark', string> = {
 const PANEL_MAX_WIDTH = 340
 const VIEWPORT_MARGIN = 12
 const PANEL_OFFSET_Y = 8
+// Header (~70px) + scrollable list max(280px / 36dvh) — used to decide whether to flip upward.
+const PANEL_ESTIMATED_HEIGHT = 360
 
 interface PanelPosition {
-  top: number
+  top?: number
+  bottom?: number
   left: number
   width: number
 }
@@ -34,6 +38,16 @@ function computePanelPosition(anchor: DOMRect): PanelPosition {
   const maxLeft = window.innerWidth - width - VIEWPORT_MARGIN
   const preferredLeft = anchor.right - width
   const left = Math.max(VIEWPORT_MARGIN, Math.min(preferredLeft, maxLeft))
+  const spaceBelow = window.innerHeight - anchor.bottom - PANEL_OFFSET_Y - VIEWPORT_MARGIN
+  const spaceAbove = anchor.top - PANEL_OFFSET_Y - VIEWPORT_MARGIN
+  // Flip upward when there is not enough room below but more above.
+  if (spaceBelow < PANEL_ESTIMATED_HEIGHT && spaceAbove > spaceBelow) {
+    return {
+      bottom: window.innerHeight - anchor.top + PANEL_OFFSET_Y,
+      left,
+      width,
+    }
+  }
   return {
     top: anchor.bottom + PANEL_OFFSET_Y,
     left,
@@ -91,6 +105,7 @@ export default function NotificationBell({
   }, [open])
 
   const handleToggle = () => {
+    hapticSelection()
     setOpen((prev) => {
       const next = !prev
       if (next) void refresh()
@@ -124,6 +139,7 @@ export default function NotificationBell({
             style={{
               position: 'fixed',
               top: panelPosition.top,
+              bottom: panelPosition.bottom,
               left: panelPosition.left,
               width: panelPosition.width,
               zIndex: 5101,

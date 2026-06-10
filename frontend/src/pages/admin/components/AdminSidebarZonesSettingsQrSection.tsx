@@ -65,6 +65,7 @@ export function AdminSidebarZonesSettingsQrSection({
   const initialZonesSettingsUi = getInitialZonesSettingsUi()
   const skipMainSyncRef = useRef(initialZonesSettingsUi.userInfoMainDraft !== null)
   const skipProfileSyncRef = useRef(initialZonesSettingsUi.userInfoProfileDraft !== null)
+  const [isCreatingZone, setIsCreatingZone] = useState(false)
   const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() =>
     (initialZonesSettingsUi.userInfoMainDraft as UserInfoTextI18n | null) ??
     normalizeUserInfoText(pricing.userInfoText),
@@ -121,7 +122,7 @@ export function AdminSidebarZonesSettingsQrSection({
                   <button
                     key={color}
                     onClick={() => setNewZoneColor(color)}
-                    className={`w-7 h-7 rounded-full transition-transform ${
+                    className={`w-9 h-9 touch-none rounded-full transition-transform ${
                       newZoneColor === color ? 'ring-2 ring-black ring-offset-2 scale-110' : ''
                     }`}
                     style={{ background: color }}
@@ -152,11 +153,15 @@ export function AdminSidebarZonesSettingsQrSection({
               </button>
             </div>
             <button
-              onClick={() => void handleCreateZone()}
-              disabled={drawingPoints.length < 3 || !newZoneName.trim()}
-              className="w-full py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
+              onClick={() => {
+                if (isCreatingZone) return
+                setIsCreatingZone(true)
+                void handleCreateZone().finally(() => setIsCreatingZone(false))
+              }}
+              disabled={drawingPoints.length < 3 || !newZoneName.trim() || isCreatingZone}
+              className="w-full py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all hover:bg-zinc-800 active:scale-[0.97]"
             >
-              {t('admin.zones.saveZone')}
+              {isCreatingZone ? t('common.saving') : t('admin.zones.saveZone')}
             </button>
           </div>
         )}
@@ -234,6 +239,7 @@ export function AdminSidebarZonesSettingsQrSection({
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">€</span>
               <input
                 type="number"
+                inputMode="decimal"
                 min={0.01}
                 step={0.01}
                 value={(pricing.pointPriceCents / 100).toFixed(2)}

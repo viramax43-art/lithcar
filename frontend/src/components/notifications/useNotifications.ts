@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { normalizeLanguage } from '../../i18n/languages'
 import {
   getAdminUnreadCount,
   getDriverUnreadCount,
@@ -25,6 +27,8 @@ interface UseNotificationsOptions {
 }
 
 export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_MS }: UseNotificationsOptions) {
+  const { t, i18n } = useTranslation()
+  const language = normalizeLanguage(i18n.language)
   const [items, setItems] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -49,7 +53,7 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
     setErrorMessage(null)
     try {
       const [page, count] = await Promise.all([
-        listFn({ limit: 50, offset: 0 }),
+        listFn({ limit: 50, offset: 0, lang: language }),
         unreadFn(),
       ])
       if (!isMounted.current) return
@@ -57,11 +61,15 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
       setUnreadCount(count)
     } catch (err) {
       if (!isMounted.current) return
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to load notifications')
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : t('notifications.loadFailed', { defaultValue: 'Failed to load notifications' }),
+      )
     } finally {
       if (isMounted.current) setIsLoading(false)
     }
-  }, [enabled, listFn, unreadFn])
+  }, [enabled, language, listFn, unreadFn, t])
 
   useEffect(() => {
     isMounted.current = true
@@ -81,7 +89,7 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
         : pool === 'driver'
           ? markDriverNotificationRead
           : markAdminNotificationRead
-      const updated = await markFn(notificationId)
+      const updated = await markFn(notificationId, language)
       setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
       setUnreadCount((prev) => Math.max(0, prev - (updated.readAt ? 1 : 0)))
       if (!updated.readAt) {
@@ -90,7 +98,7 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
       }
       return updated
     },
-    [pool, unreadFn],
+    [language, pool, unreadFn],
   )
 
   const markAllRead = useCallback(async () => {
