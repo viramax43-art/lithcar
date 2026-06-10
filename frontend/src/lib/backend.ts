@@ -93,9 +93,12 @@ export {
 } from '../infrastructure/api/passengerApi'
 
 export {
+  createAdminInfoBlock,
+  deleteAdminInfoBlock,
   getAdminUnreadCount,
   getDriverUnreadCount,
   getPassengerUnreadCount,
+  listAdminInfoBlocks,
   listAdminNotifications,
   listDriverNotifications,
   listPassengerNotifications,
@@ -105,10 +108,9 @@ export {
   markAllPassengerNotificationsRead,
   markDriverNotificationRead,
   markPassengerNotificationRead,
-  sendAdminNotification,
 } from '../infrastructure/api/notificationsApi'
 
-export type { AdminSendNotificationPayload, AdminSendNotificationResult } from '../infrastructure/api/notificationsApi'
+export type { CreateInfoBlockPayload } from '../infrastructure/api/notificationsApi'
 
 export {
   approveDriverApplication,

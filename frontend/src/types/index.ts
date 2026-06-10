@@ -345,5 +345,15 @@ export interface AppNotification {
   payload: NotificationPayload | null
   readAt: string | null
   createdAt: string
-  sendTelegram: boolean
+}
+
+export interface InfoBlock {
+  id: string
+  pool: 'passenger' | 'driver'
+  title: string
+  body: string
+  isActive: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
 }

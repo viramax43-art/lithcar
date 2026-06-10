@@ -69,5 +69,6 @@ api_router.include_router(map_drawings.router, tags=["Map Drawings"])
 api_router.include_router(map_marks.router, tags=["Map Marks"])
 api_router.include_router(notifications.passenger_router, tags=["Notifications"])
 api_router.include_router(notifications.admin_router, tags=["Admin Notifications"])
+api_router.include_router(notifications.info_blocks_router, tags=["Admin Info Blocks"])
 fastapi_app.include_router(api_router)
 

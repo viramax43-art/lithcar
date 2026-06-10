@@ -20,6 +20,7 @@ from app.models.driver_registration_settings import DriverRegistrationSettings
 from app.models.driver_application import DriverApplication
 from app.models.driver_login_token import DriverLoginToken
 from app.models.notification import Notification
+from app.models.info_block import InfoBlock, InfoBlockRead
 
 
 __all__ = [
@@ -39,4 +40,6 @@ __all__ = [
     "DriverApplication",
     "DriverLoginToken",
     "Notification",
+    "InfoBlock",
+    "InfoBlockRead",
 ]

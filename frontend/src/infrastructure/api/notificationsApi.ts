@@ -1,4 +1,4 @@
-import type { AppNotification } from '../../types'
+import type { AppNotification, InfoBlock } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type { PaginatedResult, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
@@ -14,17 +14,15 @@ interface UnreadCountApi {
   count: number
 }
 
-export interface AdminSendNotificationPayload {
-  pool: 'passenger' | 'driver'
-  mode: 'broadcast' | 'single'
-  recipientId?: string
-  title: string
-  body: string
-  sendTelegram: boolean
+interface InfoBlockPageApi {
+  items: InfoBlock[]
+  total: number
 }
 
-export interface AdminSendNotificationResult {
-  sentCount: number
+export interface CreateInfoBlockPayload {
+  pool: 'passenger' | 'driver'
+  title: string
+  body: string
 }
 
 function passengerBase() {
@@ -33,6 +31,10 @@ function passengerBase() {
 
 function adminBase() {
   return '/api/admin/notifications'
+}
+
+function infoBlocksBase() {
+  return '/api/admin/info-blocks'
 }
 
 export async function listPassengerNotifications(
@@ -103,12 +105,19 @@ export async function markAllAdminNotificationsRead(): Promise<void> {
   await apiRequest<UnreadCountApi>(`${adminBase()}/read-all`, { method: 'POST', authMode: 'cookie' })
 }
 
-export async function sendAdminNotification(
-  payload: AdminSendNotificationPayload,
-): Promise<AdminSendNotificationResult> {
-  return apiRequest<AdminSendNotificationResult>(`${adminBase()}/send`, {
+export async function listAdminInfoBlocks(pool: 'passenger' | 'driver'): Promise<InfoBlock[]> {
+  const result = await apiRequest<InfoBlockPageApi>(`${infoBlocksBase()}?pool=${pool}`, { authMode: 'cookie' })
+  return result.items
+}
+
+export async function createAdminInfoBlock(payload: CreateInfoBlockPayload): Promise<InfoBlock> {
+  return apiRequest<InfoBlock>(infoBlocksBase(), {
     method: 'POST',
     body: payload,
     authMode: 'cookie',
   })
+}
+
+export async function deleteAdminInfoBlock(infoBlockId: string): Promise<void> {
+  await apiRequest<void>(`${infoBlocksBase()}/${infoBlockId}`, { method: 'DELETE', authMode: 'cookie' })
 }

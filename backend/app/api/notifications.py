@@ -7,34 +7,49 @@ from app.api.admin_session import AdminSession, require_admin_roles
 from app.api.auth import get_current_user
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
+from app.models.info_block import InfoBlockPool, InfoBlockReadRecipientType
 from app.models.notification import NotificationPool, NotificationRecipientType
 from app.models.user import User
 from app.schemas.notification import (
-    AdminSendNotificationIn,
-    AdminSendNotificationOut,
+    CreateInfoBlockIn,
+    InfoBlockOut,
+    InfoBlockPage,
     NotificationOut,
     NotificationPage,
     UnreadCountOut,
+    UpdateInfoBlockIn,
+    info_block_to_out,
     notification_to_out,
+)
+from app.services.info_block_service import (
+    InfoBlockRecipient,
+    count_unread_info_blocks,
+    create_info_block,
+    delete_info_block,
+    info_block_to_notification_out,
+    list_admin_info_blocks,
+    list_info_blocks_for_recipient,
+    mark_all_info_blocks_read,
+    mark_info_block_read,
+    update_info_block,
 )
 from app.services.notification_service import (
     NotificationRecipient,
-    broadcast_to_pool,
     count_unread,
     list_notifications,
     mark_all_read,
     mark_read,
-    send_to_recipient,
 )
 
 passenger_router = APIRouter(prefix="/notifications/passenger")
 admin_router = APIRouter(prefix="/admin/notifications")
+info_blocks_router = APIRouter(prefix="/admin/info-blocks")
 
 
-def _passenger_recipient(user: User) -> NotificationRecipient:
-    return NotificationRecipient(
-        pool=NotificationPool.PASSENGER,
-        recipient_type=NotificationRecipientType.USER,
+def _passenger_recipient(user: User) -> InfoBlockRecipient:
+    return InfoBlockRecipient(
+        pool=InfoBlockPool.PASSENGER,
+        recipient_type=InfoBlockReadRecipientType.USER,
         recipient_id=user.user_id,
     )
 
@@ -55,7 +70,7 @@ async def list_passenger_notifications(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    items, total = await list_notifications(
+    items, total = await list_info_blocks_for_recipient(
         db_session,
         recipient=_passenger_recipient(current_user),
         limit=limit,
@@ -63,7 +78,7 @@ async def list_passenger_notifications(
         unread_only=unreadOnly,
     )
     return NotificationPage(
-        items=[notification_to_out(item) for item in items],
+        items=[info_block_to_notification_out(item) for item in items],
         total=total,
         limit=limit,
         offset=offset,
@@ -75,7 +90,7 @@ async def passenger_unread_count(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    count = await count_unread(db_session, recipient=_passenger_recipient(current_user))
+    count = await count_unread_info_blocks(db_session, recipient=_passenger_recipient(current_user))
     return UnreadCountOut(count=count)
 
 
@@ -85,14 +100,14 @@ async def mark_passenger_notification_read(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    entity = await mark_read(
+    view = await mark_info_block_read(
         db_session,
-        notification_id=notification_id,
+        info_block_id=notification_id,
         recipient=_passenger_recipient(current_user),
     )
-    if entity is None:
+    if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
-    return notification_to_out(entity)
+    return info_block_to_notification_out(view)
 
 
 @passenger_router.post("/read-all", response_model=UnreadCountOut)
@@ -100,7 +115,7 @@ async def mark_all_passenger_notifications_read(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    await mark_all_read(db_session, recipient=_passenger_recipient(current_user))
+    await mark_all_info_blocks_read(db_session, recipient=_passenger_recipient(current_user))
     return UnreadCountOut(count=0)
 
 
@@ -177,34 +192,57 @@ async def mark_all_admin_notifications_read(
     return UnreadCountOut(count=0)
 
 
-@admin_router.post("/send", response_model=AdminSendNotificationOut)
-async def admin_send_notification(
-    payload: AdminSendNotificationIn,
+@info_blocks_router.get("", response_model=InfoBlockPage)
+async def list_info_blocks(
+    pool: str = Query(pattern="^(passenger|driver)$"),
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    items = await list_admin_info_blocks(db_session, pool=pool)
+    return InfoBlockPage(items=[info_block_to_out(item) for item in items], total=len(items))
+
+
+@info_blocks_router.post("", response_model=InfoBlockOut, status_code=status.HTTP_201_CREATED)
+async def create_info_block_endpoint(
+    payload: CreateInfoBlockIn,
     session: AdminSession = Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    if payload.mode == "single":
-        if not payload.recipientId:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="recipientId is required for single mode.")
-        entity = await send_to_recipient(
-            db_session,
-            pool=payload.pool,
-            recipient_id=payload.recipientId,
-            title=payload.title.strip(),
-            body=payload.body.strip(),
-            created_by_admin_key_id=session.admin_key_id,
-            send_telegram=payload.sendTelegram,
-        )
-        if entity is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found.")
-        return AdminSendNotificationOut(sentCount=1)
-
-    sent_count = await broadcast_to_pool(
+    entity = await create_info_block(
         db_session,
         pool=payload.pool,
-        title=payload.title.strip(),
-        body=payload.body.strip(),
+        title=payload.title,
+        body=payload.body,
         created_by_admin_key_id=session.admin_key_id,
-        send_telegram=payload.sendTelegram,
     )
-    return AdminSendNotificationOut(sentCount=sent_count)
+    return info_block_to_out(entity)
+
+
+@info_blocks_router.patch("/{info_block_id}", response_model=InfoBlockOut)
+async def update_info_block_endpoint(
+    info_block_id: str,
+    payload: UpdateInfoBlockIn,
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    entity = await update_info_block(
+        db_session,
+        info_block_id=info_block_id,
+        title=payload.title,
+        body=payload.body,
+        is_active=payload.isActive,
+    )
+    if entity is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Info block not found.")
+    return info_block_to_out(entity)
+
+
+@info_blocks_router.delete("/{info_block_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_info_block_endpoint(
+    info_block_id: str,
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    deleted = await delete_info_block(db_session, info_block_id=info_block_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Info block not found.")

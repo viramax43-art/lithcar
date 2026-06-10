@@ -380,7 +380,6 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               handlePricingChange={handlePricingChange}
               qrSales={qrSales}
               hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
-              drivers={drivers}
               adminSession={adminSession}
             />
 

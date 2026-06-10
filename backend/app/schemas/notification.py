@@ -15,7 +15,6 @@ class NotificationOut(BaseModel):
     payload: dict[str, Any] | None = None
     readAt: datetime | None = None
     createdAt: datetime
-    sendTelegram: bool = False
 
 
 class NotificationPage(BaseModel):
@@ -29,17 +28,32 @@ class UnreadCountOut(BaseModel):
     count: int
 
 
-class AdminSendNotificationIn(BaseModel):
+class InfoBlockOut(BaseModel):
+    id: str
+    pool: str
+    title: str
+    body: str
+    isActive: bool
+    sortOrder: int
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class InfoBlockPage(BaseModel):
+    items: list[InfoBlockOut]
+    total: int
+
+
+class CreateInfoBlockIn(BaseModel):
     pool: Literal["passenger", "driver"]
-    mode: Literal["broadcast", "single"]
-    recipientId: str | None = None
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=4000)
-    sendTelegram: bool = False
 
 
-class AdminSendNotificationOut(BaseModel):
-    sentCount: int
+class UpdateInfoBlockIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    body: str | None = Field(default=None, min_length=1, max_length=4000)
+    isActive: bool | None = None
 
 
 def notification_to_out(entity) -> NotificationOut:
@@ -52,5 +66,17 @@ def notification_to_out(entity) -> NotificationOut:
         payload=entity.payload,
         readAt=entity.read_at,
         createdAt=entity.created_at,
-        sendTelegram=bool(entity.send_telegram),
+    )
+
+
+def info_block_to_out(entity) -> InfoBlockOut:
+    return InfoBlockOut(
+        id=entity.id,
+        pool=entity.pool,
+        title=entity.title,
+        body=entity.body,
+        isActive=bool(entity.is_active),
+        sortOrder=int(entity.sort_order or 0),
+        createdAt=entity.created_at,
+        updatedAt=entity.updated_at,
     )

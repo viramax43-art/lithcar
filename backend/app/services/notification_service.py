@@ -1,28 +1,19 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from aiogram import Bot
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.i18n import t
-from app.core.config import settings
 from app.models.admin_api_key import AdminApiKey, AdminApiRole
-from app.models.driver import Driver
 from app.models.notification import (
     Notification,
     NotificationPool,
     NotificationRecipientType,
     NotificationType,
 )
-from app.models.user import User, UserRole
-from app.services.driver_notification_service import _notifications_enabled, _resolve_chat_id
-
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -40,19 +31,6 @@ def _recipient_filter(recipient: NotificationRecipient):
     )
 
 
-async def _send_telegram_text(*, user_id: str, text: str) -> None:
-    if not _notifications_enabled():
-        return
-    chat_id = _resolve_chat_id(user_id)
-    if chat_id is None:
-        return
-    try:
-        async with Bot(token=settings.bot_token) as bot:
-            await bot.send_message(chat_id=chat_id, text=text)
-    except Exception:
-        logger.exception("Failed to deliver notification via Telegram to user_id=%s", user_id)
-
-
 async def create_notification(
     db_session: AsyncSession,
     *,
@@ -62,8 +40,6 @@ async def create_notification(
     body: str,
     payload: dict | None = None,
     created_by_admin_key_id: str | None = None,
-    send_telegram: bool = False,
-    telegram_user_id: str | None = None,
 ) -> Notification:
     entity = Notification(
         pool=recipient.pool,
@@ -74,14 +50,10 @@ async def create_notification(
         body=body,
         payload=payload,
         created_by_admin_key_id=created_by_admin_key_id,
-        send_telegram=send_telegram,
+        send_telegram=False,
     )
     db_session.add(entity)
     await db_session.flush()
-
-    if send_telegram and telegram_user_id:
-        await _send_telegram_text(user_id=telegram_user_id, text=f"{title}\n\n{body}")
-
     return entity
 
 
@@ -134,115 +106,6 @@ async def notify_admins_new_driver_application(
 
     await db_session.commit()
     return created
-
-
-async def broadcast_to_pool(
-    db_session: AsyncSession,
-    *,
-    pool: str,
-    title: str,
-    body: str,
-    created_by_admin_key_id: str,
-    send_telegram: bool = False,
-) -> int:
-    recipients: list[tuple[NotificationRecipient, str | None]] = []
-
-    if pool == NotificationPool.PASSENGER:
-        result = await db_session.execute(
-            select(User).where(User.role == UserRole.PASSENGER)
-        )
-        for user in result.scalars().all():
-            recipients.append(
-                (
-                    NotificationRecipient(
-                        pool=NotificationPool.PASSENGER,
-                        recipient_type=NotificationRecipientType.USER,
-                        recipient_id=user.user_id,
-                    ),
-                    user.user_id,
-                )
-            )
-    elif pool == NotificationPool.DRIVER:
-        result = await db_session.execute(select(Driver))
-        for driver in result.scalars().all():
-            recipients.append(
-                (
-                    NotificationRecipient(
-                        pool=NotificationPool.DRIVER,
-                        recipient_type=NotificationRecipientType.DRIVER,
-                        recipient_id=driver.id,
-                    ),
-                    driver.user_id,
-                )
-            )
-    else:
-        return 0
-
-    count = 0
-    for recipient, telegram_user_id in recipients:
-        await create_notification(
-            db_session,
-            recipient=recipient,
-            notification_type=NotificationType.ADMIN_BROADCAST,
-            title=title,
-            body=body,
-            created_by_admin_key_id=created_by_admin_key_id,
-            send_telegram=send_telegram,
-            telegram_user_id=telegram_user_id if send_telegram else None,
-        )
-        count += 1
-
-    await db_session.commit()
-    return count
-
-
-async def send_to_recipient(
-    db_session: AsyncSession,
-    *,
-    pool: str,
-    recipient_id: str,
-    title: str,
-    body: str,
-    created_by_admin_key_id: str,
-    send_telegram: bool = False,
-) -> Notification | None:
-    telegram_user_id: str | None = None
-
-    if pool == NotificationPool.PASSENGER:
-        user = await db_session.get(User, recipient_id)
-        if user is None:
-            return None
-        recipient = NotificationRecipient(
-            pool=NotificationPool.PASSENGER,
-            recipient_type=NotificationRecipientType.USER,
-            recipient_id=user.user_id,
-        )
-        telegram_user_id = user.user_id
-    elif pool == NotificationPool.DRIVER:
-        driver = await db_session.get(Driver, recipient_id)
-        if driver is None:
-            return None
-        recipient = NotificationRecipient(
-            pool=NotificationPool.DRIVER,
-            recipient_type=NotificationRecipientType.DRIVER,
-            recipient_id=driver.id,
-        )
-        telegram_user_id = driver.user_id
-    else:
-        return None
-
-    entity = await create_notification(
-        db_session,
-        recipient=recipient,
-        notification_type=NotificationType.ADMIN_BROADCAST,
-        title=title,
-        body=body,
-        created_by_admin_key_id=created_by_admin_key_id,
-        send_telegram=send_telegram,
-        telegram_user_id=telegram_user_id if send_telegram else None,
-    )
-    await db_session.commit()
-    return entity
 
 
 async def list_notifications(

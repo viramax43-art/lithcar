@@ -23,6 +23,7 @@ class NotificationRecipientType:
 class NotificationType:
     ADMIN_BROADCAST = "admin_broadcast"
     DRIVER_APPLICATION_NEW = "driver_application_new"
+    INFO_BLOCK = "info_block"
 
 
 class Notification(Base):
