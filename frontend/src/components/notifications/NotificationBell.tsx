@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell } from '@phosphor-icons/react'
 
 import type { AppNotification, NotificationPool } from '../../types'
@@ -27,10 +27,42 @@ export default function NotificationBell({
 }: NotificationBellProps) {
   const buttonClass = className ?? VARIANT_CLASS[variant]
   const [open, setOpen] = useState(false)
-  const { items, unreadCount, isLoading, errorMessage, markRead, markAllRead } = useNotifications({
+  const rootRef = useRef<HTMLDivElement>(null)
+  const { items, unreadCount, isLoading, errorMessage, markRead, markAllRead, refresh } = useNotifications({
     pool,
     enabled,
   })
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rootRef.current?.contains(target)) return
+      setOpen(false)
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+    }
+  }, [open])
+
+  const handleToggle = () => {
+    setOpen((prev) => {
+      const next = !prev
+      if (next) void refresh()
+      return next
+    })
+  }
 
   const handleSelect = async (notification: AppNotification) => {
     if (!notification.readAt) {
@@ -43,10 +75,12 @@ export default function NotificationBell({
   }
 
   return (
-    <>
+    <div ref={rootRef} className="relative flex-shrink-0 pointer-events-auto">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={handleToggle}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className={buttonClass}
       >
         <Bell size={18} weight={unreadCount > 0 ? 'fill' : 'bold'} className={variant === 'dark' ? 'text-white' : undefined} />
@@ -56,16 +90,20 @@ export default function NotificationBell({
           </span>
         )}
       </button>
+
       {open && (
         <NotificationPanel
           items={items}
+          unreadCount={unreadCount}
           isLoading={isLoading}
           errorMessage={errorMessage}
-          onClose={() => setOpen(false)}
           onSelect={(notification) => void handleSelect(notification)}
-          onMarkAllRead={() => void markAllRead()}
+          onMarkAllRead={async () => {
+            await markAllRead()
+          }}
+          className="absolute right-0 top-[calc(100%+8px)] z-[320]"
         />
       )}
-    </>
+    </div>
   )
 }
