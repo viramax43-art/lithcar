@@ -2,11 +2,12 @@ import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Cros
 import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
-import { useEffect, useState } from 'react'
+import L from 'leaflet'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
-import { makeMapMarkIcon } from '../../lib/mapMarkIcons'
+import { makeMapMarkIcon, makeOfferPickupIcon } from '../../lib/mapMarkIcons'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
@@ -15,6 +16,8 @@ import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
 import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
+import { usePassengerRideOffersOnMap } from './new-request/usePassengerRideOffersOnMap'
+import OfferMapSheet from './components/OfferMapSheet'
 import type { MapMark } from '../../types'
 import { addAppLocalDays, toAppLocalDateInput } from '../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
@@ -39,6 +42,14 @@ export default function NewRequest() {
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
   const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
+  const offersPaused = isMapMarkViewMode || model.showSearch || isSignalMode
+  const offersMap = usePassengerRideOffersOnMap({
+    isPinLive: model.isPinLive,
+    paused: offersPaused,
+  })
+  const pickupIconNormal = useMemo(() => makeOfferPickupIcon(), [])
+  const pickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
+  const offerPickupIcon = model.isPinLive ? pickupIconSubdued : pickupIconNormal
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
@@ -71,20 +82,29 @@ export default function NewRequest() {
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
           {!isCoarsePointer && <ZoomControl position="bottomright" />}
-          <MapBinder
-            registerMap={(map) => {
-              model.mapRef.current = map
-            }}
-            enabled={!isMapMarkViewMode}
-            onPanStart={() => model.setIsPanning(true)}
-            onPanEnd={(latlng) => {
-              model.setIsPanning(false)
-              void model.commitPin(latlng)
-            }}
-          />
-
-          {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
-          {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
+          {offersMap.highlightedOffer && (
+            <Polyline
+              positions={[
+                [offersMap.highlightedOffer.from.latlng.lat, offersMap.highlightedOffer.from.latlng.lng],
+                [offersMap.highlightedOffer.to.latlng.lat, offersMap.highlightedOffer.to.latlng.lng],
+              ]}
+              pathOptions={{
+                color: '#000',
+                weight: 3,
+                dashArray: '10, 10',
+                opacity: model.isPinLive ? 0.35 : 0.6,
+              }}
+            />
+          )}
+          {model.fromPoint && model.toPoint && (
+            <Polyline
+              positions={[
+                [model.fromPoint.lat, model.fromPoint.lng],
+                [model.toPoint.lat, model.toPoint.lng],
+              ]}
+              pathOptions={{ color: '#000', weight: 3, dashArray: '10, 10', opacity: 0.6 }}
+            />
+          )}
           {publicMapMarks.map((mark) => (
             <Marker
               key={mark.id}
@@ -115,15 +135,63 @@ export default function NewRequest() {
               </Popup>
             </Marker>
           ))}
-          {model.fromPoint && model.toPoint && (
-            <Polyline
-              positions={[
-                [model.fromPoint.lat, model.fromPoint.lng],
-                [model.toPoint.lat, model.toPoint.lng],
-              ]}
-              pathOptions={{ color: '#000', weight: 3, dashArray: '10, 10', opacity: 0.6 }}
-            />
+          {!offersPaused &&
+            offersMap.offers.map((offer) => {
+              const isHighlighted = offersMap.highlightedOfferId === offer.id
+              if (isHighlighted) return null
+              return (
+                <Marker
+                  key={offer.id}
+                  position={[offer.from.latlng.lat, offer.from.latlng.lng]}
+                  icon={offerPickupIcon}
+                  eventHandlers={{
+                    click: (event) => {
+                      L.DomEvent.stopPropagation(event.originalEvent)
+                      offersMap.selectOffer(offer.id)
+                    },
+                    mouseover: () => {
+                      if (!isCoarsePointer) offersMap.setHoveredOffer(offer.id)
+                    },
+                    mouseout: () => {
+                      if (!isCoarsePointer) offersMap.setHoveredOffer(null)
+                    },
+                  }}
+                />
+              )
+            })}
+          {offersMap.highlightedOffer && (
+            <>
+              <Marker
+                position={[
+                  offersMap.highlightedOffer.from.latlng.lat,
+                  offersMap.highlightedOffer.from.latlng.lng,
+                ]}
+                icon={iconA}
+                interactive={false}
+              />
+              <Marker
+                position={[
+                  offersMap.highlightedOffer.to.latlng.lat,
+                  offersMap.highlightedOffer.to.latlng.lng,
+                ]}
+                icon={iconB}
+                interactive={false}
+              />
+            </>
           )}
+          {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
+          {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
+          <MapBinder
+            registerMap={(map) => {
+              model.mapRef.current = map
+            }}
+            enabled={!isMapMarkViewMode}
+            onPanStart={() => model.setIsPanning(true)}
+            onPanEnd={(latlng) => {
+              model.setIsPanning(false)
+              void model.commitPin(latlng)
+            }}
+          />
         </MapContainer>
       </div>
 
@@ -598,6 +666,20 @@ export default function NewRequest() {
           />
         </div>
       )}
+
+      <OfferMapSheet
+        offer={offersMap.selectedOffer}
+        open={offersMap.isSheetOpen}
+        isConfirming={offersMap.confirmOfferId === offersMap.selectedOfferId}
+        isBooking={Boolean(offersMap.bookingOfferId)}
+        errorMessage={offersMap.bookError}
+        onClose={offersMap.clearSelection}
+        onBookClick={() => {
+          if (offersMap.selectedOfferId) offersMap.startBookConfirm(offersMap.selectedOfferId)
+        }}
+        onConfirmBook={() => void offersMap.bookSelectedOffer()}
+        onCancelConfirm={offersMap.cancelBookConfirm}
+      />
 
       {isSignalMode && (
         <div className="fixed inset-0 z-[2400] signal-attention-screen flex flex-col items-center justify-center text-center px-6">

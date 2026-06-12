@@ -18,6 +18,43 @@ export function normalizeMapMarkColor(value: string | null | undefined): string 
   return HEX_COLOR_REGEX.test(normalized) ? normalized : DEFAULT_COLOR
 }
 
+const OFFER_CAR_SVG =
+  '<svg width="14" height="14" viewBox="0 0 256 256" fill="#FFFFFF" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M240,112H229.2L201.9,49.6A16,16,0,0,0,186.8,40H69.2a16,16,0,0,0-15.1,9.6L26.8,112H16a8,8,0,0,0,0,16h8v64a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16V168h96v32a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V128h8a8,8,0,0,0,0-16ZM69.2,56H186.8l24,64H45.2ZM64,208H40V168H64Zm128,0V168h24v40Z"/></svg>'
+
+const offerPickupIconCache = new Map<string, L.DivIcon>()
+
+export function makeOfferPickupIcon(options: {
+  size?: number
+  subdued?: boolean
+  selected?: boolean
+} = {}): L.DivIcon {
+  const { size = 32, subdued = false, selected = false } = options
+  const effectiveSize = subdued ? 28 : size
+  const cacheKey = `${effectiveSize}-${subdued}-${selected}`
+  const cached = offerPickupIconCache.get(cacheKey)
+  if (cached) return cached
+
+  const opacity = subdued ? 0.55 : 1
+  const scale = subdued ? 0.9 : selected ? 1.05 : 1
+  const ring = selected
+    ? 'box-shadow:0 0 0 3px #fff,0 0 0 5px #000,0 2px 8px rgba(0,0,0,0.15);'
+    : 'box-shadow:0 2px 8px rgba(0,0,0,0.15);'
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="opacity:${opacity};transform:scale(${scale});transform-origin:center center;">
+  <div style="width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:#000;border:3px solid #fff;display:flex;align-items:center;justify-content:center;${ring}">
+    ${OFFER_CAR_SVG}
+  </div>
+</div>`,
+    iconSize: [effectiveSize, effectiveSize],
+    iconAnchor: [effectiveSize / 2, effectiveSize / 2],
+  })
+
+  offerPickupIconCache.set(cacheKey, icon)
+  return icon
+}
+
 export function makeMapMarkIcon(color: string | null | undefined, size = 36): L.DivIcon {
   const fill = normalizeMapMarkColor(color)
   const width = Math.round(size)
