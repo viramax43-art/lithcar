@@ -379,6 +379,41 @@ async def test_book_insufficient_points(client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_book_duplicate_last_seat_returns_already_booked(client, db_session):
+    await _create_zone(client)
+    offer, _, _ = await _create_offer(client, totalSeats=1)
+    passenger = await _create_passenger(db_session)
+    first = await client.post(
+        f"/api/ride-offers/{offer['id']}/book",
+        json={},
+        headers=_passenger_headers(passenger),
+    )
+    assert first.status_code == 201
+    second = await client.post(
+        f"/api/ride-offers/{offer['id']}/book",
+        json={},
+        headers=_passenger_headers(passenger),
+    )
+    assert second.status_code == 409
+    assert second.json()["detail"]["code"] == "already_booked"
+
+
+@pytest.mark.asyncio
+async def test_list_marks_offer_booked_by_me(client, db_session):
+    await _create_zone(client)
+    offer, _, _ = await _create_offer(client, totalSeats=2)
+    passenger = await _create_passenger(db_session)
+    headers = _passenger_headers(passenger)
+    book = await client.post(f"/api/ride-offers/{offer['id']}/book", json={}, headers=headers)
+    assert book.status_code == 201
+    listed = await client.get("/api/ride-offers", headers=headers)
+    assert listed.status_code == 200
+    item = next(row for row in listed.json()["items"] if row["id"] == offer["id"])
+    assert item["bookedByMe"] is True
+    assert item["myRequestId"] == book.json()["id"]
+
+
+@pytest.mark.asyncio
 async def test_book_duplicate_same_passenger(client, db_session):
     await _create_zone(client)
     offer, _, _ = await _create_offer(client, totalSeats=3)

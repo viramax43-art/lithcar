@@ -242,13 +242,79 @@ async def cancel_driver_offer(
     return offer
 
 
+async def _passenger_active_offer_bookings(
+    db_session: AsyncSession,
+    *,
+    passenger_id: str,
+) -> dict[str, str]:
+    result = await db_session.execute(
+        select(RideRequest.offer_id, RideRequest.id)
+        .where(RideRequest.passenger_id == passenger_id)
+        .where(RideRequest.offer_id.isnot(None))
+        .where(RideRequest.status != RideRequestStatus.COMPLETED)
+    )
+    bookings: dict[str, str] = {}
+    for offer_id, request_id in result.all():
+        if offer_id:
+            bookings[str(offer_id)] = str(request_id)
+    return bookings
+
+
+async def _offer_visible_to_passenger(
+    db_session: AsyncSession,
+    offer: DriverRideOffer,
+    *,
+    pricing,
+    date: str | None,
+) -> int | None:
+    if offer.status == DriverRideOfferStatus.CANCELLED:
+        return None
+    if offer.date_time < datetime.now(timezone.utc):
+        return None
+    is_from_allowed = await is_point_in_any_active_zone(
+        db_session, lat=offer.from_lat, lng=offer.from_lng
+    )
+    is_to_allowed = await is_point_in_any_active_zone(
+        db_session, lat=offer.to_lat, lng=offer.to_lng
+    )
+    if not is_from_allowed or not is_to_allowed:
+        return None
+    if date:
+        from app.core.app_timezone import to_app_local
+
+        local_date = to_app_local(offer.date_time).strftime("%Y-%m-%d")
+        if local_date != date:
+            return None
+    try:
+        quote = await calculate_ride_quote(
+            pricing,
+            from_lat=offer.from_lat,
+            from_lng=offer.from_lng,
+            to_lat=offer.to_lat,
+            to_lng=offer.to_lng,
+        )
+        return int(quote.points)
+    except ValueError:
+        logger.warning("Skipping offer %s — quote unavailable.", offer.id)
+        return None
+
+
+@dataclass
+class PassengerOfferListRow:
+    offer: DriverRideOffer
+    quoted_points: int
+    booked_by_me: bool = False
+    my_request_id: str | None = None
+
+
 async def list_open_offers_for_passengers(
     db_session: AsyncSession,
     *,
+    passenger_id: str | None = None,
     date: str | None = None,
     limit: int,
     offset: int,
-) -> tuple[list[tuple[DriverRideOffer, int | None]], int]:
+) -> tuple[list[PassengerOfferListRow], int]:
     now = datetime.now(timezone.utc)
     conditions = [
         DriverRideOffer.status == DriverRideOfferStatus.OPEN,
@@ -268,40 +334,59 @@ async def list_open_offers_for_passengers(
     )
     offers = list(result.scalars().all())
 
+    user_bookings = (
+        await _passenger_active_offer_bookings(db_session, passenger_id=passenger_id)
+        if passenger_id
+        else {}
+    )
+
     pricing = await _get_or_create_pricing_no_commit(db_session)
-    filtered: list[tuple[DriverRideOffer, int | None]] = []
+    filtered: list[PassengerOfferListRow] = []
+    seen_ids: set[str] = set()
+
     for offer in offers:
         await _prepare_offer_for_read(db_session, offer)
         if offer.status != DriverRideOfferStatus.OPEN or offer.seats_available <= 0:
-            continue
-        is_from_allowed = await is_point_in_any_active_zone(
-            db_session, lat=offer.from_lat, lng=offer.from_lng
-        )
-        is_to_allowed = await is_point_in_any_active_zone(
-            db_session, lat=offer.to_lat, lng=offer.to_lng
-        )
-        if not is_from_allowed or not is_to_allowed:
-            continue
-        if date:
-            from app.core.app_timezone import to_app_local
-
-            local_date = to_app_local(offer.date_time).strftime("%Y-%m-%d")
-            if local_date != date:
+            if offer.id not in user_bookings:
                 continue
-        quoted_points: int | None
-        try:
-            quote = await calculate_ride_quote(
-                pricing,
-                from_lat=offer.from_lat,
-                from_lng=offer.from_lng,
-                to_lat=offer.to_lat,
-                to_lng=offer.to_lng,
-            )
-            quoted_points = int(quote.points)
-        except ValueError:
-            logger.warning("Skipping offer %s — quote unavailable.", offer.id)
+        quoted_points = await _offer_visible_to_passenger(
+            db_session, offer, pricing=pricing, date=date
+        )
+        if quoted_points is None:
             continue
-        filtered.append((offer, quoted_points))
+        booked_by_me = offer.id in user_bookings
+        filtered.append(
+            PassengerOfferListRow(
+                offer=offer,
+                quoted_points=quoted_points,
+                booked_by_me=booked_by_me,
+                my_request_id=user_bookings.get(offer.id),
+            )
+        )
+        seen_ids.add(offer.id)
+
+    for offer_id, request_id in user_bookings.items():
+        if offer_id in seen_ids:
+            continue
+        extra = await db_session.get(DriverRideOffer, offer_id)
+        if extra is None:
+            continue
+        await _prepare_offer_for_read(db_session, extra)
+        quoted_points = await _offer_visible_to_passenger(
+            db_session, extra, pricing=pricing, date=date
+        )
+        if quoted_points is None:
+            continue
+        filtered.append(
+            PassengerOfferListRow(
+                offer=extra,
+                quoted_points=quoted_points,
+                booked_by_me=True,
+                my_request_id=request_id,
+            )
+        )
+
+    filtered.sort(key=lambda row: row.offer.date_time)
 
     if offers:
         await db_session.commit()
@@ -324,6 +409,16 @@ async def book_offer_seat(
         offer = result.scalar_one_or_none()
         if offer is None:
             raise DriverOfferError("not_found", "Offer not found.")
+
+        duplicate = await db_session.execute(
+            select(func.count())
+            .select_from(RideRequest)
+            .where(RideRequest.offer_id == offer.id)
+            .where(RideRequest.passenger_id == user.user_id)
+            .where(RideRequest.status != RideRequestStatus.COMPLETED)
+        )
+        if int(duplicate.scalar_one() or 0) > 0:
+            raise DriverOfferError("already_booked", "You have already booked this offer.")
 
         if offer.status != DriverRideOfferStatus.OPEN or offer.seats_available <= 0:
             raise DriverOfferError("offer_full", "No seats available for this offer.")
@@ -350,16 +445,6 @@ async def book_offer_seat(
         )
         if not is_from_allowed or not is_to_allowed:
             raise DriverOfferError("out_of_zone", "Offer route is outside active service zones.")
-
-        duplicate = await db_session.execute(
-            select(func.count())
-            .select_from(RideRequest)
-            .where(RideRequest.offer_id == offer.id)
-            .where(RideRequest.passenger_id == user.user_id)
-            .where(RideRequest.status != RideRequestStatus.COMPLETED)
-        )
-        if int(duplicate.scalar_one() or 0) > 0:
-            raise DriverOfferError("already_booked", "You have already booked this offer.")
 
         driver = await db_session.get(Driver, offer.driver_id)
         if driver is not None and driver.user_id == user.user_id:

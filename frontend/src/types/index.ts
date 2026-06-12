@@ -44,6 +44,8 @@ export interface PassengerRideOffer {
   seatsAvailable: number
   totalSeats: number
   quotedPoints: number
+  bookedByMe?: boolean
+  myRequestId?: string | null
   driver: {
     id: string
     name: string

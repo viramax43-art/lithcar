@@ -228,11 +228,13 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
               {t('driver.offers.seats', { defaultValue: 'Available seats' })}
             </span>
             <input
-              type="number"
-              min={1}
-              max={12}
-              value={model.totalSeats}
-              onChange={(e) => model.setTotalSeats(Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={model.totalSeatsInput}
+              onChange={(e) => model.handleSeatsInputChange(e.target.value)}
+              onBlur={model.normalizeSeatsInput}
+              placeholder="1"
               className="w-16 text-right text-sm font-bold bg-transparent outline-none"
             />
           </div>

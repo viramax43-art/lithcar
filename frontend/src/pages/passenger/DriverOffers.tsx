@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock, Coins, MapPin, Star, User } from '@phosphor-icons/react'
+import { ArrowLeft, CheckCircle, Clock, Coins, MapPin, Star, User } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { bookRideOffer, listRideOffers } from '../../lib/backend'
+import { parseOfferBookingConflict } from '../../lib/offerBooking'
 import { ApiError } from '../../infrastructure/http/httpClient'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import { hapticNotification } from '../../lib/telegram'
@@ -43,9 +44,14 @@ export default function DriverOffers() {
     }
   }, [t])
 
+  const reloadOffers = useCallback(async () => {
+    const page = await listRideOffers({ limit: PAGE_SIZE, offset: 0 })
+    setOffers(page.items)
+  }, [])
+
   const handleBook = useCallback(
     async (offer: PassengerRideOffer) => {
-      if (bookingId) return
+      if (bookingId || offer.bookedByMe) return
       setBookingId(offer.id)
       setErrorMessage(null)
       try {
@@ -54,8 +60,13 @@ export default function DriverOffers() {
         navigate(`/requests/${request.id}`)
       } catch (error) {
         hapticNotification('error')
-        if (error instanceof ApiError && error.status === 409) {
+        const conflict = parseOfferBookingConflict(error)
+        if (conflict === 'already_booked') {
+          setErrorMessage(t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' }))
+          void reloadOffers()
+        } else if (conflict === 'offer_full' || (error instanceof ApiError && error.status === 409)) {
           setErrorMessage(t('passenger.offers.full', { defaultValue: 'No seats left' }))
+          void reloadOffers()
         } else if (error instanceof ApiError && error.status === 400) {
           try {
             const parsed = JSON.parse(error.body) as { detail?: { code?: string } }
@@ -75,7 +86,7 @@ export default function DriverOffers() {
         setConfirmId(null)
       }
     },
-    [bookingId, navigate, t],
+    [bookingId, navigate, reloadOffers, t],
   )
 
   return (
@@ -130,9 +141,16 @@ export default function DriverOffers() {
               return (
                 <div key={offer.id} className="px-5 py-4 border-b border-surface">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
-                      {t('passenger.offers.seatsLeft', { count: offer.seatsAvailable, defaultValue: `${offer.seatsAvailable} seats` })}
-                    </span>
+                    {offer.bookedByMe ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-pill bg-accent/15 text-accent-dark">
+                        <CheckCircle size={14} weight="fill" />
+                        {t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' })}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
+                        {t('passenger.offers.seatsLeft', { count: offer.seatsAvailable, defaultValue: `${offer.seatsAvailable} seats` })}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1 text-xs text-muted">
                       <Clock size={12} />
                       {dateStr}, {timeStr}
@@ -178,7 +196,14 @@ export default function DriverOffers() {
                     </div>
                   </div>
 
-                  {isConfirming ? (
+                  {offer.bookedByMe && offer.myRequestId ? (
+                    <button
+                      onClick={() => navigate(`/requests/${offer.myRequestId}`)}
+                      className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
+                    >
+                      {t('passenger.offers.viewMyBooking', { defaultValue: 'View my booking' })}
+                    </button>
+                  ) : isConfirming ? (
                     <div className="flex gap-2">
                       <button
                         onClick={() => setConfirmId(null)}

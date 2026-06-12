@@ -104,6 +104,8 @@ export function mapPassengerRideOffer(item: PassengerRideOfferApi): PassengerRid
     seatsAvailable: item.seatsAvailable,
     totalSeats: item.totalSeats,
     quotedPoints: item.quotedPoints,
+    bookedByMe: item.bookedByMe ?? false,
+    myRequestId: item.myRequestId ?? null,
     driver: {
       id: item.driver.id,
       name: item.driver.name,

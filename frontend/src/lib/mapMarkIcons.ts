@@ -27,25 +27,32 @@ export function makeOfferPickupIcon(options: {
   size?: number
   subdued?: boolean
   selected?: boolean
+  booked?: boolean
 } = {}): L.DivIcon {
-  const { size = 32, subdued = false, selected = false } = options
+  const { size = 32, subdued = false, selected = false, booked = false } = options
   const effectiveSize = subdued ? 28 : size
-  const cacheKey = `${effectiveSize}-${subdued}-${selected}`
+  const cacheKey = `${effectiveSize}-${subdued}-${selected}-${booked}`
   const cached = offerPickupIconCache.get(cacheKey)
   if (cached) return cached
 
   const opacity = subdued ? 0.55 : 1
   const scale = subdued ? 0.9 : selected ? 1.05 : 1
+  const bg = booked ? '#16A34A' : '#000'
   const ring = selected
-    ? 'box-shadow:0 0 0 3px #fff,0 0 0 5px #000,0 2px 8px rgba(0,0,0,0.15);'
+    ? `box-shadow:0 0 0 3px #fff,0 0 0 5px ${bg},0 2px 8px rgba(0,0,0,0.15);`
     : 'box-shadow:0 2px 8px rgba(0,0,0,0.15);'
+  const bookedMark = booked
+    ? '<div style="position:absolute;right:-2px;top:-2px;width:14px;height:14px;border-radius:50%;background:#fff;color:#16A34A;font-size:10px;font-weight:800;line-height:14px;text-align:center;border:1px solid #16A34A;">✓</div>'
+    : ''
 
   const icon = L.divIcon({
     className: '',
-    html: `<div style="opacity:${opacity};transform:scale(${scale});transform-origin:center center;">
-  <div style="width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:#000;border:3px solid #fff;display:flex;align-items:center;justify-content:center;${ring}">
-    ${OFFER_CAR_SVG}
+    html: `<div style="position:relative;opacity:${opacity};transform:scale(${scale});transform-origin:center center;">
+  <div style="width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:${bg};border:3px solid #fff;display:flex;align-items:center;justify-content:center;${ring}">
+    ${booked ? '' : OFFER_CAR_SVG}
+    ${booked ? '<span style="color:#fff;font-size:14px;font-weight:800;line-height:1;">✓</span>' : ''}
   </div>
+  ${bookedMark}
 </div>`,
     iconSize: [effectiveSize, effectiveSize],
     iconAnchor: [effectiveSize / 2, effectiveSize / 2],

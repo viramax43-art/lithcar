@@ -1,4 +1,5 @@
-import { Coins, Star, User, X } from '@phosphor-icons/react'
+import { CheckCircle, Coins, Star, User, X } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LithuanianPlate from '../../../components/LithuanianPlate'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
@@ -29,18 +30,20 @@ export default function OfferMapSheet({
   onCancelConfirm,
 }: OfferMapSheetProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   useEscapeClose(open && !isBooking, onClose)
 
   if (!open || !offer) return null
 
   const dateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
   const timeStr = formatRideTime(offer)
+  const isBooked = Boolean(offer.bookedByMe)
 
   return (
     <>
-      <div className="absolute inset-0 z-[25] bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[640] bg-black/40" onClick={onClose} />
       <div
-        className="absolute left-0 right-0 bottom-0 z-[30] bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl"
+        className="fixed left-0 right-0 bottom-0 z-[650] bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl"
         style={{
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
         }}
@@ -72,12 +75,19 @@ export default function OfferMapSheet({
           className="px-5 space-y-3"
           style={{ paddingBottom: 'calc(1.25rem + var(--app-user-safe-bottom))' }}
         >
-          <span className="inline-flex text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
-            {t('passenger.offers.seatsLeft', {
-              count: offer.seatsAvailable,
-              defaultValue: `${offer.seatsAvailable} seats`,
-            })}
-          </span>
+          {isBooked ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-pill bg-accent/15 text-accent-dark">
+              <CheckCircle size={14} weight="fill" />
+              {t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' })}
+            </span>
+          ) : (
+            <span className="inline-flex text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
+              {t('passenger.offers.seatsLeft', {
+                count: offer.seatsAvailable,
+                defaultValue: `${offer.seatsAvailable} seats`,
+              })}
+            </span>
+          )}
 
           <div className="rounded-xl bg-surface/70 p-3 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -120,7 +130,15 @@ export default function OfferMapSheet({
 
           {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
 
-          {isConfirming ? (
+          {isBooked && offer.myRequestId ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/requests/${offer.myRequestId}`)}
+              className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
+            >
+              {t('passenger.offers.viewMyBooking', { defaultValue: 'View my booking' })}
+            </button>
+          ) : isConfirming ? (
             <div className="flex gap-2">
               <button
                 type="button"

@@ -20,7 +20,15 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const { t } = useTranslation()
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [totalSeats, setTotalSeats] = useState(1)
+  const [totalSeatsInput, setTotalSeatsInput] = useState('1')
+
+  const parsedTotalSeats = useMemo(() => {
+    const trimmed = totalSeatsInput.trim()
+    if (!trimmed) return null
+    const value = Number.parseInt(trimmed, 10)
+    if (!Number.isFinite(value)) return null
+    return value
+  }, [totalSeatsInput])
   const activeZones = useMemo(
     () => serviceZones.filter((z) => z.isActive),
     [serviceZones],
@@ -238,9 +246,23 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     )
   }, [panMapToTarget])
 
+  const handleSeatsInputChange = useCallback((raw: string) => {
+    setTotalSeatsInput(raw.replace(/\D/g, ''))
+  }, [])
+
+  const normalizeSeatsInput = useCallback(() => {
+    setTotalSeatsInput((current) => {
+      const value = Number.parseInt(current, 10)
+      if (!Number.isFinite(value) || value < 1) return '1'
+      if (value > 12) return '12'
+      return String(value)
+    })
+  }, [])
+
   const handleSubmit = useCallback(async () => {
     const [datePart, timePart] = dateTime.split('T')
-    if (!fromPoint || !toPoint || !datePart || !timePart) return
+    if (!fromPoint || !toPoint || !datePart || !timePart || parsedTotalSeats === null) return
+    if (parsedTotalSeats < 1 || parsedTotalSeats > 12) return
     setSubmitting(true)
     setErrorMessage(null)
     try {
@@ -248,7 +270,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
         fromPoint: { address: fromAddress, latlng: fromPoint },
         toPoint: { address: toAddress, latlng: toPoint },
         dateTime: new Date(`${datePart}T${timePart}:00`).toISOString(),
-        totalSeats,
+        totalSeats: parsedTotalSeats,
       })
       hapticNotification('success')
       onSuccess()
@@ -258,7 +280,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     } finally {
       setSubmitting(false)
     }
-  }, [dateTime, fromAddress, fromPoint, onSuccess, t, toAddress, toPoint, totalSeats])
+  }, [dateTime, fromAddress, fromPoint, onSuccess, parsedTotalSeats, t, toAddress, toPoint])
 
   useEffect(() => {
     if (fromPoint && toPoint) return
@@ -269,7 +291,15 @@ export function useDriverOfferFormController(onSuccess: () => void) {
 
   const [draftDatePart, draftTimePart] = dateTime.split('T')
   const hasValidDateTime = Boolean(draftDatePart && draftTimePart)
-  const canSubmit = Boolean(fromPoint && toPoint && hasValidDateTime && !submitting && totalSeats >= 1)
+  const canSubmit = Boolean(
+    fromPoint &&
+      toPoint &&
+      hasValidDateTime &&
+      !submitting &&
+      parsedTotalSeats !== null &&
+      parsedTotalSeats >= 1 &&
+      parsedTotalSeats <= 12,
+  )
   const activeIsFrom = !fromPoint || (!toPoint && activeField === 'from') || (fromPoint && toPoint && activeField === 'from')
   const isPinLive = !(fromPoint && toPoint)
   const pinReadyForConfirm = Boolean(pinLatLng && !pinOutOfZone && !isResolving)
@@ -284,8 +314,9 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     toAddress,
     dateTime,
     setDateTime,
-    totalSeats,
-    setTotalSeats,
+    totalSeatsInput,
+    handleSeatsInputChange,
+    normalizeSeatsInput,
     pinLatLng,
     pinAddress,
     pinOutOfZone,

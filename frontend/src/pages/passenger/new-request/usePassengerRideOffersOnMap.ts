@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { bookRideOffer, listRideOffers } from '../../../lib/backend'
+import { parseOfferBookingConflict } from '../../../lib/offerBooking'
 import { ApiError } from '../../../infrastructure/http/httpClient'
 import { isCoarsePointer } from '../../../lib/pointer'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
@@ -9,10 +10,6 @@ import type { PassengerRideOffer } from '../../../types'
 
 const POLL_INTERVAL_MS = 60_000
 const PAGE_LIMIT = 50
-
-function filterBookableOffers(items: PassengerRideOffer[]): PassengerRideOffer[] {
-  return items.filter((offer) => offer.seatsAvailable > 0)
-}
 
 export interface UsePassengerRideOffersOnMapOptions {
   /** When true — offer markers in subdued mode (pin picking) */
@@ -42,7 +39,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     if (pausedRef.current) return
     try {
       const page = await listRideOffers({ limit: PAGE_LIMIT, offset: 0 })
-      setOffers(filterBookableOffers(page.items))
+      setOffers(page.items)
       setLoadError(null)
     } catch (error) {
       console.warn('[usePassengerRideOffersOnMap] failed to load offers', error)
@@ -66,7 +63,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
       try {
         const page = await listRideOffers({ limit: PAGE_LIMIT, offset: 0 })
         if (!cancelled) {
-          setOffers(filterBookableOffers(page.items))
+          setOffers(page.items)
           setLoadError(null)
         }
       } catch (error) {
@@ -153,14 +150,21 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     try {
       const request = await bookRideOffer(offer.id)
       hapticNotification('success')
-      setOffers((current) => current.filter((item) => item.id !== offer.id))
-      setSelectedOfferId(null)
       setConfirmOfferId(null)
+      await refresh()
       navigate(`/requests/${request.id}`)
-      void refresh()
     } catch (error) {
       hapticNotification('error')
-      if (error instanceof ApiError && error.status === 409) {
+      const conflict = parseOfferBookingConflict(error)
+      if (conflict === 'already_booked') {
+        setBookError(t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' }))
+        setConfirmOfferId(null)
+        void refresh()
+      } else if (conflict === 'offer_full') {
+        setBookError(t('passenger.offers.full', { defaultValue: 'No seats left' }))
+        setConfirmOfferId(null)
+        void refresh()
+      } else if (error instanceof ApiError && error.status === 409) {
         setBookError(t('passenger.offers.full', { defaultValue: 'No seats left' }))
         setConfirmOfferId(null)
         void refresh()

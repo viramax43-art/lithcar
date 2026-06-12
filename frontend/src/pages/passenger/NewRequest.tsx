@@ -1,5 +1,5 @@
 import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import L from 'leaflet'
@@ -49,7 +49,8 @@ export default function NewRequest() {
   })
   const pickupIconNormal = useMemo(() => makeOfferPickupIcon(), [])
   const pickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
-  const offerPickupIcon = model.isPinLive ? pickupIconSubdued : pickupIconNormal
+  const pickupIconBooked = useMemo(() => makeOfferPickupIcon({ booked: true }), [])
+  const pickupIconBookedSubdued = useMemo(() => makeOfferPickupIcon({ booked: true, subdued: true }), [])
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
@@ -82,20 +83,48 @@ export default function NewRequest() {
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
           {!isCoarsePointer && <ZoomControl position="bottomright" />}
-          {offersMap.highlightedOffer && (
-            <Polyline
-              positions={[
-                [offersMap.highlightedOffer.from.latlng.lat, offersMap.highlightedOffer.from.latlng.lng],
-                [offersMap.highlightedOffer.to.latlng.lat, offersMap.highlightedOffer.to.latlng.lng],
-              ]}
-              pathOptions={{
-                color: '#000',
-                weight: 3,
-                dashArray: '10, 10',
-                opacity: model.isPinLive ? 0.35 : 0.6,
-              }}
-            />
-          )}
+          {!offersPaused &&
+            offersMap.offers.map((offer) => {
+              const isHighlighted = offersMap.highlightedOfferId === offer.id
+              const routeOpacity = isHighlighted
+                ? (model.isPinLive ? 0.55 : 0.85)
+                : (model.isPinLive ? 0.28 : 0.45)
+              return (
+                <Polyline
+                  key={`offer-route-${offer.id}`}
+                  positions={[
+                    [offer.from.latlng.lat, offer.from.latlng.lng],
+                    [offer.to.latlng.lat, offer.to.latlng.lng],
+                  ]}
+                  pathOptions={{
+                    color: isHighlighted ? '#000' : '#374151',
+                    weight: isHighlighted ? 4 : 2,
+                    dashArray: '10, 10',
+                    opacity: routeOpacity,
+                  }}
+                  interactive={false}
+                />
+              )
+            })}
+          {!offersPaused &&
+            offersMap.offers.map((offer) => {
+              if (offersMap.highlightedOfferId === offer.id) return null
+              return (
+                <CircleMarker
+                  key={`offer-dropoff-${offer.id}`}
+                  center={[offer.to.latlng.lat, offer.to.latlng.lng]}
+                  radius={5}
+                  pathOptions={{
+                    color: '#3B82F6',
+                    fillColor: '#3B82F6',
+                    fillOpacity: model.isPinLive ? 0.45 : 0.7,
+                    weight: 2,
+                    opacity: model.isPinLive ? 0.45 : 0.7,
+                  }}
+                  interactive={false}
+                />
+              )
+            })}
           {model.fromPoint && model.toPoint && (
             <Polyline
               positions={[
@@ -139,11 +168,14 @@ export default function NewRequest() {
             offersMap.offers.map((offer) => {
               const isHighlighted = offersMap.highlightedOfferId === offer.id
               if (isHighlighted) return null
+              const markerIcon = offer.bookedByMe
+                ? (model.isPinLive ? pickupIconBookedSubdued : pickupIconBooked)
+                : (model.isPinLive ? pickupIconSubdued : pickupIconNormal)
               return (
                 <Marker
                   key={offer.id}
                   position={[offer.from.latlng.lat, offer.from.latlng.lng]}
-                  icon={offerPickupIcon}
+                  icon={markerIcon}
                   eventHandlers={{
                     click: (event) => {
                       L.DomEvent.stopPropagation(event.originalEvent)
@@ -376,7 +408,7 @@ export default function NewRequest() {
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
         style={{
           bottom: 0,
-          transform: model.isPanning ? 'translateY(100%)' : 'translateY(0)',
+          transform: model.isPanning || offersMap.isSheetOpen ? 'translateY(100%)' : 'translateY(0)',
         }}
       >
         {/* Service info (persistent, non-dismissible) */}

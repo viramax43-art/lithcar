@@ -69,6 +69,8 @@ class PassengerRideOfferOut(BaseModel):
     totalSeats: int
     quotedPoints: int
     driver: OfferDriverSummary
+    bookedByMe: bool = False
+    myRequestId: str | None = None
 
 
 class PassengerRideOfferPage(BaseModel):
@@ -82,7 +84,14 @@ class BookOfferPayload(BaseModel):
     passengerName: str | None = Field(default=None, min_length=1)
 
 
-def _to_passenger_offer_out(offer, *, quoted_points: int, driver_summary: OfferDriverSummary) -> PassengerRideOfferOut:
+def _to_passenger_offer_out(
+    offer,
+    *,
+    quoted_points: int,
+    driver_summary: OfferDriverSummary,
+    booked_by_me: bool = False,
+    my_request_id: str | None = None,
+) -> PassengerRideOfferOut:
     return PassengerRideOfferOut(
         id=offer.id,
         fromPoint=RoutePoint(
@@ -99,6 +108,8 @@ def _to_passenger_offer_out(offer, *, quoted_points: int, driver_summary: OfferD
         totalSeats=offer.total_seats,
         quotedPoints=quoted_points,
         driver=driver_summary,
+        bookedByMe=booked_by_me,
+        myRequestId=my_request_id,
     )
 
 
@@ -122,11 +133,19 @@ async def _build_passenger_offer_out(
     offer,
     *,
     quoted_points: int,
+    booked_by_me: bool = False,
+    my_request_id: str | None = None,
 ) -> PassengerRideOfferOut | None:
     summary = await _driver_summary(db_session, offer.driver_id)
     if summary is None:
         return None
-    return _to_passenger_offer_out(offer, quoted_points=quoted_points, driver_summary=summary)
+    return _to_passenger_offer_out(
+        offer,
+        quoted_points=quoted_points,
+        driver_summary=summary,
+        booked_by_me=booked_by_me,
+        my_request_id=my_request_id,
+    )
 
 
 @router.get("", response_model=PassengerRideOfferPage)
@@ -134,20 +153,25 @@ async def list_offers(
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    _user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
+    user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     rows, total = await list_open_offers_for_passengers(
         db_session,
+        passenger_id=user.user_id,
         date=date,
         limit=limit,
         offset=offset,
     )
     items: list[PassengerRideOfferOut] = []
-    for offer, quoted_points in rows:
-        if quoted_points is None:
-            continue
-        out = await _build_passenger_offer_out(db_session, offer, quoted_points=quoted_points)
+    for row in rows:
+        out = await _build_passenger_offer_out(
+            db_session,
+            row.offer,
+            quoted_points=row.quoted_points,
+            booked_by_me=row.booked_by_me,
+            my_request_id=row.my_request_id,
+        )
         if out is not None:
             items.append(out)
     return PassengerRideOfferPage(items=items, total=total, limit=limit, offset=offset)
@@ -156,7 +180,7 @@ async def list_offers(
 @router.get("/{offer_id}", response_model=PassengerRideOfferOut)
 async def get_offer(
     offer_id: str,
-    _user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
+    user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     from app.models.driver_ride_offer import DriverRideOfferStatus
@@ -164,8 +188,17 @@ async def get_offer(
     from app.services.ride_quote_service import calculate_ride_quote
     from app.services.zone_service import is_point_in_any_active_zone
 
+    from app.services.driver_offer_service import _passenger_active_offer_bookings
+
+    bookings = await _passenger_active_offer_bookings(db_session, passenger_id=user.user_id)
+    booked_by_me = offer_id in bookings
+
     offer = await get_driver_offer(db_session, offer_id=offer_id)
-    if offer is None or offer.status != DriverRideOfferStatus.OPEN or offer.seats_available <= 0:
+    if offer is None:
+        raise HTTPException(status_code=404, detail="Offer not found.")
+    if not booked_by_me and (
+        offer.status != DriverRideOfferStatus.OPEN or offer.seats_available <= 0
+    ):
         raise HTTPException(status_code=404, detail="Offer not found.")
 
     is_from_allowed = await is_point_in_any_active_zone(
@@ -189,7 +222,13 @@ async def get_offer(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Offer not found.") from exc
 
-    out = await _build_passenger_offer_out(db_session, offer, quoted_points=int(quote.points))
+    out = await _build_passenger_offer_out(
+        db_session,
+        offer,
+        quoted_points=int(quote.points),
+        booked_by_me=offer_id in bookings,
+        my_request_id=bookings.get(offer_id),
+    )
     if out is None:
         raise HTTPException(status_code=404, detail="Offer not found.")
     return out
