@@ -30,6 +30,14 @@ from app.services.ride_booking_service import InsufficientPointsError, RideQuote
 
 router = APIRouter(prefix="/ride-offers")
 
+# Drivers use the passenger mini-app too (book seats, view offers on the map).
+_PASSENGER_OFFER_ROLES = (
+    UserRole.PASSENGER,
+    UserRole.DRIVER,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+)
+
 
 class LatLng(BaseModel):
     lat: float
@@ -126,7 +134,7 @@ async def list_offers(
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    _user: User = Depends(require_roles(UserRole.PASSENGER)),
+    _user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     rows, total = await list_open_offers_for_passengers(
@@ -148,7 +156,7 @@ async def list_offers(
 @router.get("/{offer_id}", response_model=PassengerRideOfferOut)
 async def get_offer(
     offer_id: str,
-    _user: User = Depends(require_roles(UserRole.PASSENGER)),
+    _user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     from app.models.driver_ride_offer import DriverRideOfferStatus
@@ -191,7 +199,7 @@ async def get_offer(
 async def book_offer(
     offer_id: str,
     payload: BookOfferPayload | None = None,
-    user: User = Depends(require_roles(UserRole.PASSENGER)),
+    user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     passenger_name = (payload.passengerName if payload else None) or user.username or user.user_id

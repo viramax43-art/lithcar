@@ -241,6 +241,35 @@ async def test_passenger_list_open_offers(client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_driver_role_can_list_and_book_offers(client, db_session):
+    """Drivers use the passenger mini-app; role=driver must access ride-offers."""
+    await _create_zone(client)
+    offer, _, _ = await _create_offer(client)
+    rider = User(
+        user_id="driver-rider-role",
+        username="driver_rider",
+        role=UserRole.DRIVER,
+        points_balance=100,
+    )
+    db_session.add(rider)
+    await db_session.commit()
+    headers = {
+        "Authorization": f"Bearer {create_access_token(subject=rider.user_id, role=rider.role)}",
+    }
+    listed = await client.get("/api/ride-offers", headers=headers)
+    assert listed.status_code == 200
+    assert any(item["id"] == offer["id"] for item in listed.json()["items"])
+
+    book = await client.post(
+        f"/api/ride-offers/{offer['id']}/book",
+        json={},
+        headers=headers,
+    )
+    assert book.status_code == 201
+    assert book.json()["offerId"] == offer["id"]
+
+
+@pytest.mark.asyncio
 async def test_passenger_book_offer(client, db_session):
     await _create_zone(client)
     offer, _, _ = await _create_offer(client)
