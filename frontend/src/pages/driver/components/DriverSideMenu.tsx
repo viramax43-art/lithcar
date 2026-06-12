@@ -43,7 +43,6 @@ export default function DriverSideMenu({
   useEffect(() => {
     if (!isOpen) {
       setLogoutArmed(false)
-      setShowOffers(false)
     }
     return () => {
       if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
@@ -103,8 +102,8 @@ export default function DriverSideMenu({
             <button
               onClick={() => {
                 hapticSelection()
-                onClose()
                 setShowOffers(true)
+                onClose()
               }}
               className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
             >
