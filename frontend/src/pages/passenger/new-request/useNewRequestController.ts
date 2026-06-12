@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
@@ -59,7 +59,10 @@ export function useNewRequestController() {
   const [passengerName, setPassengerName] = useState(() =>
     t('passenger.defaultUserName', { defaultValue: 'Current user' }),
   )
-  const activeZones = serviceZones.filter((z) => z.isActive)
+  const activeZones = useMemo(
+    () => serviceZones.filter((z) => z.isActive),
+    [serviceZones],
+  )
   const hasZones = activeZones.length > 0
 
   const draft = useRef(loadDraft()).current
@@ -87,6 +90,7 @@ export function useNewRequestController() {
   const [isLocating, setIsLocating] = useState(false)
 
   const mapRef = useRef<L.Map | null>(null)
+  const armPinFromMapCenterRef = useRef<() => void>(() => {})
   const pinLatLngRef = useRef(pinLatLng)
   pinLatLngRef.current = pinLatLng
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
@@ -194,6 +198,8 @@ export function useNewRequestController() {
     const ll = map.containerPointToLatLng(px)
     commitPin({ lat: ll.lat, lng: ll.lng })
   }, [commitPin])
+
+  armPinFromMapCenterRef.current = armPinFromMapCenter
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
@@ -461,9 +467,9 @@ export function useNewRequestController() {
   useEffect(() => {
     if (fromPoint && toPoint) return
     if (showSearch) return
-    const timer = window.setTimeout(() => armPinFromMapCenter(), 350)
+    const timer = window.setTimeout(() => armPinFromMapCenterRef.current(), 350)
     return () => window.clearTimeout(timer)
-  }, [fromPoint, toPoint, activeField, showSearch, armPinFromMapCenter])
+  }, [fromPoint, toPoint, activeField, showSearch])
 
   useEffect(() => {
     if (!showSearch) return

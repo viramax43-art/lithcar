@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { createDriverOffer, getPricing, listServiceZones } from '../../lib/backend'
@@ -21,7 +21,10 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [totalSeats, setTotalSeats] = useState(1)
-  const activeZones = serviceZones.filter((z) => z.isActive)
+  const activeZones = useMemo(
+    () => serviceZones.filter((z) => z.isActive),
+    [serviceZones],
+  )
   const hasZones = activeZones.length > 0
 
   const [activeField, setActiveField] = useState<'from' | 'to'>('from')
@@ -46,6 +49,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const [isLocating, setIsLocating] = useState(false)
 
   const mapRef = useRef<L.Map | null>(null)
+  const armPinFromMapCenterRef = useRef<() => void>(() => {})
   const reverseTimer = useRef<ReturnType<typeof setTimeout>>()
   const reverseAbort = useRef<AbortController | null>(null)
   const reverseSeq = useRef(0)
@@ -109,8 +113,13 @@ export function useDriverOfferFormController(onSuccess: () => void) {
           const addr = await nominatimReverse(latlng, controller.signal)
           if (seq !== reverseSeq.current) return
           setPinAddress(addr || fallbackAddress)
-        } catch {
-          if (seq === reverseSeq.current) setPinAddress(fallbackAddress)
+        } catch (err) {
+          if (seq !== reverseSeq.current) return
+          if ((err as Error)?.name === 'AbortError') {
+            setPinAddress(fallbackAddress)
+            return
+          }
+          setPinAddress(fallbackAddress)
         } finally {
           if (seq === reverseSeq.current) setIsResolving(false)
         }
@@ -127,6 +136,8 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     const ll = map.containerPointToLatLng(px)
     commitPin({ lat: ll.lat, lng: ll.lng })
   }, [commitPin])
+
+  armPinFromMapCenterRef.current = armPinFromMapCenter
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
@@ -252,9 +263,9 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   useEffect(() => {
     if (fromPoint && toPoint) return
     if (showSearch) return
-    const timer = window.setTimeout(() => armPinFromMapCenter(), 350)
+    const timer = window.setTimeout(() => armPinFromMapCenterRef.current(), 350)
     return () => window.clearTimeout(timer)
-  }, [fromPoint, toPoint, activeField, showSearch, armPinFromMapCenter])
+  }, [fromPoint, toPoint, activeField, showSearch])
 
   const [draftDatePart, draftTimePart] = dateTime.split('T')
   const hasValidDateTime = Boolean(draftDatePart && draftTimePart)
