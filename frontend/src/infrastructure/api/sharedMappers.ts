@@ -1,5 +1,5 @@
-import type { RideRequest, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
-import type { PaginationParams, RideRequestApi, UserCabinetApi, UserCabinetRideApi } from './contracts'
+import type { RideRequest, UserCabinetData, UserCabinetRideHistoryItem, DriverRideOffer, PassengerRideOffer } from '../../types'
+import type { PaginationParams, RideRequestApi, UserCabinetApi, UserCabinetRideApi, DriverRideOfferApi, PassengerRideOfferApi } from './contracts'
 
 export function toPageQuery(params?: PaginationParams): string {
   const limit = params?.limit ?? 50
@@ -34,6 +34,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     status: item.status,
     groupId: item.groupId,
     driverId: item.driverId,
+    offerId: item.offerId ?? null,
     pickupChangedByDriver: item.pickupChangedByDriver,
     pickupConfirmedAt: item.pickupConfirmedAt,
     assignedDriver,
@@ -73,5 +74,44 @@ export function mapUserCabinetData(response: UserCabinetApi): UserCabinetData {
     rideHistoryTotal: response.rideHistoryTotal,
     rideHistoryLimit: response.rideHistoryLimit,
     rideHistoryOffset: response.rideHistoryOffset,
+  }
+}
+
+export function mapDriverRideOffer(item: DriverRideOfferApi): DriverRideOffer {
+  return {
+    id: item.id,
+    driverId: item.driverId,
+    from: item.fromPoint,
+    to: item.toPoint,
+    dateTime: item.dateTime,
+    dateTimeLocal: item.dateTimeLocal,
+    totalSeats: item.totalSeats,
+    seatsAvailable: item.seatsAvailable,
+    status: item.status,
+    bookingsCount: item.bookingsCount,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }
+}
+
+export function mapPassengerRideOffer(item: PassengerRideOfferApi): PassengerRideOffer {
+  return {
+    id: item.id,
+    from: item.fromPoint,
+    to: item.toPoint,
+    dateTime: item.dateTime,
+    dateTimeLocal: item.dateTimeLocal,
+    seatsAvailable: item.seatsAvailable,
+    totalSeats: item.totalSeats,
+    quotedPoints: item.quotedPoints,
+    driver: {
+      id: item.driver.id,
+      name: item.driver.name,
+      photoUrl: item.driver.photoUrl,
+      carModel: item.driver.carModel,
+      carPlate: item.driver.carPlate,
+      rating: item.driver.rating,
+      seatsCount: item.driver.seatsCount,
+    },
   }
 }

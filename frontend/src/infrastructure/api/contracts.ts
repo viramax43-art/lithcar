@@ -123,6 +123,7 @@ export interface RideRequestApi {
   status: RideRequest['status']
   groupId?: string
   driverId?: string
+  offerId?: string | null
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
   assignedDriver?: {
@@ -144,6 +145,41 @@ export interface RideRequestApi {
     myComment: string | null
   } | null
   createdAt: string
+}
+
+export interface DriverRideOfferApi {
+  id: string
+  driverId: string
+  fromPoint: { address: string; latlng: { lat: number; lng: number } }
+  toPoint: { address: string; latlng: { lat: number; lng: number } }
+  dateTime: string
+  dateTimeLocal?: string
+  totalSeats: number
+  seatsAvailable: number
+  status: 'open' | 'full' | 'cancelled' | 'completed'
+  bookingsCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PassengerRideOfferApi {
+  id: string
+  fromPoint: { address: string; latlng: { lat: number; lng: number } }
+  toPoint: { address: string; latlng: { lat: number; lng: number } }
+  dateTime: string
+  dateTimeLocal?: string
+  seatsAvailable: number
+  totalSeats: number
+  quotedPoints: number
+  driver: {
+    id: string
+    name: string
+    photoUrl: string | null
+    carModel: string
+    carPlate: string
+    rating: number
+    seatsCount: number
+  }
 }
 
 export interface UserCabinetRideApi {

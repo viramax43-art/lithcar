@@ -65,4 +65,8 @@ backend/uploads/
 # === Docker / compose overrides ===
 docker-compose.override.yml
 
+# === Agent swarm run artifacts ===
+.cursor/swarm/artifacts/*
+!.cursor/swarm/artifacts/.gitkeep
+
 

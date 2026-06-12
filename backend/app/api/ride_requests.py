@@ -121,6 +121,7 @@ class RideRequestOut(BaseModel):
     status: str
     groupId: str | None
     driverId: str | None
+    offerId: str | None = None
     pickupChangedByDriver: bool
     pickupConfirmedAt: datetime | None
     assignedDriver: "RideAssignedDriverOut | None" = None
@@ -173,6 +174,7 @@ def _to_ride_request_out(
         status=request.status,
         groupId=request.group_id,
         driverId=request.driver_id,
+        offerId=request.offer_id,
         pickupChangedByDriver=request.pickup_changed_by_driver,
         pickupConfirmedAt=request.pickup_confirmed_at,
         assignedDriver=assigned_driver,

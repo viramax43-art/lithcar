@@ -18,6 +18,43 @@ export interface RideRatingContext {
   myComment: string | null
 }
 
+export type DriverRideOfferStatus = 'open' | 'full' | 'cancelled' | 'completed'
+
+export interface DriverRideOffer {
+  id: string
+  driverId: string
+  from: { address: string; latlng: LatLng }
+  to: { address: string; latlng: LatLng }
+  dateTime: string
+  dateTimeLocal?: string
+  totalSeats: number
+  seatsAvailable: number
+  status: DriverRideOfferStatus
+  bookingsCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PassengerRideOffer {
+  id: string
+  from: { address: string; latlng: LatLng }
+  to: { address: string; latlng: LatLng }
+  dateTime: string
+  dateTimeLocal?: string
+  seatsAvailable: number
+  totalSeats: number
+  quotedPoints: number
+  driver: {
+    id: string
+    name: string
+    photoUrl?: string | null
+    carModel: string
+    carPlate: string
+    rating: number
+    seatsCount: number
+  }
+}
+
 export interface RideRequest {
   id: string
   rideNumber: number
@@ -29,6 +66,7 @@ export interface RideRequest {
   status: RideStatus
   groupId?: string
   driverId?: string
+  offerId?: string | null
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
   assignedDriver?: Driver | null

@@ -87,6 +87,8 @@ export function useNewRequestController() {
   const [isLocating, setIsLocating] = useState(false)
 
   const mapRef = useRef<L.Map | null>(null)
+  const pinLatLngRef = useRef(pinLatLng)
+  pinLatLngRef.current = pinLatLng
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const zoneWarningTimer = useRef<ReturnType<typeof setTimeout>>()
   const reverseTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -143,31 +145,41 @@ export function useNewRequestController() {
       const seq = ++reverseSeq.current
 
       reverseTimer.current = setTimeout(async () => {
-        if (isRateLimited()) {
-          setIsResolving(false)
-          showZoneWarning(
-            t('geo.rateLimitRetry', {
-              seconds: Math.ceil(rateLimitRetryInMs() / 1000),
-              defaultValue: `Too many map requests. Retry in ~${Math.ceil(rateLimitRetryInMs() / 1000)} sec.`,
-            }),
-          )
-          return
-        }
-        const controller = new AbortController()
-        reverseAbort.current = controller
+        const fallbackAddress = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`
         try {
+          if (isRateLimited()) {
+            showZoneWarning(
+              t('geo.rateLimitRetry', {
+                seconds: Math.ceil(rateLimitRetryInMs() / 1000),
+                defaultValue: `Too many map requests. Retry in ~${Math.ceil(rateLimitRetryInMs() / 1000)} sec.`,
+              }),
+            )
+            if (seq === reverseSeq.current) {
+              setPinAddress(fallbackAddress)
+            }
+            return
+          }
+          const controller = new AbortController()
+          reverseAbort.current = controller
           const addr = await nominatimReverse(latlng, controller.signal)
           if (seq !== reverseSeq.current) return
-          setIsResolving(false)
-          setPinAddress(addr || `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`)
+          setPinAddress(addr || fallbackAddress)
         } catch (err) {
-          if ((err as Error)?.name === 'AbortError') return
           if (seq !== reverseSeq.current) return
-          setIsResolving(false)
+          if ((err as Error)?.name === 'AbortError') {
+            // Timeout or cancelled — show coordinates so the user can still confirm.
+            setPinAddress(fallbackAddress)
+            return
+          }
           if (err instanceof RateLimitedError) {
             showZoneWarning(t('geo.rateLimitRetry30', { defaultValue: 'Too many map requests. Retry in 30 sec.' }))
           }
-          setPinAddress(`${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`)
+          setPinAddress(fallbackAddress)
+        } finally {
+          // Always clear the spinner for the latest pin request — stale/aborted runs must not leave it stuck.
+          if (seq === reverseSeq.current) {
+            setIsResolving(false)
+          }
         }
       }, 700)
     },
@@ -293,16 +305,17 @@ export function useNewRequestController() {
     }
 
     if (pinLatLng) {
-      // Participate in the seq mechanism so a slow language-refresh response
-      // cannot overwrite the address of a newer pin position.
-      const seq = ++reverseSeq.current
+      // Refresh label in the new language without bumping reverseSeq — that would
+      // orphan an in-flight commitPin() and leave isResolving stuck forever.
+      const snapshot = pinLatLng
       void (async () => {
         try {
-          const addr = await nominatimReverse(pinLatLng)
-          if (seq !== reverseSeq.current) return
-          setPinAddress(addr || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`)
+          const addr = await nominatimReverse(snapshot)
+          const current = pinLatLngRef.current
+          if (current?.lat !== snapshot.lat || current?.lng !== snapshot.lng) return
+          setPinAddress(addr || `${snapshot.lat.toFixed(4)}, ${snapshot.lng.toFixed(4)}`)
         } catch {
-          /* keep coordinates */
+          /* keep current label */
         }
       })()
     }
@@ -451,6 +464,16 @@ export function useNewRequestController() {
     const timer = window.setTimeout(() => armPinFromMapCenter(), 350)
     return () => window.clearTimeout(timer)
   }, [fromPoint, toPoint, activeField, showSearch, armPinFromMapCenter])
+
+  useEffect(() => {
+    if (!showSearch) return
+    if (reverseTimer.current) clearTimeout(reverseTimer.current)
+    if (reverseAbort.current) {
+      reverseAbort.current.abort()
+      reverseAbort.current = null
+    }
+    setIsResolving(false)
+  }, [showSearch])
 
   useEffect(() => {
     return () => {

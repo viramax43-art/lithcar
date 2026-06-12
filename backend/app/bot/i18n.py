@@ -435,6 +435,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Not specified",
         "ru": "Не указана",
     },
+    "driver.offer.booked": {
+        "lt": "🎫 Nauja rezervacija: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nLiko vietų: {seats_available}",
+        "pl": "🎫 Nowa rezerwacja: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nWolne miejsca: {seats_available}",
+        "en": "🎫 New booking: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nSeats left: {seats_available}",
+        "ru": "🎫 Новое бронирование: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nСвободных мест: {seats_available}",
+    },
 }
 
 

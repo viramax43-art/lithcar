@@ -88,3 +88,27 @@ async def notify_driver_application_rejected(
     reason_text = (reason or "").strip() or t("driver.application.rejected_no_reason", lang)
     text = template.replace("{reason}", reason_text)
     await _send_to_user(user_id=user_id, text=text)
+
+
+async def notify_driver_offer_booked(
+    *,
+    offer,
+    request,
+    passenger_name: str,
+) -> None:
+    from app.services.driver_service import get_driver
+
+    async with async_session_factory() as db_session:
+        driver = await get_driver(db_session, driver_id=offer.driver_id)
+    if driver is None or not driver.user_id:
+        return
+    lang = await _resolve_lang(driver.user_id)
+    template = t("driver.offer.booked", lang)
+    text = (
+        template.replace("{passenger_name}", passenger_name)
+        .replace("{from_address}", offer.from_address)
+        .replace("{to_address}", offer.to_address)
+        .replace("{date_time}", offer.date_time.strftime("%Y-%m-%d %H:%M UTC"))
+        .replace("{seats_available}", str(offer.seats_available))
+    )
+    await _send_to_user(user_id=driver.user_id, text=text)

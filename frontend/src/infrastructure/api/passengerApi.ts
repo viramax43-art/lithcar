@@ -1,15 +1,16 @@
 import { mapPricingSettings } from '../../lib/pricingDefaults'
-import type { GroupSuggestion, MapMark, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
+import type { GroupSuggestion, MapMark, PassengerRideOffer, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type {
   CurrentUser,
   PassengerQrIssueResult,
   PaginatedResult,
   PaginationParams,
+  PassengerRideOfferApi,
   RideRequestApi,
   UserCabinetApi,
 } from './contracts'
-import { mapRideRequest, mapUserCabinetData, toPageQuery } from './sharedMappers'
+import { mapPassengerRideOffer, mapRideRequest, mapUserCabinetData, toPageQuery } from './sharedMappers'
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   return apiRequest<CurrentUser>('/api/users/me')
@@ -158,4 +159,28 @@ export async function listGroupSuggestions(params?: PaginationParams): Promise<P
   return apiRequest<PaginatedResult<GroupSuggestion>>(`/api/group-suggestions?${toPageQuery(params)}`, {
     authMode: 'cookie',
   })
+}
+
+export async function listRideOffers(
+  params?: PaginationParams & { date?: string },
+): Promise<{ items: PassengerRideOffer[]; total: number; limit: number; offset: number }> {
+  const query = toPageQuery(params)
+  const dateSuffix = params?.date ? `&date=${encodeURIComponent(params.date)}` : ''
+  const page = await apiRequest<{ items: PassengerRideOfferApi[]; total: number; limit: number; offset: number }>(
+    `/api/ride-offers?${query}${dateSuffix}`,
+  )
+  return { ...page, items: page.items.map(mapPassengerRideOffer) }
+}
+
+export async function getRideOffer(id: string): Promise<PassengerRideOffer> {
+  const item = await apiRequest<PassengerRideOfferApi>(`/api/ride-offers/${id}`)
+  return mapPassengerRideOffer(item)
+}
+
+export async function bookRideOffer(id: string, payload?: { passengerName?: string }): Promise<RideRequest> {
+  const created = await apiRequest<RideRequestApi>(`/api/ride-offers/${id}/book`, {
+    method: 'POST',
+    body: payload ?? {},
+  })
+  return mapRideRequest(created)
 }

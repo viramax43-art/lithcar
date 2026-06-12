@@ -4,6 +4,7 @@ import NewRequest from './pages/passenger/NewRequest'
 import MyRequests from './pages/passenger/MyRequests'
 import RequestDetail from './pages/passenger/RequestDetail'
 import Profile from './pages/passenger/Profile'
+import DriverOffers from './pages/passenger/DriverOffers'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import DriverCabinet from './pages/driver/DriverCabinet'
 import DriverMagicLogin from './pages/driver/DriverMagicLogin'
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/requests" element={<PassengerRoute><MyRequests /></PassengerRoute>} />
         <Route path="/requests/:id" element={<PassengerRoute><RequestDetail /></PassengerRoute>} />
         <Route path="/profile" element={<PassengerRoute><Profile /></PassengerRoute>} />
+        <Route path="/offers" element={<PassengerRoute><DriverOffers /></PassengerRoute>} />
         <Route path="/driver/register" element={<DriverRegistration />} />
         <Route path="/driver/enter/:token" element={<DriverMagicLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />

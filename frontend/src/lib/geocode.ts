@@ -17,6 +17,7 @@ export class RateLimitedError extends Error {
 
 const RATE_LIMIT_COOLDOWN_MS = 30_000
 const MIN_INTERVAL_MS = 1_100 // Nominatim policy: <= 1 req/sec.
+const NOMINATIM_FETCH_TIMEOUT_MS = 12_000
 
 let cooldownUntil = 0
 let lastRequestAt = 0
@@ -81,6 +82,19 @@ function searchCacheKey(query: string): string {
   return `${query.trim().toLowerCase()}|${currentLanguageKey()}`
 }
 
+function fetchWithTimeout(url: string, signal?: AbortSignal): Promise<Response> {
+  const timeoutController = new AbortController()
+  const timeoutId = window.setTimeout(() => timeoutController.abort(), NOMINATIM_FETCH_TIMEOUT_MS)
+  const onExternalAbort = () => timeoutController.abort()
+  signal?.addEventListener('abort', onExternalAbort)
+  const mergedSignal = timeoutController.signal
+
+  return fetch(url, { signal: mergedSignal }).finally(() => {
+    window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', onExternalAbort)
+  })
+}
+
 /**
  * Reverse-geocode lat/lng to a short human-readable address via Nominatim.
  * Returns empty string on failure. Throws {@link RateLimitedError} when 429.
@@ -99,9 +113,9 @@ export async function reverseGeocode(latlng: LatLng, signal?: AbortSignal): Prom
       throw err
     }
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=${acceptLanguage}`,
-        { signal },
+        signal,
       )
       handleNominatimResponse(res)
       if (!res.ok) return ''
@@ -155,11 +169,11 @@ export async function searchPlaces(
       throw err
     }
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           q,
         )}&format=json&limit=8&countrycodes=lt&viewbox=${LT_VIEWBOX}&accept-language=${acceptLanguage}`,
-        { signal },
+        signal,
       )
       handleNominatimResponse(res)
       if (!res.ok) return []

@@ -7,6 +7,7 @@ Base = declarative_base()
 from app.models.user import User
 from app.models.driver import Driver
 from app.models.ride_request import RideRequest
+from app.models.driver_ride_offer import DriverRideOffer
 from app.models.service_zone import ServiceZone
 from app.models.pricing_settings import PricingSettings
 from app.models.admin_api_key import AdminApiKey
@@ -27,6 +28,7 @@ __all__ = [
     "User",
     "Driver",
     "RideRequest",
+    "DriverRideOffer",
     "ServiceZone",
     "PricingSettings",
     "AdminApiKey",

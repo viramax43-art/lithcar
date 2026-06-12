@@ -10,6 +10,13 @@ export const DRIVER_STATUS_LABEL_KEY: Record<RideStatus, string> = {
   completed: 'status.completed',
 }
 
+export const OFFER_STATUS_COLOR: Record<'open' | 'full' | 'cancelled' | 'completed', { color: string; bg: string }> = {
+  open: { color: '#22C55E', bg: 'rgba(34,197,94,0.10)' },
+  full: { color: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
+  cancelled: { color: '#858585', bg: 'rgba(133,133,133,0.10)' },
+  completed: { color: '#3B82F6', bg: 'rgba(59,130,246,0.10)' },
+}
+
 export const DRIVER_STATUS_COLOR: Record<RideStatus, { color: string; bg: string }> = {
   pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
   grouped: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },

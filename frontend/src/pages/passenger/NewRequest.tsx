@@ -1,4 +1,4 @@
-import { Calendar, CaretDown, CaretRight, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
+import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
@@ -212,6 +212,18 @@ export default function NewRequest() {
                 <div>
                   <p className="text-sm font-bold">{t('nav.requests')}</p>
                   <p className="text-[11px] text-muted">{t('passenger.requestsHistory')}</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { hapticSelection(); setMenuOpen(false); navigate('/offers') }}
+                className="flex items-center gap-3 w-full px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                  <Car size={18} weight="duotone" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">{t('nav.driverOffers', { defaultValue: 'Driver rides' })}</p>
+                  <p className="text-[11px] text-muted">{t('passenger.offers.title', { defaultValue: 'Book a shared ride' })}</p>
                 </div>
               </button>
               <button

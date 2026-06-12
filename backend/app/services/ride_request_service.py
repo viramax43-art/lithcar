@@ -30,6 +30,9 @@ async def create_ride_request_record(
     quote_duration_min: float | None = None,
     quote_tier_label: str | None = None,
     quote_breakdown_json: list[dict] | None = None,
+    driver_id: str | None = None,
+    offer_id: str | None = None,
+    status: str = RideRequestStatus.PENDING,
 ) -> RideRequest:
     is_from_allowed = await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng)
     is_to_allowed = await is_point_in_any_active_zone(db_session, lat=to_lat, lng=to_lng)
@@ -46,7 +49,9 @@ async def create_ride_request_record(
         to_lat=to_lat,
         to_lng=to_lng,
         date_time=date_time,
-        status=RideRequestStatus.PENDING,
+        status=status,
+        driver_id=driver_id,
+        offer_id=offer_id,
         quoted_points=quoted_points,
         quoted_price_cents=quoted_price_cents,
         quote_road_km=quote_road_km,

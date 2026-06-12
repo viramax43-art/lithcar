@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Check,
+  Megaphone,
   QrCode,
   SignOut,
   Star,
@@ -12,10 +12,11 @@ import { useTranslation } from 'react-i18next'
 import type { DriverCabinetData } from '../../../types'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
 import { redeemPassengerQrSale } from '../../../lib/backend'
-import { hapticNotification } from '../../../lib/telegram'
+import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
+import DriverOffersList from './DriverOffersList'
 
 interface DriverSideMenuProps {
   isOpen: boolean
@@ -36,10 +37,14 @@ export default function DriverSideMenu({
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
+  const [showOffers, setShowOffers] = useState(false)
   const logoutArmTimer = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!isOpen) setLogoutArmed(false)
+    if (!isOpen) {
+      setLogoutArmed(false)
+      setShowOffers(false)
+    }
     return () => {
       if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
     }
@@ -93,6 +98,24 @@ export default function DriverSideMenu({
         <div className="flex-1 overflow-y-auto">
           <section className="px-4 py-4 border-t border-border">
             <LanguageSwitcher />
+          </section>
+          <section className="px-4 py-3 border-t border-border">
+            <button
+              onClick={() => {
+                hapticSelection()
+                onClose()
+                setShowOffers(true)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                <Megaphone size={18} weight="duotone" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">{t('driver.offers.myOffers', { defaultValue: 'My offers' })}</p>
+                <p className="text-[11px] text-muted">{t('driver.offers.title', { defaultValue: 'Ride offers' })}</p>
+              </div>
+            </button>
           </section>
           <section className="px-4 py-4 border-t border-border">
             <div className="flex items-center gap-2.5 mb-4">
@@ -168,6 +191,8 @@ export default function DriverSideMenu({
           </button>
         </div>
       </div>
+
+      {showOffers && <DriverOffersList onClose={() => setShowOffers(false)} />}
     </>
   )
 }

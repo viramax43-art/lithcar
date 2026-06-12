@@ -1,7 +1,7 @@
-import type { DriverCabinetData, DriverCabinetRide, DriverMapData, RideStatus } from '../../types'
+import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideOffer, RideStatus } from '../../types'
 import { apiRequest } from '../http/httpClient'
-import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, PaginationParams } from './contracts'
-import { toPageQuery } from './sharedMappers'
+import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, DriverRideOfferApi, PaginationParams } from './contracts'
+import { mapDriverRideOffer, toPageQuery } from './sharedMappers'
 
 export async function bootstrapDriverAccess(): Promise<DriverSessionUser> {
   return apiRequest<DriverSessionUser>('/api/driver-registration/driver-access/bootstrap', {
@@ -141,6 +141,39 @@ export async function redeemPassengerQrSale(token: string): Promise<DriverQrRede
   return apiRequest<DriverQrRedeemResult>('/api/points/qr/redeem', {
     method: 'POST',
     body: { token },
+    authMode: 'cookie',
+  })
+}
+
+export async function createDriverOffer(payload: {
+  fromPoint: { address: string; latlng: { lat: number; lng: number } }
+  toPoint: { address: string; latlng: { lat: number; lng: number } }
+  dateTime: string
+  totalSeats: number
+}): Promise<DriverRideOffer> {
+  const created = await apiRequest<DriverRideOfferApi>('/api/driver/offers', {
+    method: 'POST',
+    body: payload,
+    authMode: 'cookie',
+  })
+  return mapDriverRideOffer(created)
+}
+
+export async function listDriverOffers(
+  params?: PaginationParams & { status?: 'open' | 'full' | 'cancelled' | 'completed' | 'all' },
+): Promise<{ items: DriverRideOffer[]; total: number; limit: number; offset: number }> {
+  const query = toPageQuery(params)
+  const statusSuffix = params?.status ? `&status=${params.status}` : ''
+  const page = await apiRequest<{ items: DriverRideOfferApi[]; total: number; limit: number; offset: number }>(
+    `/api/driver/offers?${query}${statusSuffix}`,
+    { authMode: 'cookie' },
+  )
+  return { ...page, items: page.items.map(mapDriverRideOffer) }
+}
+
+export async function cancelDriverOffer(id: string): Promise<void> {
+  await apiRequest<{ success: boolean }>(`/api/driver/offers/${id}`, {
+    method: 'DELETE',
     authMode: 'cookie',
   })
 }
