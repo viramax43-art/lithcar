@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { bookRideOffer, listRideOffers } from '../../../lib/backend'
 import { parseOfferBookingConflict } from '../../../lib/offerBooking'
 import { ApiError } from '../../../infrastructure/http/httpClient'
-import { isCoarsePointer } from '../../../lib/pointer'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { PassengerRideOffer } from '../../../types'
 
@@ -27,7 +26,6 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null)
-  const [hoveredOfferId, setHoveredOfferId] = useState<string | null>(null)
   const [confirmOfferId, setConfirmOfferId] = useState<string | null>(null)
   const [bookingOfferId, setBookingOfferId] = useState<string | null>(null)
   const [bookError, setBookError] = useState<string | null>(null)
@@ -51,7 +49,6 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
   useEffect(() => {
     if (paused) {
       setSelectedOfferId(null)
-      setHoveredOfferId(null)
       setConfirmOfferId(null)
       setBookError(null)
       return
@@ -106,13 +103,6 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     [offers, selectedOfferId],
   )
 
-  const highlightedOfferId = selectedOfferId ?? hoveredOfferId
-
-  const highlightedOffer = useMemo(
-    () => offers.find((offer) => offer.id === highlightedOfferId) ?? null,
-    [offers, highlightedOfferId],
-  )
-
   const selectOffer = useCallback((id: string) => {
     hapticSelection()
     setSelectedOfferId(id)
@@ -122,14 +112,8 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
 
   const clearSelection = useCallback(() => {
     setSelectedOfferId(null)
-    setHoveredOfferId(null)
     setConfirmOfferId(null)
     setBookError(null)
-  }, [])
-
-  const setHoveredOffer = useCallback((id: string | null) => {
-    if (isCoarsePointer) return
-    setHoveredOfferId(id)
   }, [])
 
   const startBookConfirm = useCallback((id: string) => {
@@ -192,17 +176,13 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     isLoading,
     loadError,
     selectedOfferId,
-    hoveredOfferId,
     isSheetOpen: selectedOfferId !== null,
     confirmOfferId,
     bookingOfferId,
     bookError,
     selectedOffer,
-    highlightedOfferId,
-    highlightedOffer,
     selectOffer,
     clearSelection,
-    setHoveredOffer,
     startBookConfirm,
     cancelBookConfirm,
     bookSelectedOffer,

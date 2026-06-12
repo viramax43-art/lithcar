@@ -15,7 +15,7 @@ class DriverRideOfferStatus:
 class DriverRideOffer(Base):
     __tablename__ = "driver_ride_offers"
     __table_args__ = (
-        CheckConstraint("total_seats >= 1 AND total_seats <= 12", name="ck_driver_ride_offers_total_seats"),
+        CheckConstraint("total_seats >= 1", name="ck_driver_ride_offers_total_seats"),
         CheckConstraint(
             "seats_available >= 0 AND seats_available <= total_seats",
             name="ck_driver_ride_offers_seats_available",

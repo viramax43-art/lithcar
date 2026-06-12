@@ -35,7 +35,7 @@ class DriverRideOfferCreate(BaseModel):
     fromPoint: RoutePoint
     toPoint: RoutePoint
     dateTime: datetime
-    totalSeats: int = Field(ge=1, le=12)
+    totalSeats: int = Field(ge=1)
 
 
 class DriverRideOfferOut(BaseModel):

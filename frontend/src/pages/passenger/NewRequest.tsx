@@ -85,10 +85,10 @@ export default function NewRequest() {
           {!isCoarsePointer && <ZoomControl position="bottomright" />}
           {!offersPaused &&
             offersMap.offers.map((offer) => {
-              const isHighlighted = offersMap.highlightedOfferId === offer.id
-              const routeOpacity = isHighlighted
-                ? (model.isPinLive ? 0.55 : 0.85)
-                : (model.isPinLive ? 0.28 : 0.45)
+              const isSelected = offersMap.selectedOfferId === offer.id
+              const routeOpacity = isSelected
+                ? (model.isPinLive ? 0.7 : 0.9)
+                : (model.isPinLive ? 0.22 : 0.38)
               return (
                 <Polyline
                   key={`offer-route-${offer.id}`}
@@ -97,8 +97,8 @@ export default function NewRequest() {
                     [offer.to.latlng.lat, offer.to.latlng.lng],
                   ]}
                   pathOptions={{
-                    color: isHighlighted ? '#000' : '#374151',
-                    weight: isHighlighted ? 4 : 2,
+                    color: isSelected ? '#000' : '#374151',
+                    weight: isSelected ? 4 : 2,
                     dashArray: '10, 10',
                     opacity: routeOpacity,
                   }}
@@ -108,7 +108,7 @@ export default function NewRequest() {
             })}
           {!offersPaused &&
             offersMap.offers.map((offer) => {
-              if (offersMap.highlightedOfferId === offer.id) return null
+              if (offersMap.selectedOfferId === offer.id) return null
               return (
                 <CircleMarker
                   key={`offer-dropoff-${offer.id}`}
@@ -166,8 +166,7 @@ export default function NewRequest() {
           ))}
           {!offersPaused &&
             offersMap.offers.map((offer) => {
-              const isHighlighted = offersMap.highlightedOfferId === offer.id
-              if (isHighlighted) return null
+              if (offersMap.selectedOfferId === offer.id) return null
               const markerIcon = offer.bookedByMe
                 ? (model.isPinLive ? pickupIconBookedSubdued : pickupIconBooked)
                 : (model.isPinLive ? pickupIconSubdued : pickupIconNormal)
@@ -181,30 +180,24 @@ export default function NewRequest() {
                       L.DomEvent.stopPropagation(event.originalEvent)
                       offersMap.selectOffer(offer.id)
                     },
-                    mouseover: () => {
-                      if (!isCoarsePointer) offersMap.setHoveredOffer(offer.id)
-                    },
-                    mouseout: () => {
-                      if (!isCoarsePointer) offersMap.setHoveredOffer(null)
-                    },
                   }}
                 />
               )
             })}
-          {offersMap.highlightedOffer && (
+          {offersMap.selectedOffer && (
             <>
               <Marker
                 position={[
-                  offersMap.highlightedOffer.from.latlng.lat,
-                  offersMap.highlightedOffer.from.latlng.lng,
+                  offersMap.selectedOffer.from.latlng.lat,
+                  offersMap.selectedOffer.from.latlng.lng,
                 ]}
                 icon={iconA}
                 interactive={false}
               />
               <Marker
                 position={[
-                  offersMap.highlightedOffer.to.latlng.lat,
-                  offersMap.highlightedOffer.to.latlng.lng,
+                  offersMap.selectedOffer.to.latlng.lat,
+                  offersMap.selectedOffer.to.latlng.lng,
                 ]}
                 icon={iconB}
                 interactive={false}

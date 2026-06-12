@@ -254,7 +254,6 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     setTotalSeatsInput((current) => {
       const value = Number.parseInt(current, 10)
       if (!Number.isFinite(value) || value < 1) return '1'
-      if (value > 12) return '12'
       return String(value)
     })
   }, [])
@@ -262,7 +261,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const handleSubmit = useCallback(async () => {
     const [datePart, timePart] = dateTime.split('T')
     if (!fromPoint || !toPoint || !datePart || !timePart || parsedTotalSeats === null) return
-    if (parsedTotalSeats < 1 || parsedTotalSeats > 12) return
+    if (parsedTotalSeats < 1) return
     setSubmitting(true)
     setErrorMessage(null)
     try {
@@ -297,8 +296,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
       hasValidDateTime &&
       !submitting &&
       parsedTotalSeats !== null &&
-      parsedTotalSeats >= 1 &&
-      parsedTotalSeats <= 12,
+      parsedTotalSeats >= 1,
   )
   const activeIsFrom = !fromPoint || (!toPoint && activeField === 'from') || (fromPoint && toPoint && activeField === 'from')
   const isPinLive = !(fromPoint && toPoint)

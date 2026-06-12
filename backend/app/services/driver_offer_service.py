@@ -117,13 +117,8 @@ async def create_driver_offer(
     if driver is None:
         raise DriverOfferError("not_found", "Driver not found.")
 
-    if total_seats < 1 or total_seats > 12:
-        raise DriverOfferError("invalid_status", "totalSeats must be between 1 and 12.")
-    if total_seats > int(driver.seats_count or 0):
-        raise DriverOfferError(
-            "invalid_status",
-            f"totalSeats cannot exceed driver seats count ({driver.seats_count}).",
-        )
+    if total_seats < 1:
+        raise DriverOfferError("invalid_status", "totalSeats must be at least 1.")
 
     pricing = await _get_or_create_pricing_no_commit(db_session)
     try:
