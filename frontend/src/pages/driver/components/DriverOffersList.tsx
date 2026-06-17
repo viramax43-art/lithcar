@@ -3,6 +3,7 @@ import { ArrowLeft, CaretDown, Clock, MapPin, Plus } from '@phosphor-icons/react
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../../components/Skeleton'
 import NotificationBell from '../../../components/notifications/NotificationBell'
+import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import RatingBadge from '../../../components/RatingBadge'
 import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import InlineConfirm from '../../admin/components/InlineConfirm'
@@ -178,6 +179,7 @@ export default function DriverOffersList({ onClose }: DriverOffersListProps) {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
+        <CabinetRoleBanner role="driver" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={onClose}

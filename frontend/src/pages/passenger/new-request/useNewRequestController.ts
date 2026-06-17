@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones } from '../../../lib/backend'
+import { ensurePassengerAccessToken } from '../../../infrastructure/auth/passengerAuthSession'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import {
   RateLimitedError,
@@ -105,6 +106,7 @@ export function useNewRequestController() {
     let cancelled = false
     ;(async () => {
       try {
+        await ensurePassengerAccessToken()
         const [pricingData, zonesData, me] = await Promise.all([
           getPricing(),
           listServiceZones('bearer', { limit: 500, offset: 0 }),

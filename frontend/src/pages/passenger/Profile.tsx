@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, listBlockedUsers, purchasePointsByCard, unblockUser, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatRideDateTime } from '../../i18n/dateTime'
 import { enterDriverCabinet } from '../../lib/driverPortal'
@@ -161,6 +162,7 @@ export default function Profile() {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
+        <CabinetRoleBanner role="passenger" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}

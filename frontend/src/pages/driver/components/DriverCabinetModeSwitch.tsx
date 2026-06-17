@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { CABINET_ROLE_BANNER_BODY_HEIGHT } from '../../../components/CabinetRoleBanner'
 
 export type DriverCabinetMode = 'my' | 'available'
 
@@ -23,7 +24,7 @@ export default function DriverCabinetModeSwitch({
   return (
     <div
       className="absolute left-3 right-3 z-[12] bg-white rounded-card shadow-card p-1 flex gap-1 md:max-w-md md:mx-auto"
-      style={{ top: 'calc(var(--app-safe-area-top-total) + 64px)' }}
+      style={{ top: `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)` }}
     >
       <button type="button" className={btnCls(mode === 'my')} onClick={() => onChange('my')}>
         {t('driver.cabinetMode.my', { defaultValue: 'My rides' })}

@@ -6,6 +6,7 @@ import RatingBadge from '../../../components/RatingBadge'
 import InlineConfirm from '../../admin/components/InlineConfirm'
 import { blockUserAsDriver, getDriverRideHistory, listBlockedUsersAsDriver } from '../../../lib/backend'
 import { formatRideDateTime } from '../../../i18n/dateTime'
+import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import { hapticNotification } from '../../../lib/telegram'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { DriverRideHistoryItem } from '../../../types'
@@ -78,6 +79,7 @@ export default function DriverRideHistory({ onClose }: DriverRideHistoryProps) {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
+        <CabinetRoleBanner role="driver" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={onClose}

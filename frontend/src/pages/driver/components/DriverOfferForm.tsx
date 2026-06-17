@@ -8,6 +8,7 @@ import { RoutePointPinLabel, RoutePointPinMarkers } from '../../../components/ro
 import RoutePointSearchSheet from '../../../components/route-point-picker/RoutePointSearchSheet'
 import RoutePointZoneBanner from '../../../components/route-point-picker/RoutePointZoneBanner'
 import OfferDayFilter from '../../passenger/components/OfferDayFilter'
+import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import { useOfferDaySelection } from '../../../hooks/useOfferDaySelection'
 import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestMapBinder'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
@@ -51,6 +52,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         className="flex-shrink-0 bg-white border-b border-border/50 z-20"
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
+        <CabinetRoleBanner role="driver" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14">
           <button
             onClick={onClose}

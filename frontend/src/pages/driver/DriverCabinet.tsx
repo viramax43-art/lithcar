@@ -47,6 +47,7 @@ import DriverMapPeriodFilter from './components/DriverMapPeriodFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import DriverSideMenu from './components/DriverSideMenu'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import CabinetRoleBanner, { CABINET_ROLE_BANNER_BODY_HEIGHT } from '../../components/CabinetRoleBanner'
 
 const MAP_POLL_MS = 8_000
 const CABINET_POLL_MS = 30_000
@@ -529,10 +530,10 @@ export default function DriverCabinet() {
     : null
 
   const filterTopOffset = canSelfAssign
-    ? 'calc(var(--app-safe-area-top-total) + 112px)'
-    : 'calc(var(--app-safe-area-top-total) + 64px)'
+    ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 112}px)`
+    : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
-  const mapInsetTop = (canSelfAssign ? 48 : 0) + (filterExpanded ? 188 : 116)
+  const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT + (canSelfAssign ? 48 : 0) + (filterExpanded ? 188 : 116)
 
   useEffect(() => {
     if (!selectedPointId) return
@@ -725,11 +726,18 @@ export default function DriverCabinet() {
         />
       </div>
 
+      {/* ── Cabinet role banner ─────────────────────────────────────────── */}
+      {!isMapMarkViewMode && (
+        <div className="absolute top-0 left-0 right-0 z-[11] pointer-events-none">
+          <CabinetRoleBanner role="driver" variant="strip" safeArea="app" />
+        </div>
+      )}
+
       {/* ── Floating header ─────────────────────────────────────────────── */}
       {!isMapMarkViewMode && (
       <div
         className="absolute left-0 right-0 top-0 z-[10] flex items-center justify-between gap-3 px-4 pointer-events-none"
-        style={{ paddingTop: 'calc(var(--app-safe-area-top-total) + 12px)' }}
+        style={{ paddingTop: `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT}px + 12px)` }}
       >
         <button
           onClick={() => setSideMenuOpen(true)}

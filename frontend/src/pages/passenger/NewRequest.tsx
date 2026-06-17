@@ -7,6 +7,7 @@ import RoutePointFields from '../../components/route-point-picker/RoutePointFiel
 import { RoutePointPinLabel, RoutePointPinMarkers } from '../../components/route-point-picker/RoutePointPinOverlay'
 import RoutePointSearchSheet from '../../components/route-point-picker/RoutePointSearchSheet'
 import RoutePointZoneBanner from '../../components/route-point-picker/RoutePointZoneBanner'
+import CabinetRoleBanner, { CABINET_ROLE_BANNER_BODY_HEIGHT } from '../../components/CabinetRoleBanner'
 import { useOfferDaySelection } from '../../hooks/useOfferDaySelection'
 import L from 'leaflet'
 import { useEffect, useMemo, useState, useRef, Fragment } from 'react'
@@ -341,9 +342,15 @@ export default function NewRequest() {
       )}
 
       {!isMapMarkViewMode && (
+        <div className="absolute top-0 left-0 right-0 z-[25] pointer-events-none">
+          <CabinetRoleBanner role="passenger" variant="strip" safeArea="user" />
+        </div>
+      )}
+
+      {!isMapMarkViewMode && (
       <header
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-2 px-3"
-        style={{ paddingTop: 'var(--app-user-safe-top)' }}
+        style={{ paddingTop: `calc(var(--app-user-safe-top) + ${CABINET_ROLE_BANNER_BODY_HEIGHT}px + 8px)` }}
       >
         <button
           onClick={() => { hapticSelection(); setMenuOpen(true) }}
@@ -480,6 +487,7 @@ export default function NewRequest() {
         <RoutePointZoneBanner
           message={model.zoneWarning}
           onDismiss={() => model.setZoneWarning(null)}
+          topOffset={`calc(var(--app-user-safe-top) + ${CABINET_ROLE_BANNER_BODY_HEIGHT}px + 48px)`}
         />
       )}
 

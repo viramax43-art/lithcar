@@ -96,6 +96,27 @@ async def _create_offer(client, **payload_overrides):
 
 
 @pytest.mark.asyncio
+async def test_driver_session_can_read_pricing_service_zones_and_quote(client, db_session):
+    await _create_zone(client)
+    _, driver_key = await _create_driver(client)
+    login = await client.post("/api/driver/session/login", json={"key": driver_key})
+    assert login.status_code == 200
+
+    pricing = await client.get("/api/pricing")
+    assert pricing.status_code == 200
+
+    zones = await client.get("/api/service-zones", params={"limit": 10, "offset": 0})
+    assert zones.status_code == 200
+    assert zones.json()["total"] >= 1
+
+    quote = await client.get(
+        "/api/ride-quote",
+        params={"fromLat": 54.69, "fromLng": 25.27, "toLat": 54.70, "toLng": 25.28},
+    )
+    assert quote.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_create_offer_validates_datetime(client, db_session):
     await _create_zone(client)
     driver_id, driver_key = await _create_driver(client)

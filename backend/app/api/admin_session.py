@@ -61,9 +61,17 @@ def require_admin_roles(*allowed_roles: str) -> Callable[[AdminSession], AdminSe
 
 
 async def require_user_or_admin_session(
+    request: Request,
     current_user: User | None = Depends(get_current_user_optional),
     admin_session: AdminSession | None = Depends(get_admin_session_optional),
+    db_session: AsyncSession = Depends(get_db_session),
 ) -> tuple[User | None, AdminSession | None]:
-    if current_user is None and admin_session is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
-    return current_user, admin_session
+    if current_user is not None or admin_session is not None:
+        return current_user, admin_session
+    # Driver mini-app uses a separate session cookie for map/offer flows.
+    from app.api.driver_portal import get_driver_session_optional
+
+    driver_session = await get_driver_session_optional(request, db_session)
+    if driver_session is not None:
+        return current_user, admin_session
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
