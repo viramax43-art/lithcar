@@ -729,7 +729,7 @@ export default function DriverCabinet() {
       {/* ── Cabinet role banner ─────────────────────────────────────────── */}
       {!isMapMarkViewMode && (
         <div className="absolute top-0 left-0 right-0 z-[11] pointer-events-none">
-          <CabinetRoleBanner role="driver" variant="strip" safeArea="app" />
+          <CabinetRoleBanner variant="strip" safeArea="app" />
         </div>
       )}
 

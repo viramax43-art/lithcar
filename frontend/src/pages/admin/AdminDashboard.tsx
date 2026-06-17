@@ -38,7 +38,6 @@ import {
   type AdminSessionUser,
 } from '../../lib/backend'
 import { AdminAssignDriverModal } from './components/AdminAssignDriverModal'
-import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDriverModalParts'
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
@@ -620,7 +619,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
-      <CabinetRoleBanner role="admin" variant="strip" size="large" safeArea="app" />
       <AdminHeader
         onlineDriversCount={onlineDrivers.length}
         adminSession={adminSession}

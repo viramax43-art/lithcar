@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import type { AdminSessionUser } from '../../../lib/backend'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
 import NotificationBell from '../../../components/notifications/NotificationBell'
-import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import type { AppNotification } from '../../../types'
 import { getAdminRoleLabel } from '../utils/adminRolePresentation'
 
@@ -27,12 +26,11 @@ export function AdminLoginScreen({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="min-h-[100dvh] bg-surface flex flex-col">
-      <CabinetRoleBanner role="admin" variant="strip" size="large" safeArea="app" />
-      <div className="flex-1 flex items-center justify-center p-6">
+    <div className="min-h-[100dvh] bg-surface flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white rounded-card shadow-card p-6 space-y-5">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
+          <p className="text-sm text-muted mt-1">{t('admin.panel', { defaultValue: 'Admin panel' })}</p>
         </div>
         <p className="text-sm text-muted">{t('admin.enterAccessKey', { defaultValue: 'Enter access key. Login/password is not required.' })}</p>
         <form
@@ -62,7 +60,6 @@ export function AdminLoginScreen({
         </form>
         {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
       </div>
-      </div>
     </div>
   )
 }
@@ -80,9 +77,14 @@ export function AdminHeader({
 }) {
   const { t } = useTranslation()
   return (
-    <header className="admin-dashboard-header flex items-center justify-between px-4 md:px-6 h-14 md:h-16 bg-black text-white flex-shrink-0">
+    <header
+      className="admin-dashboard-header flex items-center justify-between px-4 md:px-6 h-14 md:h-16 bg-black text-white flex-shrink-0 user-safe-top"
+      style={{ paddingTop: 'var(--app-safe-area-top-total, 0px)', minHeight: 'calc(3.5rem + var(--app-safe-area-top-total, 0px))' }}
+    >
       <div className="flex items-center gap-2 md:gap-4">
         <h1 className="text-lg md:text-xl font-extrabold tracking-tight">RIDE</h1>
+        <span className="w-px h-6 bg-white/20" />
+        <span className="text-base md:text-xl font-extrabold tracking-tight">{t('admin.panel', { defaultValue: 'Admin panel' })}</span>
       </div>
       <div className="flex items-center gap-2 md:gap-5">
         <NotificationBell
