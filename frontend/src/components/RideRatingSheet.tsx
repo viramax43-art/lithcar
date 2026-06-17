@@ -2,13 +2,23 @@ import { useState } from 'react'
 import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import StarRatingInput from './StarRatingInput'
+import InlineConfirm from '../pages/admin/components/InlineConfirm'
 import { useEscapeClose } from '../lib/useEscapeClose'
+
+export interface RideRatingSheetBlockProps {
+  label: string
+  confirmLabel: string
+  onConfirm: () => void | Promise<void>
+  isBlocking?: boolean
+  blocked?: boolean
+}
 
 interface RideRatingSheetProps {
   open: boolean
   title: string
   subtitle?: string
   isSubmitting?: boolean
+  block?: RideRatingSheetBlockProps
   onClose: () => void
   onSubmit: (payload: { score: number; comment?: string }) => void | Promise<void>
   onSkip?: () => void
@@ -19,6 +29,7 @@ export default function RideRatingSheet({
   title,
   subtitle,
   isSubmitting = false,
+  block,
   onClose,
   onSubmit,
   onSkip,
@@ -71,6 +82,21 @@ export default function RideRatingSheet({
             maxLength={500}
             className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"
           />
+          {block && !block.blocked && (
+            <div className="rounded-xl border border-border bg-surface px-4 py-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-muted">{block.label}</p>
+              <InlineConfirm
+                label={block.label}
+                confirmLabel={block.confirmLabel}
+                onConfirm={() => void block.onConfirm()}
+              />
+            </div>
+          )}
+          {block?.blocked && (
+            <p className="text-xs font-medium text-muted text-center">
+              {t('block.blockedSuccess', { defaultValue: 'User blocked' })}
+            </p>
+          )}
           <div className="flex gap-2.5">
             {onSkip && (
               <button

@@ -28,6 +28,7 @@ import {
   resetDriverRidePickup,
   sendDriverLocation,
   setDriverOnlineStatus,
+  blockUserAsDriver,
   updateDriverRideRoute,
   type DriverSessionUser,
 } from '../../lib/backend'
@@ -334,8 +335,10 @@ export default function DriverCabinet() {
   const [geoBannerDismissed, setGeoBannerDismissed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
-  const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string } | null>(null)
+  const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string; passengerId: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
+  const [ratingPassengerBlocked, setRatingPassengerBlocked] = useState(false)
+  const [isBlockingPassenger, setIsBlockingPassenger] = useState(false)
   const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
   const [filterExpanded, setFilterExpanded] = useState(false)
   const defaultPeriod = getDefaultPeriodFilter()
@@ -563,7 +566,12 @@ export default function DriverCabinet() {
       setSelectedPointId(null)
       await loadMapData()
       if (completesRide) {
-        setPendingRating({ rideId: point.rideId, passengerName: point.passengerName })
+        setPendingRating({
+          rideId: point.rideId,
+          passengerName: point.passengerName,
+          passengerId: point.passengerTelegramId,
+        })
+        setRatingPassengerBlocked(false)
       }
     } catch (err) {
       hapticNotification('error')
@@ -953,8 +961,37 @@ export default function DriverCabinet() {
         title={t('driver.ratePassenger', { defaultValue: 'Rate passenger' })}
         subtitle={pendingRating ? pendingRating.passengerName : undefined}
         isSubmitting={isRatingSubmitting}
-        onClose={() => setPendingRating(null)}
-        onSkip={() => setPendingRating(null)}
+        block={pendingRating ? {
+          label: t('block.blockPassenger', { defaultValue: 'Block passenger' }),
+          confirmLabel: t('block.confirmBlock', {
+            name: pendingRating.passengerName,
+            defaultValue: `Block ${pendingRating.passengerName}?`,
+          }),
+          blocked: ratingPassengerBlocked,
+          onConfirm: async () => {
+            if (!pendingRating || isBlockingPassenger) return
+            setIsBlockingPassenger(true)
+            setErrorMessage(null)
+            try {
+              await blockUserAsDriver(pendingRating.passengerId)
+              hapticNotification('success')
+              setRatingPassengerBlocked(true)
+            } catch (err) {
+              hapticNotification('error')
+              setErrorMessage(err instanceof Error ? err.message : t('errors.blockFailed', { defaultValue: 'Failed to block user.' }))
+            } finally {
+              setIsBlockingPassenger(false)
+            }
+          },
+        } : undefined}
+        onClose={() => {
+          setPendingRating(null)
+          setRatingPassengerBlocked(false)
+        }}
+        onSkip={() => {
+          setPendingRating(null)
+          setRatingPassengerBlocked(false)
+        }}
         onSubmit={async ({ score, comment }) => {
           if (!pendingRating) return
           setIsRatingSubmitting(true)
@@ -963,6 +1000,7 @@ export default function DriverCabinet() {
             await rateRideAsDriver(pendingRating.rideId, { score, comment })
             hapticNotification('success')
             setPendingRating(null)
+            setRatingPassengerBlocked(false)
             await loadMapData()
           } catch (err) {
             hapticNotification('error')

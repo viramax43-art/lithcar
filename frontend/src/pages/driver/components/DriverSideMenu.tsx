@@ -11,24 +11,15 @@ import {
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import type { BlockedUser, DriverRideHistoryItem } from '../../../types'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
-import {
-  redeemPassengerQrSale,
-  listBlockedUsersAsDriver,
-  unblockUserAsDriver,
-  getDriverRideHistory,
-} from '../../../lib/backend'
+import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
-import RatingBadge from '../../../components/RatingBadge'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
-import { formatRideDateTime } from '../../../i18n/dateTime'
-import { DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY } from '../constants'
 import DriverOffersList from './DriverOffersList'
-
-const HISTORY_PAGE_SIZE = 15
+import DriverRideHistory from './DriverRideHistory'
+import DriverBlockedList from './DriverBlockedList'
 
 interface DriverSideMenuProps {
   isOpen: boolean
@@ -48,53 +39,9 @@ export default function DriverSideMenu({
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
-  const [rideHistory, setRideHistory] = useState<DriverRideHistoryItem[]>([])
-  const [historyTotal, setHistoryTotal] = useState(0)
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
-  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
-  const [isBlockedLoading, setIsBlockedLoading] = useState(false)
-  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(false)
   const logoutArmTimer = useRef<number | null>(null)
-
-  const canLoadMoreHistory = rideHistory.length < historyTotal
-
-  const loadRideHistory = async (offset: number, append: boolean) => {
-    setIsHistoryLoading(true)
-    try {
-      const page = await getDriverRideHistory({ limit: HISTORY_PAGE_SIZE, offset })
-      setHistoryTotal(page.total)
-      setRideHistory((prev) => (append ? [...prev, ...page.items] : page.items))
-    } catch {
-      if (!append) {
-        setRideHistory([])
-        setHistoryTotal(0)
-      }
-    } finally {
-      setIsHistoryLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!isOpen) return
-    void loadRideHistory(0, false)
-    void (async () => {
-      setIsBlockedLoading(true)
-      try {
-        const page = await listBlockedUsersAsDriver()
-        setBlockedUsers(page.items.map((item) => ({
-          userId: item.userId,
-          username: item.username,
-          displayName: item.displayName,
-          blockedAt: item.blockedAt,
-          blockedAtLocal: item.blockedAtLocal,
-        })))
-      } catch {
-        setBlockedUsers([])
-      } finally {
-        setIsBlockedLoading(false)
-      }
-    })()
-  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) {
@@ -106,6 +53,12 @@ export default function DriverSideMenu({
   }, [isOpen])
 
   useEscapeClose(isOpen, onClose)
+
+  const openScreen = (setter: (value: boolean) => void) => {
+    hapticSelection()
+    setter(true)
+    onClose()
+  }
 
   return (
     <>
@@ -153,11 +106,7 @@ export default function DriverSideMenu({
 
           <section className="px-4 py-3 border-t border-border">
             <button
-              onClick={() => {
-                hapticSelection()
-                setShowOffers(true)
-                onClose()
-              }}
+              onClick={() => openScreen(setShowOffers)}
               className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
             >
               <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
@@ -168,109 +117,6 @@ export default function DriverSideMenu({
                 <p className="text-[11px] text-muted">{t('driver.offers.title', { defaultValue: 'Ride offers' })}</p>
               </div>
             </button>
-          </section>
-
-          <section className="px-4 py-4 border-t border-border space-y-3">
-            <div className="flex items-center gap-2">
-              <ClipboardText size={16} weight="duotone" className="text-muted" />
-              <p className="text-sm font-bold">{t('driver.history', { defaultValue: 'Ride history' })}</p>
-            </div>
-            {isHistoryLoading && rideHistory.length === 0 && (
-              <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
-            )}
-            {!isHistoryLoading && rideHistory.length === 0 && (
-              <p className="text-xs text-muted">{t('profile.noRides', { defaultValue: 'No rides yet.' })}</p>
-            )}
-            {rideHistory.map((ride) => {
-              const statusColors = DRIVER_STATUS_COLOR[ride.status]
-              return (
-                <div key={ride.id} className="rounded-xl bg-surface/70 p-3 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold truncate">{ride.passengerName}</p>
-                      <RatingBadge
-                        rating={ride.passengerRating}
-                        ratingCount={ride.passengerRatingCount}
-                        size="sm"
-                      />
-                    </div>
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0"
-                      style={{ color: statusColors.color, background: statusColors.bg }}
-                    >
-                      {t(DRIVER_STATUS_LABEL_KEY[ride.status], { defaultValue: ride.status })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted truncate">{ride.fromAddress}</p>
-                  <p className="text-[11px] text-muted truncate">{ride.toAddress}</p>
-                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                    <p className="text-[10px] text-muted">
-                      {formatRideDateTime(ride, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <span className="text-[10px] font-semibold text-muted">№{ride.rideNumber}</span>
-                  </div>
-                </div>
-              )
-            })}
-            {canLoadMoreHistory && (
-              <button
-                type="button"
-                disabled={isHistoryLoading}
-                onClick={() => void loadRideHistory(rideHistory.length, true)}
-                className="w-full py-2.5 rounded-xl bg-surface text-xs font-semibold text-muted active:bg-border/40 disabled:opacity-60"
-              >
-                {isHistoryLoading
-                  ? t('common.loading', { defaultValue: 'Loading...' })
-                  : t('common.showMoreWithCount', {
-                      loaded: rideHistory.length,
-                      total: historyTotal,
-                      defaultValue: `Show more (${rideHistory.length} of ${historyTotal})`,
-                    })}
-              </button>
-            )}
-          </section>
-
-          <section className="px-4 py-4 border-t border-border space-y-3">
-            <div className="flex items-center gap-2">
-              <Prohibit size={16} weight="duotone" className="text-muted" />
-              <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
-            </div>
-            {isBlockedLoading && (
-              <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
-            )}
-            {!isBlockedLoading && blockedUsers.length === 0 && (
-              <p className="text-xs text-muted">{t('block.blockedListEmpty', { defaultValue: 'No blocked users' })}</p>
-            )}
-            {blockedUsers.map((user) => (
-              <div key={user.userId} className="rounded-xl bg-surface/70 p-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{user.displayName}</p>
-                  {user.username && <p className="text-[11px] text-muted truncate">@{user.username}</p>}
-                </div>
-                <button
-                  type="button"
-                  disabled={unblockingUserId === user.userId}
-                  onClick={() => {
-                    void (async () => {
-                      setUnblockingUserId(user.userId)
-                      try {
-                        await unblockUserAsDriver(user.userId)
-                        setBlockedUsers((prev) => prev.filter((item) => item.userId !== user.userId))
-                      } catch {
-                        // ignore
-                      } finally {
-                        setUnblockingUserId(null)
-                      }
-                    })()
-                  }}
-                  className="shrink-0 min-h-[36px] px-3 py-1.5 rounded-pill border border-border text-xs font-bold text-muted active:bg-surface"
-                >
-                  {unblockingUserId === user.userId
-                    ? t('common.loading', { defaultValue: 'Loading...' })
-                    : t('block.unblock', { defaultValue: 'Unblock' })}
-                </button>
-              </div>
-            ))}
           </section>
 
           <section className="px-4 py-4 border-t border-border">
@@ -318,6 +164,31 @@ export default function DriverSideMenu({
               </div>
             )}
           </section>
+
+          <section className="px-4 py-3 border-t border-border space-y-1">
+            <button
+              onClick={() => openScreen(setShowHistory)}
+              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                <ClipboardText size={18} weight="duotone" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">{t('driver.history', { defaultValue: 'Ride history' })}</p>
+              </div>
+            </button>
+            <button
+              onClick={() => openScreen(setShowBlocked)}
+              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                <Prohibit size={18} weight="duotone" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
+              </div>
+            </button>
+          </section>
         </div>
 
         <div className="px-4 py-4 border-t border-border">
@@ -348,6 +219,8 @@ export default function DriverSideMenu({
       </div>
 
       {showOffers && <DriverOffersList onClose={() => setShowOffers(false)} />}
+      {showHistory && <DriverRideHistory onClose={() => setShowHistory(false)} />}
+      {showBlocked && <DriverBlockedList onClose={() => setShowBlocked(false)} />}
     </>
   )
 }
