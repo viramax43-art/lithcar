@@ -8,7 +8,6 @@ import {
   Clock,
   MapPin,
   NavigationArrow,
-  Star,
   TelegramLogo,
   Warning,
   X,
@@ -16,6 +15,7 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import RatingBadge from '../../../components/RatingBadge'
 import type { DriverMapPoint } from '../../../types'
 import { blockUserAsDriver } from '../../../lib/backend'
 import { directionsHref } from '../../../lib/navigation'
@@ -153,13 +153,10 @@ function SheetBody({
           <p className="text-lg font-extrabold tracking-tight truncate leading-tight mt-0.5">
             {point.passengerName}
           </p>
-          <p className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
-            <Star size={11} weight="fill" className="text-amber-400" />
-            {point.passengerRating.toFixed(1)}
-            {point.passengerRatingCount > 0 && (
-              <span className="text-muted/80">({point.passengerRatingCount})</span>
-            )}
-          </p>
+          <RatingBadge
+            rating={point.passengerRating}
+            ratingCount={point.passengerRatingCount}
+          />
           {isDone && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700">
               <Check size={10} weight="bold" /> {t('common.done', { defaultValue: 'Done' })}

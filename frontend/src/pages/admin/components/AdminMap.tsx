@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
+import RatingBadge from '../../../components/RatingBadge'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
@@ -23,6 +24,14 @@ import AdminRouteEditBar from './AdminRouteEditBar'
 import { getRouteEditMarkerIcon, type RideDraft } from './AssignDriverModalParts'
 
 const INITIAL_MAP_UI = getInitialMapUi()
+
+function passengerRatingFromRequests(requests: RideRequest[], requestId: string) {
+  const request = requests.find((item) => item.id === requestId)
+  return {
+    rating: request?.passengerRating ?? 5,
+    ratingCount: request?.passengerRatingCount ?? 0,
+  }
+}
 
 interface AdminMapProps {
   requests: RideRequest[]
@@ -534,7 +543,7 @@ export default function AdminMap({
         position: [req.from.latlng.lat, req.from.latlng.lng],
         icon: makeSolidPointIcon(pickupColor, size),
         onClick: () => handleSelectRequest(req.id),
-        tooltipText: `№${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
+        tooltipText: `№${req.rideNumber} · ${req.passengerName} ★${(req.passengerRating ?? 5).toFixed(1)} → ${req.from.address}`,
       })
     })
 
@@ -553,7 +562,7 @@ export default function AdminMap({
         iconAnchor: [14, 14] as [number, number],
       }),
       onClick: () => handleSelectRequest(req.id),
-      tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} → ${req.to.address}`,
+      tooltipText: `✓ №${req.rideNumber} · ${req.passengerName} ★${(req.passengerRating ?? 5).toFixed(1)} → ${req.to.address}`,
     }))
   }, [visibleCompletedRequests, handleSelectRequest])
 
@@ -569,7 +578,7 @@ export default function AdminMap({
         iconAnchor: [7, 7],
       }),
       onClick: () => handleSelectRequest(req.id),
-      tooltipText: `A · №${req.rideNumber} · ${req.passengerName} → ${req.from.address}`,
+      tooltipText: `A · №${req.rideNumber} · ${req.passengerName} ★${(req.passengerRating ?? 5).toFixed(1)} → ${req.from.address}`,
     }))
   }, [visibleCompletedRequests, handleSelectRequest])
 
@@ -1121,7 +1130,6 @@ export default function AdminMap({
         style={{ width: '100%', height: '100%' }}
       >
         <LocalizedTileLayer />
-        <ZoomControl position="bottomright" />
         <MapViewportPersistence onViewportChange={handleMapViewportChange} />
         <FlyToHelper target={flyTarget} />
         <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
@@ -1228,11 +1236,16 @@ export default function AdminMap({
                 })}
               >
                 <Tooltip direction="top" offset={[0, -12]} className="marker-driver-label">
-                  {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}
+                  {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName} ★{passengerRatingFromRequests(requests, step.rideId).rating.toFixed(1)}
                 </Tooltip>
                 <Popup autoPan className="marker-driver-label">
                   <div className="text-xs">
                     <p className="font-bold">{idx + 1}. {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}</p>
+                    <RatingBadge
+                      rating={passengerRatingFromRequests(requests, step.rideId).rating}
+                      ratingCount={passengerRatingFromRequests(requests, step.rideId).ratingCount}
+                      size="sm"
+                    />
                     <p className="mt-1">{step.address}</p>
                   </div>
                 </Popup>
@@ -1396,7 +1409,10 @@ export default function AdminMap({
                 offset={[0, -10]}
                 className="marker-driver-label"
               >
-                {driver.name}
+                <div className="text-center leading-tight">
+                  <div>{driver.name}</div>
+                  <RatingBadge rating={driver.rating} variant="compact" size="sm" className="justify-center" />
+                </div>
               </Tooltip>
             </Marker>
           ))}
@@ -1529,6 +1545,11 @@ export default function AdminMap({
                             <p className="text-[10px] font-semibold text-muted uppercase">
                               {step.type === 'pickup' ? t('admin.map.pickupLegend') : t('admin.map.dropoffAction')}: {step.passengerName}
                             </p>
+                            <RatingBadge
+                              rating={passengerRatingFromRequests(requests, step.rideId).rating}
+                              ratingCount={passengerRatingFromRequests(requests, step.rideId).ratingCount}
+                              size="sm"
+                            />
                             <p className="text-xs truncate">{step.address}</p>
                           </div>
                         </button>
@@ -1556,6 +1577,8 @@ export default function AdminMap({
         <AdminRouteEditBar
           draft={routeEditDraft}
           passengerName={editingRequest.passengerName}
+          passengerRating={editingRequest.passengerRating}
+          passengerRatingCount={editingRequest.passengerRatingCount}
           rideNumber={editingRequest.rideNumber}
           isSaving={isSavingRoute}
           onDraftChange={onRouteEditDraftChange}
@@ -1574,6 +1597,11 @@ export default function AdminMap({
           <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{selectedReq.passengerName}</p>
+              <RatingBadge
+                rating={selectedReq.passengerRating ?? 5}
+                ratingCount={selectedReq.passengerRatingCount}
+                size="sm"
+              />
               <p className="text-[11px] text-muted mt-0.5">{t('common.rideShort', { number: selectedReq.rideNumber })}</p>
             </div>
             <span
@@ -1652,7 +1680,8 @@ export default function AdminMap({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold truncate">{assignedDriver.name}</p>
-                  <p className="text-[10px] text-muted truncate">
+                  <RatingBadge rating={assignedDriver.rating} size="sm" />
+                  <p className="text-[10px] text-muted truncate mt-0.5">
                     {assignedDriver.carModel} · {assignedDriver.carPlate}
                   </p>
                 </div>

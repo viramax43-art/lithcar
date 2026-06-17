@@ -27,6 +27,7 @@ from app.services.ride_booking_service import (
 from app.services.rating_service import (
     RatingError,
     get_ride_rating_context_for_passenger,
+    get_user_rating_aggregate,
     submit_passenger_rating,
 )
 from app.services.ride_request_service import (
@@ -132,6 +133,8 @@ class RideRequestOut(BaseModel):
     pickupChangedByDriver: bool
     pickupConfirmedAt: datetime | None
     assignedDriver: "RideAssignedDriverOut | None" = None
+    passengerRating: float = 5.0
+    passengerRatingCount: int = 0
     rating: RideRatingOut | None = None
     createdAt: datetime
 
@@ -162,6 +165,8 @@ def _to_ride_request_out(
     request,
     *,
     assigned_driver: RideAssignedDriverOut | None = None,
+    passenger_rating: float = 5.0,
+    passenger_rating_count: int = 0,
     rating: RideRatingOut | None = None,
 ) -> RideRequestOut:
     return RideRequestOut(
@@ -186,6 +191,8 @@ def _to_ride_request_out(
         pickupChangedByDriver=request.pickup_changed_by_driver,
         pickupConfirmedAt=request.pickup_confirmed_at,
         assignedDriver=assigned_driver,
+        passengerRating=passenger_rating,
+        passengerRatingCount=passenger_rating_count,
         rating=rating,
         createdAt=request.created_at,
     )
@@ -199,6 +206,50 @@ def _to_ride_rating_out(ctx) -> RideRatingOut:
     )
 
 
+async def _build_ride_request_out(
+    db_session: AsyncSession,
+    request,
+    *,
+    assigned_driver: RideAssignedDriverOut | None = None,
+    passenger_id_for_rating_ctx: str | None = None,
+) -> RideRequestOut:
+    passenger_aggregate = await get_user_rating_aggregate(db_session, request.passenger_id)
+    rating = None
+    if passenger_id_for_rating_ctx is not None:
+        rating_ctx = await get_ride_rating_context_for_passenger(
+            db_session,
+            ride=request,
+            passenger_id=passenger_id_for_rating_ctx,
+        )
+        rating = _to_ride_rating_out(rating_ctx)
+    return _to_ride_request_out(
+        request,
+        assigned_driver=assigned_driver,
+        passenger_rating=passenger_aggregate.rating,
+        passenger_rating_count=passenger_aggregate.rating_count,
+        rating=rating,
+    )
+
+
+async def _build_ride_request_out_with_driver(
+    db_session: AsyncSession,
+    request,
+    *,
+    passenger_id_for_rating_ctx: str | None = None,
+) -> RideRequestOut:
+    assigned_driver = None
+    if request.driver_id:
+        driver = await get_driver(db_session, driver_id=request.driver_id)
+        if driver is not None:
+            assigned_driver = _to_assigned_driver_out(driver)
+    return await _build_ride_request_out(
+        db_session,
+        request,
+        assigned_driver=assigned_driver,
+        passenger_id_for_rating_ctx=passenger_id_for_rating_ctx,
+    )
+
+
 async def _build_ride_request_out_for_passenger(
     db_session: AsyncSession,
     request,
@@ -206,15 +257,11 @@ async def _build_ride_request_out_for_passenger(
     passenger_id: str,
     assigned_driver: RideAssignedDriverOut | None = None,
 ) -> RideRequestOut:
-    rating_ctx = await get_ride_rating_context_for_passenger(
+    return await _build_ride_request_out(
         db_session,
-        ride=request,
-        passenger_id=passenger_id,
-    )
-    return _to_ride_request_out(
         request,
         assigned_driver=assigned_driver,
-        rating=_to_ride_rating_out(rating_ctx),
+        passenger_id_for_rating_ctx=passenger_id,
     )
 
 
@@ -285,7 +332,7 @@ async def create_request(
         ) from exc
     except RideQuoteUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return _to_ride_request_out(request)
+    return await _build_ride_request_out_with_driver(db_session, request)
 
 
 @router.get("/me", response_model=RideRequestPage)
@@ -340,8 +387,16 @@ async def list_all_requests(
         limit=limit,
         offset=offset,
     )
+    items = []
+    for request in requests:
+        assigned_driver = None
+        if request.driver_id:
+            driver = await get_driver(db_session, driver_id=request.driver_id)
+            if driver is not None:
+                assigned_driver = _to_assigned_driver_out(driver)
+        items.append(await _build_ride_request_out(db_session, request, assigned_driver=assigned_driver))
     return RideRequestPage(
-        items=[_to_ride_request_out(request) for request in requests],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
@@ -372,7 +427,7 @@ async def get_request_details(
             passenger_id=current_user.user_id,
             assigned_driver=assigned_driver,
         )
-    return _to_ride_request_out(request, assigned_driver=assigned_driver)
+    return await _build_ride_request_out(db_session, request, assigned_driver=assigned_driver)
 
 
 @router.post("/{request_id}/rate", response_model=RideRequestOut)
@@ -421,7 +476,7 @@ async def assign_driver_single(
         raise HTTPException(status_code=404, detail="Ride request not found.")
     driver = await get_driver(db_session, driver_id=payload.driverId)
     await notify_passenger_driver_assigned(request=updated[0], driver=driver)
-    return _to_ride_request_out(updated[0])
+    return await _build_ride_request_out_with_driver(db_session, updated[0])
 
 
 @router.post("/assign-bulk", response_model=list[RideRequestOut])
@@ -459,7 +514,10 @@ async def assign_driver_bulk(
     driver = await get_driver(db_session, driver_id=payload.driverId)
     for request in updated:
         await notify_passenger_driver_assigned(request=request, driver=driver)
-    return [_to_ride_request_out(request) for request in updated]
+    items = []
+    for request in updated:
+        items.append(await _build_ride_request_out_with_driver(db_session, request))
+    return items
 
 
 @router.patch("/{request_id}/status", response_model=RideRequestOut)
@@ -484,7 +542,7 @@ async def patch_request_status(
         previous_status=previous_status,
         driver=driver,
     )
-    return _to_ride_request_out(request)
+    return await _build_ride_request_out_with_driver(db_session, request)
 
 
 @router.patch("/{request_id}", response_model=RideRequestOut)
@@ -568,7 +626,12 @@ async def patch_request(
         if updated is None:
             raise HTTPException(status_code=404, detail="Ride request not found.")
 
-    return _to_ride_request_out(updated)
+    passenger_id_for_rating_ctx = current_user.user_id if is_owner else None
+    return await _build_ride_request_out_with_driver(
+        db_session,
+        updated,
+        passenger_id_for_rating_ctx=passenger_id_for_rating_ctx,
+    )
 
 
 @router.patch("/{request_id}/route", response_model=RideRequestOut)
@@ -609,7 +672,12 @@ async def patch_request_route_admin(
         raise HTTPException(status_code=400, detail=route_error)
     if updated is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
-    return _to_ride_request_out(updated)
+    passenger_id_for_rating_ctx = current_user.user_id if is_owner else None
+    return await _build_ride_request_out_with_driver(
+        db_session,
+        updated,
+        passenger_id_for_rating_ctx=passenger_id_for_rating_ctx,
+    )
 
 
 @router.post("/{request_id}/confirm-pickup", response_model=RideRequestOut)
@@ -627,7 +695,7 @@ async def confirm_pickup(
         raise HTTPException(status_code=404, detail=error or "Ride request not found.")
     if error is not None:
         raise HTTPException(status_code=400, detail=error)
-    return _to_ride_request_out(request)
+    return await _build_ride_request_out_with_driver(db_session, request)
 
 
 @router.delete("/{request_id}")

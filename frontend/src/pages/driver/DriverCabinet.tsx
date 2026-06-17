@@ -14,6 +14,7 @@ import { Car, CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } fro
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
+import RatingBadge from '../../components/RatingBadge'
 import {
   applyDriverPointAction,
   claimDriverRide,
@@ -251,6 +252,11 @@ function NextStopBar({
               {arrivalTime}
             </p>
             <p className="text-[11px] text-muted truncate">{point.passengerName}</p>
+            <RatingBadge
+              rating={point.passengerRating}
+              ratingCount={point.passengerRatingCount}
+              size="sm"
+            />
           </div>
           <MapPin size={16} className="text-muted flex-shrink-0 mt-1" />
         </button>

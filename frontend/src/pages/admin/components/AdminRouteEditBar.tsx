@@ -1,10 +1,13 @@
 import { MapPin, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
+import RatingBadge from '../../../components/RatingBadge'
 import { isOverridden, type RideDraft } from './AssignDriverModalParts'
 
 interface AdminRouteEditBarProps {
   draft: RideDraft
   passengerName: string
+  passengerRating?: number
+  passengerRatingCount?: number
   rideNumber: number
   isSaving: boolean
   onDraftChange: (draft: RideDraft) => void
@@ -16,6 +19,8 @@ interface AdminRouteEditBarProps {
 export default function AdminRouteEditBar({
   draft,
   passengerName,
+  passengerRating = 5,
+  passengerRatingCount,
   rideNumber,
   isSaving,
   onDraftChange,
@@ -34,9 +39,9 @@ export default function AdminRouteEditBar({
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold truncate">{t('admin.editRoute.title', { defaultValue: 'Edit route' })}</p>
-          <p className="text-[11px] text-muted truncate">
-            {passengerName} · {t('common.rideShort', { number: rideNumber })}
-          </p>
+          <p className="text-[11px] font-semibold truncate">{passengerName}</p>
+          <RatingBadge rating={passengerRating} ratingCount={passengerRatingCount} size="sm" />
+          <p className="text-[11px] text-muted truncate">{t('common.rideShort', { number: rideNumber })}</p>
         </div>
         <button
           type="button"

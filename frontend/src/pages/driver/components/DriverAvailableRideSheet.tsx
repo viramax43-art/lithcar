@@ -1,6 +1,7 @@
-import { Clock, Star, X } from '@phosphor-icons/react'
+import { Clock, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import RatingBadge from '../../../components/RatingBadge'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { DriverMapPoint } from '../../../types'
@@ -59,10 +60,10 @@ export default function DriverAvailableRideSheet({
             <p className="text-lg font-extrabold tracking-tight truncate leading-tight mt-0.5">
               {point.passengerName}
             </p>
-            <p className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
-              <Star size={11} weight="fill" className="text-amber-400" />
-              {point.passengerRating.toFixed(1)}
-            </p>
+            <RatingBadge
+              rating={point.passengerRating}
+              ratingCount={point.passengerRatingCount}
+            />
           </div>
           <button
             type="button"

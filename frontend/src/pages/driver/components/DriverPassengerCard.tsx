@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import RatingBadge from '../../../components/RatingBadge'
 import type { DriverCabinetRide } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
@@ -63,7 +64,13 @@ export default function DriverPassengerCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+              <RatingBadge
+                rating={ride.passengerRating}
+                ratingCount={ride.passengerRatingCount}
+              />
+            </div>
             <span className="text-[10px] font-semibold text-muted flex-shrink-0">№{ride.rideNumber}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">

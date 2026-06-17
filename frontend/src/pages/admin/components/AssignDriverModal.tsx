@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Car, Check, MagnifyingGlass, Star } from '@phosphor-icons/react'
+import { Car, Check, MagnifyingGlass } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import type { Driver, RideRequest } from '../../../types'
+import RatingBadge from '../../../components/RatingBadge'
 import LithuanianPlate from '../../../components/LithuanianPlate'
 import AdminModalShell from './AdminModalShell'
 import { isCoarsePointer } from '../../../lib/pointer'
@@ -125,15 +126,12 @@ export default function AssignDriverModal({
                         title={driver.isOnline ? t('common.online') : t('common.offline')}
                       />
                     </div>
-                    <p className="text-[11px] text-muted truncate">
+                    <RatingBadge rating={driver.rating} size="sm" />
+                    <p className="text-[11px] text-muted truncate mt-0.5">
                       {[driver.carBrand, driver.carModel].filter(Boolean).join(' ')}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <LithuanianPlate value={driver.carPlate} size="sm" />
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600">
-                        <Star size={11} weight="fill" /> {driver.rating.toFixed(1)}
-                      </span>
-                      <span className="text-border">·</span>
                       <span className="text-[10px] text-muted">
                         {driver.seatsCount != null
                           ? t('admin.drivers.seatsCount', { count: driver.seatsCount })

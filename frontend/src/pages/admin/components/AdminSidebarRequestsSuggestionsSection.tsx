@@ -5,6 +5,7 @@ import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
 import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import RatingBadge from '../../../components/RatingBadge'
 import { formatRideDateTime } from '../../../i18n/dateTime'
 import { matchesPeriodFilter } from '../../../lib/periodFilter'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
@@ -176,7 +177,14 @@ export function AdminSidebarRequestsSuggestionsSection({
                       />
                     ) : null
                   })()}
-                  <span className="text-sm font-bold truncate">{request.passengerName}</span>
+                  <div className="min-w-0">
+                    <span className="text-sm font-bold truncate block">{request.passengerName}</span>
+                    <RatingBadge
+                      rating={request.passengerRating ?? 5}
+                      ratingCount={request.passengerRatingCount}
+                      size="sm"
+                    />
+                  </div>
                 </div>
                 <span
                   className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0 ml-2"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, ZoomControl, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next'
 import { formatRideTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
-import { isCoarsePointer } from '../../../lib/pointer'
 import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
 
 interface DriverMapProps {
@@ -204,8 +203,6 @@ export default function DriverMap({
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
       <LocalizedTileLayer />
-      {/* Locate button occupies bottom-right, so zoom goes bottom-left (desktop only) */}
-      {!isCoarsePointer && !isMapMarkViewMode && <ZoomControl position="bottomleft" />}
       <FitBoundsOnce points={points} driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
       {!isMapMarkViewMode && <LocateButton />}

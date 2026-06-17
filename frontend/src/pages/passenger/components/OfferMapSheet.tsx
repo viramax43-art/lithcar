@@ -1,6 +1,7 @@
-import { CheckCircle, Coins, Star, User, X } from '@phosphor-icons/react'
+import { CheckCircle, Coins, User, X } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import RatingBadge from '../../../components/RatingBadge'
 import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { offerSeatsBooked } from '../../../lib/offerSeats'
@@ -128,7 +129,8 @@ export default function OfferMapSheet({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold truncate">{offer.driver.name}</p>
-                <p className="text-xs text-muted truncate">{offer.driver.carModel}</p>
+                <RatingBadge rating={offer.driver.rating} size="sm" />
+                <p className="text-xs text-muted truncate mt-0.5">{offer.driver.carModel}</p>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="inline-flex items-center gap-1 text-sm font-bold">

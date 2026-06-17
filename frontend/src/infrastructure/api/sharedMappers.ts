@@ -28,6 +28,8 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     id: item.id,
     rideNumber: item.rideNumber,
     passengerName: item.passengerName,
+    passengerRating: item.passengerRating ?? 5,
+    passengerRatingCount: item.passengerRatingCount ?? 0,
     from: item.fromPoint,
     to: item.toPoint,
     dateTime: item.dateTime,

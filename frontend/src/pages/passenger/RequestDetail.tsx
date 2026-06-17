@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, Marker, Polyline, ZoomControl } from 'react-leaflet'
+import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
@@ -9,6 +9,7 @@ import type { RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import StarRatingInput from '../../components/StarRatingInput'
+import RatingBadge from '../../components/RatingBadge'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest, blockUser } from '../../lib/backend'
 import InlineConfirm from '../admin/components/InlineConfirm'
 import LithuanianPlate from '../../components/LithuanianPlate'
@@ -16,7 +17,6 @@ import { showOnMapHref } from '../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import EditRequestSheet from './components/EditRequestSheet'
 import { useEscapeClose } from '../../lib/useEscapeClose'
-import { isCoarsePointer } from '../../lib/pointer'
 
 const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
   pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -195,7 +195,6 @@ export default function RequestDetail() {
           attributionControl={false}
         >
           <LocalizedTileLayer />
-          {!isCoarsePointer && <ZoomControl position="bottomright" />}
 
           <Marker position={[request.from.latlng.lat, request.from.latlng.lng]} icon={iconA} />
           <Marker position={[request.to.latlng.lat, request.to.latlng.lng]} icon={iconB} />
@@ -370,11 +369,8 @@ export default function RequestDetail() {
                   {t('passenger.yourDriver', { defaultValue: 'Your driver' })}
                 </p>
                 <p className="text-lg font-extrabold truncate">{driver.name}</p>
+                <RatingBadge rating={driver.rating} variant="dark" />
                 <div className="flex items-center gap-2 mt-0.5 text-xs">
-                  <span className="inline-flex items-center gap-0.5 font-bold text-amber-400">
-                    <Star size={12} weight="fill" /> {driver.rating.toFixed(1)}
-                  </span>
-                  <span className="text-white/30">·</span>
                   <span className="text-white/60 inline-flex items-center gap-1">
                     <Users size={12} />{' '}
                     {t('passenger.seatsCount', {
@@ -580,6 +576,11 @@ export default function RequestDetail() {
             {t('passenger.passengerLabel', { defaultValue: 'Passenger' })}
           </p>
           <p className="text-sm font-semibold">{request.passengerName}</p>
+          <RatingBadge
+            rating={request.passengerRating ?? 5}
+            ratingCount={request.passengerRatingCount}
+            size="sm"
+          />
           <p className="text-xs text-muted">
             {t('passenger.rideNumber', { number: request.rideNumber, defaultValue: `Ride number: ${request.rideNumber}` })}
           </p>

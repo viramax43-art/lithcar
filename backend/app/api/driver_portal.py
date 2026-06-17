@@ -159,6 +159,8 @@ class DriverRideOut(BaseModel):
     fromLatLng: LatLngOut
     toLatLng: LatLngOut
     passengerName: str
+    passengerRating: float = 5.0
+    passengerRatingCount: int = 0
     status: str
     dateTime: datetime
     dateTimeLocal: str
@@ -355,6 +357,7 @@ async def _to_driver_ride_out(
         ride=ride,
         driver_id=driver_id,
     )
+    passenger_aggregate = await get_user_rating_aggregate(db_session, ride.passenger_id)
     return DriverRideOut(
         id=ride.id,
         rideNumber=ride.ride_number,
@@ -363,6 +366,8 @@ async def _to_driver_ride_out(
         fromLatLng=LatLngOut(lat=ride.from_lat, lng=ride.from_lng),
         toLatLng=LatLngOut(lat=ride.to_lat, lng=ride.to_lng),
         passengerName=ride.passenger_name,
+        passengerRating=passenger_aggregate.rating,
+        passengerRatingCount=passenger_aggregate.rating_count,
         status=ride.status,
         dateTime=ride.date_time,
         dateTimeLocal=to_app_local_iso(ride.date_time),

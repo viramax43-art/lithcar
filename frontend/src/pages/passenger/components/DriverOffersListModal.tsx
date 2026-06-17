@@ -1,5 +1,6 @@
-import { Car, Clock, Coins, Star, X } from '@phosphor-icons/react'
+import { Car, Clock, Coins, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
+import RatingBadge from '../../../components/RatingBadge'
 import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { offerSeatsBooked } from '../../../lib/offerSeats'
@@ -130,10 +131,7 @@ export default function DriverOffersListModal({
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 text-left">
                         <p className="text-xs font-bold truncate">{offer.driver.name}</p>
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
-                          <Star size={10} weight="fill" />
-                          {offer.driver.rating.toFixed(1)}
-                        </span>
+                        <RatingBadge rating={offer.driver.rating} variant="compact" size="sm" />
                       </div>
                       <span className="inline-flex items-center gap-1 text-sm font-bold flex-shrink-0">
                         <Coins size={12} weight="fill" className="text-accent-dark" />

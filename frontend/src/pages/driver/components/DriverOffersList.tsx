@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, CaretDown, Clock, MapPin, Plus, Star } from '@phosphor-icons/react'
+import { ArrowLeft, CaretDown, Clock, MapPin, Plus } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../../components/Skeleton'
 import NotificationBell from '../../../components/notifications/NotificationBell'
+import RatingBadge from '../../../components/RatingBadge'
 import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import InlineConfirm from '../../admin/components/InlineConfirm'
 import { cancelDriverOffer, claimDriverRide, listDriverOffers, listOfferMatchingRequests, parseApiErrorCode } from '../../../lib/backend'
@@ -336,13 +337,10 @@ export default function DriverOffersList({ onClose }: DriverOffersListProps) {
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-sm font-bold truncate">{request.passengerName}</p>
-                              <p className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
-                                <Star size={11} weight="fill" className="text-amber-400" />
-                                {request.passengerRating.toFixed(1)}
-                                {request.passengerRatingCount > 0 && (
-                                  <span className="text-muted/80">({request.passengerRatingCount})</span>
-                                )}
-                              </p>
+                              <RatingBadge
+                                rating={request.passengerRating}
+                                ratingCount={request.passengerRatingCount}
+                              />
                             </div>
                             {showMatchUi(request.matchScore) && (
                               <MatchScoreChip score={request.matchScore} namespace="driver" />

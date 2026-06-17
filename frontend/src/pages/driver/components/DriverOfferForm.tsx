@@ -1,12 +1,11 @@
 import { Calendar, CaretDown, Clock, Crosshair, MagnifyingGlass, Warning, X } from '@phosphor-icons/react'
-import { MapContainer, Marker, Polyline, ZoomControl } from 'react-leaflet'
+import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import { FieldRow } from '../../passenger/new-request/FieldRow'
 import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestMapBinder'
 import { addAppLocalDays, toAppLocalDateInput } from '../../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
-import { isCoarsePointer } from '../../../lib/pointer'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
 
@@ -55,7 +54,6 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       <div className="relative flex-1 min-h-0">
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
-          {!isCoarsePointer && <ZoomControl position="bottomright" />}
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map

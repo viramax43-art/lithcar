@@ -4,6 +4,7 @@ import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import RatingBadge from '../../components/RatingBadge'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
@@ -166,7 +167,7 @@ export default function MyRequests() {
           ))}
         {!isLoading && sorted.map((req) => {
           const status = STATUS_COLOR_MAP[req.status] || STATUS_COLOR_MAP.pending
-          const driver = req.driverId ? drivers.find((d) => d.id === req.driverId) : null
+          const driver = req.assignedDriver ?? (req.driverId ? drivers.find((d) => d.id === req.driverId) : null)
           const dateStr = formatRideDate(req, { day: 'numeric', month: 'short' })
           const timeStr = formatRideTime(req)
 
@@ -221,7 +222,8 @@ export default function MyRequests() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-black">{driver.name}</p>
-                    <p className="text-[11px] text-muted flex items-center gap-1">
+                    <RatingBadge rating={driver.rating} size="sm" />
+                    <p className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
                       <Car size={10} /> {driver.carModel} · {driver.carPlate}
                     </p>
                   </div>

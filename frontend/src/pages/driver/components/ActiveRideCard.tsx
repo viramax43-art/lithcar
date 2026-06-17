@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
+import RatingBadge from '../../../components/RatingBadge'
 import type { DriverCabinetRide } from '../../../types'
 import type { LatLng } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
@@ -122,6 +123,11 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+          <RatingBadge
+            rating={ride.passengerRating}
+            ratingCount={ride.passengerRatingCount}
+            variant="dark"
+          />
         </div>
       </div>
 

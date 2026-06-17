@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { showOnMapHref } from '../../../lib/navigation'
 import { formatDate } from '../../../i18n/dateTime'
 import LithuanianPlate from '../../../components/LithuanianPlate'
+import RatingBadge from '../../../components/RatingBadge'
 import InlineConfirm from './InlineConfirm'
 import { ColorSwatch, inputCls, KeyReveal, Section, type CopyState, Stat } from './AdminSidebarShared'
 import type { AdminSidebarProps } from './AdminSidebar.types'
@@ -258,7 +259,8 @@ export function AdminSidebarDriversSection({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold truncate">{driver.name}</p>
-                <p className="text-xs text-muted truncate">
+                <RatingBadge rating={driver.rating} size="sm" />
+                <p className="text-xs text-muted truncate mt-0.5">
                   {[driver.carBrand, driver.carModel].filter(Boolean).join(' ')} · {driver.carPlate}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
@@ -304,6 +306,7 @@ export function AdminSidebarDriversSection({
                           </span>
                         )}
                       </div>
+                      <RatingBadge rating={driver.rating} variant="dark" size="sm" />
                       <p className="text-[11px] text-white/80 mt-0.5">
                         {[driver.carBrand, driver.carModel].filter(Boolean).join(' ')}
                       </p>

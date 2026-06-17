@@ -116,6 +116,8 @@ export interface RideRequestApi {
   rideNumber: number
   passengerId: string
   passengerName: string
+  passengerRating?: number
+  passengerRatingCount?: number
   fromPoint: { address: string; latlng: { lat: number; lng: number } }
   toPoint: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string

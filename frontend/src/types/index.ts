@@ -94,6 +94,8 @@ export interface RideRequest {
   id: string
   rideNumber: number
   passengerName: string
+  passengerRating?: number
+  passengerRatingCount?: number
   from: { address: string; latlng: LatLng }
   to: { address: string; latlng: LatLng }
   dateTime: string
@@ -270,6 +272,8 @@ export interface DriverCabinetRide {
   fromLatLng: LatLng
   toLatLng: LatLng
   passengerName: string
+  passengerRating: number
+  passengerRatingCount: number
   status: RideStatus
   dateTime: string
   dateTimeLocal?: string
