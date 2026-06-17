@@ -16,7 +16,8 @@ import {
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
 import { isPointInAnyZone } from '../../../utils/geo'
-import { latLngAtPinAnchor, panMapToPinAnchor } from './NewRequestMapBinder'
+import type { MutableRefObject } from 'react'
+import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
 
 const STORAGE_KEY = 'ride_new_request_draft'
 
@@ -49,7 +50,7 @@ function clearDraft(): void {
   try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
-export function useNewRequestController() {
+export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<number>) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
@@ -91,6 +92,8 @@ export function useNewRequestController() {
   const [isLocating, setIsLocating] = useState(false)
 
   const mapRef = useRef<L.Map | null>(null)
+  const fallbackPinAnchorRef = useRef(DEFAULT_PIN_ANCHOR_Y_FRAC)
+  const anchorRef = pinAnchorYFracRef ?? fallbackPinAnchorRef
   const armPinFromMapCenterRef = useRef<() => void>(() => {})
   const pinLatLngRef = useRef(pinLatLng)
   pinLatLngRef.current = pinLatLng
@@ -195,8 +198,11 @@ export function useNewRequestController() {
   const armPinFromMapCenter = useCallback(() => {
     const map = mapRef.current
     if (!map) return
-    commitPin(latLngAtPinAnchor(map))
-  }, [commitPin])
+    const size = map.getSize()
+    const px = L.point(size.x * 0.5, size.y * anchorRef.current)
+    const ll = map.containerPointToLatLng(px)
+    commitPin({ lat: ll.lat, lng: ll.lng })
+  }, [commitPin, anchorRef])
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
 
@@ -233,8 +239,14 @@ export function useNewRequestController() {
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
     if (!map) return
-    panMapToPinAnchor(map, target, zoom)
-  }, [])
+    const z = Math.max(map.getZoom(), zoom)
+    const targetPx = map.project([target.lat, target.lng], z)
+    const size = map.getSize()
+    const dy = size.y * (0.5 - anchorRef.current)
+    const desiredCenterPx = targetPx.add(L.point(0, dy))
+    const newCenter = map.unproject(desiredCenterPx, z)
+    map.flyTo(newCenter, z, { duration: 0.5 })
+  }, [anchorRef])
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -460,20 +472,7 @@ export function useNewRequestController() {
   useEffect(() => {
     if (fromPoint && toPoint) return
     if (showSearch) return
-    const timer = window.setTimeout(() => {
-      const map = mapRef.current
-      if (!map) {
-        armPinFromMapCenterRef.current()
-        return
-      }
-      const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
-      const target = effectiveField === 'from' ? fromPoint : toPoint
-      if (target) {
-        panMapToPinAnchor(map, target)
-      } else {
-        armPinFromMapCenterRef.current()
-      }
-    }, 350)
+    const timer = window.setTimeout(() => armPinFromMapCenterRef.current(), 350)
     return () => window.clearTimeout(timer)
   }, [fromPoint, toPoint, activeField, showSearch])
 

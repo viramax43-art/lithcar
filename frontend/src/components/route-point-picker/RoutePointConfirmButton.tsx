@@ -31,7 +31,7 @@ export default function RoutePointConfirmButton({ model, showCaret = true }: Rou
       type="button"
       onClick={model.confirmPoint}
       disabled={!model.pinReadyForConfirm}
-      className={`w-full flex items-center justify-center gap-2 min-h-12 py-3.5 rounded-xl font-bold text-sm transition-all text-center leading-snug ${
+      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all text-center leading-snug ${
         model.pinReadyForConfirm ? 'bg-black text-white active:scale-[0.97]' : 'bg-surface text-muted cursor-not-allowed'
       }`}
     >

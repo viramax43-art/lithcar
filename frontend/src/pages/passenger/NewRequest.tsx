@@ -8,6 +8,8 @@ import { RoutePointPinLabel, RoutePointPinMarkers } from '../../components/route
 import RoutePointSearchSheet from '../../components/route-point-picker/RoutePointSearchSheet'
 import RoutePointZoneBanner from '../../components/route-point-picker/RoutePointZoneBanner'
 import { useOfferDaySelection } from '../../hooks/useOfferDaySelection'
+import { useMapPinAnchor } from '../../hooks/useMapPinAnchor'
+import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
 import L from 'leaflet'
 import { useEffect, useMemo, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -36,7 +38,10 @@ const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
 
 export default function NewRequest() {
   const { t, i18n } = useTranslation()
-  const model = useNewRequestController()
+  const pinAnchorYFracRef = useRef(DEFAULT_PIN_ANCHOR_Y_FRAC)
+  const mapAreaRef = useRef<HTMLDivElement>(null)
+  const bottomSheetRef = useRef<HTMLDivElement>(null)
+  const model = useNewRequestController(pinAnchorYFracRef)
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -57,6 +62,15 @@ export default function NewRequest() {
     pricing: model.pricing,
     dateTime: model.dateTime,
     setDateTime: model.setDateTime,
+  })
+  const { pinAnchorYFrac } = useMapPinAnchor(mapAreaRef, bottomSheetRef, pinAnchorYFracRef, {
+    mapRef: model.mapRef,
+    isPinLive: model.isPinLive,
+    onAnchorChange: () => {
+      if (model.isPinLive && !model.isPanning) {
+        model.armPinFromMapCenter()
+      }
+    },
   })
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
@@ -183,7 +197,7 @@ export default function NewRequest() {
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
-      <div className="absolute inset-0" style={{ zIndex: 0 }}>
+      <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
           {!offersPaused &&
@@ -322,6 +336,7 @@ export default function NewRequest() {
             registerMap={(map) => {
               model.mapRef.current = map
             }}
+            pinAnchorYFracRef={pinAnchorYFracRef}
             enabled={!isMapMarkViewMode && !highlightedOffer}
             onPanStart={() => model.setIsPanning(true)}
             onPanEnd={(latlng) => {
@@ -337,6 +352,7 @@ export default function NewRequest() {
           visible
           activeIsFrom={model.activeIsFrom}
           isPanning={model.isPanning}
+          pinAnchorYFrac={pinAnchorYFrac}
         />
       )}
 
@@ -473,6 +489,7 @@ export default function NewRequest() {
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
           setupHint={activeSetupHint}
+          pinAnchorYFrac={pinAnchorYFrac}
         />
       )}
 
@@ -485,6 +502,7 @@ export default function NewRequest() {
 
       {!isMapMarkViewMode && (
       <div
+        ref={bottomSheetRef}
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
         style={{
           bottom: 0,
@@ -500,7 +518,7 @@ export default function NewRequest() {
         )}
 
         <div
-          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-4 md:rounded-2xl md:mb-4 md:shadow-card"
+          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
           <OfferDayFilter
@@ -514,14 +532,14 @@ export default function NewRequest() {
 
           <RoutePointFields model={model} />
 
-          <div className="flex items-center gap-2 w-full min-h-12 px-3 py-3 rounded-xl bg-surface">
-            <Clock size={16} className="text-muted flex-shrink-0" />
+          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
+            <Clock size={14} className="text-muted flex-shrink-0" />
             <select
               value={model.dateTime.split('T')[1] || ''}
               onChange={(e) => {
                 model.setDateTime(`${offerMapDate}T${e.target.value}`)
               }}
-              className="flex-1 text-sm font-semibold bg-transparent outline-none min-w-0 appearance-none py-0.5"
+              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
             >
               <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
               {rideTimeSlots.map((s) => (

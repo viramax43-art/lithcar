@@ -17,23 +17,19 @@ export function FieldRow({ dotClass, label, value, placeholder, active, onClick,
 
   return (
     <div
-      className={`flex items-center gap-1.5 pr-1.5 rounded-xl border min-h-[56px] transition-colors ${
+      className={`flex items-center gap-1 pr-1 rounded-xl border transition-colors ${
         active ? 'border-black bg-white' : 'border-transparent bg-surface/60'
       }`}
     >
       <button
         type="button"
         onClick={onClick}
-        className="flex items-center gap-3 flex-1 min-w-0 pl-3 pr-2 py-3 text-left"
+        className="flex items-center gap-2.5 flex-1 min-w-0 pl-2.5 pr-1 py-2 text-left"
       >
-        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5 self-start ${dotClass}`} />
+        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dotClass}`} />
         <span className="flex-1 min-w-0 block">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-muted leading-none">{label}</span>
-          <span
-            className={`block text-sm font-semibold mt-1.5 leading-snug ${
-              value ? 'text-black truncate' : 'text-muted/80 font-medium line-clamp-2'
-            }`}
-          >
+          <span className="block text-[9px] font-bold uppercase tracking-wider text-muted leading-none">{label}</span>
+          <span className={`block text-xs font-semibold truncate mt-0.5 ${value ? 'text-black' : 'text-muted/80 font-medium'}`}>
             {value || placeholder}
           </span>
         </span>
@@ -41,7 +37,7 @@ export function FieldRow({ dotClass, label, value, placeholder, active, onClick,
       <button
         type="button"
         onClick={onSearch}
-        className="p-2.5 rounded-lg hover:bg-surface transition-colors flex-shrink-0 touch-compact"
+        className="p-2 rounded-lg hover:bg-surface transition-colors flex-shrink-0 touch-compact"
         title={t('common.searchAddress', { defaultValue: 'Search address' })}
       >
         <MagnifyingGlass size={14} className="text-muted" />
@@ -50,7 +46,7 @@ export function FieldRow({ dotClass, label, value, placeholder, active, onClick,
         <button
           type="button"
           onClick={onClear}
-          className="p-2.5 rounded-lg hover:bg-surface transition-colors flex-shrink-0 touch-compact"
+          className="p-2 rounded-lg hover:bg-surface transition-colors flex-shrink-0 touch-compact"
           title={t('common.clear', { defaultValue: 'Clear' })}
         >
           <X size={14} className="text-muted" />

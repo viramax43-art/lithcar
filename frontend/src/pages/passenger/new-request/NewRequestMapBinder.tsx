@@ -1,33 +1,8 @@
-import type { CSSProperties } from 'react'
-import { useEffect } from 'react'
+import { useEffect, type MutableRefObject } from 'react'
 import L from 'leaflet'
 import { useMap, useMapEvents } from 'react-leaflet'
 import type { LatLng } from '../../../types'
-
-/** Must match `.center-pin` / `.center-pin-shadow` `top` in index.css (via --pin-anchor-y). */
-export const PIN_ANCHOR_Y_FRAC = 0.42
-
-export const pinAnchorYStyle: CSSProperties = {
-  ['--pin-anchor-y' as string]: `${PIN_ANCHOR_Y_FRAC * 100}%`,
-}
-
-export function latLngAtPinAnchor(map: L.Map): LatLng {
-  const size = map.getSize()
-  const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
-  const ll = map.containerPointToLatLng(px)
-  return { lat: ll.lat, lng: ll.lng }
-}
-
-/** Move the map so `target` sits under the fixed center pin tip (not the map geometric center). */
-export function panMapToPinAnchor(map: L.Map, target: LatLng, zoom = 15) {
-  const z = Math.max(map.getZoom(), zoom)
-  const targetPx = map.project([target.lat, target.lng], z)
-  const size = map.getSize()
-  const dy = size.y * (0.5 - PIN_ANCHOR_Y_FRAC)
-  const desiredCenterPx = targetPx.add(L.point(0, dy))
-  const newCenter = map.unproject(desiredCenterPx, z)
-  map.flyTo(newCenter, z, { duration: 0.5 })
-}
+import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
 
 export const iconA = L.divIcon({
   className: '',
@@ -60,43 +35,32 @@ export const iconOfferB = L.divIcon({
 
 export function MapBinder({
   registerMap,
+  pinAnchorYFracRef,
   enabled = true,
   onPanStart,
   onPanEnd,
 }: {
   registerMap: (m: L.Map) => void
+  pinAnchorYFracRef: MutableRefObject<number>
   enabled?: boolean
   onPanStart: () => void
   onPanEnd: (latlng: LatLng) => void
 }) {
   const map = useMap()
 
-  useEffect(() => {
-    registerMap(map)
-    const ll = latLngAtPinAnchor(map)
-    onPanEnd(ll)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map])
+  const readPinLatLng = () => {
+    const size = map.getSize()
+    const frac = pinAnchorYFracRef.current ?? DEFAULT_PIN_ANCHOR_Y_FRAC
+    const px = L.point(size.x * 0.5, size.y * frac)
+    const ll = map.containerPointToLatLng(px)
+    return { lat: ll.lat, lng: ll.lng }
+  }
 
   useEffect(() => {
-    if (!enabled) return
-    const container = map.getContainer()
-    const observeTarget = container.parentElement ?? container
-    let raf = 0
-    const syncAfterResize = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        map.invalidateSize({ animate: false })
-        onPanEnd(latLngAtPinAnchor(map))
-      })
-    }
-    const ro = new ResizeObserver(syncAfterResize)
-    ro.observe(observeTarget)
-    return () => {
-      cancelAnimationFrame(raf)
-      ro.disconnect()
-    }
-  }, [map, enabled, onPanEnd])
+    registerMap(map)
+    onPanEnd(readPinLatLng())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
 
   useMapEvents({
     movestart() {
@@ -105,7 +69,7 @@ export function MapBinder({
     },
     moveend() {
       if (!enabled) return
-      onPanEnd(latLngAtPinAnchor(map))
+      onPanEnd(readPinLatLng())
     },
   })
 

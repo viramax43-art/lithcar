@@ -43,26 +43,26 @@ export default function RoutePointSearchSheet({
       onClick={variant === 'overlay' ? close : undefined}
     >
       <div className={panelClass} onClick={(event) => event.stopPropagation()}>
-          <header className="flex items-center gap-3 px-3 py-3 border-b border-border">
-            <button
-              type="button"
-              onClick={close}
-              className="p-2 -ml-1 hover:bg-surface rounded-xl transition-colors"
-            >
-              <X size={18} />
-            </button>
-            <div className="flex-1 flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-surface min-h-[48px]">
-              <MagnifyingGlass size={16} className="text-muted flex-shrink-0" />
-              <input
-                autoFocus={!isCoarsePointer}
-                type="text"
-                value={model.searchQuery}
-                onChange={(e) => model.handleSearch(e.target.value)}
-                placeholder={model.activeIsFrom
-                  ? t('passenger.fromShort', { defaultValue: 'From?' })
-                  : t('passenger.toShort', { defaultValue: 'To?' })}
-                className="flex-1 text-base font-medium outline-none bg-transparent placeholder:text-muted min-w-0 leading-normal py-0.5"
-              />
+        <header className="flex items-center gap-3 px-3 py-3 border-b border-border">
+          <button
+            type="button"
+            onClick={close}
+            className="p-2 -ml-1 hover:bg-surface rounded-xl transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-surface">
+            <MagnifyingGlass size={16} className="text-muted flex-shrink-0" />
+            <input
+              autoFocus={!isCoarsePointer}
+              type="text"
+              value={model.searchQuery}
+              onChange={(e) => model.handleSearch(e.target.value)}
+              placeholder={model.activeIsFrom
+                ? t('passenger.fromShort', { defaultValue: 'From?' })
+                : t('passenger.toShort', { defaultValue: 'To?' })}
+              className="flex-1 text-sm font-medium outline-none bg-transparent placeholder:text-muted min-w-0"
+            />
             {model.searchQuery && (
               <button
                 type="button"

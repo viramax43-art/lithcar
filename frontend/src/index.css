@@ -304,12 +304,11 @@ body {
   animation: dotPulse 1.1s ease-in-out infinite;
 }
 
-/* Center pin (Yandex Taxi style) — keep in sync with PIN_ANCHOR_Y_FRAC in NewRequestMapBinder.ts */
+/* Center pin (Yandex Taxi style) */
 .center-pin {
   pointer-events: none;
   position: absolute;
   left: 50%;
-  top: var(--pin-anchor-y, 42%);
   transform: translate(-50%, -100%);
   z-index: 400;
   transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -340,7 +339,6 @@ body {
   pointer-events: none;
   position: absolute;
   left: 50%;
-  top: var(--pin-anchor-y, 42%);
   transform: translate(-50%, -50%);
   width: 14px;
   height: 6px;

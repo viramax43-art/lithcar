@@ -9,8 +9,8 @@ interface RoutePointFieldsProps {
 export default function RoutePointFields({ model }: RoutePointFieldsProps) {
   const { t } = useTranslation()
 
-  const addressPlaceholder = t('passenger.addressPlaceholder', { defaultValue: 'Move the map or search' })
-  const pickPointAFirst = t('passenger.pickPointAFirst', { defaultValue: 'Pick point A first' })
+  const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
+  const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
 
   const openSearch = (field: 'from' | 'to') => {
     model.setActiveField(field)
@@ -20,12 +20,14 @@ export default function RoutePointFields({ model }: RoutePointFieldsProps) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       <FieldRow
         dotClass="bg-point-a"
         label={t('passenger.fromLabel', { defaultValue: 'From' })}
         value={model.fromAddress}
-        placeholder={addressPlaceholder}
+        placeholder={model.fromPoint
+          ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+          : pointASetupHint}
         active={model.activeIsFrom}
         onClick={() => model.setActiveField('from')}
         onClear={model.fromPoint ? () => {
@@ -41,7 +43,11 @@ export default function RoutePointFields({ model }: RoutePointFieldsProps) {
         dotClass="bg-point-b"
         label={t('passenger.toLabel', { defaultValue: 'To' })}
         value={model.toAddress}
-        placeholder={model.fromPoint ? addressPlaceholder : pickPointAFirst}
+        placeholder={model.fromPoint
+          ? (model.toPoint
+            ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
+            : pointBSetupHint)
+          : t('passenger.pickPointAFirst', { defaultValue: 'Pick point A first' })}
         active={!model.activeIsFrom}
         onClick={() => model.setActiveField('to')}
         onClear={model.toPoint ? () => {
