@@ -1,9 +1,9 @@
-import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
+import { CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import L from 'leaflet'
-import { useEffect, useMemo, useState, Fragment } from 'react'
+import { useEffect, useMemo, useState, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
@@ -17,17 +17,22 @@ import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, iconOfferA, iconOfferB, MapBinder } from './new-request/NewRequestMapBinder'
 import { OfferRouteFitBounds } from './new-request/OfferRouteFitBounds'
 import OfferDayFilter from './components/OfferDayFilter'
-import { offerMapDateForOffset, type OfferDayOffset } from '../../lib/offerMapDayFilter'
+import {
+  firstAvailableOfferDayOffset,
+  isOfferDayOffsetBookable,
+  offerDayOffsetFromDate,
+  offerMapDateForOffset,
+  OFFER_DAY_OFFSETS,
+  type OfferDayOffset,
+} from '../../lib/offerMapDayFilter'
+import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { useNewRequestController } from './new-request/useNewRequestController'
 import { usePassengerRideOffersOnMap } from './new-request/usePassengerRideOffersOnMap'
 import { useMatchingRideOffers } from './new-request/useMatchingRideOffers'
 import OfferMapSheet from './components/OfferMapSheet'
-import MatchScoreChip, { showMatchUi } from '../../components/MatchScoreChip'
-import type { MapMark } from '../../types'
-import { addAppLocalDays, formatRideDate, formatRideTime, toAppLocalDateInput } from '../../i18n/dateTime'
+import DriverOffersListModal from './components/DriverOffersListModal'
+import type { MapMark, MatchedPassengerRideOffer } from '../../types'
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
-import { offerSeatsBooked } from '../../lib/offerSeats'
-import { getPassengerMatchButtonLabel } from '../../lib/matchUi'
 import { hasRideDateTime } from '../../lib/rideDraft'
 import { isCoarsePointer } from '../../lib/pointer'
 import { useEscapeClose } from '../../lib/useEscapeClose'
@@ -39,16 +44,36 @@ export default function NewRequest() {
   const model = useNewRequestController()
   const passengerSession = useEnsurePassengerSession()
   const navigate = useNavigate()
-  const now = new Date()
-  const todayDate = toAppLocalDateInput(now)
-  const maxDate = addAppLocalDays(now, 2)
+  const offerDayReady = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [publicMapMarks, setPublicMapMarks] = useState<MapMark[]>([])
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const [isSignalMode, setIsSignalMode] = useState(false)
-  const [offerDayOffset, setOfferDayOffset] = useState<OfferDayOffset>(0)
+  const [offersListModalOpen, setOffersListModalOpen] = useState(false)
+  const [offerDayOffset, setOfferDayOffset] = useState<OfferDayOffset>(() =>
+    firstAvailableOfferDayOffset(DEFAULT_PRICING_SETTINGS),
+  )
   const offerMapDate = useMemo(() => offerMapDateForOffset(offerDayOffset), [offerDayOffset])
+  const disabledOfferDayOffsets = useMemo(() => {
+    const disabled = new Set<OfferDayOffset>()
+    for (const offset of OFFER_DAY_OFFSETS) {
+      if (!isOfferDayOffsetBookable(offset, model.pricing)) {
+        disabled.add(offset)
+      }
+    }
+    return disabled
+  }, [model.pricing])
+  const rideTimeSlots = useMemo(
+    () =>
+      buildRideTimeSlots({
+        workStartTime: model.pricing.workStartTime || '06:00',
+        workEndTime: model.pricing.workEndTime || '19:00',
+        slotIntervalMinutes: model.pricing.slotIntervalMinutes || 30,
+        selectedDate: offerMapDate,
+      }),
+    [model.pricing, offerMapDate],
+  )
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
   const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
@@ -72,12 +97,68 @@ export default function NewRequest() {
     ),
   })
 
+  const listModalOffers = useMemo(() => {
+    const matchById = new Map(matchingOffers.items.map((offer) => [offer.id, offer]))
+    const merged: MatchedPassengerRideOffer[] = offersMap.offers.map(
+      (offer) => matchById.get(offer.id) ?? offer,
+    )
+    for (const offer of matchingOffers.items) {
+      if (!merged.some((item) => item.id === offer.id)) {
+        merged.push(offer)
+      }
+    }
+    return merged.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
+  }, [offersMap.offers, matchingOffers.items])
+
+  const highlightedOffer = useMemo(() => {
+    if (!offersMap.selectedOfferId) return null
+    return listModalOffers.find((offer) => offer.id === offersMap.selectedOfferId) ?? null
+  }, [offersMap.selectedOfferId, listModalOffers])
+
+  const showDriverOffersTrigger =
+    !offersPaused && !offersMap.isLoading && listModalOffers.length > 0
+
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
   useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
     model.setShowSearch(false)
     model.setSearchResults([])
   })
   useEscapeClose(menuOpen, () => setMenuOpen(false))
+  useEscapeClose(offersListModalOpen, () => setOffersListModalOpen(false))
+
+  useEffect(() => {
+    if (highlightedOffer) setOffersListModalOpen(false)
+  }, [highlightedOffer])
+
+  useEffect(() => {
+    if (listModalOffers.length === 0) setOffersListModalOpen(false)
+  }, [listModalOffers.length])
+
+  useEffect(() => {
+    if (!offerDayReady.current) {
+      const draftDate = model.dateTime.split('T')[0]?.trim()
+      const fromDraft = draftDate ? offerDayOffsetFromDate(draftDate) : null
+      const nextOffset =
+        fromDraft != null && isOfferDayOffsetBookable(fromDraft, model.pricing)
+          ? fromDraft
+          : firstAvailableOfferDayOffset(model.pricing)
+      setOfferDayOffset(nextOffset)
+      offerDayReady.current = true
+      return
+    }
+    if (!isOfferDayOffsetBookable(offerDayOffset, model.pricing)) {
+      setOfferDayOffset(firstAvailableOfferDayOffset(model.pricing))
+    }
+  }, [model.pricing, model.dateTime, offerDayOffset])
+
+  useEffect(() => {
+    if (!offerDayReady.current) return
+    const [currentDate, timePart = ''] = model.dateTime.split('T')
+    const validTime = timePart && rideTimeSlots.includes(timePart) ? timePart : ''
+    const needsUpdate = currentDate !== offerMapDate || (timePart !== '' && validTime === '')
+    if (!needsUpdate) return
+    model.setDateTime(validTime ? `${offerMapDate}T${validTime}` : `${offerMapDate}T`)
+  }, [offerDayOffset, offerMapDate, rideTimeSlots, model.dateTime, model.setDateTime])
 
   useEffect(() => {
     let cancelled = false
@@ -147,25 +228,41 @@ export default function NewRequest() {
                 </Fragment>
               )
             })}
-          {offersMap.selectedOffer && (
+          {highlightedOffer && !offersMap.offers.some((offer) => offer.id === highlightedOffer.id) && (
+            <Polyline
+              key={`offer-route-highlight-${highlightedOffer.id}`}
+              positions={[
+                [highlightedOffer.from.latlng.lat, highlightedOffer.from.latlng.lng],
+                [highlightedOffer.to.latlng.lat, highlightedOffer.to.latlng.lng],
+              ]}
+              pathOptions={{
+                color: '#000',
+                weight: 5,
+                dashArray: '10, 10',
+                opacity: model.isPinLive ? 0.75 : 0.95,
+              }}
+              interactive={false}
+            />
+          )}
+          {highlightedOffer && (
             <>
               <OfferRouteFitBounds
-                offerId={offersMap.selectedOffer.id}
-                from={offersMap.selectedOffer.from.latlng}
-                to={offersMap.selectedOffer.to.latlng}
+                offerId={highlightedOffer.id}
+                from={highlightedOffer.from.latlng}
+                to={highlightedOffer.to.latlng}
               />
               <Marker
                 position={[
-                  offersMap.selectedOffer.from.latlng.lat,
-                  offersMap.selectedOffer.from.latlng.lng,
+                  highlightedOffer.from.latlng.lat,
+                  highlightedOffer.from.latlng.lng,
                 ]}
                 icon={iconA}
                 interactive={false}
               />
               <Marker
                 position={[
-                  offersMap.selectedOffer.to.latlng.lat,
-                  offersMap.selectedOffer.to.latlng.lng,
+                  highlightedOffer.to.latlng.lat,
+                  highlightedOffer.to.latlng.lng,
                 ]}
                 icon={iconB}
                 interactive={false}
@@ -408,7 +505,7 @@ export default function NewRequest() {
         className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
         style={{
           bottom: 0,
-          transform: model.isPanning || offersMap.isSheetOpen ? 'translateY(100%)' : 'translateY(0)',
+          transform: model.isPanning || highlightedOffer ? 'translateY(100%)' : 'translateY(0)',
         }}
       >
         {/* Service info (persistent, non-dismissible) */}
@@ -419,12 +516,30 @@ export default function NewRequest() {
           </div>
         )}
 
+        {showDriverOffersTrigger && (
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection()
+              setOffersListModalOpen(true)
+            }}
+            className="mx-3 mb-2 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-black text-white text-sm font-bold shadow-card active:scale-[0.98] transition-transform"
+          >
+            <Car size={16} weight="fill" />
+            {t('passenger.offers.showList', {
+              count: listModalOffers.length,
+              defaultValue: `Driver rides (${listModalOffers.length})`,
+            })}
+          </button>
+        )}
+
         <div
           className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
           <OfferDayFilter
             value={offerDayOffset}
+            disabledOffsets={disabledOfferDayOffsets}
             onChange={(offset) => {
               setOfferDayOffset(offset)
               offersMap.clearSelection()
@@ -481,157 +596,21 @@ export default function NewRequest() {
             />
           </div>
 
-          {model.fromPoint && model.toPoint && (
-            <div className="space-y-2 border-t border-surface pt-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
-                {t('passenger.offers.matchingTitle', { defaultValue: 'Matching driver rides' })}
-              </p>
-              {!hasRideDateTime(model.dateTime) && (
-                <p className="text-xs text-muted">
-                  {t('passenger.offers.pickDateTimeForMatches', {
-                    defaultValue: 'Select date and time to see matching rides',
-                  })}
-                </p>
-              )}
-              {hasRideDateTime(model.dateTime) && matchingOffers.isLoading && (
-                <p className="text-xs text-muted">{t('passenger.offers.map.loading', { defaultValue: 'Loading rides…' })}</p>
-              )}
-              {hasRideDateTime(model.dateTime) && matchingOffers.error && (
-                <p className="text-xs font-medium text-red-600">{matchingOffers.error}</p>
-              )}
-              {hasRideDateTime(model.dateTime) &&
-                !matchingOffers.isLoading &&
-                !matchingOffers.error &&
-                matchingOffers.items.length === 0 && (
-                <p className="text-xs text-muted">
-                  {t('passenger.offers.noMatches', { defaultValue: 'No matching rides yet' })}
-                </p>
-              )}
-              {hasRideDateTime(model.dateTime) && !matchingOffers.isLoading && matchingOffers.items.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto scroll-x-hide pb-1">
-                  {matchingOffers.items.map((offer) => {
-                    const booked = offerSeatsBooked(offer)
-                    const offerDateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
-                    const offerTimeStr = formatRideTime(offer)
-                    const matchLabel = getPassengerMatchButtonLabel(offer.matchScore, t)
-                    const selectOffer = () => {
-                      offersMap.selectOffer(offer.id)
-                    }
-                    return (
-                      <div
-                        key={offer.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={selectOffer}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            selectOffer()
-                          }
-                        }}
-                        className="flex-shrink-0 w-[min(88vw,280px)] rounded-xl border border-border bg-surface/60 p-3 text-left active:scale-[0.97] transition-transform cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                            <span className="text-xs font-bold px-3 py-1 rounded-pill bg-white border border-border text-muted">
-                              {t('passenger.offers.seatsSummary', {
-                                booked,
-                                available: offer.seatsAvailable,
-                                total: offer.totalSeats,
-                                defaultValue: `${booked} taken · ${offer.seatsAvailable} free of ${offer.totalSeats}`,
-                              })}
-                            </span>
-                            {showMatchUi(offer.matchScore) && <MatchScoreChip score={offer.matchScore} />}
-                          </div>
-                          <span className="flex items-center gap-1 text-xs text-muted flex-shrink-0">
-                            <Clock size={12} />
-                            {offerDateStr}, {offerTimeStr}
-                          </span>
-                        </div>
-                        {offer.driver.carModel && (
-                          <p className="text-sm font-bold truncate mb-2">{offer.driver.carModel}</p>
-                        )}
-                        <div className="flex items-start gap-2 mb-2">
-                          <div className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0">
-                            <div className="w-2 h-2 rounded-full bg-point-a" />
-                            <div className="w-px h-4 bg-border" />
-                            <div className="w-2 h-2 rounded-full bg-point-b" />
-                          </div>
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <p className="text-sm font-semibold truncate">{offer.from.address}</p>
-                            <p className="text-sm font-semibold truncate">{offer.to.address}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold truncate">{offer.driver.name}</p>
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
-                              <Star size={10} weight="fill" />
-                              {offer.driver.rating.toFixed(1)}
-                            </span>
-                          </div>
-                          <span className="inline-flex items-center gap-1 text-sm font-bold flex-shrink-0">
-                            <Coins size={12} weight="fill" className="text-accent-dark" />
-                            {offer.quotedPoints}
-                          </span>
-                        </div>
-                        {matchLabel && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              selectOffer()
-                            }}
-                            className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
-                          >
-                            {matchLabel}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 border-t border-surface pt-2.5">
-            <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
-              <Calendar size={14} className="text-muted flex-shrink-0" />
-              <input
-                type="date"
-                value={model.dateTime.split('T')[0] || ''}
-                onChange={(e) => {
-                  const time = model.dateTime.split('T')[1] || '12:00'
-                  model.setDateTime(`${e.target.value}T${time}`)
-                }}
-                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0"
-                min={todayDate}
-                max={maxDate}
-              />
-            </div>
-            <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
-              <Clock size={14} className="text-muted flex-shrink-0" />
-              <select
-                value={model.dateTime.split('T')[1] || ''}
-                onChange={(e) => {
-                  const date = model.dateTime.split('T')[0] || todayDate
-                  model.setDateTime(`${date}T${e.target.value}`)
-                }}
-                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
-              >
-                <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-                {buildRideTimeSlots({
-                  workStartTime: model.pricing.workStartTime || '06:00',
-                  workEndTime: model.pricing.workEndTime || '19:00',
-                  slotIntervalMinutes: model.pricing.slotIntervalMinutes || 30,
-                  selectedDate: model.dateTime.split('T')[0] || todayDate,
-                }).map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
-            </div>
+          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
+            <Clock size={14} className="text-muted flex-shrink-0" />
+            <select
+              value={model.dateTime.split('T')[1] || ''}
+              onChange={(e) => {
+                model.setDateTime(`${offerMapDate}T${e.target.value}`)
+              }}
+              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
+            >
+              <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
+              {rideTimeSlots.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
           </div>
 
           {model.fromPoint && model.toPoint && (
@@ -821,9 +800,19 @@ export default function NewRequest() {
         </div>
       )}
 
+      <DriverOffersListModal
+        offers={listModalOffers}
+        open={offersListModalOpen}
+        onClose={() => setOffersListModalOpen(false)}
+        onSelect={(offer) => {
+          setOffersListModalOpen(false)
+          offersMap.selectOffer(offer.id)
+        }}
+      />
+
       <OfferMapSheet
-        offer={offersMap.selectedOffer}
-        open={offersMap.isSheetOpen}
+        offer={highlightedOffer}
+        open={Boolean(highlightedOffer)}
         isConfirming={offersMap.confirmOfferId === offersMap.selectedOfferId}
         isBooking={Boolean(offersMap.bookingOfferId)}
         errorMessage={offersMap.bookError}

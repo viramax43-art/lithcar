@@ -167,13 +167,13 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
   }, [])
 
   const bookSelectedOffer = useCallback(async () => {
-    const offer = selectedOffer
-    if (!offer || bookingOfferId) return
+    const offerId = selectedOfferId
+    if (!offerId || bookingOfferId) return
 
-    setBookingOfferId(offer.id)
+    setBookingOfferId(offerId)
     setBookError(null)
     try {
-      const request = await bookRideOffer(offer.id)
+      const request = await bookRideOffer(offerId)
       hapticNotification('success')
       setConfirmOfferId(null)
       await refresh()
@@ -212,7 +212,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     } finally {
       setBookingOfferId(null)
     }
-  }, [bookingOfferId, navigate, refresh, selectedOffer, t])
+  }, [bookingOfferId, navigate, refresh, selectedOfferId, t])
 
   return {
     offers,
