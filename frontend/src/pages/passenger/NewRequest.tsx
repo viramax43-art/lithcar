@@ -219,6 +219,7 @@ export default function NewRequest() {
     <div className="relative h-[100dvh] overflow-hidden bg-white">
       <div className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
+          <LocalizedTileLayer />
           {!offersPaused &&
             offersMap.offers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id
