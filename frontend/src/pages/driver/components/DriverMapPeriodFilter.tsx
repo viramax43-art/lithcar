@@ -3,6 +3,7 @@ import { Calendar, CaretDown, CaretUp, Clock } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import { formatDate } from '../../../i18n/dateTime'
+import { formatAppLocalDayLong } from '../../../lib/formatAppLocalDay'
 import { getAppLocalDayOptions, type PeriodFilterState } from '../../../lib/periodFilter'
 
 /** "2026-06-10" → localized short label; noon avoids timezone day-shift. */
@@ -99,6 +100,11 @@ export default function DriverMapPeriodFilter({
     return t('common.periodFilter')
   }, [filterDate, filterDateEnd, dayOptions, t])
 
+  const selectedSingleDay = useMemo(() => {
+    if (!filterDate || !filterDateEnd || filterDate !== filterDateEnd) return null
+    return filterDate
+  }, [filterDate, filterDateEnd])
+
   const hasCustomFilter = !isDefaultTodayFilter(
     filterDate,
     filterDateEnd,
@@ -125,7 +131,6 @@ export default function DriverMapPeriodFilter({
             · {t('driver.map.periodFilterCount', { count: pointCount })}
           </span>
         </span>
-        {/* Make hidden trips visible so "today" default doesn't silently swallow tomorrow's rides */}
         {hiddenCount > 0 && (
           <span className="flex-shrink-0 inline-flex items-center min-h-[20px] px-2 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
             {t('driver.map.hiddenByFilter', { count: hiddenCount, defaultValue: '+{{count}} hidden' })}
@@ -171,47 +176,54 @@ export default function DriverMapPeriodFilter({
             </div>
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-0.5">
-            <button
-              type="button"
-              onClick={() => applySingleDay(dayOptions.today)}
-              className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
-                filterDate === dayOptions.today && filterDateEnd === dayOptions.today
-                  ? 'border-black bg-black text-white'
-                  : 'border-border hover:bg-surface'
-              }`}
-            >
-              {t('common.today')}
-            </button>
-            <button
-              type="button"
-              onClick={() => applySingleDay(dayOptions.tomorrow)}
-              className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
-                filterDate === dayOptions.tomorrow && filterDateEnd === dayOptions.tomorrow
-                  ? 'border-black bg-black text-white'
-                  : 'border-border hover:bg-surface'
-              }`}
-            >
-              {t('common.tomorrow')}
-            </button>
-            <button
-              type="button"
-              onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
-              className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
-                filterDate === dayOptions.dayAfterTomorrow && filterDateEnd === dayOptions.dayAfterTomorrow
-                  ? 'border-black bg-black text-white'
-                  : 'border-border hover:bg-surface'
-              }`}
-            >
-              {t('common.dayAfterTomorrow')}
-            </button>
-            <button
-              type="button"
-              onClick={showAllTrips}
-              className="flex-shrink-0 min-h-10 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
-            >
-              {t('common.allTrips')}
-            </button>
+          <div className="space-y-1.5">
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-0.5">
+              <button
+                type="button"
+                onClick={() => applySingleDay(dayOptions.today)}
+                className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+                  filterDate === dayOptions.today && filterDateEnd === dayOptions.today
+                    ? 'border-black bg-black text-white'
+                    : 'border-border hover:bg-surface'
+                }`}
+              >
+                {t('common.today')}
+              </button>
+              <button
+                type="button"
+                onClick={() => applySingleDay(dayOptions.tomorrow)}
+                className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+                  filterDate === dayOptions.tomorrow && filterDateEnd === dayOptions.tomorrow
+                    ? 'border-black bg-black text-white'
+                    : 'border-border hover:bg-surface'
+                }`}
+              >
+                {t('common.tomorrow')}
+              </button>
+              <button
+                type="button"
+                onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
+                className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+                  filterDate === dayOptions.dayAfterTomorrow && filterDateEnd === dayOptions.dayAfterTomorrow
+                    ? 'border-black bg-black text-white'
+                    : 'border-border hover:bg-surface'
+                }`}
+              >
+                {t('common.dayAfterTomorrow')}
+              </button>
+              <button
+                type="button"
+                onClick={showAllTrips}
+                className="flex-shrink-0 min-h-10 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
+              >
+                {t('common.allTrips')}
+              </button>
+            </div>
+            {selectedSingleDay && (
+              <p className="text-center text-xs font-medium text-muted px-1">
+                {formatAppLocalDayLong(selectedSingleDay)}
+              </p>
+            )}
           </div>
 
           <p className="text-[10px] text-muted leading-snug px-0.5">

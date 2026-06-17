@@ -1,11 +1,15 @@
-import { Calendar, CaretDown, Clock, Crosshair, MagnifyingGlass, Warning, X } from '@phosphor-icons/react'
+import { CaretDown, Clock, Crosshair, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
-import { FieldRow } from '../../passenger/new-request/FieldRow'
+import RoutePointConfirmButton from '../../../components/route-point-picker/RoutePointConfirmButton'
+import RoutePointFields from '../../../components/route-point-picker/RoutePointFields'
+import { RoutePointPinLabel, RoutePointPinMarkers } from '../../../components/route-point-picker/RoutePointPinOverlay'
+import RoutePointSearchSheet from '../../../components/route-point-picker/RoutePointSearchSheet'
+import RoutePointZoneBanner from '../../../components/route-point-picker/RoutePointZoneBanner'
+import OfferDayFilter from '../../passenger/components/OfferDayFilter'
+import { useOfferDaySelection } from '../../../hooks/useOfferDaySelection'
 import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestMapBinder'
-import { addAppLocalDays, toAppLocalDateInput } from '../../../i18n/dateTime'
-import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
 
@@ -22,9 +26,18 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
     onCreated()
     onClose()
   })
-  const now = new Date()
-  const todayDate = toAppLocalDateInput(now)
-  const maxDate = addAppLocalDays(now, 2)
+
+  const {
+    offerDayOffset,
+    setOfferDayOffset,
+    offerMapDate,
+    disabledOfferDayOffsets,
+    rideTimeSlots,
+  } = useOfferDaySelection({
+    pricing: model.pricing,
+    dateTime: model.dateTime,
+    setDateTime: model.setDateTime,
+  })
 
   useEscapeClose(true, onClose)
 
@@ -77,58 +90,25 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
           )}
         </MapContainer>
 
-        {model.isPinLive && (
-          <>
-            <div className={`center-pin ${model.activeIsFrom ? 'pin-a' : 'pin-b'} ${model.isPanning ? 'is-panning' : ''}`}>
-              <div className="pin-body">
-                <span>{model.activeIsFrom ? 'A' : 'B'}</span>
-              </div>
-            </div>
-            <div className="center-pin-shadow" style={model.isPanning ? { width: 22, opacity: 0.45 } : undefined} />
-          </>
-        )}
-
-        {model.isPinLive && (
-          <div
-            className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
-            style={{ top: 'calc(42% - 88px)' }}
-          >
-            {model.pinOutOfZone ? (
-              <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
-                <Warning size={12} weight="fill" />
-                {t('passenger.outOfServiceZone', { defaultValue: 'Out of service zone' })}
-              </div>
-            ) : model.isResolving ? (
-              <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-fade-in">
-                <span className={`w-3 h-3 rounded-full border-[2px] border-border animate-spin ${model.activeIsFrom ? 'border-t-point-a' : 'border-t-point-b'}`} />
-                <span className="inline-flex items-center gap-0.5">
-                  {t('passenger.resolvingAddress', { defaultValue: 'Resolving address' })}
-                  <span className="dot-pulse" style={{ animationDelay: '0ms' }}>.</span>
-                  <span className="dot-pulse" style={{ animationDelay: '150ms' }}>.</span>
-                  <span className="dot-pulse" style={{ animationDelay: '300ms' }}>.</span>
-                </span>
-              </div>
-            ) : model.pinAddress ? (
-              <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card truncate max-w-[80vw] animate-fade-in ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
-                {model.pinAddress}
-              </div>
-            ) : (
-              <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card max-w-[80vw] text-center leading-snug ${model.activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
-                {activeSetupHint}
-              </div>
-            )}
-          </div>
-        )}
-
-        {model.zoneWarning && (
-          <div
-            className="absolute left-3 right-3 z-30 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-pill shadow-card animate-fade-in"
-            style={{ top: 'calc(var(--app-safe-area-top-total) + 48px)' }}
-          >
-            <Warning size={16} weight="fill" className="text-red-500 flex-shrink-0" />
-            <span className="text-xs font-semibold text-red-700 flex-1 truncate">{model.zoneWarning}</span>
-          </div>
-        )}
+        <RoutePointPinMarkers
+          visible={model.isPinLive}
+          activeIsFrom={model.activeIsFrom}
+          isPanning={model.isPanning}
+        />
+        <RoutePointPinLabel
+          visible={model.isPinLive}
+          activeIsFrom={model.activeIsFrom}
+          isPanning={model.isPanning}
+          pinOutOfZone={model.pinOutOfZone}
+          isResolving={model.isResolving}
+          pinAddress={model.pinAddress}
+          setupHint={activeSetupHint}
+        />
+        <RoutePointZoneBanner
+          message={model.zoneWarning}
+          onDismiss={() => model.setZoneWarning(null)}
+          topOffset="calc(var(--app-safe-area-top-total) + 48px)"
+        />
 
         <button
           onClick={model.handleLocateMe}
@@ -157,68 +137,30 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
               {model.errorMessage}
             </div>
           )}
-          <FieldRow
-            dotClass="bg-point-a"
-            label={t('passenger.fromLabel', { defaultValue: 'From' })}
-            value={model.fromAddress}
-            placeholder={t('passenger.pickPointAFirst', { defaultValue: 'Pick point A' })}
-            active={model.activeField === 'from'}
-            onClick={() => model.setActiveField('from')}
-            onSearch={() => {
-              model.setActiveField('from')
-              model.setShowSearch(true)
-            }}
-          />
-          <FieldRow
-            dotClass="bg-point-b"
-            label={t('passenger.toLabel', { defaultValue: 'To' })}
-            value={model.toAddress}
-            placeholder={t('passenger.pickPointBFirst', { defaultValue: 'Pick point B' })}
-            active={model.activeField === 'to'}
-            onClick={() => model.setActiveField('to')}
-            onSearch={() => {
-              model.setActiveField('to')
-              model.setShowSearch(true)
-            }}
+
+          <OfferDayFilter
+            value={offerDayOffset}
+            disabledOffsets={disabledOfferDayOffsets}
+            onChange={setOfferDayOffset}
           />
 
-          <div className="flex items-center gap-2 border-t border-surface pt-2.5">
-            <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
-              <Calendar size={14} className="text-muted flex-shrink-0" />
-              <input
-                type="date"
-                value={model.dateTime.split('T')[0] || ''}
-                onChange={(e) => {
-                  const time = model.dateTime.split('T')[1] || '12:00'
-                  model.setDateTime(`${e.target.value}T${time}`)
-                }}
-                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0"
-                min={todayDate}
-                max={maxDate}
-              />
-            </div>
-            <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">
-              <Clock size={14} className="text-muted flex-shrink-0" />
-              <select
-                value={model.dateTime.split('T')[1] || ''}
-                onChange={(e) => {
-                  const date = model.dateTime.split('T')[0] || todayDate
-                  model.setDateTime(`${date}T${e.target.value}`)
-                }}
-                className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
-              >
-                <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-                {buildRideTimeSlots({
-                  workStartTime: model.pricing.workStartTime || '06:00',
-                  workEndTime: model.pricing.workEndTime || '19:00',
-                  slotIntervalMinutes: model.pricing.slotIntervalMinutes || 30,
-                  selectedDate: model.dateTime.split('T')[0] || todayDate,
-                }).map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
-            </div>
+          <RoutePointFields model={model} />
+
+          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
+            <Clock size={14} className="text-muted flex-shrink-0" />
+            <select
+              value={model.dateTime.split('T')[1] || ''}
+              onChange={(e) => {
+                model.setDateTime(`${offerMapDate}T${e.target.value}`)
+              }}
+              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
+            >
+              <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
+              {rideTimeSlots.map((slot) => (
+                <option key={slot} value={slot}>{slot}</option>
+              ))}
+            </select>
+            <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
           </div>
 
           <div className="flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
@@ -238,23 +180,10 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
           </div>
 
           {model.isPinLive ? (
-            <button
-              onClick={model.confirmPoint}
-              disabled={!model.pinReadyForConfirm}
-              className={`w-full py-3 rounded-xl font-bold text-sm transition-transform active:scale-[0.97] ${
-                model.pinReadyForConfirm ? 'bg-black text-white' : 'bg-surface text-muted cursor-not-allowed'
-              }`}
-            >
-              {model.pinOutOfZone
-                ? model.activeIsFrom
-                  ? t('passenger.pointAOutOfZone', { defaultValue: 'Point A is outside service area' })
-                  : t('passenger.pointBOutOfZone', { defaultValue: 'Point B is outside service area' })
-                : model.activeIsFrom
-                  ? t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })
-                  : t('passenger.confirmPointB', { defaultValue: 'Confirm point B' })}
-            </button>
+            <RoutePointConfirmButton model={model} showCaret={false} />
           ) : (
             <button
+              type="button"
               onClick={() => void model.handleSubmit()}
               disabled={!model.canSubmit}
               className={`w-full py-3 rounded-xl font-bold text-sm transition-transform active:scale-[0.97] ${
@@ -269,37 +198,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         </div>
       </div>
 
-      {model.showSearch && (
-        <div className="absolute inset-0 z-[220] bg-white flex flex-col" style={{ paddingTop: 'var(--app-safe-area-top-total)' }}>
-          <div className="flex items-center gap-2 px-3 h-14 border-b border-border">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-surface">
-              <MagnifyingGlass size={16} className="text-muted" />
-              <input
-                autoFocus
-                value={model.searchQuery}
-                onChange={(e) => model.handleSearch(e.target.value)}
-                placeholder={t('passenger.searchAddress', { defaultValue: 'Search address' })}
-                className="flex-1 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <button onClick={() => model.setShowSearch(false)} className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {model.isSearching && <p className="px-4 py-3 text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>}
-            {model.searchResults.map((result) => (
-              <button
-                key={result.place_id}
-                onClick={() => model.handleSelectSearchResult(result)}
-                className="w-full text-left px-4 py-3 border-b border-surface hover:bg-surface/60 text-sm"
-              >
-                {result.display_name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <RoutePointSearchSheet model={model} variant="fullscreen" />
     </div>
   )
 }

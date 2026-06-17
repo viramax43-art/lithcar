@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../../lib/telegram'
-import { OFFER_DAY_OFFSETS, type OfferDayOffset } from '../../../lib/offerMapDayFilter'
+import { formatAppLocalDayLong } from '../../../lib/formatAppLocalDay'
+import { OFFER_DAY_OFFSETS, offerMapDateForOffset, type OfferDayOffset } from '../../../lib/offerMapDayFilter'
 
 interface OfferDayFilterProps {
   value: OfferDayOffset
@@ -22,34 +24,41 @@ const LABEL_DEFAULTS: Record<OfferDayOffset, string> = {
 
 export default function OfferDayFilter({ value, disabledOffsets, onChange }: OfferDayFilterProps) {
   const { t } = useTranslation()
+  const selectedDateLabel = useMemo(
+    () => formatAppLocalDayLong(offerMapDateForOffset(value)),
+    [value],
+  )
 
   return (
-    <div className="flex gap-2">
-      {OFFER_DAY_OFFSETS.map((offset) => {
-        const active = value === offset
-        const disabled = disabledOffsets?.has(offset) ?? false
-        return (
-          <button
-            key={offset}
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              if (disabled) return
-              hapticSelection()
-              onChange(offset)
-            }}
-            className={`flex-1 min-h-11 rounded-xl text-sm font-bold transition-colors touch-none ${
-              disabled
-                ? 'bg-surface text-muted/40 cursor-not-allowed'
-                : active
-                  ? 'bg-black text-white shadow-card'
-                  : 'bg-surface text-muted hover:bg-border/30 active:bg-border/40'
-            }`}
-          >
-            {t(LABEL_KEYS[offset], { defaultValue: LABEL_DEFAULTS[offset] })}
-          </button>
-        )
-      })}
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        {OFFER_DAY_OFFSETS.map((offset) => {
+          const active = value === offset
+          const disabled = disabledOffsets?.has(offset) ?? false
+          return (
+            <button
+              key={offset}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (disabled) return
+                hapticSelection()
+                onChange(offset)
+              }}
+              className={`flex-1 min-h-11 rounded-xl text-sm font-bold transition-colors touch-none ${
+                disabled
+                  ? 'bg-surface text-muted/40 cursor-not-allowed'
+                  : active
+                    ? 'bg-black text-white shadow-card'
+                    : 'bg-surface text-muted hover:bg-border/30 active:bg-border/40'
+              }`}
+            >
+              {t(LABEL_KEYS[offset], { defaultValue: LABEL_DEFAULTS[offset] })}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-center text-xs font-medium text-muted px-1">{selectedDateLabel}</p>
     </div>
   )
 }

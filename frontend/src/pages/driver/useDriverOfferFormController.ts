@@ -212,7 +212,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     (result: NominatimSearchResult) => {
       const latlng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
       if (hasZones && !isPointInAnyZone(latlng, activeZones)) {
-        showZoneWarning(t('geo.pointOutOfZone', { defaultValue: 'Point is outside service area' }))
+        showZoneWarning(t('geo.addressOutOfZone', { defaultValue: 'This address is outside the service area.' }))
         return
       }
       const shortName = result.display_name.split(',').slice(0, 3).join(',')
@@ -220,17 +220,26 @@ export function useDriverOfferFormController(onSuccess: () => void) {
         setFromPoint(latlng)
         setFromAddress(shortName)
         setActiveField('to')
+        hapticSelection()
+      } else if (!toPoint) {
+        setToPoint(latlng)
+        setToAddress(shortName)
+        hapticSelection()
+      } else if (activeField === 'from') {
+        setFromPoint(latlng)
+        setFromAddress(shortName)
+        hapticSelection()
       } else {
         setToPoint(latlng)
         setToAddress(shortName)
+        hapticSelection()
       }
-      hapticSelection()
       setShowSearch(false)
       setSearchQuery('')
       setSearchResults([])
       panMapToTarget(latlng)
     },
-    [activeZones, fromPoint, hasZones, panMapToTarget, showZoneWarning, t],
+    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, showZoneWarning, toPoint, t],
   )
 
   const handleLocateMe = useCallback(() => {
@@ -298,7 +307,8 @@ export function useDriverOfferFormController(onSuccess: () => void) {
       parsedTotalSeats !== null &&
       parsedTotalSeats >= 1,
   )
-  const activeIsFrom = !fromPoint || (!toPoint && activeField === 'from') || (fromPoint && toPoint && activeField === 'from')
+  const effectiveField = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+  const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
   const pinReadyForConfirm = Boolean(pinLatLng && !pinOutOfZone && !isResolving)
 
@@ -307,9 +317,13 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     activeField,
     setActiveField,
     fromPoint,
+    setFromPoint,
     toPoint,
+    setToPoint,
     fromAddress,
+    setFromAddress,
     toAddress,
+    setToAddress,
     dateTime,
     setDateTime,
     totalSeatsInput,
@@ -324,16 +338,20 @@ export function useDriverOfferFormController(onSuccess: () => void) {
     showSearch,
     setShowSearch,
     searchQuery,
+    setSearchQuery,
     handleSearch,
     searchResults,
+    setSearchResults,
     isSearching,
     submitting,
     errorMessage,
     zoneWarning,
+    setZoneWarning,
     isLocating,
     mapRef,
     commitPin,
     confirmPoint,
+    armPinFromMapCenter,
     handleSelectSearchResult,
     handleLocateMe,
     handleSubmit,
