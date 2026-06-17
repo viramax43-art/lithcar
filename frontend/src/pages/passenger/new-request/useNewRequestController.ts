@@ -16,7 +16,7 @@ import {
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
 import { isPointInAnyZone } from '../../../utils/geo'
-import { PIN_ANCHOR_Y_FRAC } from './NewRequestMapBinder'
+import { latLngAtPinAnchor, panMapToPinAnchor } from './NewRequestMapBinder'
 
 const STORAGE_KEY = 'ride_new_request_draft'
 
@@ -195,10 +195,7 @@ export function useNewRequestController() {
   const armPinFromMapCenter = useCallback(() => {
     const map = mapRef.current
     if (!map) return
-    const size = map.getSize()
-    const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
-    const ll = map.containerPointToLatLng(px)
-    commitPin({ lat: ll.lat, lng: ll.lng })
+    commitPin(latLngAtPinAnchor(map))
   }, [commitPin])
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
@@ -236,13 +233,7 @@ export function useNewRequestController() {
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
     if (!map) return
-    const z = Math.max(map.getZoom(), zoom)
-    const targetPx = map.project([target.lat, target.lng], z)
-    const size = map.getSize()
-    const dy = size.y * (0.5 - PIN_ANCHOR_Y_FRAC)
-    const desiredCenterPx = targetPx.add(L.point(0, dy))
-    const newCenter = map.unproject(desiredCenterPx, z)
-    map.flyTo(newCenter, z, { duration: 0.5 })
+    panMapToPinAnchor(map, target, zoom)
   }, [])
 
   const handleSearch = useCallback(
@@ -469,7 +460,20 @@ export function useNewRequestController() {
   useEffect(() => {
     if (fromPoint && toPoint) return
     if (showSearch) return
-    const timer = window.setTimeout(() => armPinFromMapCenterRef.current(), 350)
+    const timer = window.setTimeout(() => {
+      const map = mapRef.current
+      if (!map) {
+        armPinFromMapCenterRef.current()
+        return
+      }
+      const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+      const target = effectiveField === 'from' ? fromPoint : toPoint
+      if (target) {
+        panMapToPinAnchor(map, target)
+      } else {
+        armPinFromMapCenterRef.current()
+      }
+    }, 350)
     return () => window.clearTimeout(timer)
   }, [fromPoint, toPoint, activeField, showSearch])
 

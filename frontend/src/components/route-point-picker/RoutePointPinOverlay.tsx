@@ -37,7 +37,7 @@ export function RoutePointPinLabel({
   isResolving,
   pinAddress,
   setupHint,
-  labelTop = 'calc(42% - 88px)',
+  labelTop = 'calc(var(--pin-anchor-y, 42%) - 88px)',
 }: RoutePointPinOverlayProps) {
   const { t } = useTranslation()
   if (!visible) return null

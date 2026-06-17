@@ -500,7 +500,7 @@ export default function NewRequest() {
         )}
 
         <div
-          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
+          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-4 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
           <OfferDayFilter
@@ -514,14 +514,14 @@ export default function NewRequest() {
 
           <RoutePointFields model={model} />
 
-          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
-            <Clock size={14} className="text-muted flex-shrink-0" />
+          <div className="flex items-center gap-2 w-full min-h-12 px-3 py-3 rounded-xl bg-surface">
+            <Clock size={16} className="text-muted flex-shrink-0" />
             <select
               value={model.dateTime.split('T')[1] || ''}
               onChange={(e) => {
                 model.setDateTime(`${offerMapDate}T${e.target.value}`)
               }}
-              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
+              className="flex-1 text-sm font-semibold bg-transparent outline-none min-w-0 appearance-none py-0.5"
             >
               <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
               {rideTimeSlots.map((s) => (

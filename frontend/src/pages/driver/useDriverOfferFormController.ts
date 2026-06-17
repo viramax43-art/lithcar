@@ -14,7 +14,7 @@ import {
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { LatLng, PricingSettings, ServiceZone } from '../../types'
 import { isPointInAnyZone } from '../../utils/geo'
-import { PIN_ANCHOR_Y_FRAC } from '../passenger/new-request/NewRequestMapBinder'
+import { latLngAtPinAnchor, panMapToPinAnchor } from '../passenger/new-request/NewRequestMapBinder'
 
 export function useDriverOfferFormController(onSuccess: () => void) {
   const { t } = useTranslation()
@@ -139,10 +139,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const armPinFromMapCenter = useCallback(() => {
     const map = mapRef.current
     if (!map) return
-    const size = map.getSize()
-    const px = L.point(size.x * 0.5, size.y * PIN_ANCHOR_Y_FRAC)
-    const ll = map.containerPointToLatLng(px)
-    commitPin({ lat: ll.lat, lng: ll.lng })
+    commitPin(latLngAtPinAnchor(map))
   }, [commitPin])
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
@@ -174,8 +171,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
     if (!map) return
-    const z = Math.max(map.getZoom(), zoom)
-    map.flyTo([target.lat, target.lng], z, { duration: 0.5 })
+    panMapToPinAnchor(map, target, zoom)
   }, [])
 
   const handleSearch = useCallback(
@@ -293,7 +289,20 @@ export function useDriverOfferFormController(onSuccess: () => void) {
   useEffect(() => {
     if (fromPoint && toPoint) return
     if (showSearch) return
-    const timer = window.setTimeout(() => armPinFromMapCenterRef.current(), 350)
+    const timer = window.setTimeout(() => {
+      const map = mapRef.current
+      if (!map) {
+        armPinFromMapCenterRef.current()
+        return
+      }
+      const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+      const target = effectiveField === 'from' ? fromPoint : toPoint
+      if (target) {
+        panMapToPinAnchor(map, target)
+      } else {
+        armPinFromMapCenterRef.current()
+      }
+    }, 350)
     return () => window.clearTimeout(timer)
   }, [fromPoint, toPoint, activeField, showSearch])
 

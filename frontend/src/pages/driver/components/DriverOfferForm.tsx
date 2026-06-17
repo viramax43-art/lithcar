@@ -10,7 +10,7 @@ import RoutePointZoneBanner from '../../../components/route-point-picker/RoutePo
 import OfferDayFilter from '../../passenger/components/OfferDayFilter'
 import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import { useOfferDaySelection } from '../../../hooks/useOfferDaySelection'
-import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestMapBinder'
+import { iconA, iconB, MapBinder, pinAnchorYStyle } from '../../passenger/new-request/NewRequestMapBinder'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
 
@@ -53,7 +53,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
       >
         <CabinetRoleBanner variant="inline" />
-        <div className="flex items-center gap-3 px-3 h-14">
+        <div className="flex items-center gap-3 px-3 h-12">
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface transition-colors"
@@ -66,7 +66,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         </div>
       </header>
 
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0" style={pinAnchorYStyle}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
           <MapBinder
@@ -92,20 +92,24 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
           )}
         </MapContainer>
 
-        <RoutePointPinMarkers
-          visible={model.isPinLive}
-          activeIsFrom={model.activeIsFrom}
-          isPanning={model.isPanning}
-        />
-        <RoutePointPinLabel
-          visible={model.isPinLive}
-          activeIsFrom={model.activeIsFrom}
-          isPanning={model.isPanning}
-          pinOutOfZone={model.pinOutOfZone}
-          isResolving={model.isResolving}
-          pinAddress={model.pinAddress}
-          setupHint={activeSetupHint}
-        />
+        {!model.isPanning && (
+          <>
+            <RoutePointPinMarkers
+              visible={model.isPinLive}
+              activeIsFrom={model.activeIsFrom}
+              isPanning={model.isPanning}
+            />
+            <RoutePointPinLabel
+              visible={model.isPinLive}
+              activeIsFrom={model.activeIsFrom}
+              isPanning={model.isPanning}
+              pinOutOfZone={model.pinOutOfZone}
+              isResolving={model.isResolving}
+              pinAddress={model.pinAddress}
+              setupHint={activeSetupHint}
+            />
+          </>
+        )}
         <RoutePointZoneBanner
           message={model.zoneWarning}
           onDismiss={() => model.setZoneWarning(null)}
@@ -115,8 +119,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         <button
           onClick={model.handleLocateMe}
           disabled={model.isLocating}
-          className="absolute right-3 z-10 w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
-          style={{ bottom: 'calc(280px + var(--app-safe-area-bottom-total))' }}
+          className="absolute right-3 top-3 z-10 w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
         >
           {model.isLocating ? (
             <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" />
@@ -127,15 +130,15 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       </div>
 
       <div
-        className={`absolute left-0 right-0 z-20 bg-white border-t border-border rounded-t-3xl shadow-bar transition-transform duration-300 ${
+        className={`flex-shrink-0 z-20 bg-white border-t border-border rounded-t-3xl shadow-bar transition-transform duration-300 max-h-[min(52dvh,420px)] overflow-y-auto ${
           model.isPanning ? 'translate-y-full' : 'translate-y-0'
         }`}
-        style={{ bottom: 0, paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+        style={{ paddingBottom: 'var(--app-safe-area-bottom-total)' }}
       >
-        <div className="w-9 h-1 rounded-full bg-border mx-auto mt-2 mb-1" />
-        <div className="px-4 pb-4 space-y-3 max-w-2xl mx-auto">
+        <div className="w-9 h-1 rounded-full bg-border mx-auto mt-2.5 mb-2 sticky top-0 bg-white pt-0.5" />
+        <div className="px-4 pb-5 space-y-4 max-w-2xl mx-auto">
           {model.errorMessage && (
-            <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">
+            <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-xs font-medium text-red-700">
               {model.errorMessage}
             </div>
           )}
@@ -148,25 +151,25 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
           <RoutePointFields model={model} />
 
-          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
-            <Clock size={14} className="text-muted flex-shrink-0" />
+          <div className="flex items-center gap-2 w-full min-h-12 px-3 py-3 rounded-xl bg-surface">
+            <Clock size={16} className="text-muted flex-shrink-0" />
             <select
               value={model.dateTime.split('T')[1] || ''}
               onChange={(e) => {
                 model.setDateTime(`${offerMapDate}T${e.target.value}`)
               }}
-              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
+              className="flex-1 text-sm font-semibold bg-transparent outline-none min-w-0 appearance-none py-0.5"
             >
               <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
               {rideTimeSlots.map((slot) => (
                 <option key={slot} value={slot}>{slot}</option>
               ))}
             </select>
-            <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
+            <CaretDown size={14} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
           </div>
 
-          <div className="flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
-            <span className="text-xs font-semibold text-muted">
+          <div className="flex items-center justify-between min-h-12 rounded-xl bg-surface px-3 py-3">
+            <span className="text-sm font-semibold text-muted">
               {t('driver.offers.seats', { defaultValue: 'Available seats' })}
             </span>
             <input
@@ -177,7 +180,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
               onChange={(e) => model.handleSeatsInputChange(e.target.value)}
               onBlur={model.normalizeSeatsInput}
               placeholder="1"
-              className="w-16 text-right text-sm font-bold bg-transparent outline-none"
+              className="w-16 text-right text-base font-bold bg-transparent outline-none py-1"
             />
           </div>
 
@@ -188,7 +191,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
               type="button"
               onClick={() => void model.handleSubmit()}
               disabled={!model.canSubmit}
-              className={`w-full py-3 rounded-xl font-bold text-sm transition-transform active:scale-[0.97] ${
+              className={`w-full min-h-12 py-3.5 rounded-xl font-bold text-sm transition-transform active:scale-[0.97] ${
                 model.canSubmit ? 'bg-black text-white' : 'bg-surface text-muted cursor-not-allowed'
               }`}
             >
