@@ -3,18 +3,18 @@ import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leafle
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import L from 'leaflet'
-import { useEffect, useMemo, useState, Fragment, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
-import { makeMapMarkIcon } from '../../lib/mapMarkIcons'
+import { makeMapMarkIcon, makeOfferPickupIcon } from '../../lib/mapMarkIcons'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import type { AppLanguage } from '../../i18n/languages'
 import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
 import { FieldRow } from './new-request/FieldRow'
-import { iconA, iconB, iconOfferA, iconOfferB, MapBinder } from './new-request/NewRequestMapBinder'
+import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { OfferRouteFitBounds } from './new-request/OfferRouteFitBounds'
 import OfferDayFilter from './components/OfferDayFilter'
 import {
@@ -50,7 +50,9 @@ export default function NewRequest() {
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const [isSignalMode, setIsSignalMode] = useState(false)
-  const [offersListModalOpen, setOffersListModalOpen] = useState(false)
+  const [dayOffersModalOpen, setDayOffersModalOpen] = useState(false)
+  const [routeOffersModalOpen, setRouteOffersModalOpen] = useState(false)
+  const routeModalDismissedRef = useRef(false)
   const [offerDayOffset, setOfferDayOffset] = useState<OfferDayOffset>(() =>
     firstAvailableOfferDayOffset(DEFAULT_PRICING_SETTINGS),
   )
@@ -91,32 +93,40 @@ export default function NewRequest() {
     from: model.fromPoint,
     to: model.toPoint,
     dateTime: model.dateTime,
-    limit: 5,
+    limit: 30,
     enabled: Boolean(
       model.fromPoint && model.toPoint && hasRideDateTime(model.dateTime) && !offersPaused,
     ),
   })
 
-  const listModalOffers = useMemo(() => {
-    const matchById = new Map(matchingOffers.items.map((offer) => [offer.id, offer]))
-    const merged: MatchedPassengerRideOffer[] = offersMap.offers.map(
-      (offer) => matchById.get(offer.id) ?? offer,
-    )
-    for (const offer of matchingOffers.items) {
-      if (!merged.some((item) => item.id === offer.id)) {
-        merged.push(offer)
-      }
-    }
-    return merged.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
+  const offerPickupIcon = useMemo(() => makeOfferPickupIcon(), [])
+  const offerPickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
+
+  const offerById = useMemo(() => {
+    const map = new Map<string, MatchedPassengerRideOffer>()
+    for (const offer of offersMap.offers) map.set(offer.id, offer)
+    for (const offer of matchingOffers.items) map.set(offer.id, offer)
+    return map
   }, [offersMap.offers, matchingOffers.items])
 
   const highlightedOffer = useMemo(() => {
     if (!offersMap.selectedOfferId) return null
-    return listModalOffers.find((offer) => offer.id === offersMap.selectedOfferId) ?? null
-  }, [offersMap.selectedOfferId, listModalOffers])
+    return offerById.get(offersMap.selectedOfferId) ?? null
+  }, [offersMap.selectedOfferId, offerById])
 
-  const showDriverOffersTrigger =
-    !offersPaused && !offersMap.isLoading && listModalOffers.length > 0
+  const routeModalOffers = useMemo(() => {
+    if (!model.fromPoint || !model.toPoint) return []
+    if (hasRideDateTime(model.dateTime)) return matchingOffers.items
+    return offersMap.offers
+  }, [model.fromPoint, model.toPoint, model.dateTime, matchingOffers.items, offersMap.offers])
+
+  const routeKey = useMemo(() => {
+    if (!model.fromPoint || !model.toPoint) return ''
+    return `${model.fromPoint.lat.toFixed(5)},${model.fromPoint.lng.toFixed(5)}-${model.toPoint.lat.toFixed(5)},${model.toPoint.lng.toFixed(5)}`
+  }, [model.fromPoint, model.toPoint])
+
+  const showDayOffersButton =
+    !offersPaused && !offersMap.isLoading && offersMap.offers.length > 0
 
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
   useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
@@ -124,15 +134,45 @@ export default function NewRequest() {
     model.setSearchResults([])
   })
   useEscapeClose(menuOpen, () => setMenuOpen(false))
-  useEscapeClose(offersListModalOpen, () => setOffersListModalOpen(false))
+  useEscapeClose(dayOffersModalOpen, () => setDayOffersModalOpen(false))
+  useEscapeClose(routeOffersModalOpen, () => {
+    routeModalDismissedRef.current = true
+    setRouteOffersModalOpen(false)
+  })
 
   useEffect(() => {
-    if (highlightedOffer) setOffersListModalOpen(false)
+    routeModalDismissedRef.current = false
+  }, [routeKey])
+
+  useEffect(() => {
+    if (highlightedOffer) {
+      setDayOffersModalOpen(false)
+      setRouteOffersModalOpen(false)
+    }
   }, [highlightedOffer])
 
   useEffect(() => {
-    if (listModalOffers.length === 0) setOffersListModalOpen(false)
-  }, [listModalOffers.length])
+    if (!model.fromPoint || !model.toPoint) {
+      setRouteOffersModalOpen(false)
+      return
+    }
+    if (offersPaused || highlightedOffer || routeModalDismissedRef.current) return
+    if (hasRideDateTime(model.dateTime) && matchingOffers.isLoading) return
+    setRouteOffersModalOpen(routeModalOffers.length > 0)
+  }, [
+    model.fromPoint,
+    model.toPoint,
+    model.dateTime,
+    routeModalOffers.length,
+    matchingOffers.isLoading,
+    offersPaused,
+    highlightedOffer,
+    routeKey,
+  ])
+
+  useEffect(() => {
+    if (offersMap.offers.length === 0) setDayOffersModalOpen(false)
+  }, [offersMap.offers.length])
 
   useEffect(() => {
     if (!offerDayReady.current) {
@@ -213,19 +253,14 @@ export default function NewRequest() {
                 L.DomEvent.stopPropagation(event.originalEvent)
                 offersMap.selectOffer(offer.id)
               }
+              const markerIcon = model.isPinLive ? offerPickupIconSubdued : offerPickupIcon
               return (
-                <Fragment key={`offer-endpoints-${offer.id}`}>
-                  <Marker
-                    position={[offer.from.latlng.lat, offer.from.latlng.lng]}
-                    icon={iconOfferA}
-                    eventHandlers={{ click: select }}
-                  />
-                  <Marker
-                    position={[offer.to.latlng.lat, offer.to.latlng.lng]}
-                    icon={iconOfferB}
-                    eventHandlers={{ click: select }}
-                  />
-                </Fragment>
+                <Marker
+                  key={`offer-pickup-${offer.id}`}
+                  position={[offer.from.latlng.lat, offer.from.latlng.lng]}
+                  icon={markerIcon}
+                  eventHandlers={{ click: select }}
+                />
               )
             })}
           {highlightedOffer && !offersMap.offers.some((offer) => offer.id === highlightedOffer.id) && (
@@ -347,6 +382,26 @@ export default function NewRequest() {
         >
           <List size={20} weight="bold" />
         </button>
+        {showDayOffersButton && (
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection()
+              setDayOffersModalOpen(true)
+            }}
+            className="relative w-10 h-10 rounded-full bg-black text-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
+            title={t('passenger.offers.dayMapButton', {
+              count: offersMap.offers.length,
+              defaultValue: `Driver rides today (${offersMap.offers.length})`,
+            })}
+          >
+            <Car size={18} weight="fill" />
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-point-a text-[10px] font-extrabold leading-[18px] text-center">
+              {offersMap.offers.length}
+            </span>
+          </button>
+        )}
+        <div className="flex-1" />
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -376,6 +431,15 @@ export default function NewRequest() {
           <NotificationBell pool="passenger" />
         </div>
       </header>
+      )}
+
+      {!isMapMarkViewMode && showDayOffersButton && !highlightedOffer && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none px-3 py-1.5 rounded-pill bg-white/95 border border-border shadow-card text-[11px] font-semibold text-muted whitespace-nowrap"
+          style={{ top: 'calc(var(--app-user-safe-top) + 52px)' }}
+        >
+          {t('passenger.offers.mapLegend', { defaultValue: 'Car icons — drivers offering a shared ride' })}
+        </div>
       )}
 
       {/* Side menu drawer */}
@@ -514,23 +578,6 @@ export default function NewRequest() {
             <Info size={14} weight="fill" className="text-muted flex-shrink-0 self-center" />
             <p className="flex-1 text-xs text-black leading-snug">{userInfoMessage}</p>
           </div>
-        )}
-
-        {showDriverOffersTrigger && (
-          <button
-            type="button"
-            onClick={() => {
-              hapticSelection()
-              setOffersListModalOpen(true)
-            }}
-            className="mx-3 mb-2 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-black text-white text-sm font-bold shadow-card active:scale-[0.98] transition-transform"
-          >
-            <Car size={16} weight="fill" />
-            {t('passenger.offers.showList', {
-              count: listModalOffers.length,
-              defaultValue: `Driver rides (${listModalOffers.length})`,
-            })}
-          </button>
         )}
 
         <div
@@ -801,11 +848,33 @@ export default function NewRequest() {
       )}
 
       <DriverOffersListModal
-        offers={listModalOffers}
-        open={offersListModalOpen}
-        onClose={() => setOffersListModalOpen(false)}
+        offers={offersMap.offers}
+        open={dayOffersModalOpen}
+        title={t('passenger.offers.dayModalTitle', { defaultValue: 'Driver rides this day' })}
+        hint={t('passenger.offers.dayModalHint', {
+          defaultValue: 'Drivers offer a seat on their route. Tap to view on the map.',
+        })}
+        onClose={() => setDayOffersModalOpen(false)}
         onSelect={(offer) => {
-          setOffersListModalOpen(false)
+          setDayOffersModalOpen(false)
+          offersMap.selectOffer(offer.id)
+        }}
+      />
+
+      <DriverOffersListModal
+        offers={routeModalOffers}
+        open={routeOffersModalOpen}
+        title={t('passenger.offers.routeModalTitle', { defaultValue: 'Rides for your route' })}
+        hint={t('passenger.offers.routeModalHint', {
+          defaultValue: 'Drivers offer a shared ride along your route. Tap to inspect A and B on the map.',
+        })}
+        onClose={() => {
+          routeModalDismissedRef.current = true
+          setRouteOffersModalOpen(false)
+        }}
+        onSelect={(offer) => {
+          routeModalDismissedRef.current = true
+          setRouteOffersModalOpen(false)
           offersMap.selectOffer(offer.id)
         }}
       />

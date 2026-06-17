@@ -41,6 +41,13 @@ export default function OfferMapSheet({
 
   const dateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
   const timeStr = formatRideTime(offer)
+  const inviteText = t('passenger.offers.driverInvite', {
+    driverName: offer.driver.name,
+    from: offer.from.address,
+    to: offer.to.address,
+    time: `${dateStr}, ${timeStr}`,
+    defaultValue: `${offer.driver.name} offers a shared ride from ${offer.from.address} to ${offer.to.address} at ${timeStr}`,
+  })
   const isBooked = Boolean(offer.bookedByMe)
   const booked = offerSeatsBooked(offer)
   const telegramUsername = offer.driver.telegramUsername
@@ -77,6 +84,7 @@ export default function OfferMapSheet({
             <p className="text-sm text-muted mt-0.5">
               {dateStr}, {timeStr}
             </p>
+            <p className="text-xs text-black/80 mt-2 leading-snug">{inviteText}</p>
           </div>
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { Clock, Coins, Star, X } from '@phosphor-icons/react'
+import { Car, Clock, Coins, Star, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
@@ -11,6 +11,8 @@ import type { MatchedPassengerRideOffer } from '../../../types'
 interface DriverOffersListModalProps {
   offers: MatchedPassengerRideOffer[]
   open: boolean
+  title: string
+  hint: string
   onClose: () => void
   onSelect: (offer: MatchedPassengerRideOffer) => void
 }
@@ -18,6 +20,8 @@ interface DriverOffersListModalProps {
 export default function DriverOffersListModal({
   offers,
   open,
+  title,
+  hint,
   onClose,
   onSelect,
 }: DriverOffersListModalProps) {
@@ -39,14 +43,8 @@ export default function DriverOffersListModal({
 
         <div className="px-5 pt-4 pb-3 flex items-start gap-3 flex-shrink-0">
           <div className="flex-1 min-w-0">
-            <p className="text-lg font-extrabold tracking-tight">
-              {t('passenger.offers.listModalTitle', { defaultValue: 'Driver rides' })}
-            </p>
-            <p className="text-xs text-muted mt-0.5">
-              {t('passenger.offers.listModalHint', {
-                defaultValue: 'Tap a ride to view the route on the map',
-              })}
-            </p>
+            <p className="text-lg font-extrabold tracking-tight">{title}</p>
+            <p className="text-xs text-muted mt-0.5">{hint}</p>
           </div>
           <button
             type="button"
@@ -67,6 +65,13 @@ export default function DriverOffersListModal({
             const offerDateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
             const offerTimeStr = formatRideTime(offer)
             const matchLabel = getPassengerMatchButtonLabel(offer.matchScore, t)
+            const inviteText = t('passenger.offers.driverInvite', {
+              driverName: offer.driver.name,
+              from: offer.from.address,
+              to: offer.to.address,
+              time: `${offerDateStr}, ${offerTimeStr}`,
+              defaultValue: `${offer.driver.name} offers a shared ride from ${offer.from.address} to ${offer.to.address} at ${offerTimeStr}`,
+            })
 
             return (
               <button
@@ -78,7 +83,14 @@ export default function DriverOffersListModal({
                 }}
                 className="w-full rounded-xl border border-border bg-surface/60 p-3 text-left active:scale-[0.98] transition-transform"
               >
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-start gap-2.5 mb-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
+                    <Car size={18} weight="fill" />
+                  </div>
+                  <p className="flex-1 text-sm font-semibold leading-snug text-black">{inviteText}</p>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="text-xs font-bold px-3 py-1 rounded-pill bg-white border border-border text-muted">
                       {t('passenger.offers.seatsSummary', {
@@ -95,9 +107,7 @@ export default function DriverOffersListModal({
                     {offerDateStr}, {offerTimeStr}
                   </span>
                 </div>
-                {offer.driver.carModel && (
-                  <p className="text-sm font-bold truncate mb-2">{offer.driver.carModel}</p>
-                )}
+
                 <div className="flex items-start gap-2 mb-2">
                   <div className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0">
                     <div className="w-2 h-2 rounded-full bg-point-a" />
@@ -109,6 +119,7 @@ export default function DriverOffersListModal({
                     <p className="text-sm font-semibold truncate">{offer.to.address}</p>
                   </div>
                 </div>
+
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-bold truncate">{offer.driver.name}</p>

@@ -48,6 +48,13 @@ from app.services.ride_route_update_service import (
 
 router = APIRouter(prefix="/ride-requests")
 
+_PASSENGER_RIDE_ROLES = (
+    UserRole.PASSENGER,
+    UserRole.DRIVER,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+)
+
 
 class LatLng(BaseModel):
     lat: float
@@ -235,10 +242,18 @@ def _to_assigned_driver_out(driver) -> RideAssignedDriverOut:
     )
 
 
+_PASSENGER_RIDE_ROLES = (
+    UserRole.PASSENGER,
+    UserRole.DRIVER,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+)
+
+
 @router.post("", response_model=RideRequestOut, status_code=status.HTTP_201_CREATED)
 async def create_request(
     payload: RideRequestCreate,
-    current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR)),
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     try:
@@ -364,7 +379,7 @@ async def get_request_details(
 async def rate_ride_as_passenger(
     request_id: str,
     payload: RideRatingSubmitPayload,
-    current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR)),
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     try:
@@ -600,7 +615,7 @@ async def patch_request_route_admin(
 @router.post("/{request_id}/confirm-pickup", response_model=RideRequestOut)
 async def confirm_pickup(
     request_id: str,
-    current_user: User = Depends(require_roles(UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR)),
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     request, error = await confirm_pickup_point(
