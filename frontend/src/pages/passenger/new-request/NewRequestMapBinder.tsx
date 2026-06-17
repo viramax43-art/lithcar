@@ -19,6 +19,21 @@ export const iconB = L.divIcon({
   iconAnchor: [18, 18],
 })
 
+/** Smaller A/B for driver offers on the passenger map (non-selected). */
+export const iconOfferA = L.divIcon({
+  className: '',
+  html: '<div class="marker-a marker-a--offer">A</div>',
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+})
+
+export const iconOfferB = L.divIcon({
+  className: '',
+  html: '<div class="marker-b marker-b--offer">B</div>',
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+})
+
 export function MapBinder({
   registerMap,
   enabled = true,

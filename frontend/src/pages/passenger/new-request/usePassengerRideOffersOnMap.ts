@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { bookRideOffer, listMatchingRideOffers, listRideOffers } from '../../../lib/backend'
-import { hasRideDateTime, rideDateFromDateTime } from '../../../lib/rideDraft'
+import { bookRideOffer, listRideOffers } from '../../../lib/backend'
 import { parseOfferBookingConflict } from '../../../lib/offerBooking'
 import { ApiError, parseApiErrorCode } from '../../../infrastructure/http/httpClient'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
-import type { LatLng, MatchedPassengerRideOffer } from '../../../types'
+import type { LatLng, MatchedPassengerRideOffer, PassengerRideOffer } from '../../../types'
 
 const POLL_INTERVAL_MS = 60_000
 const PAGE_LIMIT = 50
@@ -18,13 +17,22 @@ export interface UsePassengerRideOffersOnMapOptions {
   isPinLive: boolean
   /** When true — do not load/show offers (search overlay, signal mode) */
   paused?: boolean
+  /** YYYY-MM-DD in Europe/Vilnius — drives which offers appear on the map */
+  mapDate: string
   pickupPoint?: LatLng | null
-  dropoffPoint?: LatLng | null
-  dateTime?: string | null
+}
+
+function toMapOffer(item: PassengerRideOffer): MatchedPassengerRideOffer {
+  return {
+    ...item,
+    matchScore: 0,
+    matchReason: null,
+    match: { pickupDistanceKm: 0, dropoffDistanceKm: 0, timeDeltaMinutes: null },
+  }
 }
 
 export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMapOptions) {
-  const { paused = false, pickupPoint, dropoffPoint, dateTime } = options
+  const { paused = false, mapDate, pickupPoint } = options
   const { t } = useTranslation()
   const navigate = useNavigate()
 
@@ -40,80 +48,31 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
   pausedRef.current = paused
   const pickupRef = useRef(pickupPoint)
   pickupRef.current = pickupPoint
-  const dropoffRef = useRef(dropoffPoint)
-  dropoffRef.current = dropoffPoint
-  const dateTimeRef = useRef(dateTime)
-  dateTimeRef.current = dateTime
+  const mapDateRef = useRef(mapDate)
+  mapDateRef.current = mapDate
 
   const loadOffers = useCallback(async () => {
     if (pausedRef.current) return
 
     const pickup = pickupRef.current
-    const dropoff = dropoffRef.current
-    const rideDateTime = dateTimeRef.current
-
-    if (pickup && dropoff) {
-      if (!hasRideDateTime(rideDateTime)) {
-        setOffers([])
-        return
-      }
-      const page = await listMatchingRideOffers({
-        fromLat: pickup.lat,
-        fromLng: pickup.lng,
-        toLat: dropoff.lat,
-        toLng: dropoff.lng,
-        dateTime: rideDateTime || undefined,
-        limit: PAGE_LIMIT,
-        minScore: 60,
-        radiusKm: GEO_RADIUS_KM,
-      })
-      const bookedOutside = await listRideOffers({
-        limit: PAGE_LIMIT,
-        offset: 0,
-        fromLat: pickup.lat,
-        fromLng: pickup.lng,
-        radiusKm: GEO_RADIUS_KM,
-      })
-      const matchedIds = new Set(page.items.map((item) => item.id))
-      const merged = [...page.items]
-      for (const row of bookedOutside.items) {
-        if (row.bookedByMe && !matchedIds.has(row.id)) {
-          merged.push({
-            ...row,
-            matchScore: 0,
-            matchReason: null,
-            match: { pickupDistanceKm: 0, dropoffDistanceKm: 0, timeDeltaMinutes: null },
-          })
-        }
-      }
-      setOffers(merged)
-      return
-    }
+    const date = mapDateRef.current
 
     const listParams: {
       limit: number
       offset: number
+      date: string
       fromLat?: number
       fromLng?: number
       radiusKm?: number
-      date?: string
-    } = { limit: PAGE_LIMIT, offset: 0 }
+    } = { limit: PAGE_LIMIT, offset: 0, date }
     if (pickup) {
       listParams.fromLat = pickup.lat
       listParams.fromLng = pickup.lng
       listParams.radiusKm = GEO_RADIUS_KM
     }
-    const rideDate = rideDateFromDateTime(rideDateTime)
-    if (rideDate) listParams.date = rideDate
+
     const page = await listRideOffers(listParams)
-    setOffers(
-      page.items.map((item) => ({
-        ...item,
-        matchScore: 0,
-        matchReason: null,
-        match: { pickupDistanceKm: 0, dropoffDistanceKm: 0, timeDeltaMinutes: null },
-      })),
-    )
+    setOffers(page.items.map(toMapOffer))
   }, [])
 
   const refresh = useCallback(async () => {
@@ -159,7 +118,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
       cancelled = true
       window.clearTimeout(timeoutId)
     }
-  }, [paused, pickupPoint, dropoffPoint, dateTime, loadOffers, t])
+  }, [paused, pickupPoint, mapDate, loadOffers, t])
 
   useEffect(() => {
     if (paused) return

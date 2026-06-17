@@ -181,6 +181,14 @@ body {
   box-shadow: 0 1px 4px rgba(59,130,246,0.4);
 }
 
+.marker-a--offer,
+.marker-b--offer {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  opacity: 0.92;
+}
+
 .marker-green-sm {
   width: 14px;
   height: 14px;

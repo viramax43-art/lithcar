@@ -1,20 +1,23 @@
 import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import L from 'leaflet'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
-import { makeMapMarkIcon, makeOfferPickupIcon } from '../../lib/mapMarkIcons'
+import { makeMapMarkIcon } from '../../lib/mapMarkIcons'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import type { AppLanguage } from '../../i18n/languages'
 import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
 import { FieldRow } from './new-request/FieldRow'
-import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
+import { iconA, iconB, iconOfferA, iconOfferB, MapBinder } from './new-request/NewRequestMapBinder'
+import { OfferRouteFitBounds } from './new-request/OfferRouteFitBounds'
+import OfferDayFilter from './components/OfferDayFilter'
+import { offerMapDateForOffset, type OfferDayOffset } from '../../lib/offerMapDayFilter'
 import { useNewRequestController } from './new-request/useNewRequestController'
 import { usePassengerRideOffersOnMap } from './new-request/usePassengerRideOffersOnMap'
 import { useMatchingRideOffers } from './new-request/useMatchingRideOffers'
@@ -44,6 +47,8 @@ export default function NewRequest() {
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const [isSignalMode, setIsSignalMode] = useState(false)
+  const [offerDayOffset, setOfferDayOffset] = useState<OfferDayOffset>(0)
+  const offerMapDate = useMemo(() => offerMapDateForOffset(offerDayOffset), [offerDayOffset])
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
   const isMapMarkViewMode = Boolean(openedPublicMarkId || fullscreenPhoto)
@@ -51,14 +56,9 @@ export default function NewRequest() {
   const offersMap = usePassengerRideOffersOnMap({
     isPinLive: model.isPinLive,
     paused: offersPaused,
+    mapDate: offerMapDate,
     pickupPoint: model.fromPoint,
-    dropoffPoint: model.toPoint,
-    dateTime: model.dateTime,
   })
-  const pickupIconNormal = useMemo(() => makeOfferPickupIcon(), [])
-  const pickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
-  const pickupIconBooked = useMemo(() => makeOfferPickupIcon({ booked: true }), [])
-  const pickupIconBookedSubdued = useMemo(() => makeOfferPickupIcon({ booked: true, subdued: true }), [])
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
@@ -104,8 +104,10 @@ export default function NewRequest() {
             offersMap.offers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id
               const routeOpacity = isSelected
-                ? (model.isPinLive ? 0.7 : 0.9)
-                : (model.isPinLive ? 0.22 : 0.38)
+                ? (model.isPinLive ? 0.75 : 0.95)
+                : offersMap.selectedOfferId
+                  ? (model.isPinLive ? 0.12 : 0.2)
+                  : (model.isPinLive ? 0.28 : 0.42)
               return (
                 <Polyline
                   key={`offer-route-${offer.id}`}
@@ -115,7 +117,7 @@ export default function NewRequest() {
                   ]}
                   pathOptions={{
                     color: isSelected ? '#000' : '#374151',
-                    weight: isSelected ? 4 : 2,
+                    weight: isSelected ? 5 : 2,
                     dashArray: '10, 10',
                     opacity: routeOpacity,
                   }}
@@ -126,22 +128,50 @@ export default function NewRequest() {
           {!offersPaused &&
             offersMap.offers.map((offer) => {
               if (offersMap.selectedOfferId === offer.id) return null
+              const select = (event: L.LeafletMouseEvent) => {
+                L.DomEvent.stopPropagation(event.originalEvent)
+                offersMap.selectOffer(offer.id)
+              }
               return (
-                <CircleMarker
-                  key={`offer-dropoff-${offer.id}`}
-                  center={[offer.to.latlng.lat, offer.to.latlng.lng]}
-                  radius={5}
-                  pathOptions={{
-                    color: '#3B82F6',
-                    fillColor: '#3B82F6',
-                    fillOpacity: model.isPinLive ? 0.45 : 0.7,
-                    weight: 2,
-                    opacity: model.isPinLive ? 0.45 : 0.7,
-                  }}
-                  interactive={false}
-                />
+                <Fragment key={`offer-endpoints-${offer.id}`}>
+                  <Marker
+                    position={[offer.from.latlng.lat, offer.from.latlng.lng]}
+                    icon={iconOfferA}
+                    eventHandlers={{ click: select }}
+                  />
+                  <Marker
+                    position={[offer.to.latlng.lat, offer.to.latlng.lng]}
+                    icon={iconOfferB}
+                    eventHandlers={{ click: select }}
+                  />
+                </Fragment>
               )
             })}
+          {offersMap.selectedOffer && (
+            <>
+              <OfferRouteFitBounds
+                offerId={offersMap.selectedOffer.id}
+                from={offersMap.selectedOffer.from.latlng}
+                to={offersMap.selectedOffer.to.latlng}
+              />
+              <Marker
+                position={[
+                  offersMap.selectedOffer.from.latlng.lat,
+                  offersMap.selectedOffer.from.latlng.lng,
+                ]}
+                icon={iconA}
+                interactive={false}
+              />
+              <Marker
+                position={[
+                  offersMap.selectedOffer.to.latlng.lat,
+                  offersMap.selectedOffer.to.latlng.lng,
+                ]}
+                icon={iconB}
+                interactive={false}
+              />
+            </>
+          )}
           {model.fromPoint && model.toPoint && (
             <Polyline
               positions={[
@@ -181,46 +211,6 @@ export default function NewRequest() {
               </Popup>
             </Marker>
           ))}
-          {!offersPaused &&
-            offersMap.offers.map((offer) => {
-              if (offersMap.selectedOfferId === offer.id) return null
-              const markerIcon = offer.bookedByMe
-                ? (model.isPinLive ? pickupIconBookedSubdued : pickupIconBooked)
-                : (model.isPinLive ? pickupIconSubdued : pickupIconNormal)
-              return (
-                <Marker
-                  key={offer.id}
-                  position={[offer.from.latlng.lat, offer.from.latlng.lng]}
-                  icon={markerIcon}
-                  eventHandlers={{
-                    click: (event) => {
-                      L.DomEvent.stopPropagation(event.originalEvent)
-                      offersMap.selectOffer(offer.id)
-                    },
-                  }}
-                />
-              )
-            })}
-          {offersMap.selectedOffer && (
-            <>
-              <Marker
-                position={[
-                  offersMap.selectedOffer.from.latlng.lat,
-                  offersMap.selectedOffer.from.latlng.lng,
-                ]}
-                icon={iconA}
-                interactive={false}
-              />
-              <Marker
-                position={[
-                  offersMap.selectedOffer.to.latlng.lat,
-                  offersMap.selectedOffer.to.latlng.lng,
-                ]}
-                icon={iconB}
-                interactive={false}
-              />
-            </>
-          )}
           {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
           {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           <MapBinder
@@ -433,6 +423,14 @@ export default function NewRequest() {
           className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
+          <OfferDayFilter
+            value={offerDayOffset}
+            onChange={(offset) => {
+              setOfferDayOffset(offset)
+              offersMap.clearSelection()
+            }}
+          />
+
           <div className="flex flex-col gap-1.5">
             <FieldRow
               dotClass="bg-point-a"
@@ -518,9 +516,6 @@ export default function NewRequest() {
                     const matchLabel = getPassengerMatchButtonLabel(offer.matchScore, t)
                     const selectOffer = () => {
                       offersMap.selectOffer(offer.id)
-                      if (offer.from.latlng) {
-                        model.mapRef.current?.setView([offer.from.latlng.lat, offer.from.latlng.lng], 14)
-                      }
                     }
                     return (
                       <div
