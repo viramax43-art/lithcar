@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listMatchingRideOffers } from '../../../lib/backend'
+import { isOfferVisibleToPassenger } from '../../../lib/offerSeats'
 import { hasRideDateTime } from '../../../lib/rideDraft'
 import type { LatLng, MatchedPassengerRideOffer } from '../../../types'
 
@@ -45,7 +46,7 @@ export function useMatchingRideOffers({
             radiusKm: 2,
           })
           if (!cancelled) {
-            setItems(page.items)
+            setItems(page.items.filter(isOfferVisibleToPassenger))
             setError(null)
           }
         } catch (err) {

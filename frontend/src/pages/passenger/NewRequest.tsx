@@ -34,6 +34,7 @@ import DriverOffersListModal from './components/DriverOffersListModal'
 import type { MapMark, MatchedPassengerRideOffer } from '../../types'
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
 import { hasRideDateTime } from '../../lib/rideDraft'
+import { isOfferVisibleToPassenger } from '../../lib/offerSeats'
 import { isCoarsePointer } from '../../lib/pointer'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 
@@ -102,12 +103,22 @@ export default function NewRequest() {
   const offerPickupIcon = useMemo(() => makeOfferPickupIcon(), [])
   const offerPickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
 
+  const visibleMapOffers = useMemo(
+    () => offersMap.offers.filter(isOfferVisibleToPassenger),
+    [offersMap.offers],
+  )
+
+  const visibleMatchingOffers = useMemo(
+    () => matchingOffers.items.filter(isOfferVisibleToPassenger),
+    [matchingOffers.items],
+  )
+
   const offerById = useMemo(() => {
     const map = new Map<string, MatchedPassengerRideOffer>()
-    for (const offer of offersMap.offers) map.set(offer.id, offer)
-    for (const offer of matchingOffers.items) map.set(offer.id, offer)
+    for (const offer of visibleMapOffers) map.set(offer.id, offer)
+    for (const offer of visibleMatchingOffers) map.set(offer.id, offer)
     return map
-  }, [offersMap.offers, matchingOffers.items])
+  }, [visibleMapOffers, visibleMatchingOffers])
 
   const highlightedOffer = useMemo(() => {
     if (!offersMap.selectedOfferId) return null
@@ -116,9 +127,9 @@ export default function NewRequest() {
 
   const routeModalOffers = useMemo(() => {
     if (!model.fromPoint || !model.toPoint) return []
-    if (hasRideDateTime(model.dateTime)) return matchingOffers.items
-    return offersMap.offers
-  }, [model.fromPoint, model.toPoint, model.dateTime, matchingOffers.items, offersMap.offers])
+    if (hasRideDateTime(model.dateTime)) return visibleMatchingOffers
+    return visibleMapOffers
+  }, [model.fromPoint, model.toPoint, model.dateTime, visibleMatchingOffers, visibleMapOffers])
 
   const routeKey = useMemo(() => {
     if (!model.fromPoint || !model.toPoint) return ''
@@ -126,7 +137,7 @@ export default function NewRequest() {
   }, [model.fromPoint, model.toPoint])
 
   const showDayOffersButton =
-    !offersPaused && !offersMap.isLoading && offersMap.offers.length > 0
+    !offersPaused && !offersMap.isLoading && visibleMapOffers.length > 0
 
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
   useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
@@ -171,8 +182,8 @@ export default function NewRequest() {
   ])
 
   useEffect(() => {
-    if (offersMap.offers.length === 0) setDayOffersModalOpen(false)
-  }, [offersMap.offers.length])
+    if (visibleMapOffers.length === 0) setDayOffersModalOpen(false)
+  }, [visibleMapOffers.length])
 
   useEffect(() => {
     if (!offerDayReady.current) {
@@ -221,7 +232,7 @@ export default function NewRequest() {
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
           {!offersPaused &&
-            offersMap.offers.map((offer) => {
+            visibleMapOffers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id
               const routeOpacity = isSelected
                 ? (model.isPinLive ? 0.75 : 0.95)
@@ -246,7 +257,7 @@ export default function NewRequest() {
               )
             })}
           {!offersPaused &&
-            offersMap.offers.map((offer) => {
+            visibleMapOffers.map((offer) => {
               if (offersMap.selectedOfferId === offer.id) return null
               const select = (event: L.LeafletMouseEvent) => {
                 L.DomEvent.stopPropagation(event.originalEvent)
@@ -268,7 +279,7 @@ export default function NewRequest() {
                 </Fragment>
               )
             })}
-          {highlightedOffer && !offersMap.offers.some((offer) => offer.id === highlightedOffer.id) && (
+          {highlightedOffer && !visibleMapOffers.some((offer) => offer.id === highlightedOffer.id) && (
             <Polyline
               key={`offer-route-highlight-${highlightedOffer.id}`}
               positions={[
@@ -398,13 +409,13 @@ export default function NewRequest() {
             }}
             className="relative w-10 h-10 rounded-full bg-black text-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
             title={t('passenger.offers.dayMapButton', {
-              count: offersMap.offers.length,
-              defaultValue: `Driver rides today (${offersMap.offers.length})`,
+              count: visibleMapOffers.length,
+              defaultValue: `Driver rides today (${visibleMapOffers.length})`,
             })}
           >
             <Car size={18} weight="fill" />
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-point-a text-[10px] font-extrabold leading-[18px] text-center">
-              {offersMap.offers.length}
+              {visibleMapOffers.length}
             </span>
           </button>
         )}
@@ -834,7 +845,7 @@ export default function NewRequest() {
       )}
 
       <DriverOffersListModal
-        offers={offersMap.offers}
+        offers={visibleMapOffers}
         open={dayOffersModalOpen}
         title={t('passenger.offers.dayModalTitle', { defaultValue: 'Driver rides this day' })}
         hint={t('passenger.offers.dayModalHint', {

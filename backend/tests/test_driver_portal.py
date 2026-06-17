@@ -93,6 +93,72 @@ async def test_driver_key_login_and_cabinet_contains_assigned_rides(client, db_s
     assert any(item["id"] == request_id for item in body["rides"])
 
 
+async def test_driver_ride_history_lists_passenger(client, db_session):
+    admin_login = await client.post("/api/admin/session/login", json={"key": "ride_chief_admin_test_bootstrap_key"})
+    assert admin_login.status_code == 200
+
+    created_driver = await client.post(
+        "/api/drivers",
+        json={
+            "name": "History Driver",
+            "carBrand": "Toyota",
+            "carModel": "Prius",
+            "carPlate": "HIS001",
+            "vehicleColor": "White",
+            "seatsCount": 4,
+            "licenseNumber": "LIC-HIS",
+            "about": "Test driver",
+            "rating": 4.9,
+            "isOnline": True,
+        },
+    )
+    assert created_driver.status_code == 200
+    driver_payload = created_driver.json()
+    driver_id = driver_payload["driver"]["id"]
+    driver_key = driver_payload["key"]
+
+    passenger = User(
+        user_id="history-passenger",
+        username="history_passenger",
+        role=UserRole.PASSENGER,
+        points_balance=100,
+    )
+    db_session.add(passenger)
+    await db_session.commit()
+
+    await _create_zone(client)
+    passenger_headers = {
+        "Authorization": f"Bearer {create_access_token(subject=passenger.user_id, role=passenger.role)}",
+    }
+    created_request = await client.post(
+        "/api/ride-requests",
+        json={
+            "passengerName": "History Passenger",
+            "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
+            "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
+        },
+        headers=passenger_headers,
+    )
+    assert created_request.status_code == 201
+    request_id = created_request.json()["id"]
+
+    assigned = await client.patch(f"/api/ride-requests/{request_id}/assign", json={"driverId": driver_id})
+    assert assigned.status_code == 200
+
+    driver_login = await client.post("/api/driver/session/login", json={"key": driver_key})
+    assert driver_login.status_code == 200
+
+    history = await client.get("/api/driver/cabinet/history")
+    assert history.status_code == 200
+    body = history.json()
+    item = next(row for row in body["items"] if row["id"] == request_id)
+    assert item["passengerName"] == "History Passenger"
+    assert item["passengerId"] == passenger.user_id
+    assert item["fromAddress"] == "A"
+    assert item["toAddress"] == "B"
+
+
 async def test_driver_session_returns_can_sell_points_flag(client):
     admin_login = await client.post("/api/admin/session/login", json={"key": "ride_chief_admin_test_bootstrap_key"})
     assert admin_login.status_code == 200

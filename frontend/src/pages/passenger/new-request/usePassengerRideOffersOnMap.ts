@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { bookRideOffer, listRideOffers } from '../../../lib/backend'
 import { parseOfferBookingConflict } from '../../../lib/offerBooking'
+import { isOfferVisibleToPassenger } from '../../../lib/offerSeats'
 import { ApiError, parseApiErrorCode } from '../../../infrastructure/http/httpClient'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, MatchedPassengerRideOffer, PassengerRideOffer } from '../../../types'
@@ -72,7 +73,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     }
 
     const page = await listRideOffers(listParams)
-    setOffers(page.items.map(toMapOffer))
+    setOffers(page.items.filter(isOfferVisibleToPassenger).map(toMapOffer))
   }, [])
 
   const refresh = useCallback(async () => {

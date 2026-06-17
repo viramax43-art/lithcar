@@ -212,6 +212,27 @@ async def list_driver_requests(
     return list(result.scalars().all()), total
 
 
+async def list_driver_ride_history(
+    db_session: AsyncSession,
+    *,
+    driver_id: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[RideRequest], int]:
+    total_query = await db_session.execute(
+        select(func.count()).select_from(RideRequest).where(RideRequest.driver_id == driver_id)
+    )
+    total = int(total_query.scalar_one() or 0)
+    result = await db_session.execute(
+        select(RideRequest)
+        .where(RideRequest.driver_id == driver_id)
+        .order_by(RideRequest.date_time.desc(), RideRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), total
+
+
 async def _compute_route_order(requests: list[RideRequest]) -> list[RideRequest]:
     """Nearest-neighbor heuristic using OSRM road distances (haversine fallback)."""
     if len(requests) <= 1:

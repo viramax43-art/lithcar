@@ -54,6 +54,7 @@ export {
   applyDriverPointAction,
   rateRideAsDriver,
   getDriverCabinet,
+  getDriverRideHistory,
   claimDriverRide,
   createDriverOffer,
   cancelDriverOffer,

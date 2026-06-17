@@ -102,8 +102,38 @@ async def _maybe_mark_offer_completed(db_session: AsyncSession, offer: DriverRid
     offer.updated_at = now
 
 
+async def _sync_offer_seats_from_bookings(db_session: AsyncSession, offer: DriverRideOffer) -> None:
+    if offer.status in (DriverRideOfferStatus.CANCELLED, DriverRideOfferStatus.COMPLETED):
+        return
+    booked = await _count_bookings_for_offer(db_session, offer_id=offer.id)
+    expected_available = max(0, int(offer.total_seats) - booked)
+    seats_match = offer.seats_available == expected_available
+    status_match = (
+        expected_available > 0 and offer.status == DriverRideOfferStatus.OPEN
+    ) or (
+        expected_available == 0 and offer.status == DriverRideOfferStatus.FULL
+    )
+    if seats_match and status_match:
+        return
+    offer.seats_available = expected_available
+    now = datetime.now(timezone.utc)
+    if expected_available == 0:
+        offer.status = DriverRideOfferStatus.FULL
+    elif offer.status == DriverRideOfferStatus.FULL:
+        offer.status = DriverRideOfferStatus.OPEN
+    offer.updated_at = now
+
+
+def _offer_visible_to_other_passengers(offer: DriverRideOffer) -> bool:
+    return (
+        offer.status == DriverRideOfferStatus.OPEN
+        and offer.seats_available > 0
+    )
+
+
 async def _prepare_offer_for_read(db_session: AsyncSession, offer: DriverRideOffer) -> None:
     await _maybe_mark_offer_completed(db_session, offer)
+    await _sync_offer_seats_from_bookings(db_session, offer)
 
 
 async def create_driver_offer(
@@ -367,9 +397,9 @@ async def list_open_offers_for_passengers(
 
     for offer in offers:
         await _prepare_offer_for_read(db_session, offer)
-        if offer.status != DriverRideOfferStatus.OPEN or offer.seats_available <= 0:
-            if offer.id not in user_bookings:
-                continue
+        booked_by_me = offer.id in user_bookings
+        if not booked_by_me and not _offer_visible_to_other_passengers(offer):
+            continue
         quoted_points = await _offer_visible_to_passenger(
             db_session, offer, pricing=pricing, date=date
         )
@@ -380,7 +410,6 @@ async def list_open_offers_for_passengers(
             driver_user_id = driver.user_id if driver else None
             if driver_user_id and driver_user_id in blocked_ids:
                 continue
-        booked_by_me = offer.id in user_bookings
         filtered.append(
             PassengerOfferListRow(
                 offer=offer,

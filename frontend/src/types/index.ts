@@ -351,6 +351,20 @@ export interface DriverCabinetData {
   offset: number
 }
 
+export interface DriverRideHistoryItem {
+  id: string
+  rideNumber: number
+  passengerName: string
+  passengerId: string
+  passengerRating: number
+  passengerRatingCount: number
+  fromAddress: string
+  toAddress: string
+  status: RideStatus
+  dateTime: string
+  dateTimeLocal?: string
+}
+
 export type DriverFormFieldType = 'text' | 'textarea' | 'file'
 
 export type DriverFormDriverField =

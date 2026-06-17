@@ -400,6 +400,45 @@ async def test_book_duplicate_last_seat_returns_already_booked(client, db_sessio
 
 
 @pytest.mark.asyncio
+async def test_full_offer_hidden_from_other_passengers(client, db_session):
+    await _create_zone(client)
+    offer, _, _ = await _create_offer(client, totalSeats=1)
+    booker = await _create_passenger(db_session, user_id="full-booker")
+    other = await _create_passenger(db_session, user_id="full-other", points=100)
+
+    book = await client.post(
+        f"/api/ride-offers/{offer['id']}/book",
+        json={},
+        headers=_passenger_headers(booker),
+    )
+    assert book.status_code == 201
+
+    other_list = await client.get("/api/ride-offers", headers=_passenger_headers(other))
+    assert other_list.status_code == 200
+    assert offer["id"] not in {item["id"] for item in other_list.json()["items"]}
+
+    other_matches = await client.get(
+        "/api/ride-offers/matches",
+        params={
+            "fromLat": 54.69,
+            "fromLng": 25.27,
+            "toLat": 54.70,
+            "toLng": 25.28,
+            "dateTime": offer["dateTime"],
+        },
+        headers=_passenger_headers(other),
+    )
+    assert other_matches.status_code == 200
+    assert offer["id"] not in {item["id"] for item in other_matches.json()["items"]}
+
+    booker_list = await client.get("/api/ride-offers", headers=_passenger_headers(booker))
+    assert booker_list.status_code == 200
+    item = next(row for row in booker_list.json()["items"] if row["id"] == offer["id"])
+    assert item["bookedByMe"] is True
+    assert item["seatsAvailable"] == 0
+
+
+@pytest.mark.asyncio
 async def test_list_marks_offer_booked_by_me(client, db_session):
     await _create_zone(client)
     offer, _, _ = await _create_offer(client, totalSeats=2)

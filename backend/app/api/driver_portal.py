@@ -65,6 +65,7 @@ from app.services.ride_request_service import (
     claim_ride_by_driver,
     get_request,
     list_driver_requests,
+    list_driver_ride_history,
     list_unassigned_rides,
     reset_driver_pickup_point,
     update_driver_ride_status,
@@ -247,6 +248,27 @@ class DriverCabinetOut(BaseModel):
     rides: list[DriverRideOut]
     driverDebtEur: float
     recentQrSales: list[DriverDebtSaleOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class DriverRideHistoryItemOut(BaseModel):
+    id: str
+    rideNumber: int
+    passengerName: str
+    passengerId: str
+    passengerRating: float
+    passengerRatingCount: int
+    fromAddress: str
+    toAddress: str
+    status: str
+    dateTime: datetime
+    dateTimeLocal: str
+
+
+class DriverRideHistoryPage(BaseModel):
+    items: list[DriverRideHistoryItemOut]
     total: int
     limit: int
     offset: int
@@ -791,6 +813,43 @@ async def driver_cabinet(
         limit=limit,
         offset=offset,
     )
+
+
+async def _to_driver_ride_history_item(
+    db_session: AsyncSession,
+    ride,
+) -> DriverRideHistoryItemOut:
+    passenger_aggregate = await get_user_rating_aggregate(db_session, ride.passenger_id)
+    return DriverRideHistoryItemOut(
+        id=ride.id,
+        rideNumber=ride.ride_number,
+        passengerName=ride.passenger_name,
+        passengerId=ride.passenger_id,
+        passengerRating=passenger_aggregate.rating,
+        passengerRatingCount=passenger_aggregate.rating_count,
+        fromAddress=ride.from_address,
+        toAddress=ride.to_address,
+        status=ride.status,
+        dateTime=ride.date_time,
+        dateTimeLocal=to_app_local_iso(ride.date_time),
+    )
+
+
+@router.get("/cabinet/history", response_model=DriverRideHistoryPage)
+async def driver_ride_history(
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    rides, total = await list_driver_ride_history(
+        db_session,
+        driver_id=session.driver_id,
+        limit=limit,
+        offset=offset,
+    )
+    items = [await _to_driver_ride_history_item(db_session, ride) for ride in rides]
+    return DriverRideHistoryPage(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/cabinet/map", response_model=DriverMapOut)

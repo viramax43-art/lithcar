@@ -977,7 +977,6 @@ export default function DriverCabinet() {
       <DriverSideMenu
         isOpen={sideMenuOpen}
         session={session}
-        cabinetData={cabinetData}
         onClose={() => setSideMenuOpen(false)}
         onLogout={() => void handleLogout()}
       />

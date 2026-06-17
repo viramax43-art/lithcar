@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  ClipboardText,
   Megaphone,
+  Prohibit,
   QrCode,
   SignOut,
   Star,
@@ -9,19 +11,28 @@ import {
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import type { BlockedUser, DriverCabinetData } from '../../../types'
+import type { BlockedUser, DriverRideHistoryItem } from '../../../types'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
-import { redeemPassengerQrSale, listBlockedUsersAsDriver, unblockUserAsDriver } from '../../../lib/backend'
+import {
+  redeemPassengerQrSale,
+  listBlockedUsersAsDriver,
+  unblockUserAsDriver,
+  getDriverRideHistory,
+} from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
+import RatingBadge from '../../../components/RatingBadge'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
+import { formatRideDateTime } from '../../../i18n/dateTime'
+import { DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY } from '../constants'
 import DriverOffersList from './DriverOffersList'
+
+const HISTORY_PAGE_SIZE = 15
 
 interface DriverSideMenuProps {
   isOpen: boolean
   session: DriverSessionUser
-  cabinetData: DriverCabinetData | null
   onClose: () => void
   onLogout: () => void
 }
@@ -29,7 +40,6 @@ interface DriverSideMenuProps {
 export default function DriverSideMenu({
   isOpen,
   session,
-  cabinetData,
   onClose,
   onLogout,
 }: DriverSideMenuProps) {
@@ -38,13 +48,35 @@ export default function DriverSideMenu({
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
+  const [rideHistory, setRideHistory] = useState<DriverRideHistoryItem[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
   const [isBlockedLoading, setIsBlockedLoading] = useState(false)
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
   const logoutArmTimer = useRef<number | null>(null)
 
+  const canLoadMoreHistory = rideHistory.length < historyTotal
+
+  const loadRideHistory = async (offset: number, append: boolean) => {
+    setIsHistoryLoading(true)
+    try {
+      const page = await getDriverRideHistory({ limit: HISTORY_PAGE_SIZE, offset })
+      setHistoryTotal(page.total)
+      setRideHistory((prev) => (append ? [...prev, ...page.items] : page.items))
+    } catch {
+      if (!append) {
+        setRideHistory([])
+        setHistoryTotal(0)
+      }
+    } finally {
+      setIsHistoryLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return
+    void loadRideHistory(0, false)
     void (async () => {
       setIsBlockedLoading(true)
       try {
@@ -77,7 +109,6 @@ export default function DriverSideMenu({
 
   return (
     <>
-      {/* Backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 z-[40] bg-black/40"
@@ -85,7 +116,6 @@ export default function DriverSideMenu({
         />
       )}
 
-      {/* Panel */}
       <div
         className="fixed top-0 left-0 bottom-0 z-[50] w-[300px] bg-white shadow-[4px_0_24px_rgba(0,0,0,0.18)] flex flex-col transition-transform duration-300 will-change-transform"
         style={{
@@ -94,7 +124,6 @@ export default function DriverSideMenu({
           paddingBottom: 'var(--app-safe-area-bottom-total)',
         }}
       >
-        {/* Header */}
         <div className="px-4 py-4 flex items-center justify-between gap-3 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
@@ -117,11 +146,11 @@ export default function DriverSideMenu({
           </button>
         </div>
 
-        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
-          <section className="px-4 py-4 border-t border-border">
+          <section className="px-4 py-4">
             <LanguageSwitcher />
           </section>
+
           <section className="px-4 py-3 border-t border-border">
             <button
               onClick={() => {
@@ -140,8 +169,72 @@ export default function DriverSideMenu({
               </div>
             </button>
           </section>
+
           <section className="px-4 py-4 border-t border-border space-y-3">
-            <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
+            <div className="flex items-center gap-2">
+              <ClipboardText size={16} weight="duotone" className="text-muted" />
+              <p className="text-sm font-bold">{t('driver.history', { defaultValue: 'Ride history' })}</p>
+            </div>
+            {isHistoryLoading && rideHistory.length === 0 && (
+              <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
+            )}
+            {!isHistoryLoading && rideHistory.length === 0 && (
+              <p className="text-xs text-muted">{t('profile.noRides', { defaultValue: 'No rides yet.' })}</p>
+            )}
+            {rideHistory.map((ride) => {
+              const statusColors = DRIVER_STATUS_COLOR[ride.status]
+              return (
+                <div key={ride.id} className="rounded-xl bg-surface/70 p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold truncate">{ride.passengerName}</p>
+                      <RatingBadge
+                        rating={ride.passengerRating}
+                        ratingCount={ride.passengerRatingCount}
+                        size="sm"
+                      />
+                    </div>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0"
+                      style={{ color: statusColors.color, background: statusColors.bg }}
+                    >
+                      {t(DRIVER_STATUS_LABEL_KEY[ride.status], { defaultValue: ride.status })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted truncate">{ride.fromAddress}</p>
+                  <p className="text-[11px] text-muted truncate">{ride.toAddress}</p>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <p className="text-[10px] text-muted">
+                      {formatRideDateTime(ride, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <span className="text-[10px] font-semibold text-muted">№{ride.rideNumber}</span>
+                  </div>
+                </div>
+              )
+            })}
+            {canLoadMoreHistory && (
+              <button
+                type="button"
+                disabled={isHistoryLoading}
+                onClick={() => void loadRideHistory(rideHistory.length, true)}
+                className="w-full py-2.5 rounded-xl bg-surface text-xs font-semibold text-muted active:bg-border/40 disabled:opacity-60"
+              >
+                {isHistoryLoading
+                  ? t('common.loading', { defaultValue: 'Loading...' })
+                  : t('common.showMoreWithCount', {
+                      loaded: rideHistory.length,
+                      total: historyTotal,
+                      defaultValue: `Show more (${rideHistory.length} of ${historyTotal})`,
+                    })}
+              </button>
+            )}
+          </section>
+
+          <section className="px-4 py-4 border-t border-border space-y-3">
+            <div className="flex items-center gap-2">
+              <Prohibit size={16} weight="duotone" className="text-muted" />
+              <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
+            </div>
             {isBlockedLoading && (
               <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
             )}
@@ -179,6 +272,7 @@ export default function DriverSideMenu({
               </div>
             ))}
           </section>
+
           <section className="px-4 py-4 border-t border-border">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
@@ -226,7 +320,6 @@ export default function DriverSideMenu({
           </section>
         </div>
 
-        {/* Logout — two-step confirmation */}
         <div className="px-4 py-4 border-t border-border">
           <button
             onClick={() => {

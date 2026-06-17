@@ -1,4 +1,4 @@
-import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideOffer, RideStatus, MatchedRideRequest } from '../../types'
+import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideHistoryItem, DriverRideOffer, RideStatus, MatchedRideRequest } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, DriverRideOfferApi, PaginationParams, MatchedRideRequestApi } from './contracts'
 import { mapDriverRideOffer, mapMatchedRideRequest, toPageQuery } from './sharedMappers'
@@ -28,6 +28,15 @@ export async function logoutDriverSession(): Promise<void> {
 
 export async function getDriverCabinet(params?: PaginationParams): Promise<DriverCabinetData> {
   return apiRequest<DriverCabinetData>(`/api/driver/cabinet?${toPageQuery(params)}`, { authMode: 'cookie' })
+}
+
+export async function getDriverRideHistory(params?: PaginationParams): Promise<{
+  items: DriverRideHistoryItem[]
+  total: number
+  limit: number
+  offset: number
+}> {
+  return apiRequest(`/api/driver/cabinet/history?${toPageQuery(params)}`, { authMode: 'cookie' })
 }
 
 export async function setDriverRideStatus(rideId: string, status: RideStatus): Promise<DriverCabinetRide> {
