@@ -66,7 +66,7 @@ export default function RideRatingSheet({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={isSubmitting}
-            placeholder={t('rating.commentPlaceholder', { defaultValue: 'Comment (optional)' })}
+            placeholder={t('rating.commentOptional', { defaultValue: 'Comment (optional)' })}
             rows={3}
             maxLength={500}
             className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"

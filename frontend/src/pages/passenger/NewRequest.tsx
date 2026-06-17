@@ -1,4 +1,4 @@
-import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, UserCircle, Warning, X } from '@phosphor-icons/react'
+import { Calendar, CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, MagnifyingGlass, NavigationArrow, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
@@ -17,10 +17,14 @@ import { FieldRow } from './new-request/FieldRow'
 import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
 import { useNewRequestController } from './new-request/useNewRequestController'
 import { usePassengerRideOffersOnMap } from './new-request/usePassengerRideOffersOnMap'
+import { useMatchingRideOffers } from './new-request/useMatchingRideOffers'
 import OfferMapSheet from './components/OfferMapSheet'
+import MatchScoreChip, { showMatchUi } from '../../components/MatchScoreChip'
 import type { MapMark } from '../../types'
-import { addAppLocalDays, toAppLocalDateInput } from '../../i18n/dateTime'
+import { addAppLocalDays, formatRideDate, formatRideTime, toAppLocalDateInput } from '../../i18n/dateTime'
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
+import { offerSeatsBooked } from '../../lib/offerSeats'
+import { getPassengerMatchButtonLabel } from '../../lib/matchUi'
 import { isCoarsePointer } from '../../lib/pointer'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 
@@ -46,6 +50,9 @@ export default function NewRequest() {
   const offersMap = usePassengerRideOffersOnMap({
     isPinLive: model.isPinLive,
     paused: offersPaused,
+    pickupPoint: model.fromPoint,
+    dropoffPoint: model.toPoint,
+    dateTime: model.dateTime,
   })
   const pickupIconNormal = useMemo(() => makeOfferPickupIcon(), [])
   const pickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
@@ -54,6 +61,13 @@ export default function NewRequest() {
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
+  const matchingOffers = useMatchingRideOffers({
+    from: model.fromPoint,
+    to: model.toPoint,
+    dateTime: model.dateTime,
+    limit: 5,
+    enabled: Boolean(model.fromPoint && model.toPoint && !offersPaused),
+  })
 
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
   useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
@@ -465,6 +479,113 @@ export default function NewRequest() {
               }}
             />
           </div>
+
+          {model.fromPoint && model.toPoint && (
+            <div className="space-y-2 border-t border-surface pt-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                {t('passenger.offers.matchingTitle', { defaultValue: 'Matching driver rides' })}
+              </p>
+              {matchingOffers.isLoading && (
+                <p className="text-xs text-muted">{t('passenger.offers.map.loading', { defaultValue: 'Loading rides…' })}</p>
+              )}
+              {matchingOffers.error && (
+                <p className="text-xs font-medium text-red-600">{matchingOffers.error}</p>
+              )}
+              {!matchingOffers.isLoading && !matchingOffers.error && matchingOffers.items.length === 0 && (
+                <p className="text-xs text-muted">
+                  {t('passenger.offers.noMatches', { defaultValue: 'No matching rides yet' })}
+                </p>
+              )}
+              {!matchingOffers.isLoading && matchingOffers.items.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto scroll-x-hide pb-1">
+                  {matchingOffers.items.map((offer) => {
+                    const booked = offerSeatsBooked(offer)
+                    const offerDateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
+                    const offerTimeStr = formatRideTime(offer)
+                    const matchLabel = getPassengerMatchButtonLabel(offer.matchScore, t)
+                    const selectOffer = () => {
+                      offersMap.selectOffer(offer.id)
+                      if (offer.from.latlng) {
+                        model.mapRef.current?.setView([offer.from.latlng.lat, offer.from.latlng.lng], 14)
+                      }
+                    }
+                    return (
+                      <div
+                        key={offer.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={selectOffer}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            selectOffer()
+                          }
+                        }}
+                        className="flex-shrink-0 w-[min(88vw,280px)] rounded-xl border border-border bg-surface/60 p-3 text-left active:scale-[0.97] transition-transform cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <span className="text-xs font-bold px-3 py-1 rounded-pill bg-white border border-border text-muted">
+                              {t('passenger.offers.seatsSummary', {
+                                booked,
+                                available: offer.seatsAvailable,
+                                total: offer.totalSeats,
+                                defaultValue: `${booked} taken · ${offer.seatsAvailable} free of ${offer.totalSeats}`,
+                              })}
+                            </span>
+                            {showMatchUi(offer.matchScore) && <MatchScoreChip score={offer.matchScore} />}
+                          </div>
+                          <span className="flex items-center gap-1 text-xs text-muted flex-shrink-0">
+                            <Clock size={12} />
+                            {offerDateStr}, {offerTimeStr}
+                          </span>
+                        </div>
+                        {offer.driver.carModel && (
+                          <p className="text-sm font-bold truncate mb-2">{offer.driver.carModel}</p>
+                        )}
+                        <div className="flex items-start gap-2 mb-2">
+                          <div className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0">
+                            <div className="w-2 h-2 rounded-full bg-point-a" />
+                            <div className="w-px h-4 bg-border" />
+                            <div className="w-2 h-2 rounded-full bg-point-b" />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-sm font-semibold truncate">{offer.from.address}</p>
+                            <p className="text-sm font-semibold truncate">{offer.to.address}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">{offer.driver.name}</p>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
+                              <Star size={10} weight="fill" />
+                              {offer.driver.rating.toFixed(1)}
+                            </span>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-sm font-bold flex-shrink-0">
+                            <Coins size={12} weight="fill" className="text-accent-dark" />
+                            {offer.quotedPoints}
+                          </span>
+                        </div>
+                        {matchLabel && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              selectOffer()
+                            }}
+                            className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
+                          >
+                            {matchLabel}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 border-t border-surface pt-2.5">
             <div className="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg bg-surface">

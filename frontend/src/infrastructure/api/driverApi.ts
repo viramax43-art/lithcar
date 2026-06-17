@@ -1,7 +1,7 @@
-import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideOffer, RideStatus } from '../../types'
+import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideOffer, RideStatus, MatchedRideRequest } from '../../types'
 import { apiRequest } from '../http/httpClient'
-import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, DriverRideOfferApi, PaginationParams } from './contracts'
-import { mapDriverRideOffer, toPageQuery } from './sharedMappers'
+import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, DriverRideOfferApi, PaginationParams, MatchedRideRequestApi } from './contracts'
+import { mapDriverRideOffer, mapMatchedRideRequest, toPageQuery } from './sharedMappers'
 
 export async function bootstrapDriverAccess(): Promise<DriverSessionUser> {
   return apiRequest<DriverSessionUser>('/api/driver-registration/driver-access/bootstrap', {
@@ -99,9 +99,10 @@ export async function getDriverMapData(): Promise<DriverMapData> {
   return apiRequest<DriverMapData>('/api/driver/cabinet/map', { authMode: 'cookie' })
 }
 
-export async function claimDriverRide(requestId: string): Promise<DriverCabinetRide> {
+export async function claimDriverRide(requestId: string, payload?: { offerId?: string }): Promise<DriverCabinetRide> {
   return apiRequest<DriverCabinetRide>(`/api/driver/cabinet/rides/${requestId}/claim`, {
     method: 'POST',
+    body: payload ?? {},
     authMode: 'cookie',
   })
 }
@@ -176,4 +177,19 @@ export async function cancelDriverOffer(id: string): Promise<void> {
     method: 'DELETE',
     authMode: 'cookie',
   })
+}
+
+export async function listOfferMatchingRequests(
+  offerId: string,
+  params?: { limit?: number; minScore?: number },
+): Promise<{ items: MatchedRideRequest[]; total: number }> {
+  const q = new URLSearchParams()
+  if (params?.limit != null) q.set('limit', String(params.limit))
+  if (params?.minScore != null) q.set('minScore', String(params.minScore))
+  const suffix = q.toString() ? `?${q}` : ''
+  const page = await apiRequest<{ items: MatchedRideRequestApi[]; total: number }>(
+    `/api/driver/offers/${offerId}/matches${suffix}`,
+    { authMode: 'cookie' },
+  )
+  return { items: page.items.map(mapMatchedRideRequest), total: page.total }
 }

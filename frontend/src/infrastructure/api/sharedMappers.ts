@@ -1,5 +1,5 @@
-import type { RideRequest, UserCabinetData, UserCabinetRideHistoryItem, DriverRideOffer, PassengerRideOffer } from '../../types'
-import type { PaginationParams, RideRequestApi, UserCabinetApi, UserCabinetRideApi, DriverRideOfferApi, PassengerRideOfferApi } from './contracts'
+import type { RideRequest, UserCabinetData, UserCabinetRideHistoryItem, DriverRideOffer, PassengerRideOffer, MatchedPassengerRideOffer, MatchedRideRequest } from '../../types'
+import type { PaginationParams, RideRequestApi, UserCabinetApi, UserCabinetRideApi, DriverRideOfferApi, PassengerRideOfferApi, MatchedPassengerRideOfferApi, MatchedRideRequestApi } from './contracts'
 
 export function toPageQuery(params?: PaginationParams): string {
   const limit = params?.limit ?? 50
@@ -11,6 +11,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
   const assignedDriver = item.assignedDriver
     ? {
       id: item.assignedDriver.id,
+      userId: item.assignedDriver.userId ?? null,
       name: item.assignedDriver.name,
       photoUrl: item.assignedDriver.photoUrl ?? undefined,
       carBrand: item.assignedDriver.carBrand,
@@ -89,6 +90,8 @@ export function mapDriverRideOffer(item: DriverRideOfferApi): DriverRideOffer {
     seatsAvailable: item.seatsAvailable,
     status: item.status,
     bookingsCount: item.bookingsCount,
+    carBrand: item.carBrand,
+    carModel: item.carModel,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   }
@@ -114,6 +117,37 @@ export function mapPassengerRideOffer(item: PassengerRideOfferApi): PassengerRid
       carPlate: item.driver.carPlate,
       rating: item.driver.rating,
       seatsCount: item.driver.seatsCount,
+      telegramUsername: item.driver.telegramUsername ?? null,
     },
+  }
+}
+
+export function mapMatchedPassengerRideOffer(item: MatchedPassengerRideOfferApi): MatchedPassengerRideOffer {
+  const base = mapPassengerRideOffer(item)
+  return {
+    ...base,
+    matchScore: item.matchScore,
+    matchReason: item.matchReason ?? null,
+    match: item.match,
+  }
+}
+
+export function mapMatchedRideRequest(item: MatchedRideRequestApi): MatchedRideRequest {
+  return {
+    id: item.id,
+    rideNumber: item.rideNumber,
+    passengerName: item.passengerName,
+    passengerTelegramUsername: item.passengerTelegramUsername ?? null,
+    passengerRating: item.passengerRating ?? 5,
+    passengerRatingCount: item.passengerRatingCount ?? 0,
+    from: item.fromPoint,
+    to: item.toPoint,
+    dateTime: item.dateTime,
+    dateTimeLocal: item.dateTimeLocal,
+    status: item.status,
+    quotedPoints: item.quotedPoints ?? null,
+    matchScore: item.matchScore,
+    matchReason: item.matchReason ?? null,
+    match: item.match,
   }
 }

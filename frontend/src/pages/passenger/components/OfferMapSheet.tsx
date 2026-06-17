@@ -2,12 +2,16 @@ import { CheckCircle, Coins, Star, User, X } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LithuanianPlate from '../../../components/LithuanianPlate'
+import MatchScoreChip, { showMatchUi } from '../../../components/MatchScoreChip'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
+import { offerSeatsBooked } from '../../../lib/offerSeats'
+import { getPassengerMatchButtonLabel } from '../../../lib/matchUi'
+import { openExternalLink } from '../../../lib/telegram'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
-import type { PassengerRideOffer } from '../../../types'
+import type { MatchedPassengerRideOffer } from '../../../types'
 
 interface OfferMapSheetProps {
-  offer: PassengerRideOffer | null
+  offer: MatchedPassengerRideOffer | null
   open: boolean
   isConfirming: boolean
   isBooking: boolean
@@ -38,6 +42,16 @@ export default function OfferMapSheet({
   const dateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
   const timeStr = formatRideTime(offer)
   const isBooked = Boolean(offer.bookedByMe)
+  const booked = offerSeatsBooked(offer)
+  const telegramUsername = offer.driver.telegramUsername
+  const hasMatch = showMatchUi(offer.matchScore)
+  const matchLabel = getPassengerMatchButtonLabel(offer.matchScore, t)
+  const bookLabel = matchLabel ?? t('passenger.offers.book', { defaultValue: 'Book seat' })
+
+  const openTelegram = () => {
+    if (!telegramUsername) return
+    openExternalLink(`https://t.me/${telegramUsername.replace(/^@/, '')}`)
+  }
 
   return (
     <>
@@ -54,9 +68,12 @@ export default function OfferMapSheet({
 
         <div className="px-5 pt-4 pb-3 flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-lg font-extrabold tracking-tight">
-              {t('passenger.offers.map.sheetTitle', { defaultValue: 'Driver ride' })}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-lg font-extrabold tracking-tight">
+                {t('passenger.offers.map.sheetTitle', { defaultValue: 'Driver ride' })}
+              </p>
+              {hasMatch && <MatchScoreChip score={offer.matchScore} />}
+            </div>
             <p className="text-sm text-muted mt-0.5">
               {dateStr}, {timeStr}
             </p>
@@ -82,9 +99,11 @@ export default function OfferMapSheet({
             </span>
           ) : (
             <span className="inline-flex text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
-              {t('passenger.offers.seatsLeft', {
-                count: offer.seatsAvailable,
-                defaultValue: `${offer.seatsAvailable} seats`,
+              {t('passenger.offers.seatsSummary', {
+                booked,
+                available: offer.seatsAvailable,
+                total: offer.totalSeats,
+                defaultValue: `${booked} taken · ${offer.seatsAvailable} free of ${offer.totalSeats}`,
               })}
             </span>
           )}
@@ -140,6 +159,16 @@ export default function OfferMapSheet({
             </button>
           ) : isConfirming ? (
             <div className="flex gap-2">
+              {telegramUsername && (
+                <button
+                  type="button"
+                  onClick={openTelegram}
+                  disabled={isBooking}
+                  className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
+                >
+                  {t('common.writeTelegram', { defaultValue: 'Message' })}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onCancelConfirm}
@@ -163,16 +192,28 @@ export default function OfferMapSheet({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={onBookClick}
-              disabled={isBooking}
-              className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
-            >
-              {isBooking
-                ? t('passenger.offers.map.booking', { defaultValue: 'Booking…' })
-                : t('passenger.offers.book', { defaultValue: 'Book seat' })}
-            </button>
+            <div className="flex gap-2">
+              {telegramUsername && (
+                <button
+                  type="button"
+                  onClick={openTelegram}
+                  disabled={isBooking}
+                  className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
+                >
+                  {t('common.writeTelegram', { defaultValue: 'Message' })}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onBookClick}
+                disabled={isBooking}
+                className="flex-1 py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
+              >
+                {isBooking
+                  ? t('passenger.offers.map.booking', { defaultValue: 'Booking…' })
+                  : bookLabel}
+              </button>
+            </div>
           )}
         </div>
       </div>

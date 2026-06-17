@@ -1,5 +1,5 @@
 import { mapPricingSettings } from '../../lib/pricingDefaults'
-import type { GroupSuggestion, MapMark, PassengerRideOffer, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData } from '../../types'
+import type { GroupSuggestion, MapMark, PassengerRideOffer, PricingSettings, RideQuote, RideRequest, ServiceZone, UserCabinetData, MatchedPassengerRideOffer } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type {
   CurrentUser,
@@ -7,10 +7,11 @@ import type {
   PaginatedResult,
   PaginationParams,
   PassengerRideOfferApi,
+  MatchedPassengerRideOfferApi,
   RideRequestApi,
   UserCabinetApi,
 } from './contracts'
-import { mapPassengerRideOffer, mapRideRequest, mapUserCabinetData, toPageQuery } from './sharedMappers'
+import { mapPassengerRideOffer, mapRideRequest, mapUserCabinetData, mapMatchedPassengerRideOffer, toPageQuery } from './sharedMappers'
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   return apiRequest<CurrentUser>('/api/users/me')
@@ -162,14 +163,50 @@ export async function listGroupSuggestions(params?: PaginationParams): Promise<P
 }
 
 export async function listRideOffers(
-  params?: PaginationParams & { date?: string },
+  params?: PaginationParams & {
+    date?: string
+    fromLat?: number
+    fromLng?: number
+    radiusKm?: number
+  },
 ): Promise<{ items: PassengerRideOffer[]; total: number; limit: number; offset: number }> {
   const query = toPageQuery(params)
-  const dateSuffix = params?.date ? `&date=${encodeURIComponent(params.date)}` : ''
+  const extra = new URLSearchParams()
+  if (params?.date) extra.set('date', params.date)
+  if (params?.fromLat != null) extra.set('fromLat', String(params.fromLat))
+  if (params?.fromLng != null) extra.set('fromLng', String(params.fromLng))
+  if (params?.radiusKm != null) extra.set('radiusKm', String(params.radiusKm))
+  const extraSuffix = extra.toString() ? `&${extra.toString()}` : ''
   const page = await apiRequest<{ items: PassengerRideOfferApi[]; total: number; limit: number; offset: number }>(
-    `/api/ride-offers?${query}${dateSuffix}`,
+    `/api/ride-offers?${query}${extraSuffix}`,
   )
   return { ...page, items: page.items.map(mapPassengerRideOffer) }
+}
+
+export async function listMatchingRideOffers(params: {
+  fromLat: number
+  fromLng: number
+  toLat: number
+  toLng: number
+  dateTime?: string
+  limit?: number
+  minScore?: number
+  radiusKm?: number
+}): Promise<{ items: MatchedPassengerRideOffer[]; total: number; limit: number; offset: number }> {
+  const q = new URLSearchParams({
+    fromLat: String(params.fromLat),
+    fromLng: String(params.fromLng),
+    toLat: String(params.toLat),
+    toLng: String(params.toLng),
+  })
+  if (params.dateTime) q.set('dateTime', params.dateTime)
+  if (params.limit != null) q.set('limit', String(params.limit))
+  if (params.minScore != null) q.set('minScore', String(params.minScore))
+  if (params.radiusKm != null) q.set('radiusKm', String(params.radiusKm))
+  const page = await apiRequest<{ items: MatchedPassengerRideOfferApi[]; total: number; limit: number; offset: number }>(
+    `/api/ride-offers/matches?${q}`,
+  )
+  return { ...page, items: page.items.map(mapMatchedPassengerRideOffer) }
 }
 
 export async function getRideOffer(id: string): Promise<PassengerRideOffer> {

@@ -34,15 +34,15 @@ async def _create_zone(client):
     assert response.status_code == 200
 
 
-async def _create_driver(client, *, seats_count: int = 4):
+async def _create_driver(client, *, seats_count: int = 4, car_brand: str = "Toyota", car_model: str = "Corolla"):
     admin_login = await client.post("/api/admin/session/login", json={"key": "ride_chief_admin_test_bootstrap_key"})
     assert admin_login.status_code == 200
     created = await client.post(
         "/api/drivers",
         json={
             "name": "Offer Driver",
-            "carBrand": "Toyota",
-            "carModel": "Corolla",
+            "carBrand": car_brand,
+            "carModel": car_model,
             "carPlate": "OF001",
             "vehicleColor": "White",
             "seatsCount": seats_count,
@@ -113,6 +113,7 @@ async def test_create_offer_validates_datetime(client, db_session):
 
 @pytest.mark.asyncio
 async def test_create_offer_validates_zones(client, db_session):
+    await _create_zone(client)
     driver_id, driver_key = await _create_driver(client)
     login = await client.post("/api/driver/session/login", json={"key": driver_key})
     assert login.status_code == 200
@@ -435,6 +436,7 @@ async def test_book_duplicate_same_passenger(client, db_session):
 
 @pytest.mark.asyncio
 async def test_zone_validation_on_create(client, db_session):
+    await _create_zone(client)
     _, driver_key = await _create_driver(client)
     login = await client.post("/api/driver/session/login", json={"key": driver_key})
     assert login.status_code == 200
@@ -468,3 +470,18 @@ async def test_driver_cannot_book_own_offer(client, db_session):
         headers=_passenger_headers(passenger),
     )
     assert book.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_driver_offer_list_includes_car_brand_model(client, db_session):
+    await _create_zone(client)
+    _, driver_key = await _create_driver(client, car_brand="Mercedes", car_model="Sprinter")
+    login = await client.post("/api/driver/session/login", json={"key": driver_key})
+    assert login.status_code == 200
+    created = await client.post("/api/driver/offers", json=_offer_payload())
+    assert created.status_code == 201
+    listed = await client.get("/api/driver/offers")
+    assert listed.status_code == 200
+    item = next(i for i in listed.json()["items"] if i["id"] == created.json()["id"])
+    assert item["carBrand"] == "Mercedes"
+    assert item["carModel"] == "Sprinter"

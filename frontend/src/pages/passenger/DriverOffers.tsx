@@ -5,23 +5,94 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import LithuanianPlate from '../../components/LithuanianPlate'
-import { bookRideOffer, listRideOffers } from '../../lib/backend'
+import { bookRideOffer, listMatchingRideOffers, listRideOffers } from '../../lib/backend'
 import { parseOfferBookingConflict } from '../../lib/offerBooking'
-import { ApiError } from '../../infrastructure/http/httpClient'
+import { offerSeatsBooked } from '../../lib/offerSeats'
+import { getPassengerMatchButtonLabel } from '../../lib/matchUi'
+import { openExternalLink } from '../../lib/telegram'
+import MatchScoreChip, { showMatchUi } from '../../components/MatchScoreChip'
+import { ApiError, parseApiErrorCode } from '../../infrastructure/http/httpClient'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import { hapticNotification } from '../../lib/telegram'
-import type { PassengerRideOffer } from '../../types'
+import type { LatLng, PassengerRideOffer } from '../../types'
 
 const PAGE_SIZE = 20
+const DRAFT_KEY = 'ride_new_request_draft'
+
+function loadDraftGeofilter(): {
+  fromPoint: LatLng | null
+  toPoint: LatLng | null
+  dateTime: string | null
+} {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY)
+    if (!raw) return { fromPoint: null, toPoint: null, dateTime: null }
+    const parsed = JSON.parse(raw) as {
+      fromPoint?: LatLng | null
+      toPoint?: LatLng | null
+      dateTime?: string
+    }
+    return {
+      fromPoint: parsed.fromPoint ?? null,
+      toPoint: parsed.toPoint ?? null,
+      dateTime: parsed.dateTime ?? null,
+    }
+  } catch {
+    return { fromPoint: null, toPoint: null, dateTime: null }
+  }
+}
 
 export default function DriverOffers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [offers, setOffers] = useState<PassengerRideOffer[]>([])
+  const [matchScores, setMatchScores] = useState<Record<string, number>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [bookingId, setBookingId] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  const loadOffers = useCallback(async () => {
+    const draft = loadDraftGeofilter()
+    const listParams: {
+      limit: number
+      offset: number
+      fromLat?: number
+      fromLng?: number
+      radiusKm?: number
+    } = { limit: PAGE_SIZE, offset: 0 }
+    if (draft.fromPoint) {
+      listParams.fromLat = draft.fromPoint.lat
+      listParams.fromLng = draft.fromPoint.lng
+      listParams.radiusKm = 2
+    }
+    const page = await listRideOffers(listParams)
+    setOffers(page.items)
+
+    if (draft.fromPoint && draft.toPoint) {
+      try {
+        const matches = await listMatchingRideOffers({
+          fromLat: draft.fromPoint.lat,
+          fromLng: draft.fromPoint.lng,
+          toLat: draft.toPoint.lat,
+          toLng: draft.toPoint.lng,
+          dateTime: draft.dateTime || undefined,
+          limit: PAGE_SIZE,
+          minScore: 60,
+          radiusKm: 2,
+        })
+        const scores: Record<string, number> = {}
+        for (const item of matches.items) {
+          scores[item.id] = item.matchScore
+        }
+        setMatchScores(scores)
+      } catch {
+        setMatchScores({})
+      }
+    } else {
+      setMatchScores({})
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -29,8 +100,7 @@ export default function DriverOffers() {
       setIsLoading(true)
       setErrorMessage(null)
       try {
-        const page = await listRideOffers({ limit: PAGE_SIZE, offset: 0 })
-        if (!cancelled) setOffers(page.items)
+        await loadOffers()
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : t('common.error', { defaultValue: 'Error' }))
@@ -42,12 +112,11 @@ export default function DriverOffers() {
     return () => {
       cancelled = true
     }
-  }, [t])
+  }, [loadOffers, t])
 
   const reloadOffers = useCallback(async () => {
-    const page = await listRideOffers({ limit: PAGE_SIZE, offset: 0 })
-    setOffers(page.items)
-  }, [])
+    await loadOffers()
+  }, [loadOffers])
 
   const handleBook = useCallback(
     async (offer: PassengerRideOffer) => {
@@ -67,6 +136,8 @@ export default function DriverOffers() {
         } else if (conflict === 'offer_full' || (error instanceof ApiError && error.status === 409)) {
           setErrorMessage(t('passenger.offers.full', { defaultValue: 'No seats left' }))
           void reloadOffers()
+        } else if (parseApiErrorCode(error) === 'blocked') {
+          setErrorMessage(t('errors.blocked', { defaultValue: 'This action is not available because of a block' }))
         } else if (error instanceof ApiError && error.status === 400) {
           try {
             const parsed = JSON.parse(error.body) as { detail?: { code?: string } }
@@ -138,20 +209,37 @@ export default function DriverOffers() {
               const dateStr = formatRideDate(offer, { day: 'numeric', month: 'short' })
               const timeStr = formatRideTime(offer)
               const isConfirming = confirmId === offer.id
+              const booked = offerSeatsBooked(offer)
+              const matchScore = matchScores[offer.id]
+              const hasMatch = matchScore != null && showMatchUi(matchScore)
+              const matchLabel = matchScore != null ? getPassengerMatchButtonLabel(matchScore, t) : null
+              const openTelegram = () => {
+                const username = offer.driver.telegramUsername
+                if (!username) return
+                openExternalLink(`https://t.me/${username.replace(/^@/, '')}`)
+              }
               return (
                 <div key={offer.id} className="px-5 py-4 border-b border-surface">
-                  <div className="flex items-center justify-between mb-3">
-                    {offer.bookedByMe ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-pill bg-accent/15 text-accent-dark">
-                        <CheckCircle size={14} weight="fill" />
-                        {t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' })}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
-                        {t('passenger.offers.seatsLeft', { count: offer.seatsAvailable, defaultValue: `${offer.seatsAvailable} seats` })}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-xs text-muted">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      {offer.bookedByMe ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-pill bg-accent/15 text-accent-dark">
+                          <CheckCircle size={14} weight="fill" />
+                          {t('passenger.offers.alreadyBooked', { defaultValue: 'You have already booked this ride' })}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold px-3 py-1 rounded-pill bg-surface text-muted">
+                          {t('passenger.offers.seatsSummary', {
+                            booked,
+                            available: offer.seatsAvailable,
+                            total: offer.totalSeats,
+                            defaultValue: `${booked} taken · ${offer.seatsAvailable} free of ${offer.totalSeats}`,
+                          })}
+                        </span>
+                      )}
+                      {hasMatch && <MatchScoreChip score={matchScore} />}
+                    </div>
+                    <span className="flex items-center gap-1 text-xs text-muted flex-shrink-0">
                       <Clock size={12} />
                       {dateStr}, {timeStr}
                     </span>
@@ -205,6 +293,14 @@ export default function DriverOffers() {
                     </button>
                   ) : isConfirming ? (
                     <div className="flex gap-2">
+                      {offer.driver.telegramUsername && (
+                        <button
+                          onClick={openTelegram}
+                          className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform"
+                        >
+                          {t('common.writeTelegram', { defaultValue: 'Message' })}
+                        </button>
+                      )}
                       <button
                         onClick={() => setConfirmId(null)}
                         className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-muted active:scale-[0.97] transition-transform"
@@ -223,13 +319,25 @@ export default function DriverOffers() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setConfirmId(offer.id)}
-                      disabled={Boolean(bookingId)}
-                      className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
-                    >
-                      {t('passenger.offers.book', { defaultValue: 'Book seat' })}
-                    </button>
+                    <div className="flex gap-2">
+                      {offer.driver.telegramUsername && (
+                        <button
+                          onClick={openTelegram}
+                          className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform"
+                        >
+                          {t('common.writeTelegram', { defaultValue: 'Message' })}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setConfirmId(offer.id)}
+                        disabled={Boolean(bookingId)}
+                        className="flex-1 py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
+                      >
+                        {hasMatch && matchLabel
+                          ? matchLabel
+                          : t('passenger.offers.book', { defaultValue: 'Book seat' })}
+                      </button>
+                    </div>
                   )}
                 </div>
               )

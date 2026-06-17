@@ -56,7 +56,7 @@ def _extract_token_from_enter_url(enter_url: str) -> str:
 
 async def test_approval_enter_url_uses_frontend_route(client):
     await _admin_login(client)
-    application_id = await _submit_application(client, user_id="303b")
+    application_id = await _submit_application(client, user_id="3031")
     enter_url = await _approve_and_capture_enter_url(client, application_id)
     assert "/driver/enter/" in enter_url
     assert "/api/driver/session/enter/" not in enter_url

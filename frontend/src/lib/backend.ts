@@ -4,7 +4,7 @@ export {
   getAccessToken,
 } from '../infrastructure/auth/passengerAuthSession'
 
-export { ApiError } from '../infrastructure/http/httpClient'
+export { ApiError, parseApiErrorCode } from '../infrastructure/http/httpClient'
 
 export type {
   AdminKeyInfo,
@@ -58,6 +58,7 @@ export {
   createDriverOffer,
   cancelDriverOffer,
   listDriverOffers,
+  listOfferMatchingRequests,
   getDriverMapData,
   bootstrapDriverAccess,
   getDriverSession,
@@ -90,6 +91,7 @@ export {
   listRideOffers,
   getRideOffer,
   bookRideOffer,
+  listMatchingRideOffers,
   listMyRequests,
   listServiceZones,
   purchasePointsByCard,
@@ -131,3 +133,12 @@ export {
   updateDriverRegistrationSettings,
   uploadDriverApplicationFile,
 } from '../infrastructure/api/driverRegistrationApi'
+
+export {
+  blockUser,
+  unblockUser,
+  listBlockedUsers,
+  blockUserAsDriver,
+  unblockUserAsDriver,
+  listBlockedUsersAsDriver,
+} from '../infrastructure/api/blockApi'

@@ -31,6 +31,8 @@ export interface DriverRideOffer {
   seatsAvailable: number
   status: DriverRideOfferStatus
   bookingsCount: number
+  carBrand: string
+  carModel: string
   createdAt: string
   updatedAt: string
 }
@@ -54,7 +56,38 @@ export interface PassengerRideOffer {
     carPlate: string
     rating: number
     seatsCount: number
+    telegramUsername?: string | null
   }
+}
+
+export interface MatchBreakdown {
+  pickupDistanceKm: number
+  dropoffDistanceKm: number
+  timeDeltaMinutes: number | null
+}
+
+export interface MatchedPassengerRideOffer extends PassengerRideOffer {
+  matchScore: number
+  matchReason?: string | null
+  match: MatchBreakdown
+}
+
+export interface MatchedRideRequest {
+  id: string
+  rideNumber: number
+  passengerName: string
+  passengerTelegramUsername?: string | null
+  passengerRating: number
+  passengerRatingCount: number
+  from: { address: string; latlng: LatLng }
+  to: { address: string; latlng: LatLng }
+  dateTime: string
+  dateTimeLocal?: string
+  status: RideStatus
+  quotedPoints?: number | null
+  matchScore: number
+  matchReason?: string | null
+  match: MatchBreakdown
 }
 
 export interface RideRequest {
@@ -398,4 +431,12 @@ export interface InfoBlock {
   sortOrder: number
   createdAt: string
   updatedAt: string
+}
+
+export interface BlockedUser {
+  userId: string
+  username: string | null
+  displayName: string
+  blockedAt: string
+  blockedAtLocal?: string
 }

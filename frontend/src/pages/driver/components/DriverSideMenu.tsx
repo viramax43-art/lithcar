@@ -9,9 +9,9 @@ import {
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import type { DriverCabinetData } from '../../../types'
+import type { BlockedUser, DriverCabinetData } from '../../../types'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
-import { redeemPassengerQrSale } from '../../../lib/backend'
+import { redeemPassengerQrSale, listBlockedUsersAsDriver, unblockUserAsDriver } from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
@@ -38,7 +38,31 @@ export default function DriverSideMenu({
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
+  const [isBlockedLoading, setIsBlockedLoading] = useState(false)
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
   const logoutArmTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    void (async () => {
+      setIsBlockedLoading(true)
+      try {
+        const page = await listBlockedUsersAsDriver()
+        setBlockedUsers(page.items.map((item) => ({
+          userId: item.userId,
+          username: item.username,
+          displayName: item.displayName,
+          blockedAt: item.blockedAt,
+          blockedAtLocal: item.blockedAtLocal,
+        })))
+      } catch {
+        setBlockedUsers([])
+      } finally {
+        setIsBlockedLoading(false)
+      }
+    })()
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) {
@@ -87,9 +111,9 @@ export default function DriverSideMenu({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-surface flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
+            className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
           >
-            <X size={14} weight="bold" className="text-muted" />
+            <X size={16} weight="bold" className="text-muted" />
           </button>
         </div>
 
@@ -115,6 +139,45 @@ export default function DriverSideMenu({
                 <p className="text-[11px] text-muted">{t('driver.offers.title', { defaultValue: 'Ride offers' })}</p>
               </div>
             </button>
+          </section>
+          <section className="px-4 py-4 border-t border-border space-y-3">
+            <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
+            {isBlockedLoading && (
+              <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
+            )}
+            {!isBlockedLoading && blockedUsers.length === 0 && (
+              <p className="text-xs text-muted">{t('block.blockedListEmpty', { defaultValue: 'No blocked users' })}</p>
+            )}
+            {blockedUsers.map((user) => (
+              <div key={user.userId} className="rounded-xl bg-surface/70 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{user.displayName}</p>
+                  {user.username && <p className="text-[11px] text-muted truncate">@{user.username}</p>}
+                </div>
+                <button
+                  type="button"
+                  disabled={unblockingUserId === user.userId}
+                  onClick={() => {
+                    void (async () => {
+                      setUnblockingUserId(user.userId)
+                      try {
+                        await unblockUserAsDriver(user.userId)
+                        setBlockedUsers((prev) => prev.filter((item) => item.userId !== user.userId))
+                      } catch {
+                        // ignore
+                      } finally {
+                        setUnblockingUserId(null)
+                      }
+                    })()
+                  }}
+                  className="shrink-0 min-h-[36px] px-3 py-1.5 rounded-pill border border-border text-xs font-bold text-muted active:bg-surface"
+                >
+                  {unblockingUserId === user.userId
+                    ? t('common.loading', { defaultValue: 'Loading...' })
+                    : t('block.unblock', { defaultValue: 'Unblock' })}
+                </button>
+              </div>
+            ))}
           </section>
           <section className="px-4 py-4 border-t border-border">
             <div className="flex items-center gap-2.5 mb-4">

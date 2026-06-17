@@ -128,6 +128,7 @@ export interface RideRequestApi {
   pickupConfirmedAt: string | null
   assignedDriver?: {
     id: string
+    userId?: string | null
     name: string
     photoUrl: string | null
     carBrand: string
@@ -158,6 +159,8 @@ export interface DriverRideOfferApi {
   seatsAvailable: number
   status: 'open' | 'full' | 'cancelled' | 'completed'
   bookingsCount: number
+  carBrand: string
+  carModel: string
   createdAt: string
   updatedAt: string
 }
@@ -181,7 +184,38 @@ export interface PassengerRideOfferApi {
     carPlate: string
     rating: number
     seatsCount: number
+    telegramUsername?: string | null
   }
+}
+
+export interface MatchBreakdownApi {
+  pickupDistanceKm: number
+  dropoffDistanceKm: number
+  timeDeltaMinutes: number | null
+}
+
+export interface MatchedPassengerRideOfferApi extends PassengerRideOfferApi {
+  matchScore: number
+  matchReason?: string | null
+  match: MatchBreakdownApi
+}
+
+export interface MatchedRideRequestApi {
+  id: string
+  rideNumber: number
+  passengerName: string
+  passengerTelegramUsername?: string | null
+  passengerRating?: number
+  passengerRatingCount?: number
+  fromPoint: { address: string; latlng: { lat: number; lng: number } }
+  toPoint: { address: string; latlng: { lat: number; lng: number } }
+  dateTime: string
+  dateTimeLocal?: string
+  status: RideRequest['status']
+  quotedPoints?: number | null
+  matchScore: number
+  matchReason?: string | null
+  match: MatchBreakdownApi
 }
 
 export interface UserCabinetRideApi {
@@ -206,6 +240,14 @@ export interface UserCabinetApi {
   rideHistoryTotal: number
   rideHistoryLimit: number
   rideHistoryOffset: number
+}
+
+export interface BlockedUserApi {
+  userId: string
+  username: string | null
+  displayName: string
+  blockedAt: string
+  blockedAtLocal?: string
 }
 
 export type {

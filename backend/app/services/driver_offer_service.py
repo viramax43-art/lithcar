@@ -12,6 +12,7 @@ from app.models.driver_ride_offer import DriverRideOffer, DriverRideOfferStatus
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.models.user import User
+from app.services.block_service import are_users_blocked, get_blocked_user_ids_for_viewer
 from app.services.driver_service import get_driver
 from app.services.ride_booking_service import (
     InsufficientPointsError,
@@ -22,7 +23,12 @@ from app.services.ride_booking_service import (
     validate_ride_datetime,
 )
 from app.services.ride_quote_service import calculate_ride_quote
-from app.services.ride_request_service import _compute_route_order, create_ride_request_record
+from app.services.ride_request_service import (
+    ClaimRideError,
+    _compute_route_order,
+    create_ride_request_record,
+)
+from app.services.geo_service import haversine_km
 from app.services.zone_service import is_point_in_any_active_zone
 
 
@@ -302,6 +308,17 @@ class PassengerOfferListRow:
     my_request_id: str | None = None
 
 
+def _within_radius_km(
+    offer: DriverRideOffer,
+    *,
+    center_lat: float,
+    center_lng: float,
+    radius_km: float,
+) -> bool:
+    dist = haversine_km(center_lat, center_lng, offer.from_lat, offer.from_lng)
+    return dist <= radius_km
+
+
 async def list_open_offers_for_passengers(
     db_session: AsyncSession,
     *,
@@ -309,6 +326,9 @@ async def list_open_offers_for_passengers(
     date: str | None = None,
     limit: int,
     offset: int,
+    from_lat: float | None = None,
+    from_lng: float | None = None,
+    radius_km: float = 2.0,
 ) -> tuple[list[PassengerOfferListRow], int]:
     now = datetime.now(timezone.utc)
     conditions = [
@@ -336,6 +356,12 @@ async def list_open_offers_for_passengers(
     )
 
     pricing = await _get_or_create_pricing_no_commit(db_session)
+    blocked_ids: set[str] = set()
+    if passenger_id:
+        blocked_ids = await get_blocked_user_ids_for_viewer(
+            db_session,
+            viewer_id=passenger_id,
+        )
     filtered: list[PassengerOfferListRow] = []
     seen_ids: set[str] = set()
 
@@ -349,6 +375,11 @@ async def list_open_offers_for_passengers(
         )
         if quoted_points is None:
             continue
+        if blocked_ids:
+            driver = await db_session.get(Driver, offer.driver_id)
+            driver_user_id = driver.user_id if driver else None
+            if driver_user_id and driver_user_id in blocked_ids:
+                continue
         booked_by_me = offer.id in user_bookings
         filtered.append(
             PassengerOfferListRow(
@@ -372,6 +403,11 @@ async def list_open_offers_for_passengers(
         )
         if quoted_points is None:
             continue
+        if blocked_ids:
+            driver = await db_session.get(Driver, extra.driver_id)
+            driver_user_id = driver.user_id if driver else None
+            if driver_user_id and driver_user_id in blocked_ids:
+                continue
         filtered.append(
             PassengerOfferListRow(
                 offer=extra,
@@ -380,6 +416,19 @@ async def list_open_offers_for_passengers(
                 my_request_id=request_id,
             )
         )
+
+    if from_lat is not None and from_lng is not None:
+        filtered = [
+            row
+            for row in filtered
+            if row.booked_by_me
+            or _within_radius_km(
+                row.offer,
+                center_lat=from_lat,
+                center_lng=from_lng,
+                radius_km=radius_km,
+            )
+        ]
 
     filtered.sort(key=lambda row: row.offer.date_time)
 
@@ -444,6 +493,16 @@ async def book_offer_seat(
         driver = await db_session.get(Driver, offer.driver_id)
         if driver is not None and driver.user_id == user.user_id:
             raise DriverOfferError("self_booking", "You cannot book your own offer.")
+        if driver is not None and driver.user_id:
+            if await are_users_blocked(
+                db_session,
+                user_a=user.user_id,
+                user_b=driver.user_id,
+            ):
+                raise DriverOfferError(
+                    "blocked",
+                    "This action is not available because of a block.",
+                )
 
         try:
             quote = await calculate_ride_quote(
@@ -520,3 +579,85 @@ async def book_offer_seat(
         points_debited=points_per_ride,
         points_balance_after=int(user.points_balance or 0),
     )
+
+
+async def claim_request_with_offer(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+    driver_can_self_assign: bool,
+    offer_id: str,
+) -> RideRequest:
+    if not driver_can_self_assign:
+        raise ClaimRideError("forbidden", "Driver cannot self-assign rides.")
+
+    offer_result = await db_session.execute(
+        select(DriverRideOffer).where(DriverRideOffer.id == offer_id).with_for_update()
+    )
+    offer = offer_result.scalar_one_or_none()
+    if offer is None:
+        raise ClaimRideError("not_found", "Offer not found.")
+    if offer.driver_id != driver_id:
+        raise ClaimRideError("invalid_offer", "Offer does not belong to this driver.")
+    if offer.status not in (DriverRideOfferStatus.OPEN, DriverRideOfferStatus.FULL):
+        raise ClaimRideError("invalid_status", f"Offer cannot be used from status {offer.status}.")
+    if offer.seats_available <= 0:
+        raise ClaimRideError("offer_full", "No seats available for this offer.")
+
+    request_result = await db_session.execute(
+        select(RideRequest).where(RideRequest.id == request_id).with_for_update()
+    )
+    request = request_result.scalar_one_or_none()
+    if request is None:
+        raise ClaimRideError("not_found", "Ride request not found.")
+
+    driver = await db_session.get(Driver, driver_id)
+    if driver and driver.user_id and request.passenger_id:
+        if await are_users_blocked(
+            db_session,
+            user_a=driver.user_id,
+            user_b=request.passenger_id,
+        ):
+            raise ClaimRideError(
+                "blocked",
+                "This action is not available because of a block.",
+            )
+
+    if request.driver_id and request.driver_id != driver_id:
+        raise ClaimRideError("already_assigned", "Ride is already assigned to another driver.")
+
+    if request.status not in (RideRequestStatus.PENDING, RideRequestStatus.GROUPED):
+        raise ClaimRideError("invalid_status", f"Ride cannot be claimed from status {request.status}.")
+
+    is_from_allowed = await is_point_in_any_active_zone(
+        db_session, lat=request.from_lat, lng=request.from_lng
+    )
+    is_to_allowed = await is_point_in_any_active_zone(
+        db_session, lat=request.to_lat, lng=request.to_lng
+    )
+    if not is_from_allowed or not is_to_allowed:
+        raise ClaimRideError("out_of_zone", "Ride points are outside active service zones.")
+
+    if request.driver_id == driver_id and request.status == RideRequestStatus.ASSIGNED:
+        if request.offer_id != offer_id:
+            request.offer_id = offer_id
+            await db_session.commit()
+        await db_session.refresh(request)
+        return request
+
+    now = datetime.now(timezone.utc)
+    request.driver_id = driver_id
+    request.status = RideRequestStatus.ASSIGNED
+    request.offer_id = offer_id
+    request.route_order = 1
+
+    offer.seats_available -= 1
+    if offer.seats_available == 0:
+        offer.status = DriverRideOfferStatus.FULL
+    offer.updated_at = now
+
+    await _refresh_driver_route_order(db_session, driver_id=driver_id)
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request

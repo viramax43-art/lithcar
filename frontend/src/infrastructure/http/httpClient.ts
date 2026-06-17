@@ -22,6 +22,20 @@ export class ApiError extends Error {
   }
 }
 
+export function parseApiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  try {
+    const parsed = JSON.parse(error.body) as { detail?: { code?: string } | string }
+    const detail = parsed.detail
+    if (detail && typeof detail === 'object' && typeof detail.code === 'string') {
+      return detail.code
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
+
 function extractErrorMessage(rawBody: string, status: number): string {
   if (!rawBody) return `API request failed (${status})`
   try {
@@ -29,6 +43,12 @@ function extractErrorMessage(rawBody: string, status: number): string {
     if (parsed && typeof parsed === 'object') {
       const detail = (parsed as { detail?: unknown }).detail
       if (typeof detail === 'string') return detail
+      if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+        const message = (detail as { message?: unknown }).message
+        if (typeof message === 'string') return message
+        const code = (detail as { code?: unknown }).code
+        if (typeof code === 'string') return code
+      }
       if (Array.isArray(detail) && detail.length > 0) {
         const first = detail[0]
         if (first && typeof first === 'object' && typeof (first as { msg?: unknown }).msg === 'string') {

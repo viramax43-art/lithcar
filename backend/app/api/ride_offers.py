@@ -22,6 +22,10 @@ from app.services.driver_offer_service import (
     get_driver_offer,
     list_open_offers_for_passengers,
 )
+from app.services.offer_matching_service import (
+    RouteMatchInput,
+    list_matching_offers_for_passenger_route,
+)
 from app.services.driver_notification_service import notify_driver_offer_booked
 from app.services.driver_service import get_driver
 from app.services.passenger_notification_service import notify_passenger_driver_assigned
@@ -57,6 +61,7 @@ class OfferDriverSummary(BaseModel):
     carPlate: str
     rating: float
     seatsCount: int
+    telegramUsername: str | None = None
 
 
 class PassengerRideOfferOut(BaseModel):
@@ -78,6 +83,25 @@ class PassengerRideOfferPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class MatchBreakdown(BaseModel):
+    pickupDistanceKm: float
+    dropoffDistanceKm: float
+    timeDeltaMinutes: int | None
+
+
+class MatchedPassengerRideOfferOut(PassengerRideOfferOut):
+    matchScore: int
+    matchReason: str | None = None
+    match: MatchBreakdown
+
+
+class MatchedOfferPage(BaseModel):
+    items: list[MatchedPassengerRideOfferOut]
+    total: int
+    limit: int
+    offset: int = 0
 
 
 class BookOfferPayload(BaseModel):
@@ -117,6 +141,7 @@ async def _driver_summary(db_session: AsyncSession, driver_id: str) -> OfferDriv
     driver = await get_driver(db_session, driver_id=driver_id)
     if driver is None:
         return None
+    user = await db_session.get(User, driver.user_id) if driver.user_id else None
     return OfferDriverSummary(
         id=driver.id,
         name=driver.name,
@@ -125,6 +150,7 @@ async def _driver_summary(db_session: AsyncSession, driver_id: str) -> OfferDriv
         carPlate=driver.car_plate,
         rating=float(driver.rating or 0),
         seatsCount=int(driver.seats_count or 0),
+        telegramUsername=user.username if user else None,
     )
 
 
@@ -153,15 +179,24 @@ async def list_offers(
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    fromLat: float | None = Query(default=None),
+    fromLng: float | None = Query(default=None),
+    radiusKm: float = Query(default=2.0, ge=0.1, le=10.0),
     user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    if (fromLat is not None and fromLng is None) or (fromLng is not None and fromLat is None):
+        raise HTTPException(status_code=422, detail="fromLat and fromLng must be provided together.")
+
     rows, total = await list_open_offers_for_passengers(
         db_session,
         passenger_id=user.user_id,
         date=date,
         limit=limit,
         offset=offset,
+        from_lat=fromLat,
+        from_lng=fromLng,
+        radius_km=radiusKm,
     )
     items: list[PassengerRideOfferOut] = []
     for row in rows:
@@ -175,6 +210,60 @@ async def list_offers(
         if out is not None:
             items.append(out)
     return PassengerRideOfferPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/matches", response_model=MatchedOfferPage)
+async def list_matching_offers(
+    fromLat: float = Query(...),
+    fromLng: float = Query(...),
+    toLat: float = Query(...),
+    toLng: float = Query(...),
+    dateTime: datetime | None = Query(default=None),
+    radiusKm: float = Query(default=2.0, ge=0.1, le=10.0),
+    limit: int = Query(default=20, ge=1, le=50),
+    minScore: int = Query(default=60, ge=0, le=100),
+    user: User = Depends(require_roles(*_PASSENGER_OFFER_ROLES)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    route = RouteMatchInput(
+        from_lat=fromLat,
+        from_lng=fromLng,
+        to_lat=toLat,
+        to_lng=toLng,
+        date_time=dateTime,
+    )
+    scored = await list_matching_offers_for_passenger_route(
+        db_session,
+        passenger_id=user.user_id,
+        route=route,
+        radius_km=radiusKm,
+        min_score=minScore,
+        limit=limit,
+    )
+    items: list[MatchedPassengerRideOfferOut] = []
+    for row, match in scored:
+        out = await _build_passenger_offer_out(
+            db_session,
+            row.offer,
+            quoted_points=row.quoted_points,
+            booked_by_me=row.booked_by_me,
+            my_request_id=row.my_request_id,
+        )
+        if out is None:
+            continue
+        items.append(
+            MatchedPassengerRideOfferOut(
+                **out.model_dump(),
+                matchScore=match.score,
+                matchReason=match.reason,
+                match=MatchBreakdown(
+                    pickupDistanceKm=match.pickup_distance_km,
+                    dropoffDistanceKm=match.dropoff_distance_km,
+                    timeDeltaMinutes=match.time_delta_minutes,
+                ),
+            )
+        )
+    return MatchedOfferPage(items=items, total=len(items), limit=limit, offset=0)
 
 
 @router.get("/{offer_id}", response_model=PassengerRideOfferOut)
@@ -259,6 +348,11 @@ async def book_offer(
             ) from exc
         if exc.code == "self_booking":
             raise HTTPException(status_code=403, detail=exc.message) from exc
+        if exc.code == "blocked":
+            raise HTTPException(
+                status_code=403,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
         if exc.code == "out_of_zone":
             raise HTTPException(status_code=400, detail=exc.message) from exc
         raise HTTPException(status_code=400, detail=exc.message) from exc

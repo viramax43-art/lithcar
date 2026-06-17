@@ -13,12 +13,15 @@ import {
   Warning,
   X,
 } from '@phosphor-icons/react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { DriverMapPoint } from '../../../types'
+import { blockUserAsDriver } from '../../../lib/backend'
 import { directionsHref } from '../../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
+import InlineConfirm from '../../admin/components/InlineConfirm'
 
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
@@ -108,6 +111,8 @@ function SheetBody({
   onAction,
 }: Omit<DriverPointSheetProps, 'point'> & { point: DriverMapPoint }) {
   const { t } = useTranslation()
+  const [isBlocking, setIsBlocking] = useState(false)
+  const [passengerBlocked, setPassengerBlocked] = useState(false)
   const mainAction = getMainAction(point)
   const isPickup = point.pointType === 'pickup'
   const isDone = point.pointStatus === 'done'
@@ -252,6 +257,41 @@ function SheetBody({
             )}
           </button>
         </div>
+      )}
+
+      {point.rideStatus === 'completed' && point.pointType === 'dropoff' && !passengerBlocked && (
+        <div className="mx-4 mb-4 rounded-2xl border border-border bg-surface px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-muted">
+            {t('block.blockPassenger', { defaultValue: 'Block passenger' })}
+          </p>
+          <InlineConfirm
+            label={t('block.blockPassenger', { defaultValue: 'Block passenger' })}
+            confirmLabel={t('block.confirmBlock', {
+              name: point.passengerName,
+              defaultValue: `Block ${point.passengerName}?`,
+            })}
+            onConfirm={() => {
+              if (isBlocking) return
+              void (async () => {
+                setIsBlocking(true)
+                try {
+                  await blockUserAsDriver(point.passengerTelegramId)
+                  setPassengerBlocked(true)
+                } catch {
+                  // silent — driver can retry from side menu list
+                } finally {
+                  setIsBlocking(false)
+                }
+              })()
+            }}
+          />
+        </div>
+      )}
+
+      {passengerBlocked && (
+        <p className="px-4 pb-4 text-xs font-medium text-muted text-center">
+          {t('block.blockedSuccess', { defaultValue: 'User blocked' })}
+        </p>
       )}
     </div>
   )

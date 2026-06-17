@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import NotificationBell from '../../components/notifications/NotificationBell'
-import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, purchasePointsByCard, updateCurrentUserLanguage } from '../../lib/backend'
+import { getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, listBlockedUsers, purchasePointsByCard, unblockUser, updateCurrentUserLanguage } from '../../lib/backend'
 import { formatRideDateTime } from '../../i18n/dateTime'
 import { enterDriverCabinet } from '../../lib/driverPortal'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
@@ -28,7 +28,7 @@ import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 import type { AppLanguage } from '../../i18n/languages'
-import type { DriverApplication, PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
+import type { BlockedUser, DriverApplication, PricingSettings, UserCabinetData, UserCabinetRideHistoryItem } from '../../types'
 
 type RedeemReceipt = {
   pointsRequested: number
@@ -57,6 +57,9 @@ export default function Profile() {
   const [lastCardReceipt, setLastCardReceipt] = useState<CardReceipt | null>(null)
   const [driverApplication, setDriverApplication] = useState<DriverApplication | null | undefined>(undefined)
   const [isEnteringDriverCabinet, setIsEnteringDriverCabinet] = useState(false)
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
+  const [isBlockedLoading, setIsBlockedLoading] = useState(false)
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
 
   const historyPageSize = 20
 
@@ -101,6 +104,23 @@ export default function Profile() {
     void getMyDriverApplication()
       .then((value) => setDriverApplication(value))
       .catch(() => setDriverApplication(null))
+    void (async () => {
+      setIsBlockedLoading(true)
+      try {
+        const page = await listBlockedUsers()
+        setBlockedUsers(page.items.map((item) => ({
+          userId: item.userId,
+          username: item.username,
+          displayName: item.displayName,
+          blockedAt: item.blockedAt,
+          blockedAtLocal: item.blockedAtLocal,
+        })))
+      } catch {
+        // non-critical
+      } finally {
+        setIsBlockedLoading(false)
+      }
+    })()
   }, []) // single initial load
 
   const sortedHistory = useMemo(() => {
@@ -386,6 +406,49 @@ export default function Profile() {
               {isHistoryLoading ? t('common.loading', { defaultValue: 'Loading...' }) : t('profile.showMore', { defaultValue: 'Show more' })}
             </button>
           )}
+        </section>
+        <section className="bg-white border border-border rounded-card p-4 space-y-3">
+          <p className="text-sm font-bold">{t('block.blockedList', { defaultValue: 'Blocked users' })}</p>
+          {isBlockedLoading && (
+            <p className="text-xs text-muted">{t('common.loading', { defaultValue: 'Loading...' })}</p>
+          )}
+          {!isBlockedLoading && blockedUsers.length === 0 && (
+            <p className="text-xs text-muted">{t('block.blockedListEmpty', { defaultValue: 'No blocked users' })}</p>
+          )}
+          {blockedUsers.map((user) => (
+            <div key={user.userId} className="rounded-xl bg-surface/70 p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{user.displayName}</p>
+                {user.username && <p className="text-[11px] text-muted truncate">@{user.username}</p>}
+              </div>
+              <button
+                type="button"
+                disabled={unblockingUserId === user.userId}
+                onClick={() => {
+                  void (async () => {
+                    setUnblockingUserId(user.userId)
+                    try {
+                      await unblockUser(user.userId)
+                      setBlockedUsers((prev) => prev.filter((item) => item.userId !== user.userId))
+                    } catch (error) {
+                      setErrorMessage(
+                        error instanceof Error
+                          ? error.message
+                          : t('errors.blockFailed', { defaultValue: 'Failed to update block list' }),
+                      )
+                    } finally {
+                      setUnblockingUserId(null)
+                    }
+                  })()
+                }}
+                className="shrink-0 min-h-[36px] px-3 py-1.5 rounded-pill border border-border text-xs font-bold text-muted active:bg-surface"
+              >
+                {unblockingUserId === user.userId
+                  ? t('common.loading', { defaultValue: 'Loading...' })
+                  : t('block.unblock', { defaultValue: 'Unblock' })}
+              </button>
+            </div>
+          ))}
         </section>
         <section className="bg-white border border-border rounded-card p-4">
           <LanguageSwitcher

@@ -57,6 +57,8 @@ from app.services.rating_service import (
     get_user_rating_aggregate,
     submit_driver_rating,
 )
+from app.services.block_service import BlockError, block_user, list_blocked_users, unblock_user
+from app.services.driver_offer_service import claim_request_with_offer
 from app.services.ride_request_service import (
     ClaimRideError,
     apply_driver_point_action,
@@ -88,6 +90,54 @@ class DriverSessionOut(BaseModel):
 class DriverRideRatingSubmitPayload(BaseModel):
     score: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=500)
+
+
+class DriverBlockUserPayload(BaseModel):
+    userId: str
+
+
+class DriverBlockedUserOut(BaseModel):
+    userId: str
+    username: str | None
+    displayName: str
+    blockedAt: datetime
+    blockedAtLocal: str
+
+
+class DriverBlockedUserPage(BaseModel):
+    items: list[DriverBlockedUserOut]
+    total: int
+
+
+def _driver_block_error_to_http(exc: BlockError) -> HTTPException:
+    if exc.code == "self_block":
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message},
+        )
+    if exc.code in ("user_not_found", "not_blocked"):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": exc.code, "message": exc.message},
+        )
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message)
+
+
+async def _require_driver_user_id(
+    db_session: AsyncSession,
+    *,
+    driver_id: str,
+) -> str:
+    driver = await get_driver(db_session, driver_id=driver_id)
+    if driver is None or not driver.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "driver_not_linked",
+                "message": "Driver account is not linked to a user profile.",
+            },
+        )
+    return driver.user_id
 
 
 class DriverRideRatingOut(BaseModel):
@@ -122,6 +172,10 @@ class DriverRideOut(BaseModel):
 
 class DriverRideStatusUpdate(BaseModel):
     status: str
+
+
+class ClaimRidePayload(BaseModel):
+    offerId: str | None = None
 
 
 class DriverPickupUpdate(BaseModel):
@@ -748,12 +802,15 @@ async def driver_cabinet_map(
     active_rides = [item for item in rides if item.status != "completed"]
     passenger_ids = list({item.passenger_id for item in rides})
 
+    driver = await get_driver(db_session, driver_id=session.driver_id)
+
     available_rides: list = []
     if session.can_self_assign:
         available_rides, _ = await list_unassigned_rides(
             db_session,
             limit=200,
             offset=0,
+            driver_user_id=driver.user_id if driver else None,
         )
         passenger_ids = list({item.passenger_id for item in rides + available_rides})
 
@@ -762,7 +819,6 @@ async def driver_cabinet_map(
         passenger_ids=passenger_ids,
     )
 
-    driver = await get_driver(db_session, driver_id=session.driver_id)
     driver_lat = driver.current_lat if driver else None
     driver_lng = driver.current_lng if driver else None
 
@@ -800,23 +856,40 @@ async def driver_cabinet_map(
 @router.post("/cabinet/rides/{request_id}/claim", response_model=DriverRideOut)
 async def claim_cabinet_ride(
     request_id: str,
+    payload: ClaimRidePayload | None = None,
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     try:
-        ride = await claim_ride_by_driver(
-            db_session,
-            request_id=request_id,
-            driver_id=session.driver_id,
-            driver_can_self_assign=session.can_self_assign,
-        )
+        if payload and payload.offerId:
+            ride = await claim_request_with_offer(
+                db_session,
+                request_id=request_id,
+                driver_id=session.driver_id,
+                driver_can_self_assign=session.can_self_assign,
+                offer_id=payload.offerId,
+            )
+        else:
+            ride = await claim_ride_by_driver(
+                db_session,
+                request_id=request_id,
+                driver_id=session.driver_id,
+                driver_can_self_assign=session.can_self_assign,
+            )
     except ClaimRideError as exc:
         if exc.code == "forbidden":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.message) from exc
         if exc.code == "not_found":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message) from exc
-        if exc.code == "already_assigned":
+        if exc.code in ("already_assigned", "offer_full"):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+        if exc.code == "blocked":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+        if exc.code == "invalid_offer":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
@@ -969,6 +1042,62 @@ async def rate_ride_as_driver(
     if ride is None:
         raise HTTPException(status_code=404, detail="Поездка не найдена.")
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
+
+
+@router.post("/cabinet/blocks")
+async def create_driver_block(
+    payload: DriverBlockUserPayload,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    blocker_id = await _require_driver_user_id(db_session, driver_id=session.driver_id)
+    try:
+        await block_user(
+            db_session,
+            blocker_id=blocker_id,
+            blocked_id=payload.userId,
+        )
+    except BlockError as exc:
+        raise _driver_block_error_to_http(exc) from exc
+    return {"success": True}
+
+
+@router.delete("/cabinet/blocks/{user_id}")
+async def delete_driver_block(
+    user_id: str,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    blocker_id = await _require_driver_user_id(db_session, driver_id=session.driver_id)
+    try:
+        await unblock_user(
+            db_session,
+            blocker_id=blocker_id,
+            blocked_id=user_id,
+        )
+    except BlockError as exc:
+        raise _driver_block_error_to_http(exc) from exc
+    return {"success": True}
+
+
+@router.get("/cabinet/blocks", response_model=DriverBlockedUserPage)
+async def list_driver_blocks(
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    blocker_id = await _require_driver_user_id(db_session, driver_id=session.driver_id)
+    rows = await list_blocked_users(db_session, blocker_id=blocker_id)
+    items = [
+        DriverBlockedUserOut(
+            userId=row.user_id,
+            username=row.username,
+            displayName=row.display_name,
+            blockedAt=row.blocked_at,
+            blockedAtLocal=to_app_local_iso(row.blocked_at),
+        )
+        for row in rows
+    ]
+    return DriverBlockedUserPage(items=items, total=len(items))
 
 
 @router.patch("/cabinet/points/{request_id}/{point_type}/action", response_model=DriverRideOut)

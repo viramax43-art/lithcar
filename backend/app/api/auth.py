@@ -13,6 +13,7 @@ from app.core.dependencies import get_db_session
 from app.models.ride_request import RideRequest
 from app.models.user import DEFAULT_USER_LANGUAGE, User, UserRole
 from app.services.auth_service import AuthService
+from app.services.block_service import BlockError, block_user, list_blocked_users, unblock_user
 from app.services.rating_service import can_passenger_rate_driver, get_user_rating_aggregate
 from app.services.ride_request_service import list_passenger_requests
 
@@ -77,6 +78,37 @@ class UserCabinetData(BaseModel):
     rideHistoryTotal: int
     rideHistoryLimit: int
     rideHistoryOffset: int
+
+
+class BlockUserPayload(BaseModel):
+    userId: str
+
+
+class BlockedUserOut(BaseModel):
+    userId: str
+    username: str | None
+    displayName: str
+    blockedAt: datetime
+    blockedAtLocal: str
+
+
+class BlockedUserPage(BaseModel):
+    items: list[BlockedUserOut]
+    total: int
+
+
+def _block_error_to_http(exc: BlockError) -> HTTPException:
+    if exc.code == "self_block":
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message},
+        )
+    if exc.code in ("user_not_found", "not_blocked"):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": exc.code, "message": exc.message},
+        )
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message)
 
 
 # --- Настройка FastAPI ---
@@ -235,4 +267,56 @@ async def get_user_cabinet(
         rideHistoryOffset=offset,
     )
 
+
+@router.post("/users/me/blocks")
+async def create_user_block(
+    payload: BlockUserPayload,
+    current_user: User = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        await block_user(
+            db_session,
+            blocker_id=current_user.user_id,
+            blocked_id=payload.userId,
+        )
+    except BlockError as exc:
+        raise _block_error_to_http(exc) from exc
+    return {"success": True}
+
+
+@router.delete("/users/me/blocks/{user_id}")
+async def delete_user_block(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        await unblock_user(
+            db_session,
+            blocker_id=current_user.user_id,
+            blocked_id=user_id,
+        )
+    except BlockError as exc:
+        raise _block_error_to_http(exc) from exc
+    return {"success": True}
+
+
+@router.get("/users/me/blocks", response_model=BlockedUserPage)
+async def get_user_blocks(
+    current_user: User = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    rows = await list_blocked_users(db_session, blocker_id=current_user.user_id)
+    items = [
+        BlockedUserOut(
+            userId=row.user_id,
+            username=row.username,
+            displayName=row.display_name,
+            blockedAt=row.blocked_at,
+            blockedAtLocal=to_app_local_iso(row.blocked_at),
+        )
+        for row in rows
+    ]
+    return BlockedUserPage(items=items, total=len(items))
 

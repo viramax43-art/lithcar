@@ -146,6 +146,7 @@ async def list_unassigned_rides(
     *,
     limit: int,
     offset: int,
+    driver_user_id: str | None = None,
 ) -> tuple[list[RideRequest], int]:
     status_filter = RideRequest.status.in_(
         (RideRequestStatus.PENDING, RideRequestStatus.GROUPED)
@@ -167,8 +168,18 @@ async def list_unassigned_rides(
         .offset(offset)
     )
     rides = list(result.scalars().all())
+    blocked_ids: set[str] = set()
+    if driver_user_id:
+        from app.services.block_service import get_blocked_user_ids_for_viewer
+
+        blocked_ids = await get_blocked_user_ids_for_viewer(
+            db_session,
+            viewer_id=driver_user_id,
+        )
     in_zone: list[RideRequest] = []
     for ride in rides:
+        if blocked_ids and ride.passenger_id in blocked_ids:
+            continue
         is_from_allowed = await is_point_in_any_active_zone(
             db_session, lat=ride.from_lat, lng=ride.from_lng
         )
@@ -319,6 +330,21 @@ async def claim_ride_by_driver(
     request = result.scalar_one_or_none()
     if request is None:
         raise ClaimRideError("not_found", "Ride request not found.")
+
+    from app.models.driver import Driver
+    from app.services.block_service import are_users_blocked
+
+    driver = await db_session.get(Driver, driver_id)
+    if driver and driver.user_id and request.passenger_id:
+        if await are_users_blocked(
+            db_session,
+            user_a=driver.user_id,
+            user_b=request.passenger_id,
+        ):
+            raise ClaimRideError(
+                "blocked",
+                "This action is not available because of a block.",
+            )
 
     if request.driver_id and request.driver_id != driver_id:
         raise ClaimRideError("already_assigned", "Ride is already assigned to another driver.")

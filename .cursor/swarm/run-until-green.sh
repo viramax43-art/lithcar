@@ -89,13 +89,15 @@ run_frontend_build() {
 
 all_tests_green() {
   local logfile="$LOG_DIR/${RUN_ID}-tests-shell.log"
+  local status=0
   {
     echo "=== backend ==="
-    run_backend_tests
+    run_backend_tests || status=1
     echo "=== frontend vitest ==="
-    run_frontend_tests
+    run_frontend_tests || status=1
     echo "=== frontend build ==="
-    run_frontend_build
+    run_frontend_build || status=1
+    exit "$status"
   } 2>&1 | tee "$logfile"
 }
 

@@ -9,7 +9,8 @@ import type { RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import StarRatingInput from '../../components/StarRatingInput'
-import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest } from '../../lib/backend'
+import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest, blockUser } from '../../lib/backend'
+import InlineConfirm from '../admin/components/InlineConfirm'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
@@ -48,6 +49,8 @@ export default function RequestDetail() {
   const [ratingScore, setRatingScore] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
+  const [isBlockingDriver, setIsBlockingDriver] = useState(false)
+  const [driverBlocked, setDriverBlocked] = useState(false)
   const [isSignalMode, setIsSignalMode] = useState(false)
   const [showEditSheet, setShowEditSheet] = useState(false)
 
@@ -483,7 +486,7 @@ export default function RequestDetail() {
                   placeholder={t('rating.commentOptional', { defaultValue: 'Comment (optional)' })}
                   rows={3}
                   maxLength={500}
-                  className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/10"
+                  className="w-full rounded-xl border-[1.5px] border-border bg-surface px-4 py-3 text-sm resize-none focus:outline-none focus:border-black focus:bg-white transition-colors"
                 />
                 <button
                   type="button"
@@ -529,6 +532,46 @@ export default function RequestDetail() {
               </div>
             ) : null}
           </div>
+        )}
+
+        {request.status === 'completed' && driver?.userId && !driverBlocked && (
+          <div className="bg-white border border-border rounded-card p-4 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-muted">
+              {t('block.blockDriver', { defaultValue: 'Block driver' })}
+            </p>
+            <InlineConfirm
+              label={t('block.blockDriver', { defaultValue: 'Block driver' })}
+              confirmLabel={t('block.confirmBlock', {
+                name: driver.name,
+                defaultValue: `Block ${driver.name}?`,
+              })}
+              onConfirm={() => {
+                if (!driver.userId || isBlockingDriver) return
+                void (async () => {
+                  setIsBlockingDriver(true)
+                  setErrorMessage(null)
+                  try {
+                    await blockUser(driver.userId!)
+                    setDriverBlocked(true)
+                  } catch (error) {
+                    setErrorMessage(
+                      error instanceof Error
+                        ? error.message
+                        : t('errors.blockFailed', { defaultValue: 'Failed to update block list' }),
+                    )
+                  } finally {
+                    setIsBlockingDriver(false)
+                  }
+                })()
+              }}
+            />
+          </div>
+        )}
+
+        {driverBlocked && (
+          <p className="text-xs font-medium text-muted text-center">
+            {t('block.blockedSuccess', { defaultValue: 'User blocked' })}
+          </p>
         )}
 
         {/* Passenger info */}

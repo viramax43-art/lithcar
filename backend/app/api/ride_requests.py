@@ -131,6 +131,7 @@ class RideRequestOut(BaseModel):
 
 class RideAssignedDriverOut(BaseModel):
     id: str
+    userId: str | None = None
     name: str
     photoUrl: str | None
     carBrand: str
@@ -220,6 +221,7 @@ def _to_assigned_driver_out(driver) -> RideAssignedDriverOut:
         current_location = LatLng(lat=driver.current_lat, lng=driver.current_lng)
     return RideAssignedDriverOut(
         id=driver.id,
+        userId=driver.user_id,
         name=driver.name,
         photoUrl=driver.photo_url,
         carBrand=driver.car_brand,
