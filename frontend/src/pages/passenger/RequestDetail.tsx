@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next'
 import type { RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
-import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import StarRatingInput from '../../components/StarRatingInput'
 import RatingBadge from '../../components/RatingBadge'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest, blockUser } from '../../lib/backend'
@@ -102,7 +101,6 @@ export default function RequestDetail() {
           className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
           style={{ paddingTop: 'var(--app-user-safe-top)' }}
         >
-          <CabinetRoleBanner role="passenger" variant="inline" />
           <div className="flex items-center gap-3 px-4 h-14">
             <button onClick={() => navigate(-1)} className="p-1">
               <ArrowLeft size={22} weight="bold" />
@@ -165,7 +163,6 @@ export default function RequestDetail() {
         className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
-        <CabinetRoleBanner role="passenger" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}

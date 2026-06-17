@@ -1,11 +1,14 @@
 import type { CSSProperties } from 'react'
-import { SteeringWheel, User } from '@phosphor-icons/react'
+import { Gear, SteeringWheel } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-export type CabinetRole = 'passenger' | 'driver'
+export type CabinetRole = 'driver' | 'admin'
 
-/** Content height below the safe-area inset (px). */
+/** Default banner content height (px). */
 export const CABINET_ROLE_BANNER_BODY_HEIGHT = 44
+
+/** Large banner content height for admin (px). */
+export const CABINET_ROLE_BANNER_BODY_HEIGHT_LARGE = 60
 
 type SafeAreaToken = 'user' | 'app'
 
@@ -14,6 +17,7 @@ interface CabinetRoleBannerProps {
   /** `strip` — full-width bar with safe area; `inline` — bar inside an existing header */
   variant?: 'strip' | 'inline'
   safeArea?: SafeAreaToken
+  size?: 'default' | 'large'
   className?: string
 }
 
@@ -28,23 +32,29 @@ export default function CabinetRoleBanner({
   role,
   variant = 'strip',
   safeArea = 'app',
+  size = 'default',
   className = '',
 }: CabinetRoleBannerProps) {
   const { t } = useTranslation()
-  const isDriver = role === 'driver'
-  const label = isDriver
-    ? t('driver.cabinet', { defaultValue: 'Driver cabinet' })
-    : t('passenger.cabinet', { defaultValue: 'Passenger cabinet' })
-  const Icon = isDriver ? SteeringWheel : User
-  const shellClass = isDriver ? 'bg-black text-white' : 'bg-point-a text-white'
+  const isAdmin = role === 'admin'
+  const label = isAdmin
+    ? t('admin.panel', { defaultValue: 'Admin panel' })
+    : t('driver.cabinet', { defaultValue: 'Driver cabinet' })
+  const Icon = isAdmin ? Gear : SteeringWheel
+  const shellClass = isAdmin ? 'bg-zinc-900 text-white' : 'bg-black text-white'
+  const bodyHeight = size === 'large' ? CABINET_ROLE_BANNER_BODY_HEIGHT_LARGE : CABINET_ROLE_BANNER_BODY_HEIGHT
+  const iconSize = size === 'large' ? 26 : 20
+  const textClass = size === 'large'
+    ? 'text-lg md:text-xl font-extrabold tracking-tight leading-none'
+    : 'text-base font-extrabold tracking-tight leading-none'
 
   const content = (
     <div
-      className={`flex items-center justify-center gap-2.5 px-4 ${shellClass} ${className}`}
-      style={{ minHeight: CABINET_ROLE_BANNER_BODY_HEIGHT }}
+      className={`flex items-center justify-center gap-3 px-4 ${shellClass} ${className}`}
+      style={{ minHeight: bodyHeight }}
     >
-      <Icon size={20} weight="fill" className="flex-shrink-0" />
-      <span className="text-base font-extrabold tracking-tight leading-none">{label}</span>
+      <Icon size={iconSize} weight="fill" className="flex-shrink-0" />
+      <span className={textClass}>{label}</span>
     </div>
   )
 

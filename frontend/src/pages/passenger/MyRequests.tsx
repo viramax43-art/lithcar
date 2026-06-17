@@ -4,7 +4,6 @@ import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
-import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import RatingBadge from '../../components/RatingBadge'
 import type { Driver, RideRequest } from '../../types'
 import { listDrivers, listMyRequests } from '../../lib/backend'
@@ -112,7 +111,6 @@ export default function MyRequests() {
         className="flex-shrink-0 bg-white border-b border-border/50"
         style={{ paddingTop: 'var(--app-user-safe-top)' }}
       >
-        <CabinetRoleBanner role="passenger" variant="inline" />
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}
