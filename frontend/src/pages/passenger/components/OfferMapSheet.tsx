@@ -61,9 +61,9 @@ export default function OfferMapSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[650] pointer-events-none">
+    <div className="fixed inset-x-0 bottom-0 z-[650] pointer-events-none flex justify-center">
       <div
-        className="fixed left-0 right-0 bottom-0 pointer-events-auto bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl flex flex-col max-h-[min(42dvh,380px)]"
+        className="pointer-events-auto w-full max-w-lg bg-white rounded-t-3xl overflow-hidden animate-slide-up flex flex-col max-h-[min(42dvh,380px)]"
         style={{
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
         }}

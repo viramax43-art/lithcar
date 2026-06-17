@@ -34,9 +34,12 @@ export default function DriverOffersListModal({
     <>
       <div className="fixed inset-0 z-[500] bg-black/40" onClick={onClose} />
       <div
-        className="fixed left-0 right-0 bottom-0 z-[510] bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl flex flex-col max-h-[min(78dvh,640px)]"
-        style={{ boxShadow: '0 -8px 32px rgba(0,0,0,0.12)' }}
+        className="fixed inset-x-0 bottom-0 z-[510] flex justify-center pointer-events-none"
       >
+        <div
+          className="pointer-events-auto w-full max-w-lg bg-white rounded-t-3xl overflow-hidden animate-slide-up flex flex-col max-h-[min(78dvh,640px)]"
+          style={{ boxShadow: '0 -8px 32px rgba(0,0,0,0.12)' }}
+        >
         <div className="flex justify-center pt-3 flex-shrink-0">
           <div className="w-9 h-1 rounded-full bg-border" />
         </div>
@@ -139,6 +142,7 @@ export default function DriverOffersListModal({
               </button>
             )
           })}
+        </div>
         </div>
       </div>
     </>

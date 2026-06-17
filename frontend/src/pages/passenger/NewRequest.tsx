@@ -367,7 +367,7 @@ export default function NewRequest() {
         </MapContainer>
       </div>
 
-      {!isMapMarkViewMode && model.isPinLive && (
+      {!isMapMarkViewMode && model.isPinLive && !highlightedOffer && (
         <>
           <div className={`center-pin ${model.activeIsFrom ? 'pin-a' : 'pin-b'} ${model.isPanning ? 'is-panning' : ''}`}>
             <div className="pin-body">
@@ -514,7 +514,7 @@ export default function NewRequest() {
         </>
       )}
 
-      {!isMapMarkViewMode && model.isPinLive && (
+      {!isMapMarkViewMode && model.isPinLive && !highlightedOffer && (
         <div
           className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
           style={{ top: 'calc(42% - 88px)' }}
