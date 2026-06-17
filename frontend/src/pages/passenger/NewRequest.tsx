@@ -3,7 +3,7 @@ import { MapContainer, Marker, Polyline, Popup, ZoomControl } from 'react-leafle
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import L from 'leaflet'
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
@@ -14,7 +14,7 @@ import { useEnsurePassengerSession } from '../../application/session/useEnsurePa
 import type { AppLanguage } from '../../i18n/languages'
 import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
 import { FieldRow } from './new-request/FieldRow'
-import { iconA, iconB, MapBinder } from './new-request/NewRequestMapBinder'
+import { iconA, iconB, iconOfferB, MapBinder } from './new-request/NewRequestMapBinder'
 import { OfferRouteFitBounds } from './new-request/OfferRouteFitBounds'
 import OfferDayFilter from './components/OfferDayFilter'
 import {
@@ -220,7 +220,7 @@ export default function NewRequest() {
       <div className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
-          {!isCoarsePointer && <ZoomControl position="bottomright" />}
+          {!isCoarsePointer && <ZoomControl position={highlightedOffer ? 'topright' : 'bottomright'} />}
           {!offersPaused &&
             offersMap.offers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id
@@ -255,12 +255,18 @@ export default function NewRequest() {
               }
               const markerIcon = model.isPinLive ? offerPickupIconSubdued : offerPickupIcon
               return (
-                <Marker
-                  key={`offer-pickup-${offer.id}`}
-                  position={[offer.from.latlng.lat, offer.from.latlng.lng]}
-                  icon={markerIcon}
-                  eventHandlers={{ click: select }}
-                />
+                <Fragment key={`offer-endpoints-${offer.id}`}>
+                  <Marker
+                    position={[offer.from.latlng.lat, offer.from.latlng.lng]}
+                    icon={markerIcon}
+                    eventHandlers={{ click: select }}
+                  />
+                  <Marker
+                    position={[offer.to.latlng.lat, offer.to.latlng.lng]}
+                    icon={iconOfferB}
+                    eventHandlers={{ click: select }}
+                  />
+                </Fragment>
               )
             })}
           {highlightedOffer && !offersMap.offers.some((offer) => offer.id === highlightedOffer.id) && (
@@ -293,6 +299,7 @@ export default function NewRequest() {
                 ]}
                 icon={iconA}
                 interactive={false}
+                zIndexOffset={600}
               />
               <Marker
                 position={[
@@ -301,10 +308,11 @@ export default function NewRequest() {
                 ]}
                 icon={iconB}
                 interactive={false}
+                zIndexOffset={600}
               />
             </>
           )}
-          {model.fromPoint && model.toPoint && (
+          {model.fromPoint && model.toPoint && !highlightedOffer && (
             <Polyline
               positions={[
                 [model.fromPoint.lat, model.fromPoint.lng],
@@ -343,13 +351,13 @@ export default function NewRequest() {
               </Popup>
             </Marker>
           ))}
-          {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
-          {model.toPoint && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
+          {model.fromPoint && !highlightedOffer && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
+          {model.toPoint && !highlightedOffer && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map
             }}
-            enabled={!isMapMarkViewMode}
+            enabled={!isMapMarkViewMode && !highlightedOffer}
             onPanStart={() => model.setIsPanning(true)}
             onPanEnd={(latlng) => {
               model.setIsPanning(false)
@@ -431,15 +439,6 @@ export default function NewRequest() {
           <NotificationBell pool="passenger" />
         </div>
       </header>
-      )}
-
-      {!isMapMarkViewMode && showDayOffersButton && !highlightedOffer && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none px-3 py-1.5 rounded-pill bg-white/95 border border-border shadow-card text-[11px] font-semibold text-muted whitespace-nowrap"
-          style={{ top: 'calc(var(--app-user-safe-top) + 52px)' }}
-        >
-          {t('passenger.offers.mapLegend', { defaultValue: 'Car icons — drivers offering a shared ride' })}
-        </div>
       )}
 
       {/* Side menu drawer */}

@@ -18,7 +18,12 @@ export function OfferRouteFitBounds({ from, to, offerId }: OfferRouteFitBoundsPr
       [from.lat, from.lng],
       [to.lat, to.lng],
     ])
-    map.fitBounds(bounds, { paddingTopLeft: [48, 96], paddingBottomRight: [48, 220], maxZoom: 14, animate: true })
+    map.fitBounds(bounds, {
+      paddingTopLeft: [56, 88],
+      paddingBottomRight: [56, 200],
+      maxZoom: 14,
+      animate: true,
+    })
   }, [from, map, offerId, to])
 
   return null

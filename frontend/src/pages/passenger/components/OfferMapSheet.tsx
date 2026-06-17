@@ -61,35 +61,34 @@ export default function OfferMapSheet({
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-[640] bg-black/40" onClick={onClose} />
+    <div className="fixed inset-0 z-[650] pointer-events-none">
       <div
-        className="fixed left-0 right-0 bottom-0 z-[650] bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl"
+        className="fixed left-0 right-0 bottom-0 pointer-events-auto bg-white rounded-t-3xl overflow-hidden animate-slide-up md:max-w-lg md:mx-auto md:rounded-t-2xl flex flex-col max-h-[min(42dvh,380px)]"
         style={{
           boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
         }}
       >
-        <div className="flex justify-center pt-3">
+        <div className="flex justify-center pt-3 flex-shrink-0">
           <div className="w-9 h-1 rounded-full bg-border" />
         </div>
 
-        <div className="px-5 pt-4 pb-3 flex items-start gap-3">
+        <div className="px-5 pt-3 pb-2 flex items-start gap-3 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-lg font-extrabold tracking-tight">
+              <p className="text-base font-extrabold tracking-tight">
                 {t('passenger.offers.map.sheetTitle', { defaultValue: 'Driver ride' })}
               </p>
               {hasMatch && <MatchScoreChip score={offer.matchScore} />}
             </div>
-            <p className="text-sm text-muted mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               {dateStr}, {timeStr}
             </p>
-            <p className="text-xs text-black/80 mt-2 leading-snug">{inviteText}</p>
+            <p className="text-xs text-black/80 mt-1.5 leading-snug line-clamp-2">{inviteText}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-11 h-11 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0 hover:bg-border/40 active:bg-border/60 transition-colors"
+            className="w-10 h-10 rounded-2xl bg-surface flex items-center justify-center flex-shrink-0 hover:bg-border/40 active:bg-border/60 transition-colors"
             aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <X size={16} weight="bold" className="text-muted" />
@@ -97,8 +96,8 @@ export default function OfferMapSheet({
         </div>
 
         <div
-          className="px-5 space-y-3"
-          style={{ paddingBottom: 'calc(1.25rem + var(--app-user-safe-bottom))' }}
+          className="flex-1 overflow-y-auto px-5 space-y-2.5 min-h-0"
+          style={{ paddingBottom: 'calc(0.75rem + var(--app-user-safe-bottom))' }}
         >
           {isBooked ? (
             <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-pill bg-accent/15 text-accent-dark">
@@ -116,24 +115,17 @@ export default function OfferMapSheet({
             </span>
           )}
 
-          <div className="rounded-xl bg-surface/70 p-3 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <div className="rounded-xl bg-surface/70 p-2.5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center flex-shrink-0 overflow-hidden">
               {offer.driver.photoUrl ? (
                 <img src={offer.driver.photoUrl} alt="" className="w-full h-full object-cover rounded-xl" />
               ) : (
-                <User size={18} className="text-muted" />
+                <User size={16} className="text-muted" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold truncate">{offer.driver.name}</p>
               <p className="text-xs text-muted truncate">{offer.driver.carModel}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <LithuanianPlate value={offer.driver.carPlate} size="sm" />
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
-                  <Star size={10} weight="fill" />
-                  {offer.driver.rating.toFixed(1)}
-                </span>
-              </div>
             </div>
             <div className="text-right flex-shrink-0">
               <div className="inline-flex items-center gap-1 text-sm font-bold">
@@ -143,15 +135,15 @@ export default function OfferMapSheet({
             </div>
           </div>
 
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2">
             <div className="flex flex-col items-center gap-1 pt-1">
               <div className="w-2.5 h-2.5 rounded-full bg-point-a" />
-              <div className="w-px h-6 bg-border" />
+              <div className="w-px h-5 bg-border" />
               <div className="w-2.5 h-2.5 rounded-full bg-point-b" />
             </div>
-            <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-sm font-semibold truncate">{offer.from.address}</p>
-              <p className="text-sm font-semibold truncate">{offer.to.address}</p>
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-xs font-semibold truncate">{offer.from.address}</p>
+              <p className="text-xs font-semibold truncate">{offer.to.address}</p>
             </div>
           </div>
 
@@ -161,7 +153,7 @@ export default function OfferMapSheet({
             <button
               type="button"
               onClick={() => navigate(`/requests/${offer.myRequestId}`)}
-              className="w-full py-3 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
+              className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-bold active:scale-[0.97] transition-transform"
             >
               {t('passenger.offers.viewMyBooking', { defaultValue: 'View my booking' })}
             </button>
@@ -172,7 +164,7 @@ export default function OfferMapSheet({
                   type="button"
                   onClick={openTelegram}
                   disabled={isBooking}
-                  className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
                 >
                   {t('common.writeTelegram', { defaultValue: 'Message' })}
                 </button>
@@ -181,7 +173,7 @@ export default function OfferMapSheet({
                 type="button"
                 onClick={onCancelConfirm}
                 disabled={isBooking}
-                className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-muted active:bg-surface active:scale-[0.97] transition-transform disabled:opacity-60"
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted active:bg-surface active:scale-[0.97] transition-transform disabled:opacity-60"
               >
                 {t('common.cancel', { defaultValue: 'Cancel' })}
               </button>
@@ -189,7 +181,7 @@ export default function OfferMapSheet({
                 type="button"
                 onClick={onConfirmBook}
                 disabled={isBooking}
-                className="flex-1 py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
+                className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
               >
                 {isBooking
                   ? t('passenger.offers.map.booking', { defaultValue: 'Booking…' })
@@ -206,7 +198,7 @@ export default function OfferMapSheet({
                   type="button"
                   onClick={openTelegram}
                   disabled={isBooking}
-                  className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold active:scale-[0.97] transition-transform disabled:opacity-60"
                 >
                   {t('common.writeTelegram', { defaultValue: 'Message' })}
                 </button>
@@ -215,7 +207,7 @@ export default function OfferMapSheet({
                 type="button"
                 onClick={onBookClick}
                 disabled={isBooking}
-                className="flex-1 py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
+                className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
               >
                 {isBooking
                   ? t('passenger.offers.map.booking', { defaultValue: 'Booking…' })
@@ -225,6 +217,6 @@ export default function OfferMapSheet({
           )}
         </div>
       </div>
-    </>
+    </div>
   )
 }
