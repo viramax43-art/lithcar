@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -10,7 +11,7 @@ from app.models.driver_ride_offer import DriverRideOffer, DriverRideOfferStatus
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.models.user import User, UserRole
 from app.services.geo_service import haversine_km
-from tests.ride_datetime import future_ride_datetime_iso
+from tests.ride_datetime import future_ride_datetime, future_ride_datetime_iso
 
 from app.services.offer_matching_service import (
     RouteMatchInput,
@@ -168,6 +169,63 @@ def test_passes_hard_filters_dropoff():
 
 
 @pytest.mark.asyncio
+async def test_matches_api_filters_by_datetime_window(client, db_session):
+    await _create_zone(client)
+    passenger_dt = future_ride_datetime(hours_ahead=6)
+    passenger_query = passenger_dt.astimezone(ZoneInfo("Europe/Vilnius")).strftime("%Y-%m-%dT%H:%M")
+    close_offer, _, _ = await _create_offer(
+        client,
+        db_session,
+        dateTime=future_ride_datetime_iso(hours_ahead=6),
+    )
+    far_time_offer, _, _ = await _create_offer(
+        client,
+        db_session,
+        dateTime=future_ride_datetime_iso(hours_ahead=12),
+    )
+    passenger = await _create_passenger(db_session)
+    headers = _passenger_headers(passenger)
+    response = await client.get(
+        "/api/ride-offers/matches",
+        params={
+            "fromLat": 54.69,
+            "fromLng": 25.27,
+            "toLat": 54.70,
+            "toLng": 25.28,
+            "dateTime": passenger_query,
+            "limit": 10,
+            "minScore": 60,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()["items"]}
+    assert close_offer["id"] in ids
+    assert far_time_offer["id"] not in ids
+
+
+@pytest.mark.asyncio
+async def test_matches_api_requires_datetime(client, db_session):
+    await _create_zone(client)
+    await _create_offer(client, db_session)
+    passenger = await _create_passenger(db_session)
+    response = await client.get(
+        "/api/ride-offers/matches",
+        params={
+            "fromLat": 54.69,
+            "fromLng": 25.27,
+            "toLat": 54.70,
+            "toLng": 25.28,
+            "limit": 10,
+            "minScore": 60,
+        },
+        headers=_passenger_headers(passenger),
+    )
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+@pytest.mark.asyncio
 async def test_matches_api_sorted(client, db_session):
     await _create_zone(client)
     close_offer, _, _ = await _create_offer(
@@ -191,6 +249,7 @@ async def test_matches_api_sorted(client, db_session):
             "fromLng": 25.27,
             "toLat": 54.70,
             "toLng": 25.28,
+            "dateTime": future_ride_datetime_iso(hours_ahead=6),
             "limit": 10,
             "minScore": 60,
         },

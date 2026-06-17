@@ -9,6 +9,7 @@ import { bookRideOffer, listMatchingRideOffers, listRideOffers } from '../../lib
 import { parseOfferBookingConflict } from '../../lib/offerBooking'
 import { offerSeatsBooked } from '../../lib/offerSeats'
 import { getPassengerMatchButtonLabel } from '../../lib/matchUi'
+import { hasRideDateTime, rideDateFromDateTime } from '../../lib/rideDraft'
 import { openExternalLink } from '../../lib/telegram'
 import MatchScoreChip, { showMatchUi } from '../../components/MatchScoreChip'
 import { ApiError, parseApiErrorCode } from '../../infrastructure/http/httpClient'
@@ -60,16 +61,19 @@ export default function DriverOffers() {
       fromLat?: number
       fromLng?: number
       radiusKm?: number
+      date?: string
     } = { limit: PAGE_SIZE, offset: 0 }
     if (draft.fromPoint) {
       listParams.fromLat = draft.fromPoint.lat
       listParams.fromLng = draft.fromPoint.lng
       listParams.radiusKm = 2
     }
+    const rideDate = rideDateFromDateTime(draft.dateTime)
+    if (rideDate) listParams.date = rideDate
     const page = await listRideOffers(listParams)
     setOffers(page.items)
 
-    if (draft.fromPoint && draft.toPoint) {
+    if (draft.fromPoint && draft.toPoint && hasRideDateTime(draft.dateTime)) {
       try {
         const matches = await listMatchingRideOffers({
           fromLat: draft.fromPoint.lat,

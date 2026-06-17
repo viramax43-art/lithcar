@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.app_timezone import normalize_app_datetime
 
 from app.models.driver_ride_offer import DriverRideOffer, DriverRideOfferStatus
 from app.models.ride_request import RideRequest, RideRequestStatus
@@ -43,6 +45,30 @@ class MatchResult:
     reason: str
 
 
+def _normalize_match_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return normalize_app_datetime(value)
+
+
+def _time_delta_minutes(left: datetime | None, right: datetime | None) -> float | None:
+    if left is None or right is None:
+        return None
+    return abs((left - right).total_seconds()) / 60.0
+
+
+def _within_time_window(
+    left: datetime | None,
+    right: datetime | None,
+    *,
+    window_hours: float = DATETIME_WINDOW_HOURS,
+) -> bool:
+    delta = _time_delta_minutes(left, right)
+    if delta is None:
+        return False
+    return delta <= window_hours * 60
+
+
 def _build_match_reason(
     pickup_km: float,
     dropoff_km: float,
@@ -66,10 +92,13 @@ def passes_hard_filters(
     pickup_radius_km: float = PICKUP_RADIUS_KM,
     dropoff_radius_km: float = DROPOFF_RADIUS_KM,
     time_window_minutes: float = DATETIME_WINDOW_HOURS * 60,
+    require_time_alignment: bool = False,
 ) -> bool:
     if result.pickup_distance_km > pickup_radius_km:
         return False
     if result.dropoff_distance_km > dropoff_radius_km:
+        return False
+    if require_time_alignment and result.time_delta_minutes is None:
         return False
     if result.time_delta_minutes is not None and result.time_delta_minutes > time_window_minutes:
         return False
@@ -80,15 +109,15 @@ def score_route_pair(left: RouteMatchInput, right: RouteMatchInput) -> MatchResu
     pickup_km = haversine_km(left.from_lat, left.from_lng, right.from_lat, right.from_lng)
     dropoff_km = haversine_km(left.to_lat, left.to_lng, right.to_lat, right.to_lng)
 
-    time_delta_min: float | None = None
-    if left.date_time and right.date_time:
-        time_delta_min = abs((left.date_time - right.date_time).total_seconds()) / 60.0
+    left_dt = _normalize_match_datetime(left.date_time)
+    right_dt = _normalize_match_datetime(right.date_time)
+    time_delta_min = _time_delta_minutes(left_dt, right_dt)
 
     distance_factor = max(0.0, 1.0 - ((pickup_km + dropoff_km) / DISTANCE_NORMALIZER_KM))
     if time_delta_min is not None:
         time_factor = max(0.0, 1.0 - (time_delta_min / TIME_NORMALIZER_MINUTES))
     else:
-        time_factor = 1.0
+        time_factor = 0.0
 
     score = int(round((distance_factor * DISTANCE_WEIGHT + time_factor * TIME_WEIGHT) * 100))
     score = max(0, min(score, 100))
@@ -145,21 +174,35 @@ async def list_matching_offers_for_passenger_route(
     min_score: int = MATCH_THRESHOLD,
     limit: int = 20,
 ) -> list[tuple[PassengerOfferListRow, MatchResult]]:
+    route_dt = _normalize_match_datetime(route.date_time)
+    if route_dt is None:
+        return []
+
+    normalized_route = RouteMatchInput(
+        from_lat=route.from_lat,
+        from_lng=route.from_lng,
+        to_lat=route.to_lat,
+        to_lng=route.to_lng,
+        date_time=route_dt,
+    )
     rows, _ = await list_open_offers_for_passengers(
         db_session,
         passenger_id=passenger_id,
         limit=200,
         offset=0,
-        from_lat=route.from_lat,
-        from_lng=route.from_lng,
+        from_lat=normalized_route.from_lat,
+        from_lng=normalized_route.from_lng,
         radius_km=radius_km,
     )
     scored: list[tuple[PassengerOfferListRow, MatchResult]] = []
     for row in rows:
-        result = score_offer_for_passenger_route(row.offer, route)
+        if not _within_time_window(route_dt, row.offer.date_time):
+            continue
+        result = score_offer_for_passenger_route(row.offer, normalized_route)
         if result.score >= min_score and passes_hard_filters(
             result,
             pickup_radius_km=radius_km,
+            require_time_alignment=True,
         ):
             scored.append((row, result))
     scored.sort(key=lambda item: (-item[1].score, item[0].offer.date_time))
@@ -212,7 +255,10 @@ async def list_matching_requests_for_offer(
                 continue
 
         match_result = score_request_for_offer(offer, request)
-        if match_result.score >= min_score and passes_hard_filters(match_result):
+        if match_result.score >= min_score and passes_hard_filters(
+            match_result,
+            require_time_alignment=True,
+        ):
             passenger_user = await db_session.get(User, request.passenger_id)
             scored.append((request, match_result, passenger_user))
 

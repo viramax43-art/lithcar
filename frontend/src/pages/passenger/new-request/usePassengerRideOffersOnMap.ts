@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { bookRideOffer, listMatchingRideOffers, listRideOffers } from '../../../lib/backend'
+import { hasRideDateTime, rideDateFromDateTime } from '../../../lib/rideDraft'
 import { parseOfferBookingConflict } from '../../../lib/offerBooking'
 import { ApiError, parseApiErrorCode } from '../../../infrastructure/http/httpClient'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
@@ -52,6 +53,10 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     const rideDateTime = dateTimeRef.current
 
     if (pickup && dropoff) {
+      if (!hasRideDateTime(rideDateTime)) {
+        setOffers([])
+        return
+      }
       const page = await listMatchingRideOffers({
         fromLat: pickup.lat,
         fromLng: pickup.lng,
@@ -91,12 +96,15 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
       fromLat?: number
       fromLng?: number
       radiusKm?: number
+      date?: string
     } = { limit: PAGE_LIMIT, offset: 0 }
     if (pickup) {
       listParams.fromLat = pickup.lat
       listParams.fromLng = pickup.lng
       listParams.radiusKm = GEO_RADIUS_KM
     }
+    const rideDate = rideDateFromDateTime(rideDateTime)
+    if (rideDate) listParams.date = rideDate
     const page = await listRideOffers(listParams)
     setOffers(
       page.items.map((item) => ({

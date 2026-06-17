@@ -268,7 +268,7 @@ export function useDriverOfferFormController(onSuccess: () => void) {
       await createDriverOffer({
         fromPoint: { address: fromAddress, latlng: fromPoint },
         toPoint: { address: toAddress, latlng: toPoint },
-        dateTime: new Date(`${datePart}T${timePart}:00`).toISOString(),
+        dateTime: `${datePart}T${timePart}`,
         totalSeats: parsedTotalSeats,
       })
       hapticNotification('success')

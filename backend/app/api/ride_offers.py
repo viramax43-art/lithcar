@@ -13,7 +13,7 @@ from app.api.ride_requests import (
     _build_ride_request_out_for_passenger,
     _to_assigned_driver_out,
 )
-from app.core.app_timezone import to_app_local_iso
+from app.core.app_timezone import normalize_app_datetime, to_app_local_iso
 from app.core.dependencies import get_db_session
 from app.models.user import User, UserRole
 from app.services.driver_offer_service import (
@@ -230,7 +230,7 @@ async def list_matching_offers(
         from_lng=fromLng,
         to_lat=toLat,
         to_lng=toLng,
-        date_time=dateTime,
+        date_time=normalize_app_datetime(dateTime) if dateTime is not None else None,
     )
     scored = await list_matching_offers_for_passenger_route(
         db_session,

@@ -25,6 +25,7 @@ import { addAppLocalDays, formatRideDate, formatRideTime, toAppLocalDateInput } 
 import { buildRideTimeSlots } from '../../lib/rideTimeSlots'
 import { offerSeatsBooked } from '../../lib/offerSeats'
 import { getPassengerMatchButtonLabel } from '../../lib/matchUi'
+import { hasRideDateTime } from '../../lib/rideDraft'
 import { isCoarsePointer } from '../../lib/pointer'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 
@@ -66,7 +67,9 @@ export default function NewRequest() {
     to: model.toPoint,
     dateTime: model.dateTime,
     limit: 5,
-    enabled: Boolean(model.fromPoint && model.toPoint && !offersPaused),
+    enabled: Boolean(
+      model.fromPoint && model.toPoint && hasRideDateTime(model.dateTime) && !offersPaused,
+    ),
   })
 
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
@@ -485,18 +488,28 @@ export default function NewRequest() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 {t('passenger.offers.matchingTitle', { defaultValue: 'Matching driver rides' })}
               </p>
-              {matchingOffers.isLoading && (
+              {!hasRideDateTime(model.dateTime) && (
+                <p className="text-xs text-muted">
+                  {t('passenger.offers.pickDateTimeForMatches', {
+                    defaultValue: 'Select date and time to see matching rides',
+                  })}
+                </p>
+              )}
+              {hasRideDateTime(model.dateTime) && matchingOffers.isLoading && (
                 <p className="text-xs text-muted">{t('passenger.offers.map.loading', { defaultValue: 'Loading rides…' })}</p>
               )}
-              {matchingOffers.error && (
+              {hasRideDateTime(model.dateTime) && matchingOffers.error && (
                 <p className="text-xs font-medium text-red-600">{matchingOffers.error}</p>
               )}
-              {!matchingOffers.isLoading && !matchingOffers.error && matchingOffers.items.length === 0 && (
+              {hasRideDateTime(model.dateTime) &&
+                !matchingOffers.isLoading &&
+                !matchingOffers.error &&
+                matchingOffers.items.length === 0 && (
                 <p className="text-xs text-muted">
                   {t('passenger.offers.noMatches', { defaultValue: 'No matching rides yet' })}
                 </p>
               )}
-              {!matchingOffers.isLoading && matchingOffers.items.length > 0 && (
+              {hasRideDateTime(model.dateTime) && !matchingOffers.isLoading && matchingOffers.items.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto scroll-x-hide pb-1">
                   {matchingOffers.items.map((offer) => {
                     const booked = offerSeatsBooked(offer)

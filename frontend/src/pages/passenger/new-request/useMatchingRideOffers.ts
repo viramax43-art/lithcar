@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listMatchingRideOffers } from '../../../lib/backend'
+import { hasRideDateTime } from '../../../lib/rideDraft'
 import type { LatLng, MatchedPassengerRideOffer } from '../../../types'
 
 interface UseMatchingRideOffersOptions {
@@ -22,7 +23,7 @@ export function useMatchingRideOffers({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!enabled || !from || !to) {
+    if (!enabled || !from || !to || !hasRideDateTime(dateTime)) {
       setItems([])
       setError(null)
       return
