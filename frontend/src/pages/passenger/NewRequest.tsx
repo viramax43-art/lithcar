@@ -213,7 +213,9 @@ export default function NewRequest() {
       <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
-          <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
+          {!model.fromPoint && (
+            <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
+          )}
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id

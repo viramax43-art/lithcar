@@ -15,7 +15,7 @@ import {
 } from '../../../lib/geocode'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
-import { isPointInAnyZone } from '../../../utils/geo'
+import { isPointInAnyZone, coordsNear } from '../../../utils/geo'
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
@@ -113,6 +113,10 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const searchAbort = useRef<AbortController | null>(null)
   const reverseSeq = useRef(0)
   const quoteTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const scheduledResolveRef = useRef<LatLng | null>(null)
+  const isResolvingRef = useRef(false)
+  isResolvingRef.current = isResolving
+  const armPinTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     let cancelled = false
@@ -149,6 +153,19 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       if (showSearch) return
       if (fromPoint && toPoint) return
 
+      const scheduled = scheduledResolveRef.current
+      if (
+        scheduled &&
+        coordsNear(scheduled, latlng) &&
+        (reverseTimer.current !== undefined || isResolvingRef.current)
+      ) {
+        if (!pinLatLngRef.current || !coordsNear(pinLatLngRef.current, latlng)) {
+          setPinLatLng(latlng)
+        }
+        return
+      }
+
+      scheduledResolveRef.current = latlng
       setPinLatLng(latlng)
       const inZone = !hasZones || isPointInAnyZone(latlng, activeZones)
       setPinOutOfZone(!inZone)
@@ -197,6 +214,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
           // Always clear the spinner for the latest pin request — stale/aborted runs must not leave it stuck.
           if (seq === reverseSeq.current) {
             setIsResolving(false)
+            scheduledResolveRef.current = null
           }
         }
       }, 700)
@@ -205,12 +223,16 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   )
 
   const armPinFromMapCenter = useCallback(() => {
-    const map = mapRef.current
-    if (!map) return
-    const size = map.getSize()
-    const px = L.point(size.x * 0.5, size.y * anchorRef.current)
-    const ll = map.containerPointToLatLng(px)
-    commitPin({ lat: ll.lat, lng: ll.lng })
+    if (armPinTimerRef.current) clearTimeout(armPinTimerRef.current)
+    armPinTimerRef.current = setTimeout(() => {
+      armPinTimerRef.current = undefined
+      const map = mapRef.current
+      if (!map) return
+      const size = map.getSize()
+      const px = L.point(size.x * 0.5, size.y * anchorRef.current)
+      const ll = map.containerPointToLatLng(px)
+      commitPin({ lat: ll.lat, lng: ll.lng })
+    }, 120)
   }, [commitPin, anchorRef])
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
@@ -237,6 +259,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     setPinAddress('')
     setPinOutOfZone(false)
     setIsResolving(false)
+    scheduledResolveRef.current = null
     setZoneWarning(null)
     if (reverseTimer.current) clearTimeout(reverseTimer.current)
     if (reverseAbort.current) {
@@ -500,6 +523,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       if (searchTimeout.current) clearTimeout(searchTimeout.current)
       if (zoneWarningTimer.current) clearTimeout(zoneWarningTimer.current)
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
+      if (armPinTimerRef.current) clearTimeout(armPinTimerRef.current)
       if (reverseAbort.current) reverseAbort.current.abort()
       if (searchAbort.current) searchAbort.current.abort()
       if (quoteTimeout.current) clearTimeout(quoteTimeout.current)

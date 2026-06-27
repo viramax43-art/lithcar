@@ -97,7 +97,9 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       <div ref={mapAreaRef} className="relative flex-1 min-h-0">
         <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
-          <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
+          {!model.fromPoint && (
+            <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
+          )}
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map

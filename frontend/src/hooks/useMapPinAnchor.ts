@@ -72,10 +72,7 @@ export function useMapPinAnchor(
     const map = mapRef?.current
     if (!map) return
     map.invalidateSize()
-    if (isPinLive) {
-      requestAnimationFrame(() => onAnchorChangeRef.current?.())
-    }
-  }, [pinAnchorYFrac, mapRef, isPinLive])
+  }, [pinAnchorYFrac, mapRef])
 
   return { pinAnchorYFrac, obstructionPx }
 }

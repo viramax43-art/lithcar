@@ -1,5 +1,12 @@
 import type { LatLng } from '../types'
 
+/** ~5 m — enough to ignore pin-anchor jitter without blocking real map moves. */
+const DEFAULT_COORD_EPSILON_DEG = 0.00005
+
+export function coordsNear(a: LatLng, b: LatLng, epsilonDeg = DEFAULT_COORD_EPSILON_DEG): boolean {
+  return Math.abs(a.lat - b.lat) < epsilonDeg && Math.abs(a.lng - b.lng) < epsilonDeg
+}
+
 /**
  * Ray-casting point-in-polygon check.
  */
