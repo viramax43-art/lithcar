@@ -39,11 +39,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
   const { pinAnchorYFrac, obstructionPx } = useMapPinAnchor(mapAreaRef, bottomSheetRef, pinAnchorYFracRef, {
     mapRef: model.mapRef,
     isPinLive: model.isPinLive,
-    onAnchorChange: () => {
-      if (model.isPinLive && !model.isPanning && !model.isResolving) {
-        model.armPinFromMapCenter()
-      }
-    },
+    lockAnchorFrac: model.isPinLive && Boolean(model.pinLatLng),
   })
 
   const {
@@ -114,7 +110,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
             onPanStart={() => model.setIsPanning(true)}
             onPanEnd={(latlng) => {
               model.setIsPanning(false)
-              model.commitPin(latlng)
+              model.commitPinFromMap(latlng)
             }}
           />
           {model.fromPoint && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}

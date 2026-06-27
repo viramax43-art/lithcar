@@ -68,11 +68,7 @@ export default function NewRequest() {
   const { pinAnchorYFrac } = useMapPinAnchor(mapAreaRef, bottomSheetRef, pinAnchorYFracRef, {
     mapRef: model.mapRef,
     isPinLive: model.isPinLive,
-    onAnchorChange: () => {
-      if (model.isPinLive && !model.isPanning && !model.isResolving) {
-        model.armPinFromMapCenter()
-      }
-    },
+    lockAnchorFrac: model.isPinLive && Boolean(model.pinLatLng),
   })
   const userInfoMessage = resolveUserInfoText(model.pricing.userInfoText, i18n.language)
   const hasInfo = hasUserInfoText(model.pricing.userInfoText) && Boolean(userInfoMessage.trim())
@@ -363,7 +359,7 @@ export default function NewRequest() {
             onPanStart={() => model.setIsPanning(true)}
             onPanEnd={(latlng) => {
               model.setIsPanning(false)
-              void model.commitPin(latlng)
+              model.commitPinFromMap(latlng)
             }}
           />
         </MapContainer>

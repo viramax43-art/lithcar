@@ -9,6 +9,8 @@ interface UseMapPinAnchorOptions {
   mapRef?: MutableRefObject<L.Map | null>
   isPinLive?: boolean
   onAnchorChange?: () => void
+  /** Keep pin Y fraction fixed while a point is armed — prevents layout-driven geocode loops. */
+  lockAnchorFrac?: boolean
 }
 
 /** Ignore sub-pixel layout jitter from spinners / address labels. */
@@ -21,7 +23,7 @@ export function useMapPinAnchor(
   pinAnchorYFracRef: MutableRefObject<number>,
   options: UseMapPinAnchorOptions = {},
 ) {
-  const { mapRef, isPinLive = false, onAnchorChange } = options
+  const { mapRef, isPinLive = false, onAnchorChange, lockAnchorFrac = false } = options
   const [pinAnchorYFrac, setPinAnchorYFrac] = useState(DEFAULT_PIN_ANCHOR_Y_FRAC)
   const [obstructionPx, setObstructionPx] = useState(0)
   const lastObstructionRef = useRef(0)
@@ -43,6 +45,15 @@ export function useMapPinAnchor(
     }
 
     const frac = computePinAnchorYFrac(mapHeight, obstruction)
+
+    if (lockAnchorFrac) {
+      if (Math.abs(obstruction - lastObstructionRef.current) > OBSTRUCTION_PX_EPSILON) {
+        lastObstructionRef.current = obstruction
+        setObstructionPx(obstruction)
+      }
+      return
+    }
+
     const changed = Math.abs(frac - pinAnchorYFracRef.current) > ANCHOR_FRAC_EPSILON
       || Math.abs(obstruction - lastObstructionRef.current) > OBSTRUCTION_PX_EPSILON
 
@@ -53,7 +64,7 @@ export function useMapPinAnchor(
       setObstructionPx(obstruction)
       onAnchorChangeRef.current?.()
     }
-  }, [mapAreaRef, bottomSheetRef, pinAnchorYFracRef])
+  }, [mapAreaRef, bottomSheetRef, lockAnchorFrac, pinAnchorYFracRef])
 
   useEffect(() => {
     measure()

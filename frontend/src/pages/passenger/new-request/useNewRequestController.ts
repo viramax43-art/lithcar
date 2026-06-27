@@ -106,6 +106,9 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const armPinFromMapCenterRef = useRef<() => void>(() => {})
   const pinLatLngRef = useRef(pinLatLng)
   pinLatLngRef.current = pinLatLng
+  const pinAddressRef = useRef(pinAddress)
+  pinAddressRef.current = pinAddress
+  const skipPinCommitCountRef = useRef(0)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const zoneWarningTimer = useRef<ReturnType<typeof setTimeout>>()
   const reverseTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -150,7 +153,10 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       if (fromPoint && toPoint) return
 
       const prev = pinLatLngRef.current
-      if (prev && coordsNear(prev, latlng)) return
+      if (prev && coordsNear(prev, latlng)) {
+        setIsResolving(false)
+        return
+      }
 
       setPinLatLng(latlng)
       const inZone = !hasZones || isPointInAnyZone(latlng, activeZones)
@@ -251,6 +257,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
     if (!map) return
+    skipPinCommitCountRef.current += 1
     const z = Math.max(map.getZoom(), zoom)
     const targetPx = map.project([target.lat, target.lng], z)
     const size = map.getSize()
@@ -259,6 +266,17 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     const newCenter = map.unproject(desiredCenterPx, z)
     map.flyTo(newCenter, z, { duration: 0.5 })
   }, [anchorRef])
+
+  const commitPinFromMap = useCallback(
+    (latlng: LatLng) => {
+      if (skipPinCommitCountRef.current > 0) {
+        skipPinCommitCountRef.current -= 1
+        return
+      }
+      commitPin(latlng)
+    },
+    [commitPin],
+  )
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -566,6 +584,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     isLocating,
     mapRef,
     commitPin,
+    commitPinFromMap,
     confirmPoint,
     armPinFromMapCenter,
     handleSearch,

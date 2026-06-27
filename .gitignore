@@ -4,6 +4,7 @@ Thumbs.db
 Desktop.ini
 *.swp
 *.swo
+.tmp/
 
 .vscode/
 !.vscode/extensions.json

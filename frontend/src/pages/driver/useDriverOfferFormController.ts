@@ -75,6 +75,7 @@ export function useDriverOfferFormController(
   const armPinFromMapCenterRef = useRef<() => void>(() => {})
   const pinLatLngRef = useRef(pinLatLng)
   pinLatLngRef.current = pinLatLng
+  const skipPinCommitCountRef = useRef(0)
   const reverseTimer = useRef<ReturnType<typeof setTimeout>>()
   const reverseAbort = useRef<AbortController | null>(null)
   const reverseSeq = useRef(0)
@@ -116,7 +117,10 @@ export function useDriverOfferFormController(
       if (fromPoint && toPoint) return
 
       const prev = pinLatLngRef.current
-      if (prev && coordsNear(prev, latlng)) return
+      if (prev && coordsNear(prev, latlng)) {
+        setIsResolving(false)
+        return
+      }
 
       setPinLatLng(latlng)
       const inZone = !hasZones || isPointInAnyZone(latlng, activeZones)
@@ -195,6 +199,7 @@ export function useDriverOfferFormController(
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
     if (!map) return
+    skipPinCommitCountRef.current += 1
     const z = Math.max(map.getZoom(), zoom)
     const targetPx = map.project([target.lat, target.lng], z)
     const size = map.getSize()
@@ -203,6 +208,17 @@ export function useDriverOfferFormController(
     const newCenter = map.unproject(desiredCenterPx, z)
     map.flyTo(newCenter, z, { duration: 0.5 })
   }, [anchorRef])
+
+  const commitPinFromMap = useCallback(
+    (latlng: LatLng) => {
+      if (skipPinCommitCountRef.current > 0) {
+        skipPinCommitCountRef.current -= 1
+        return
+      }
+      commitPin(latlng)
+    },
+    [commitPin],
+  )
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -377,6 +393,7 @@ export function useDriverOfferFormController(
     isLocating,
     mapRef,
     commitPin,
+    commitPinFromMap,
     confirmPoint,
     armPinFromMapCenter,
     handleSelectSearchResult,
