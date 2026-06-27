@@ -80,9 +80,6 @@ export default function NewRequest() {
     mapDate: offerMapDate,
     pickupPoint: model.fromPoint,
   })
-  const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
-  const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
-  const activeSetupHint = model.isPickingPointA ? pointASetupHint : pointBSetupHint
   const matchingOffers = useMatchingRideOffers({
     from: model.fromPoint,
     to: model.toPoint,
@@ -502,11 +499,9 @@ export default function NewRequest() {
         <RoutePointPinLabel
           visible
           activeIsFrom={model.activeIsFrom}
-          isPanning={model.isPanning}
           pinOutOfZone={model.pinOutOfZone}
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
-          setupHint={activeSetupHint}
           pinAnchorYFrac={pinAnchorYFrac}
         />
       )}

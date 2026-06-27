@@ -9,7 +9,6 @@ interface RoutePointPinOverlayProps {
   pinOutOfZone: boolean
   isResolving: boolean
   pinAddress: string
-  setupHint: string
   pinAnchorYFrac?: number
 }
 
@@ -42,11 +41,11 @@ export function RoutePointPinLabel({
   pinOutOfZone,
   isResolving,
   pinAddress,
-  setupHint,
   pinAnchorYFrac = DEFAULT_PIN_ANCHOR_Y_FRAC,
-}: RoutePointPinOverlayProps) {
+}: Omit<RoutePointPinOverlayProps, 'isPanning'>) {
   const { t } = useTranslation()
   if (!visible) return null
+  if (!pinOutOfZone && !isResolving && !pinAddress) return null
 
   return (
     <div
@@ -68,13 +67,9 @@ export function RoutePointPinLabel({
             <span className="dot-pulse" style={{ animationDelay: '300ms' }}>.</span>
           </span>
         </div>
-      ) : pinAddress ? (
+      ) : (
         <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card truncate max-w-[80vw] animate-fade-in ${activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
           {pinAddress}
-        </div>
-      ) : (
-        <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card max-w-[80vw] text-center leading-snug ${activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
-          {setupHint}
         </div>
       )}
     </div>

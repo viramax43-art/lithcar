@@ -56,9 +56,6 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
   useEscapeClose(true, onClose)
 
-  const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
-  const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
-  const activeSetupHint = model.activeIsFrom ? pointASetupHint : pointBSetupHint
   const userLocationHint = useMapUserLocationHint(!model.fromPoint && !model.toPoint)
   const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
@@ -135,11 +132,9 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         <RoutePointPinLabel
           visible={model.isPinLive}
           activeIsFrom={model.activeIsFrom}
-          isPanning={model.isPanning}
           pinOutOfZone={model.pinOutOfZone}
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
-          setupHint={activeSetupHint}
           pinAnchorYFrac={pinAnchorYFrac}
         />
         <RoutePointZoneBanner
