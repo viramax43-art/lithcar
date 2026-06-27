@@ -1,10 +1,17 @@
 import type { LatLng } from '../types'
 
-/** ~5 m — enough to ignore pin-anchor jitter without blocking real map moves. */
-const DEFAULT_COORD_EPSILON_DEG = 0.00005
-
-export function coordsNear(a: LatLng, b: LatLng, epsilonDeg = DEFAULT_COORD_EPSILON_DEG): boolean {
-  return Math.abs(a.lat - b.lat) < epsilonDeg && Math.abs(a.lng - b.lng) < epsilonDeg
+/** True when two coordinates are within maxMeters (default ~15 m). */
+export function coordsNear(a: LatLng, b: LatLng, maxMeters = 15): boolean {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  const distanceM = 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+  return distanceM <= maxMeters
 }
 
 /**

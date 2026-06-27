@@ -69,7 +69,7 @@ export default function NewRequest() {
     mapRef: model.mapRef,
     isPinLive: model.isPinLive,
     onAnchorChange: () => {
-      if (model.isPinLive && !model.isPanning) {
+      if (model.isPinLive && !model.isPanning && !model.isResolving) {
         model.armPinFromMapCenter()
       }
     },
@@ -197,25 +197,31 @@ export default function NewRequest() {
     }
   }, [])
 
-  const userLocationHint = useMapUserLocationHint()
+  const userLocationHint = useMapUserLocationHint(!model.fromPoint && !model.toPoint)
+  const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
     () => resolveMapCenter(model.activeZones, userLocationHint),
     [model.activeZones, userLocationHint],
   )
-  const mapFlyKey = userLocationHint
-    ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
-    : model.activeZones.length > 0
-      ? `zones:${model.activeZones.length}`
-      : 'region-default'
+  const mapFlyKey = allowMapAutoFly
+    ? userLocationHint
+      ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
+      : model.activeZones.length > 0
+        ? `zones:${model.activeZones.length}`
+        : 'region-default'
+    : 'user-picking'
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
       <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
-          {!model.fromPoint && (
-            <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
-          )}
+          <MapFlyToResolvedCenter
+            center={mapOperatingCenter}
+            flyKey={mapFlyKey}
+            zoom={getDefaultMapZoom()}
+            enabled={allowMapAutoFly}
+          />
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id

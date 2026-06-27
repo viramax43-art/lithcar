@@ -11,6 +11,10 @@ interface UseMapPinAnchorOptions {
   onAnchorChange?: () => void
 }
 
+/** Ignore sub-pixel layout jitter from spinners / address labels. */
+const ANCHOR_FRAC_EPSILON = 0.008
+const OBSTRUCTION_PX_EPSILON = 14
+
 export function useMapPinAnchor(
   mapAreaRef: RefObject<HTMLElement | null>,
   bottomSheetRef: RefObject<HTMLElement | null>,
@@ -39,8 +43,8 @@ export function useMapPinAnchor(
     }
 
     const frac = computePinAnchorYFrac(mapHeight, obstruction)
-    const changed = Math.abs(frac - pinAnchorYFracRef.current) > 0.001
-      || Math.abs(obstruction - lastObstructionRef.current) > 1
+    const changed = Math.abs(frac - pinAnchorYFracRef.current) > ANCHOR_FRAC_EPSILON
+      || Math.abs(obstruction - lastObstructionRef.current) > OBSTRUCTION_PX_EPSILON
 
     if (changed) {
       pinAnchorYFracRef.current = frac

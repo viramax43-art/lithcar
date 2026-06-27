@@ -40,7 +40,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
     mapRef: model.mapRef,
     isPinLive: model.isPinLive,
     onAnchorChange: () => {
-      if (model.isPinLive && !model.isPanning) {
+      if (model.isPinLive && !model.isPanning && !model.isResolving) {
         model.armPinFromMapCenter()
       }
     },
@@ -63,16 +63,19 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.activeIsFrom ? pointASetupHint : pointBSetupHint
-  const userLocationHint = useMapUserLocationHint()
+  const userLocationHint = useMapUserLocationHint(!model.fromPoint && !model.toPoint)
+  const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
     () => resolveMapCenter(model.activeZones, userLocationHint),
     [model.activeZones, userLocationHint],
   )
-  const mapFlyKey = userLocationHint
-    ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
-    : model.activeZones.length > 0
-      ? `zones:${model.activeZones.length}`
-      : 'region-default'
+  const mapFlyKey = allowMapAutoFly
+    ? userLocationHint
+      ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
+      : model.activeZones.length > 0
+        ? `zones:${model.activeZones.length}`
+        : 'region-default'
+    : 'user-picking'
 
   return (
     <div className="fixed inset-0 z-[210] bg-white flex flex-col">
@@ -97,9 +100,12 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       <div ref={mapAreaRef} className="relative flex-1 min-h-0">
         <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
-          {!model.fromPoint && (
-            <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
-          )}
+          <MapFlyToResolvedCenter
+            center={mapOperatingCenter}
+            flyKey={mapFlyKey}
+            zoom={getDefaultMapZoom()}
+            enabled={allowMapAutoFly}
+          />
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map

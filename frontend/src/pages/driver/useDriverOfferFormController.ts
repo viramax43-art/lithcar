@@ -73,13 +73,11 @@ export function useDriverOfferFormController(
   const fallbackPinAnchorRef = useRef(DEFAULT_PIN_ANCHOR_Y_FRAC)
   const anchorRef = pinAnchorYFracRef ?? fallbackPinAnchorRef
   const armPinFromMapCenterRef = useRef<() => void>(() => {})
+  const pinLatLngRef = useRef(pinLatLng)
+  pinLatLngRef.current = pinLatLng
   const reverseTimer = useRef<ReturnType<typeof setTimeout>>()
   const reverseAbort = useRef<AbortController | null>(null)
   const reverseSeq = useRef(0)
-  const scheduledResolveRef = useRef<LatLng | null>(null)
-  const isResolvingRef = useRef(false)
-  isResolvingRef.current = isResolving
-  const armPinTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
   const zoneWarningTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -117,16 +115,9 @@ export function useDriverOfferFormController(
       if (showSearch) return
       if (fromPoint && toPoint) return
 
-      const scheduled = scheduledResolveRef.current
-      if (
-        scheduled &&
-        coordsNear(scheduled, latlng) &&
-        (reverseTimer.current !== undefined || isResolvingRef.current)
-      ) {
-        return
-      }
+      const prev = pinLatLngRef.current
+      if (prev && coordsNear(prev, latlng)) return
 
-      scheduledResolveRef.current = latlng
       setPinLatLng(latlng)
       const inZone = !hasZones || isPointInAnyZone(latlng, activeZones)
       setPinOutOfZone(!inZone)
@@ -159,10 +150,7 @@ export function useDriverOfferFormController(
           }
           setPinAddress(fallbackAddress)
         } finally {
-          if (seq === reverseSeq.current) {
-            setIsResolving(false)
-            scheduledResolveRef.current = null
-          }
+          if (seq === reverseSeq.current) setIsResolving(false)
         }
       }, 700)
     },
@@ -170,16 +158,12 @@ export function useDriverOfferFormController(
   )
 
   const armPinFromMapCenter = useCallback(() => {
-    if (armPinTimerRef.current) clearTimeout(armPinTimerRef.current)
-    armPinTimerRef.current = setTimeout(() => {
-      armPinTimerRef.current = undefined
-      const map = mapRef.current
-      if (!map) return
-      const size = map.getSize()
-      const px = L.point(size.x * 0.5, size.y * anchorRef.current)
-      const ll = map.containerPointToLatLng(px)
-      commitPin({ lat: ll.lat, lng: ll.lng })
-    }, 120)
+    const map = mapRef.current
+    if (!map) return
+    const size = map.getSize()
+    const px = L.point(size.x * 0.5, size.y * anchorRef.current)
+    const ll = map.containerPointToLatLng(px)
+    commitPin({ lat: ll.lat, lng: ll.lng })
   }, [commitPin, anchorRef])
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
@@ -206,7 +190,6 @@ export function useDriverOfferFormController(
     setPinAddress('')
     setPinOutOfZone(false)
     setIsResolving(false)
-    scheduledResolveRef.current = null
   }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning, armPinFromMapCenter, t])
 
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
