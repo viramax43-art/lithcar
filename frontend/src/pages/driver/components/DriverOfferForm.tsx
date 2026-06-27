@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { CaretDown, Clock, Crosshair, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +17,9 @@ import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestM
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
 
-const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
+import { useMapUserLocationHint } from '../../../hooks/useMapUserLocationHint'
+import { getDefaultMapCenterTuple, getDefaultMapZoom, resolveMapCenter } from '../../../lib/mapRegion'
+import { MapFlyToResolvedCenter } from '../../../components/MapFlyToResolvedCenter'
 
 interface DriverOfferFormProps {
   onClose: () => void
@@ -61,6 +63,16 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.activeIsFrom ? pointASetupHint : pointBSetupHint
+  const userLocationHint = useMapUserLocationHint()
+  const mapOperatingCenter = useMemo(
+    () => resolveMapCenter(model.activeZones, userLocationHint),
+    [model.activeZones, userLocationHint],
+  )
+  const mapFlyKey = userLocationHint
+    ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
+    : model.activeZones.length > 0
+      ? `zones:${model.activeZones.length}`
+      : 'region-default'
 
   return (
     <div className="fixed inset-0 z-[210] bg-white flex flex-col">
@@ -83,8 +95,9 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       </header>
 
       <div ref={mapAreaRef} className="relative flex-1 min-h-0">
-        <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
+        <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
+          <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
           <MapBinder
             registerMap={(map) => {
               model.mapRef.current = map

@@ -1,6 +1,7 @@
 import type { LatLng } from '../types'
 import i18n from '../i18n'
 import { getNominatimAcceptLanguage } from './mapLocale'
+import { resolveGeocodeSearchScope, type GeocodeSearchScope } from './mapRegion'
 
 /**
  * Nominatim public instance has a strict usage policy: at most 1 request/second
@@ -78,8 +79,8 @@ function reverseCacheKey(latlng: LatLng): string {
   return `${coordKey(latlng)}|${currentLanguageKey()}`
 }
 
-function searchCacheKey(query: string): string {
-  return `${query.trim().toLowerCase()}|${currentLanguageKey()}`
+function searchCacheKey(query: string, scope: GeocodeSearchScope): string {
+  return `${query.trim().toLowerCase()}|${scope.viewbox}|${scope.countryCodes ?? 'any'}|${currentLanguageKey()}`
 }
 
 function fetchWithTimeout(url: string, signal?: AbortSignal): Promise<Response> {
@@ -143,24 +144,24 @@ export interface NominatimSearchResult {
   lon: string
 }
 
-/** Lithuania viewbox for Nominatim relevance (not a hard boundary). */
-const LT_VIEWBOX = '20.9,56.5,26.9,53.9'
-
 /**
- * Forward search via Nominatim, scoped to Lithuania.
+ * Forward search via Nominatim, scoped to service zones or the configured map region.
  * Throws {@link RateLimitedError} when 429.
  */
 export async function searchPlaces(
   query: string,
   signal?: AbortSignal,
+  scope: GeocodeSearchScope = resolveGeocodeSearchScope(),
 ): Promise<NominatimSearchResult[]> {
   const q = query.trim()
   if (!q) return []
-  const cacheKey = searchCacheKey(q)
+  const cacheKey = searchCacheKey(q, scope)
   const cached = searchCache.get(cacheKey)
   if (cached && cached.length > 0) return cached
 
   const acceptLanguage = encodeURIComponent(currentLanguageKey())
+  const countryParam = `&countrycodes=${scope.countryCodes}`
+  const viewboxParam = scope.viewbox ? `&viewbox=${scope.viewbox}` : ''
 
   return scheduleNominatim(async () => {
     if (signal?.aborted) {
@@ -172,7 +173,7 @@ export async function searchPlaces(
       const res = await fetchWithTimeout(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           q,
-        )}&format=json&limit=8&countrycodes=lt&viewbox=${LT_VIEWBOX}&accept-language=${acceptLanguage}`,
+        )}&format=json&limit=8${countryParam}${viewboxParam}&accept-language=${acceptLanguage}`,
         signal,
       )
       handleNominatimResponse(res)

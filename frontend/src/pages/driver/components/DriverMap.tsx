@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { formatRideTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
+import { getDefaultMapCenterTuple } from '../../../lib/mapRegion'
 import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
 
 interface DriverMapProps {
@@ -190,7 +191,7 @@ export default function DriverMap({
     const first = points.find((p) => p.pointStatus !== 'done')
     if (first) return [first.latLng.lat, first.latLng.lng]
     if (points.length > 0) return [points[0].latLng.lat, points[0].latLng.lng]
-    return [54.687, 25.28]
+    return getDefaultMapCenterTuple()
   }, [points, driverLocation])
 
   return (

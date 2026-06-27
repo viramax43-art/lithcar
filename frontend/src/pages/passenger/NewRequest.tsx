@@ -34,7 +34,9 @@ import { hasRideDateTime } from '../../lib/rideDraft'
 import { isOfferVisibleToPassenger } from '../../lib/offerSeats'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 
-const VILNIUS_CENTER: [number, number] = [54.6872, 25.2797]
+import { useMapUserLocationHint } from '../../hooks/useMapUserLocationHint'
+import { getDefaultMapCenterTuple, getDefaultMapZoom, resolveMapCenter } from '../../lib/mapRegion'
+import { MapFlyToResolvedCenter } from '../../components/MapFlyToResolvedCenter'
 
 export default function NewRequest() {
   const { t, i18n } = useTranslation()
@@ -195,11 +197,23 @@ export default function NewRequest() {
     }
   }, [])
 
+  const userLocationHint = useMapUserLocationHint()
+  const mapOperatingCenter = useMemo(
+    () => resolveMapCenter(model.activeZones, userLocationHint),
+    [model.activeZones, userLocationHint],
+  )
+  const mapFlyKey = userLocationHint
+    ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
+    : model.activeZones.length > 0
+      ? `zones:${model.activeZones.length}`
+      : 'region-default'
+
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-white">
       <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
-        <MapContainer center={VILNIUS_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
+        <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
+          <MapFlyToResolvedCenter center={mapOperatingCenter} flyKey={mapFlyKey} zoom={getDefaultMapZoom()} />
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id

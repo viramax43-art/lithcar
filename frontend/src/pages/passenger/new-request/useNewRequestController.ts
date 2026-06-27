@@ -17,6 +17,7 @@ import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
 import { isPointInAnyZone } from '../../../utils/geo'
 import type { MutableRefObject } from 'react'
+import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
 
 const STORAGE_KEY = 'ride_new_request_draft'
@@ -92,6 +93,14 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const [isLocating, setIsLocating] = useState(false)
 
   const mapRef = useRef<L.Map | null>(null)
+  const resolveSearchScope = useCallback(() => {
+    const map = mapRef.current
+    const center = map?.getCenter()
+    return resolveGeocodeSearchScope(
+      activeZones,
+      center ? { lat: center.lat, lng: center.lng } : null,
+    )
+  }, [activeZones])
   const fallbackPinAnchorRef = useRef(DEFAULT_PIN_ANCHOR_Y_FRAC)
   const anchorRef = pinAnchorYFracRef ?? fallbackPinAnchorRef
   const armPinFromMapCenterRef = useRef<() => void>(() => {})
@@ -275,7 +284,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         const controller = new AbortController()
         searchAbort.current = controller
         try {
-          const data = await nominatimSearch(query, controller.signal)
+          const data = await nominatimSearch(query, controller.signal, resolveSearchScope())
           setSearchResults(data)
         } catch (err) {
           if ((err as Error)?.name === 'AbortError') return
@@ -288,7 +297,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         }
       }, 600)
     },
-    [showZoneWarning, t],
+    [showZoneWarning, t, resolveSearchScope],
   )
 
   useEffect(() => {
@@ -303,7 +312,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       searchAbort.current = controller
       void (async () => {
         try {
-          const data = await nominatimSearch(q, controller.signal)
+          const data = await nominatimSearch(q, controller.signal, resolveSearchScope())
           setSearchResults(data)
         } catch {
           setSearchResults([])

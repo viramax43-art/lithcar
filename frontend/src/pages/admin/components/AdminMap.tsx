@@ -8,6 +8,7 @@ import RatingBadge from '../../../components/RatingBadge'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
+import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
 import { formatRideDate, formatRideTime, formatTime } from '../../../i18n/dateTime'
@@ -300,6 +301,10 @@ export default function AdminMap({
   const [isMarksPanelCollapsed, setIsMarksPanelCollapsed] = useState(INITIAL_MAP_UI.isMarksPanelCollapsed)
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: INITIAL_MAP_UI.centerLat, lng: INITIAL_MAP_UI.centerLng })
   const [mapZoom, setMapZoom] = useState(INITIAL_MAP_UI.zoom)
+  const geocodeSearchScope = useMemo(
+    () => resolveGeocodeSearchScope(serviceZones, mapCenter),
+    [serviceZones, mapCenter],
+  )
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
   const searchAbort = useRef<AbortController | null>(null)
 
@@ -592,12 +597,12 @@ export default function AdminMap({
       const controller = new AbortController()
       searchAbort.current = controller
       try {
-        const data = await searchPlaces(query, controller.signal)
+        const data = await searchPlaces(query, controller.signal, geocodeSearchScope)
         setSearchResults(data)
       } catch { setSearchResults([]) }
       finally { setIsSearching(false) }
     }, 500)
-  }, [])
+  }, [geocodeSearchScope])
 
   useEffect(() => {
     const q = searchQuery
@@ -614,7 +619,7 @@ export default function AdminMap({
     searchAbort.current = controller
     void (async () => {
       try {
-        const data = await searchPlaces(q, controller.signal)
+        const data = await searchPlaces(q, controller.signal, geocodeSearchScope)
         setSearchResults(data)
       } catch {
         setSearchResults([])

@@ -2,11 +2,12 @@ import type { MapMarkVisibility } from '../types'
 import type { AdminTab, MapColorGroupKey } from '../pages/admin/constants'
 import { MAP_COLOR_GROUPS, ZONE_COLORS } from '../pages/admin/constants'
 import { getDefaultPeriodFilter } from './periodFilter'
+import { getDefaultMapCenter } from './mapRegion'
 
 export const ADMIN_UI_STATE_STORAGE_KEY = 'lithcar_admin_ui_v1'
 export const ADMIN_UI_STATE_VERSION = 1
 
-const VILNIUS_CENTER = { lat: 54.6872, lng: 25.2797 }
+const DEFAULT_MAP_CENTER = getDefaultMapCenter()
 const DEFAULT_PERIOD = getDefaultPeriodFilter()
 
 function isMobileViewport(): boolean {
@@ -158,8 +159,8 @@ export const DEFAULT_ADMIN_MAP_UI: AdminMapUiSlice = {
   selectedSimilarStepKey: null,
   selectedMarkId: null,
   openedMarkPopupId: null,
-  centerLat: VILNIUS_CENTER.lat,
-  centerLng: VILNIUS_CENTER.lng,
+  centerLat: DEFAULT_MAP_CENTER.lat,
+  centerLng: DEFAULT_MAP_CENTER.lng,
   zoom: 12,
 }
 
@@ -265,8 +266,8 @@ export function getInitialPricingUi(): AdminPricingUiSlice {
   return {
     formulaDraft: stored.formulaDraft ?? null,
     fixedRideEuroDraft: stored.fixedRideEuroDraft ?? null,
-    quoteFromLat: stored.quoteFromLat ?? VILNIUS_CENTER.lat,
-    quoteFromLng: stored.quoteFromLng ?? VILNIUS_CENTER.lng,
+    quoteFromLat: stored.quoteFromLat ?? DEFAULT_MAP_CENTER.lat,
+    quoteFromLng: stored.quoteFromLng ?? DEFAULT_MAP_CENTER.lng,
     quoteToLat: stored.quoteToLat ?? 54.7,
     quoteToLng: stored.quoteToLng ?? 25.3,
     activeQuotePoint: stored.activeQuotePoint ?? 'from',

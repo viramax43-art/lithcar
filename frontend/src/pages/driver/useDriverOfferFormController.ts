@@ -15,6 +15,7 @@ import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/tel
 import type { LatLng, PricingSettings, ServiceZone } from '../../types'
 import { isPointInAnyZone } from '../../utils/geo'
 import type { MutableRefObject } from 'react'
+import { resolveGeocodeSearchScope } from '../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
 
 export function useDriverOfferFormController(
@@ -38,6 +39,14 @@ export function useDriverOfferFormController(
     [serviceZones],
   )
   const hasZones = activeZones.length > 0
+  const resolveSearchScope = useCallback(() => {
+    const map = mapRef.current
+    const center = map?.getCenter()
+    return resolveGeocodeSearchScope(
+      activeZones,
+      center ? { lat: center.lat, lng: center.lng } : null,
+    )
+  }, [activeZones])
 
   const [activeField, setActiveField] = useState<'from' | 'to'>('from')
   const [fromPoint, setFromPoint] = useState<LatLng | null>(null)
@@ -207,7 +216,7 @@ export function useDriverOfferFormController(
         try {
           const controller = new AbortController()
           searchAbort.current = controller
-          const results = await nominatimSearch(query, controller.signal)
+          const results = await nominatimSearch(query, controller.signal, resolveSearchScope())
           setSearchResults(results)
         } catch {
           setSearchResults([])
@@ -216,7 +225,7 @@ export function useDriverOfferFormController(
         }
       }, 400)
     },
-    [],
+    [resolveSearchScope],
   )
 
   const handleSelectSearchResult = useCallback(
@@ -325,6 +334,7 @@ export function useDriverOfferFormController(
 
   return {
     pricing,
+    activeZones,
     activeField,
     setActiveField,
     fromPoint,
