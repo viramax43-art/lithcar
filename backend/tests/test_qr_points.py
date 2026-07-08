@@ -91,6 +91,30 @@ async def test_admin_qr_sales_audit_contains_issue_and_redeem_events(client, db_
     assert len(item["events"]) >= 2
 
 
+async def test_driver_can_issue_qr_from_user_cabinet(client, db_session):
+    _, driver_key = await _create_driver_with_qr_permission(client)
+
+    driver_user = User(
+        user_id="qr-driver-user-1",
+        username="qr_driver_user",
+        role=UserRole.DRIVER,
+        points_balance=0,
+    )
+    db_session.add(driver_user)
+    await db_session.commit()
+    driver_user_headers = {"Authorization": f"Bearer {create_access_token(subject=driver_user.user_id, role=driver_user.role)}"}
+
+    issue = await client.post("/api/points/qr/issue", json={"points": 25}, headers=driver_user_headers)
+    assert issue.status_code == 200
+    issue_body = issue.json()
+    assert issue_body["points"] == 25
+
+    await client.post("/api/driver/session/login", json={"key": driver_key})
+    redeem = await client.post("/api/points/qr/redeem", json={"token": issue_body["token"]})
+    assert redeem.status_code == 200
+    assert redeem.json()["passengerPointsBalance"] == 25
+
+
 async def test_new_issue_invalidates_previous_unredeemed_qr(client, db_session):
     _, driver_key = await _create_driver_with_qr_permission(client)
     user = User(user_id="qr-passenger-3", username="qr_user_three", role=UserRole.PASSENGER, points_balance=0)

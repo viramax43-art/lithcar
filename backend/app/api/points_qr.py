@@ -85,8 +85,8 @@ async def issue_qr_points(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    if current_user.role not in {UserRole.PASSENGER, UserRole.ADMIN, UserRole.MODERATOR}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only passengers can issue QR requests.")
+    if current_user.role not in {UserRole.PASSENGER, UserRole.DRIVER, UserRole.ADMIN, UserRole.MODERATOR}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to issue QR requests.")
     await invalidate_passenger_active_qr_sales(db_session, issuer_user_id=current_user.user_id)
     sale = await issue_passenger_qr_sale(
         db_session,
