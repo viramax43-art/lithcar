@@ -18,6 +18,7 @@ from app.api import (
     notifications,
     points_card,
     points_qr,
+    points_transfer,
     pricing,
     ride_quote,
     ride_offers,
@@ -64,6 +65,7 @@ api_router.include_router(driver_portal.router, tags=["Driver Portal"])
 api_router.include_router(driver_offers.router, tags=["Driver Offers"])
 api_router.include_router(points_card.router, tags=["Points Card"])
 api_router.include_router(points_qr.router, tags=["Points QR"])
+api_router.include_router(points_transfer.router, tags=["Points Transfer"])
 api_router.include_router(service_zones.router, tags=["Service Zones"])
 api_router.include_router(pricing.router, tags=["Pricing"])
 api_router.include_router(ride_quote.router, tags=["Ride Quote"])

@@ -11,6 +11,8 @@ class PointsTransactionType:
     DRIVER_QR_TOP_UP = "driver_qr_top_up"
     RIDE_BOOKING_DEBIT = "ride_booking_debit"
     CARD_PURCHASE = "card_purchase"
+    USER_TRANSFER_OUT = "user_transfer_out"
+    USER_TRANSFER_IN = "user_transfer_in"
 
 
 class PointsTransaction(Base):

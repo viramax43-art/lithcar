@@ -96,6 +96,7 @@ export {
   listMyRequests,
   listServiceZones,
   purchasePointsByCard,
+  transferPoints,
   issuePassengerQrSale,
   updateCurrentUserLanguage,
   updateRequest,

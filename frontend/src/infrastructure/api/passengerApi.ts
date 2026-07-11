@@ -156,6 +156,30 @@ export async function purchasePointsByCard(points: number): Promise<{ success: b
   )
 }
 
+export async function transferPoints(payload: {
+  recipientUserId: string
+  points: number
+}): Promise<{
+  success: boolean
+  transferId: string
+  points: number
+  pointsBalance: number
+  recipientUserId: string
+  recipientUsername: string | null
+}> {
+  return apiRequest<{
+    success: boolean
+    transferId: string
+    points: number
+    pointsBalance: number
+    recipientUserId: string
+    recipientUsername: string | null
+  }>('/api/points/transfer', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export async function listGroupSuggestions(params?: PaginationParams): Promise<PaginatedResult<GroupSuggestion>> {
   return apiRequest<PaginatedResult<GroupSuggestion>>(`/api/group-suggestions?${toPageQuery(params)}`, {
     authMode: 'cookie',
