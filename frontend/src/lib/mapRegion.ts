@@ -1,4 +1,5 @@
 import type { LatLng } from '../types'
+import { zoneCentroid } from '../utils/serviceZones'
 
 export type MapRegionId = 'lt' | 'az'
 
@@ -60,13 +61,6 @@ function haversineKm(a: LatLng, b: LatLng): number {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-}
-
-function zoneCentroid(zone: ZoneLike): LatLng | null {
-  if (zone.polygon.length === 0) return null
-  const lat = zone.polygon.reduce((sum, p) => sum + p.lat, 0) / zone.polygon.length
-  const lng = zone.polygon.reduce((sum, p) => sum + p.lng, 0) / zone.polygon.length
-  return { lat, lng }
 }
 
 function pointInBounds(point: LatLng, bounds: MapRegionConfig['bounds']): boolean {

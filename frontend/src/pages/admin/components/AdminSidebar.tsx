@@ -64,6 +64,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     drawingPoints,
     setDrawingPoints,
     handleCreateZone,
+    handleStartEditZonePolygon,
+    handleUpdateZoneMetadata,
+    editingZoneId,
+    resetZoneDrawing,
     serviceZones,
     selectedZoneId,
     setSelectedZoneId,
@@ -392,6 +396,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               drawingPoints={drawingPoints}
               setDrawingPoints={setDrawingPoints}
               handleCreateZone={handleCreateZone}
+              handleStartEditZonePolygon={handleStartEditZonePolygon}
+              handleUpdateZoneMetadata={handleUpdateZoneMetadata}
+              editingZoneId={editingZoneId}
+              resetZoneDrawing={resetZoneDrawing}
               serviceZones={serviceZones}
               selectedZoneId={selectedZoneId}
               setSelectedZoneId={setSelectedZoneId}

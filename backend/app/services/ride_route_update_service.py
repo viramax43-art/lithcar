@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.ride_request_service import get_request
-from app.services.zone_service import is_point_in_any_active_zone
+from app.services.zone_service import is_pickup_in_active_zone
 
 RoutePointKind = Literal["from", "to"]
 _COORD_EPSILON = 1e-6
@@ -103,14 +103,10 @@ async def update_ride_route_points(
     next_to_lat = to_point.lat if to_point is not None else request.to_lat
     next_to_lng = to_point.lng if to_point is not None else request.to_lng
 
-    if from_changed and not await is_point_in_any_active_zone(
+    if from_changed and not await is_pickup_in_active_zone(
         db_session, lat=next_from_lat, lng=next_from_lng
     ):
         return None, None, "Точка подачи вне активных зон обслуживания."
-    if to_changed and not await is_point_in_any_active_zone(
-        db_session, lat=next_to_lat, lng=next_to_lng
-    ):
-        return None, None, "Конечная точка вне активных зон обслуживания."
 
     if from_changed and from_point is not None:
         if actor == RouteChangeActor.DRIVER:

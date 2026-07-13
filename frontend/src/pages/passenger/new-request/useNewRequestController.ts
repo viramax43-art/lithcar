@@ -16,6 +16,12 @@ import {
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
 import { isPointInAnyZone, coordsNear } from '../../../utils/geo'
+import {
+  findNearestPickupZone,
+  isPickupZoneCheckActive,
+  rankRecommendedPickupZones,
+  zoneCentroid,
+} from '../../../utils/serviceZones'
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
@@ -79,6 +85,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const [pinLatLng, setPinLatLng] = useState<LatLng | null>(null)
   const [pinAddress, setPinAddress] = useState('')
   const [pinOutOfZone, setPinOutOfZone] = useState(false)
+  const [snapSuggestion, setSnapSuggestion] = useState<ServiceZone | null>(null)
 
   const [isPanning, setIsPanning] = useState(false)
   const [isResolving, setIsResolving] = useState(false)
@@ -147,6 +154,25 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     zoneWarningTimer.current = setTimeout(() => setZoneWarning(null), 3000)
   }, [])
 
+  const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+  const pickupZoneCheckActive = isPickupZoneCheckActive(effectiveField, hasZones)
+
+  const recommendedZones = useMemo(() => {
+    if (!pickupZoneCheckActive) return []
+    const mapCenter = mapRef.current?.getCenter()
+    const reference: LatLng | null =
+      toPoint ??
+      (mapCenter ? { lat: mapCenter.lat, lng: mapCenter.lng } : null) ??
+      fromPoint
+    if (!reference) return activeZones.slice(0, 10)
+    return rankRecommendedPickupZones(activeZones, reference, 10)
+  }, [pickupZoneCheckActive, activeZones, toPoint, fromPoint, pinLatLng])
+
+  const recommendedZoneIds = useMemo(
+    () => new Set(recommendedZones.map((zone) => zone.id)),
+    [recommendedZones],
+  )
+
   const commitPin = useCallback(
     (latlng: LatLng) => {
       if (showSearch) return
@@ -159,8 +185,15 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       }
 
       setPinLatLng(latlng)
-      const inZone = !hasZones || isPointInAnyZone(latlng, activeZones)
-      setPinOutOfZone(!inZone)
+      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+      const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
+      const inZone = !zoneCheckActive || isPointInAnyZone(latlng, activeZones)
+      setPinOutOfZone(zoneCheckActive && !inZone)
+      if (zoneCheckActive && !inZone) {
+        setSnapSuggestion(findNearestPickupZone(latlng, activeZones))
+      } else {
+        setSnapSuggestion(null)
+      }
       setPinAddress('')
 
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
@@ -210,7 +243,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         }
       }, 700)
     },
-    [activeZones, hasZones, showSearch, showZoneWarning, fromPoint, toPoint, t],
+    [activeField, activeZones, fromPoint, hasZones, showSearch, showZoneWarning, toPoint, t],
   )
 
   const armPinFromMapCenter = useCallback(() => {
@@ -226,7 +259,9 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
-    if (hasZones && !isPointInAnyZone(pinLatLng, activeZones)) {
+    const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+    const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
+    if (zoneCheckActive && !isPointInAnyZone(pinLatLng, activeZones)) {
       showZoneWarning(t('geo.pointOutOfZone', { defaultValue: 'Point is outside service area' }))
       return
     }
@@ -245,6 +280,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     setPinLatLng(null)
     setPinAddress('')
     setPinOutOfZone(false)
+    setSnapSuggestion(null)
     setIsResolving(false)
     setZoneWarning(null)
     if (reverseTimer.current) clearTimeout(reverseTimer.current)
@@ -252,7 +288,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       reverseAbort.current.abort()
       reverseAbort.current = null
     }
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeZones, hasZones, showZoneWarning, armPinFromMapCenter, t])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, showZoneWarning, armPinFromMapCenter, t])
 
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
     const map = mapRef.current
@@ -266,6 +302,45 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     const newCenter = map.unproject(desiredCenterPx, z)
     map.flyTo(newCenter, z, { duration: 0.5 })
   }, [anchorRef])
+
+  const selectPickupZone = useCallback(
+    (zone: ServiceZone) => {
+      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+      if (!isPickupZoneCheckActive(fieldForZone, hasZones)) return
+      const centroid = zoneCentroid(zone)
+      if (!centroid) return
+      hapticSelection()
+      setSnapSuggestion(null)
+      panMapToTarget(centroid)
+      setPinLatLng(centroid)
+      setPinOutOfZone(false)
+      setPinAddress(zone.name)
+      setIsResolving(true)
+      const seq = ++reverseSeq.current
+      void (async () => {
+        try {
+          const addr = await nominatimReverse(centroid)
+          if (seq === reverseSeq.current) {
+            setPinAddress(addr || zone.name)
+          }
+        } catch {
+          if (seq === reverseSeq.current) {
+            setPinAddress(zone.name)
+          }
+        } finally {
+          if (seq === reverseSeq.current) {
+            setIsResolving(false)
+          }
+        }
+      })()
+    },
+    [activeField, fromPoint, hasZones, panMapToTarget, toPoint],
+  )
+
+  const acceptSnapSuggestion = useCallback(() => {
+    if (!snapSuggestion) return
+    selectPickupZone(snapSuggestion)
+  }, [selectPickupZone, snapSuggestion])
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {
@@ -385,7 +460,8 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const handleSelectSearchResult = useCallback(
     (result: NominatimSearchResult) => {
       const latlng: LatLng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
-      if (hasZones && !isPointInAnyZone(latlng, activeZones)) {
+      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+      if (isPickupZoneCheckActive(fieldForZone, hasZones) && !isPointInAnyZone(latlng, activeZones)) {
         showZoneWarning(t('geo.addressOutOfZone', { defaultValue: 'This address is outside the service area.' }))
         return
       }
@@ -531,12 +607,13 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const [draftDatePart, draftTimePart] = dateTime.split('T')
   const hasValidDateTime = Boolean(draftDatePart && draftTimePart)
   const canSubmit = Boolean(fromPoint && toPoint && hasValidDateTime && !submitting)
-  const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
   const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
   const isPickingPointA = !fromPoint
   const isPickingPointB = Boolean(fromPoint && !toPoint)
-  const pinReadyForConfirm = Boolean(pinLatLng && !pinOutOfZone && !isResolving)
+  const pinReadyForConfirm = Boolean(
+    pinLatLng && (!pickupZoneCheckActive || !pinOutOfZone) && !isResolving,
+  )
 
   const displayPoints =
     quote?.points ??
@@ -551,6 +628,12 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     passengerName,
     hasZones,
     activeZones,
+    pickupZoneCheckActive,
+    recommendedZones,
+    recommendedZoneIds,
+    snapSuggestion,
+    selectPickupZone,
+    acceptSnapSuggestion,
     activeField,
     setActiveField,
     fromPoint,

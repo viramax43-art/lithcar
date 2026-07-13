@@ -34,6 +34,7 @@ export interface AdminDashboardUiSlice {
   drawingPoints: { lat: number; lng: number }[]
   newZoneName: string
   newZoneColor: string
+  editingZoneId: string | null
   newDriverName: string
   newDriverCarBrand: string
   newDriverCarModel: string
@@ -127,6 +128,7 @@ export const DEFAULT_ADMIN_DASHBOARD_UI: AdminDashboardUiSlice = {
   drawingPoints: [],
   newZoneName: '',
   newZoneColor: ZONE_COLORS[0],
+  editingZoneId: null,
   newDriverName: '',
   newDriverCarBrand: '',
   newDriverCarModel: '',

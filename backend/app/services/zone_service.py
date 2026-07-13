@@ -7,6 +7,14 @@ from app.models.service_zone import ServiceZone
 from app.services.geo_service import point_in_polygon
 
 
+class PickupOutOfZoneError(Exception):
+    code = "pickup_out_of_zone"
+
+    def __init__(self, message: str = "Pickup point is outside active service zones."):
+        super().__init__(message)
+        self.message = message
+
+
 async def create_zone(
     db_session: AsyncSession,
     *,
@@ -74,7 +82,7 @@ async def delete_zone(db_session: AsyncSession, *, zone_id: str) -> bool:
     return True
 
 
-async def is_point_in_any_active_zone(
+async def is_pickup_in_active_zone(
     db_session: AsyncSession, *, lat: float, lng: float
 ) -> bool:
     result = await db_session.execute(select(ServiceZone).where(ServiceZone.is_active.is_(True)))
@@ -82,3 +90,17 @@ async def is_point_in_any_active_zone(
     if not zones:
         return True
     return any(point_in_polygon(lat, lng, zone.polygon or []) for zone in zones)
+
+
+async def is_point_in_any_active_zone(
+    db_session: AsyncSession, *, lat: float, lng: float
+) -> bool:
+    """Backward-compatible alias for pickup zone checks."""
+    return await is_pickup_in_active_zone(db_session, lat=lat, lng=lng)
+
+
+async def assert_pickup_in_active_zone(
+    db_session: AsyncSession, *, lat: float, lng: float
+) -> None:
+    if not await is_pickup_in_active_zone(db_session, lat=lat, lng=lng):
+        raise PickupOutOfZoneError()

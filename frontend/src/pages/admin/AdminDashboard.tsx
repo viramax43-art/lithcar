@@ -105,6 +105,7 @@ export default function AdminDashboard() {
   const [drawingPoints, setDrawingPoints] = useState<LatLng[]>(INITIAL_DASHBOARD_UI.drawingPoints)
   const [newZoneName, setNewZoneName] = useState(INITIAL_DASHBOARD_UI.newZoneName)
   const [newZoneColor, setNewZoneColor] = useState(INITIAL_DASHBOARD_UI.newZoneColor)
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(INITIAL_DASHBOARD_UI.editingZoneId)
   const [newDriverName, setNewDriverName] = useState(INITIAL_DASHBOARD_UI.newDriverName)
   const [newDriverPhotoFile, setNewDriverPhotoFile] = useState<File | null>(null)
   const [newDriverPhotoPreview, setNewDriverPhotoPreview] = useState<string | null>(null)
@@ -161,6 +162,7 @@ export default function AdminDashboard() {
       drawingPoints,
       newZoneName,
       newZoneColor,
+      editingZoneId,
       newDriverName,
       newDriverCarBrand,
       newDriverCarModel,
@@ -192,6 +194,7 @@ export default function AdminDashboard() {
       drawingPoints,
       newZoneName,
       newZoneColor,
+      editingZoneId,
       newDriverName,
       newDriverCarBrand,
       newDriverCarModel,
@@ -369,23 +372,60 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleCreateZone = async () => {
+  const resetZoneDrawing = () => {
+    setIsDrawing(false)
+    setEditingZoneId(null)
+    setDrawingPoints([])
+    setNewZoneName('')
+  }
+
+  const handleSaveZone = async () => {
     if (drawingPoints.length < 3 || !newZoneName.trim()) return
     try {
-      await createServiceZone({
-        name: newZoneName.trim(),
-        color: newZoneColor,
-        polygon: drawingPoints,
-        isActive: true,
-      })
-      await loadAll()
-      setIsDrawing(false)
-      setDrawingPoints([])
-      setNewZoneName('')
+      if (editingZoneId) {
+        const updated = await updateServiceZone(editingZoneId, {
+          name: newZoneName.trim(),
+          color: newZoneColor,
+          polygon: drawingPoints,
+        })
+        setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      } else {
+        await createServiceZone({
+          name: newZoneName.trim(),
+          color: newZoneColor,
+          polygon: drawingPoints,
+          isActive: true,
+        })
+        await loadAll()
+      }
+      resetZoneDrawing()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createZoneFailed'))
     }
   }
+
+  const handleStartEditZonePolygon = (zone: ServiceZone) => {
+    setEditingZoneId(zone.id)
+    setSelectedZoneId(zone.id)
+    setIsDrawing(true)
+    setDrawingPoints(zone.polygon)
+    setNewZoneName(zone.name)
+    setNewZoneColor(zone.color)
+  }
+
+  const handleUpdateZoneMetadata = async (
+    zoneId: string,
+    payload: { name?: string; color?: string },
+  ) => {
+    try {
+      const updated = await updateServiceZone(zoneId, payload)
+      setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.toggleZoneFailed'))
+    }
+  }
+
+  const handleCreateZone = handleSaveZone
 
   const handleToggleZone = async (zone: ServiceZone) => {
     try {
@@ -663,7 +703,11 @@ export default function AdminDashboard() {
           setNewZoneColor={setNewZoneColor}
           drawingPoints={drawingPoints}
           setDrawingPoints={(updater) => setDrawingPoints((prev) => updater(prev))}
-          handleCreateZone={handleCreateZone}
+          handleCreateZone={handleSaveZone}
+          handleStartEditZonePolygon={handleStartEditZonePolygon}
+          handleUpdateZoneMetadata={handleUpdateZoneMetadata}
+          editingZoneId={editingZoneId}
+          resetZoneDrawing={resetZoneDrawing}
           serviceZones={serviceZones}
           selectedZoneId={selectedZoneId}
           setSelectedZoneId={setSelectedZoneId}

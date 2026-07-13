@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.geo_service import get_distance_matrix_km, haversine_km
-from app.services.zone_service import is_point_in_any_active_zone
+from app.services.zone_service import assert_pickup_in_active_zone, is_pickup_in_active_zone, PickupOutOfZoneError
 
 
 async def create_ride_request_record(
@@ -34,10 +34,10 @@ async def create_ride_request_record(
     offer_id: str | None = None,
     status: str = RideRequestStatus.PENDING,
 ) -> RideRequest:
-    is_from_allowed = await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng)
-    is_to_allowed = await is_point_in_any_active_zone(db_session, lat=to_lat, lng=to_lng)
-    if not is_from_allowed or not is_to_allowed:
-        raise ValueError("Route points are outside active service zones.")
+    try:
+        await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
+    except PickupOutOfZoneError as exc:
+        raise ValueError(str(exc)) from exc
 
     request = RideRequest(
         passenger_id=passenger_id,
@@ -180,13 +180,7 @@ async def list_unassigned_rides(
     for ride in rides:
         if blocked_ids and ride.passenger_id in blocked_ids:
             continue
-        is_from_allowed = await is_point_in_any_active_zone(
-            db_session, lat=ride.from_lat, lng=ride.from_lng
-        )
-        is_to_allowed = await is_point_in_any_active_zone(
-            db_session, lat=ride.to_lat, lng=ride.to_lng
-        )
-        if is_from_allowed and is_to_allowed:
+        if await is_pickup_in_active_zone(db_session, lat=ride.from_lat, lng=ride.from_lng):
             in_zone.append(ride)
     return in_zone, total
 
@@ -292,7 +286,7 @@ async def assign_driver(
             if from_point:
                 next_from_lat = from_point["latlng"]["lat"]
                 next_from_lng = from_point["latlng"]["lng"]
-                if not await is_point_in_any_active_zone(
+                if not await is_pickup_in_active_zone(
                     db_session, lat=next_from_lat, lng=next_from_lng
                 ):
                     raise ValueError(
@@ -304,12 +298,6 @@ async def assign_driver(
             if to_point:
                 next_to_lat = to_point["latlng"]["lat"]
                 next_to_lng = to_point["latlng"]["lng"]
-                if not await is_point_in_any_active_zone(
-                    db_session, lat=next_to_lat, lng=next_to_lng
-                ):
-                    raise ValueError(
-                        f"Конечная точка заявки {request.id} вне активных зон обслуживания."
-                    )
                 request.to_address = to_point["address"]
                 request.to_lat = next_to_lat
                 request.to_lng = next_to_lng
@@ -373,14 +361,8 @@ async def claim_ride_by_driver(
     if request.status not in (RideRequestStatus.PENDING, RideRequestStatus.GROUPED):
         raise ClaimRideError("invalid_status", f"Ride cannot be claimed from status {request.status}.")
 
-    is_from_allowed = await is_point_in_any_active_zone(
-        db_session, lat=request.from_lat, lng=request.from_lng
-    )
-    is_to_allowed = await is_point_in_any_active_zone(
-        db_session, lat=request.to_lat, lng=request.to_lng
-    )
-    if not is_from_allowed or not is_to_allowed:
-        raise ClaimRideError("out_of_zone", "Ride points are outside active service zones.")
+    if not await is_pickup_in_active_zone(db_session, lat=request.from_lat, lng=request.from_lng):
+        raise ClaimRideError("out_of_zone", "Ride pickup is outside active service zones.")
 
     if request.driver_id == driver_id and request.status == RideRequestStatus.ASSIGNED:
         await db_session.refresh(request)
@@ -509,10 +491,8 @@ async def update_ride_request(
     next_from_lng = from_lng if from_lng is not None else request.from_lng
     next_to_lat = to_lat if to_lat is not None else request.to_lat
     next_to_lng = to_lng if to_lng is not None else request.to_lng
-    is_from_allowed = await is_point_in_any_active_zone(db_session, lat=next_from_lat, lng=next_from_lng)
-    is_to_allowed = await is_point_in_any_active_zone(db_session, lat=next_to_lat, lng=next_to_lng)
-    if not is_from_allowed or not is_to_allowed:
-        raise ValueError("Route points are outside active service zones.")
+    if not await is_pickup_in_active_zone(db_session, lat=next_from_lat, lng=next_from_lng):
+        raise ValueError("Pickup point is outside active service zones.")
 
     if passenger_name is not None:
         request.passenger_name = passenger_name

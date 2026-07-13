@@ -275,7 +275,7 @@ async def get_offer(
     from app.models.driver_ride_offer import DriverRideOfferStatus
     from app.services.ride_booking_service import _get_or_create_pricing_no_commit
     from app.services.ride_quote_service import calculate_ride_quote
-    from app.services.zone_service import is_point_in_any_active_zone
+    from app.services.zone_service import is_pickup_in_active_zone
 
     from app.services.driver_offer_service import _passenger_active_offer_bookings
 
@@ -290,13 +290,7 @@ async def get_offer(
     ):
         raise HTTPException(status_code=404, detail="Offer not found.")
 
-    is_from_allowed = await is_point_in_any_active_zone(
-        db_session, lat=offer.from_lat, lng=offer.from_lng
-    )
-    is_to_allowed = await is_point_in_any_active_zone(
-        db_session, lat=offer.to_lat, lng=offer.to_lng
-    )
-    if not is_from_allowed or not is_to_allowed:
+    if not await is_pickup_in_active_zone(db_session, lat=offer.from_lat, lng=offer.from_lng):
         raise HTTPException(status_code=404, detail="Offer not found.")
 
     pricing = await _get_or_create_pricing_no_commit(db_session)

@@ -145,6 +145,23 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
     assert list(tx_result.scalars().all()) == []
 
 
+async def test_create_request_to_outside_zone_allowed(client, db_session):
+    passenger = await _create_user(db_session, user_id="p-zone-to", role=UserRole.PASSENGER)
+    await _create_zone(client)
+
+    response = await client.post(
+        "/api/ride-requests",
+        json={
+            "passengerName": "Bob",
+            "fromPoint": {"address": "In zone", "latlng": {"lat": 54.69, "lng": 25.27}},
+            "toPoint": {"address": "Far dropoff", "latlng": {"lat": 55.3, "lng": 26.1}},
+            "dateTime": future_ride_datetime_iso(hours_ahead=3),
+        },
+        headers=_headers_for(passenger.user_id, passenger.role),
+    )
+    assert response.status_code == 201
+
+
 async def test_ride_quote_fixed_mode(client, db_session):
     passenger = await _create_user(db_session, user_id="p-quote", role=UserRole.PASSENGER)
     await _create_zone(client)

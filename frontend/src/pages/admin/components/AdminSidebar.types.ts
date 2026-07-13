@@ -39,6 +39,10 @@ export interface AdminSidebarProps {
   drawingPoints: LatLng[]
   setDrawingPoints: (updater: (prev: LatLng[]) => LatLng[]) => void
   handleCreateZone: () => Promise<void>
+  handleStartEditZonePolygon: (zone: ServiceZone) => void
+  handleUpdateZoneMetadata: (zoneId: string, payload: { name?: string; color?: string }) => Promise<void>
+  editingZoneId: string | null
+  resetZoneDrawing: () => void
   serviceZones: ServiceZone[]
   selectedZoneId: string | null
   setSelectedZoneId: (id: string | null) => void

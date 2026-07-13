@@ -511,6 +511,21 @@ async def test_zone_validation_on_create(client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_offer_to_outside_zone_allowed(client, db_session):
+    await _create_zone(client)
+    _, driver_key = await _create_driver(client)
+    login = await client.post("/api/driver/session/login", json={"key": driver_key})
+    assert login.status_code == 200
+    created = await client.post(
+        "/api/driver/offers",
+        json=_offer_payload(
+            toPoint={"address": "Far dropoff", "latlng": {"lat": 55.3, "lng": 26.1}},
+        ),
+    )
+    assert created.status_code == 201
+
+
+@pytest.mark.asyncio
 async def test_driver_cannot_book_own_offer(client, db_session):
     await _create_zone(client)
     driver_id, driver_key = await _create_driver(client)

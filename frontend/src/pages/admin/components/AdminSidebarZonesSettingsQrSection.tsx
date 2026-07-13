@@ -12,6 +12,8 @@ import InlineConfirm from './InlineConfirm'
 import { inputCls } from './AdminSidebarShared'
 import Skeleton from '../../../components/Skeleton'
 import { formatDate, formatTime } from '../../../i18n/dateTime'
+import { normalizeHexColor } from '../../../utils/serviceZones'
+import type { ServiceZone } from '../../../types'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { AdminNotificationsSection } from './AdminNotificationsSection'
 
@@ -27,6 +29,10 @@ type ZonesSettingsQrSectionProps = Pick<
   | 'drawingPoints'
   | 'setDrawingPoints'
   | 'handleCreateZone'
+  | 'handleStartEditZonePolygon'
+  | 'handleUpdateZoneMetadata'
+  | 'editingZoneId'
+  | 'resetZoneDrawing'
   | 'serviceZones'
   | 'selectedZoneId'
   | 'setSelectedZoneId'
@@ -50,6 +56,10 @@ export function AdminSidebarZonesSettingsQrSection({
   drawingPoints,
   setDrawingPoints,
   handleCreateZone,
+  handleStartEditZonePolygon,
+  handleUpdateZoneMetadata,
+  editingZoneId,
+  resetZoneDrawing,
   serviceZones,
   selectedZoneId,
   setSelectedZoneId,
@@ -106,30 +116,18 @@ export function AdminSidebarZonesSettingsQrSection({
       <div className="space-y-3">
         {isDrawing && (
           <div className="rounded-card border-[1.5px] border-black p-4 space-y-3 bg-surface/50">
-            <p className="text-sm font-bold">{t('admin.zones.newZone')}</p>
+            <p className="text-sm font-bold">
+              {editingZoneId
+                ? t('admin.zones.editZone', { defaultValue: 'Edit zone' })
+                : t('admin.zones.newZone')}
+            </p>
             <input
               value={newZoneName}
               onChange={(event) => setNewZoneName(event.target.value)}
               placeholder={t('admin.zones.zoneNamePlaceholder')}
               className={inputCls}
             />
-            <div>
-              <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">
-                {t('admin.zones.color')}
-              </p>
-              <div className="flex gap-2">
-                {ZONE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setNewZoneColor(color)}
-                    className={`w-9 h-9 touch-none rounded-full transition-transform ${
-                      newZoneColor === color ? 'ring-2 ring-black ring-offset-2 scale-110' : ''
-                    }`}
-                    style={{ background: color }}
-                  />
-                ))}
-              </div>
-            </div>
+            <ZoneColorPicker color={newZoneColor} onChange={setNewZoneColor} />
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">{t('admin.zones.mapPoints')}</span>
               <span className="font-bold">{drawingPoints.length}</span>
@@ -143,10 +141,7 @@ export function AdminSidebarZonesSettingsQrSection({
                 {t('admin.zones.undoPoint')}
               </button>
               <button
-                onClick={() => {
-                  setIsDrawing(false)
-                  setDrawingPoints(() => [])
-                }}
+                onClick={resetZoneDrawing}
                 className="py-2 rounded-xl bg-surface text-xs font-semibold transition-all active:scale-[0.97]"
               >
                 {t('common.cancel')}
@@ -179,7 +174,7 @@ export function AdminSidebarZonesSettingsQrSection({
                 onClick={() => setSelectedZoneId(selected ? null : zone.id)}
                 className="w-full p-3.5 text-left hover:bg-surface/60 transition-colors"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: zone.color }} />
                   <span className="text-sm font-bold flex-1 truncate">{zone.name}</span>
                   <span
@@ -192,20 +187,14 @@ export function AdminSidebarZonesSettingsQrSection({
                 </div>
               </button>
               {selected && (
-                <div className="flex gap-2 px-3.5 pb-3.5 border-t border-border pt-3">
-                  <button
-                    onClick={() => void handleToggleZone(zone)}
-                    className="flex-1 py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors"
-                  >
-                    {zone.isActive ? t('common.disable') : t('common.enable')}
-                  </button>
-                  <InlineConfirm
-                    label={t('common.delete')}
-                    confirmLabel={t('common.confirmDelete')}
-                    onConfirm={() => void handleDeleteZone(zone.id)}
-                    className="flex-1 !text-xs !py-2"
-                  />
-                </div>
+                <ZoneDetailsPanel
+                  zone={zone}
+                  isEditingPolygon={editingZoneId === zone.id && isDrawing}
+                  onToggle={() => void handleToggleZone(zone)}
+                  onDelete={() => void handleDeleteZone(zone.id)}
+                  onEditPolygon={() => handleStartEditZonePolygon(zone)}
+                  onSaveMetadata={(payload) => void handleUpdateZoneMetadata(zone.id, payload)}
+                />
               )}
             </div>
           )
@@ -490,6 +479,127 @@ export function AdminSidebarZonesSettingsQrSection({
       {qrSales.length === 0 && (
         <p className="text-xs text-muted text-center py-12">{t('admin.qrSales.empty')}</p>
       )}
+    </div>
+  )
+}
+
+function ZoneColorPicker({
+  color,
+  onChange,
+}: {
+  color: string
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+        {t('admin.zones.color')}
+      </p>
+      <div className="flex gap-2 flex-wrap">
+        {ZONE_COLORS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => onChange(preset)}
+            className={`w-9 h-9 touch-none rounded-full transition-transform ${
+              color.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-black ring-offset-2 scale-110' : ''
+            }`}
+            style={{ background: preset }}
+          />
+        ))}
+      </div>
+      <input
+        value={color}
+        onChange={(event) => onChange(normalizeHexColor(event.target.value, color))}
+        placeholder="#3B82F6"
+        className={`${inputCls} font-mono text-sm`}
+      />
+    </div>
+  )
+}
+
+function ZoneDetailsPanel({
+  zone,
+  isEditingPolygon,
+  onToggle,
+  onDelete,
+  onEditPolygon,
+  onSaveMetadata,
+}: {
+  zone: ServiceZone
+  isEditingPolygon: boolean
+  onToggle: () => void
+  onDelete: () => void
+  onEditPolygon: () => void
+  onSaveMetadata: (payload: { name?: string; color?: string }) => void
+}) {
+  const { t } = useTranslation()
+  const [nameDraft, setNameDraft] = useState(zone.name)
+  const [colorDraft, setColorDraft] = useState(zone.color)
+  const [isSavingMeta, setIsSavingMeta] = useState(false)
+
+  useEffect(() => {
+    setNameDraft(zone.name)
+    setColorDraft(zone.color)
+  }, [zone.id, zone.name, zone.color])
+
+  const metadataDirty = nameDraft.trim() !== zone.name || colorDraft !== zone.color
+
+  return (
+    <div className="px-3.5 pb-3.5 border-t border-border pt-3 space-y-3">
+      <div className="space-y-2">
+        <label className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+          {t('admin.zones.zoneNamePlaceholder', { defaultValue: 'Zone name' })}
+        </label>
+        <input
+          value={nameDraft}
+          onChange={(event) => setNameDraft(event.target.value)}
+          className={inputCls}
+        />
+        <ZoneColorPicker color={colorDraft} onChange={setColorDraft} />
+        <button
+          type="button"
+          disabled={!metadataDirty || !nameDraft.trim() || isSavingMeta}
+          onClick={() => {
+            setIsSavingMeta(true)
+            void Promise.resolve(
+              onSaveMetadata({
+                name: nameDraft.trim(),
+                color: normalizeHexColor(colorDraft, zone.color),
+              }),
+            ).finally(() => setIsSavingMeta(false))
+          }}
+          className="w-full py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50"
+        >
+          {isSavingMeta ? t('common.saving') : t('admin.zones.saveChanges', { defaultValue: 'Save changes' })}
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onEditPolygon}
+        disabled={isEditingPolygon}
+        className="w-full py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors disabled:opacity-50"
+      >
+        {isEditingPolygon
+          ? t('admin.zones.editingPolygon', { defaultValue: 'Editing on map…' })
+          : t('admin.zones.editPolygon', { defaultValue: 'Edit polygon' })}
+      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors"
+        >
+          {zone.isActive ? t('common.disable') : t('common.enable')}
+        </button>
+        <InlineConfirm
+          label={t('common.delete')}
+          confirmLabel={t('common.confirmDelete')}
+          onConfirm={onDelete}
+          className="flex-1 !text-xs !py-2"
+        />
+      </div>
     </div>
   )
 }

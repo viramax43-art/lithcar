@@ -16,10 +16,8 @@ export default function RoutePointConfirmButton({ model, showCaret = true }: Rou
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.activeIsFrom ? pointASetupHint : pointBSetupHint
 
-  const label = model.pinOutOfZone
-    ? model.activeIsFrom
-      ? t('passenger.pointAOutOfZone', { defaultValue: 'Point A is outside service area' })
-      : t('passenger.pointBOutOfZone', { defaultValue: 'Point B is outside service area' })
+  const label = model.pinOutOfZone && (model.pickupZoneCheckActive ?? model.activeIsFrom)
+    ? t('passenger.pointAOutOfZone', { defaultValue: 'Point A is outside service area' })
     : model.pinReadyForConfirm
       ? model.activeIsFrom
         ? t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })

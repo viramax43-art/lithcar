@@ -29,7 +29,7 @@ from app.services.ride_request_service import (
     create_ride_request_record,
 )
 from app.services.geo_service import haversine_km
-from app.services.zone_service import is_point_in_any_active_zone
+from app.services.zone_service import assert_pickup_in_active_zone, is_pickup_in_active_zone, PickupOutOfZoneError
 
 
 logger = logging.getLogger(__name__)
@@ -167,10 +167,10 @@ async def create_driver_offer(
     except InvalidRideDateTimeError as exc:
         raise DriverOfferError("invalid_status", str(exc)) from exc
 
-    is_from_allowed = await is_point_in_any_active_zone(db_session, lat=from_lat, lng=from_lng)
-    is_to_allowed = await is_point_in_any_active_zone(db_session, lat=to_lat, lng=to_lng)
-    if not is_from_allowed or not is_to_allowed:
-        raise DriverOfferError("out_of_zone", "Route points are outside active service zones.")
+    try:
+        await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
+    except PickupOutOfZoneError as exc:
+        raise DriverOfferError("out_of_zone", exc.message) from exc
 
     now = datetime.now(timezone.utc)
     offer = DriverRideOffer(
@@ -302,13 +302,7 @@ async def _offer_visible_to_passenger(
         return None
     if offer.date_time < datetime.now(timezone.utc):
         return None
-    is_from_allowed = await is_point_in_any_active_zone(
-        db_session, lat=offer.from_lat, lng=offer.from_lng
-    )
-    is_to_allowed = await is_point_in_any_active_zone(
-        db_session, lat=offer.to_lat, lng=offer.to_lng
-    )
-    if not is_from_allowed or not is_to_allowed:
+    if not await is_pickup_in_active_zone(db_session, lat=offer.from_lat, lng=offer.from_lng):
         return None
     if date:
         from app.core.app_timezone import to_app_local
@@ -510,14 +504,8 @@ async def book_offer_seat(
         except InvalidRideDateTimeError as exc:
             raise DriverOfferError("invalid_status", str(exc)) from exc
 
-        is_from_allowed = await is_point_in_any_active_zone(
-            db_session, lat=offer.from_lat, lng=offer.from_lng
-        )
-        is_to_allowed = await is_point_in_any_active_zone(
-            db_session, lat=offer.to_lat, lng=offer.to_lng
-        )
-        if not is_from_allowed or not is_to_allowed:
-            raise DriverOfferError("out_of_zone", "Offer route is outside active service zones.")
+        if not await is_pickup_in_active_zone(db_session, lat=offer.from_lat, lng=offer.from_lng):
+            raise DriverOfferError("out_of_zone", "Offer pickup is outside active service zones.")
 
         driver = await db_session.get(Driver, offer.driver_id)
         if driver is not None and driver.user_id == user.user_id:
@@ -659,14 +647,8 @@ async def claim_request_with_offer(
     if request.status not in (RideRequestStatus.PENDING, RideRequestStatus.GROUPED):
         raise ClaimRideError("invalid_status", f"Ride cannot be claimed from status {request.status}.")
 
-    is_from_allowed = await is_point_in_any_active_zone(
-        db_session, lat=request.from_lat, lng=request.from_lng
-    )
-    is_to_allowed = await is_point_in_any_active_zone(
-        db_session, lat=request.to_lat, lng=request.to_lng
-    )
-    if not is_from_allowed or not is_to_allowed:
-        raise ClaimRideError("out_of_zone", "Ride points are outside active service zones.")
+    if not await is_pickup_in_active_zone(db_session, lat=request.from_lat, lng=request.from_lng):
+        raise ClaimRideError("out_of_zone", "Ride pickup is outside active service zones.")
 
     if request.driver_id == driver_id and request.status == RideRequestStatus.ASSIGNED:
         if request.offer_id != offer_id:

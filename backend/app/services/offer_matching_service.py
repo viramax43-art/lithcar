@@ -15,7 +15,7 @@ from app.services.block_service import are_users_blocked
 from app.services.driver_offer_service import PassengerOfferListRow, list_open_offers_for_passengers
 from app.services.driver_service import get_driver
 from app.services.geo_service import haversine_km
-from app.services.zone_service import is_point_in_any_active_zone
+from app.services.zone_service import is_pickup_in_active_zone
 
 PICKUP_RADIUS_KM = 2.0
 DROPOFF_RADIUS_KM = 2.0
@@ -237,13 +237,7 @@ async def list_matching_requests_for_offer(
 
     scored: list[tuple[RideRequest, MatchResult, User | None]] = []
     for request in requests:
-        is_from_allowed = await is_point_in_any_active_zone(
-            db_session, lat=request.from_lat, lng=request.from_lng
-        )
-        is_to_allowed = await is_point_in_any_active_zone(
-            db_session, lat=request.to_lat, lng=request.to_lng
-        )
-        if not is_from_allowed or not is_to_allowed:
+        if not await is_pickup_in_active_zone(db_session, lat=request.from_lat, lng=request.from_lng):
             continue
 
         if driver_user_id and request.passenger_id:

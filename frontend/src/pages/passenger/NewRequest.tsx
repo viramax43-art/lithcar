@@ -1,5 +1,6 @@
 import { CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
+import ServiceZoneMapLayers from '../../components/ServiceZoneMapLayers'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import RoutePointConfirmButton from '../../components/route-point-picker/RoutePointConfirmButton'
@@ -345,6 +346,14 @@ export default function NewRequest() {
               </Popup>
             </Marker>
           ))}
+          {model.isPinLive && model.pickupZoneCheckActive && !offersPaused && !isMapMarkViewMode && (
+            <ServiceZoneMapLayers
+              zones={model.activeZones}
+              recommendedZoneIds={model.recommendedZoneIds}
+              interactive
+              onSelectZone={model.selectPickupZone}
+            />
+          )}
           {model.fromPoint && !highlightedOffer && <Marker position={[model.fromPoint.lat, model.fromPoint.lng]} icon={iconA} />}
           {model.toPoint && !highlightedOffer && <Marker position={[model.toPoint.lat, model.toPoint.lng]} icon={iconB} />}
           <MapBinder
@@ -587,7 +596,46 @@ export default function NewRequest() {
               {t('passenger.requestSent', { defaultValue: 'Request sent!' })}
             </div>
           ) : model.isPinLive ? (
-            <RoutePointConfirmButton model={model} />
+            <div className="space-y-2">
+              {model.pickupZoneCheckActive && model.recommendedZones.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wide px-1">
+                    {t('passenger.recommendedPickupZones', { defaultValue: 'Recommended pickup zones' })}
+                  </p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                    {model.recommendedZones.map((zone) => (
+                      <button
+                        key={zone.id}
+                        type="button"
+                        onClick={() => model.selectPickupZone(zone)}
+                        className="shrink-0 max-w-[160px] px-3 py-1.5 rounded-pill bg-surface border border-border text-[11px] font-bold truncate active:scale-[0.97]"
+                        style={{ borderColor: zone.color }}
+                      >
+                        {zone.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {model.snapSuggestion && (
+                <button
+                  type="button"
+                  onClick={model.acceptSnapSuggestion}
+                  className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-left active:scale-[0.98] transition-transform"
+                >
+                  <p className="text-[11px] font-bold text-black">
+                    {t('passenger.useRecommendedZone', {
+                      name: model.snapSuggestion.name,
+                      defaultValue: `Use ${model.snapSuggestion.name}?`,
+                    })}
+                  </p>
+                  <p className="text-[10px] text-muted mt-0.5">
+                    {t('passenger.snapToZoneHint', { defaultValue: 'Tap to move pin to this pickup zone' })}
+                  </p>
+                </button>
+              )}
+              <RoutePointConfirmButton model={model} />
+            </div>
           ) : (
             <button
               onClick={() => void model.handleSubmit()}

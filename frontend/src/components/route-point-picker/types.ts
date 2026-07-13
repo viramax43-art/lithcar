@@ -26,6 +26,7 @@ export interface RoutePointPickerModel {
   handleSelectSearchResult: (result: NominatimSearchResult) => void
   zoneWarning: string | null
   setZoneWarning?: (message: string | null) => void
+  pickupZoneCheckActive?: boolean
   confirmPoint: () => void
   setFromPoint: (point: LatLng | null) => void
   setFromAddress: (address: string) => void
