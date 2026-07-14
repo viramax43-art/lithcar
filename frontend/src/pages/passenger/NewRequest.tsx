@@ -499,7 +499,6 @@ export default function NewRequest() {
         <RoutePointPinLabel
           visible
           activeIsFrom={model.activeIsFrom}
-          pickupSnapZone={model.pickupSnapZone}
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
           pinAnchorYFrac={pinAnchorYFrac}
@@ -589,17 +588,9 @@ export default function NewRequest() {
           ) : model.isPinLive ? (
             <div className="space-y-2">
               {model.pickupSnapZone && model.activeIsFrom && (
-                <div className="rounded-xl border border-border bg-surface/80 px-3 py-2.5">
-                  <p className="text-[11px] font-bold text-black">
-                    {t('passenger.pickupAvailableHere', { defaultValue: 'Pickup available here' })}
-                  </p>
-                  <p className="text-[10px] text-muted mt-0.5">
-                    {t('passenger.pickupSnappedHint', {
-                      name: model.pickupSnapZone.name,
-                      defaultValue: 'We moved the pin to the nearest pickup area: {{name}}',
-                    })}
-                  </p>
-                </div>
+                <p className="text-[11px] text-muted px-1 leading-snug">
+                  {t('passenger.pickupFromHereHint', { defaultValue: 'You can order pickup from here' })}
+                </p>
               )}
               <RoutePointConfirmButton model={model} />
             </div>

@@ -180,17 +180,14 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
       const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
       const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-      const resolved = zoneCheckActive
-        ? resolvePickupLocation(latlng, activeZones)
-        : { latlng, zone: null, snapped: false }
-      const effectiveLatLng = resolved.latlng
-
-      setPickupSnapZone(resolved.snapped ? resolved.zone : null)
-      if (resolved.snapped) {
-        panMapToTarget(effectiveLatLng)
+      if (zoneCheckActive) {
+        const preview = resolvePickupLocation(latlng, activeZones)
+        setPickupSnapZone(preview.snapped ? preview.zone : null)
+      } else {
+        setPickupSnapZone(null)
       }
 
-      setPinLatLng(effectiveLatLng)
+      setPinLatLng(latlng)
       setPinAddress('')
 
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
@@ -202,7 +199,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       const seq = ++reverseSeq.current
 
       reverseTimer.current = setTimeout(async () => {
-        const fallbackAddress = `${effectiveLatLng.lat.toFixed(4)}, ${effectiveLatLng.lng.toFixed(4)}`
+        const fallbackAddress = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`
         try {
           if (isRateLimited()) {
             showZoneWarning(
@@ -218,7 +215,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
           }
           const controller = new AbortController()
           reverseAbort.current = controller
-          const addr = await nominatimReverse(effectiveLatLng, controller.signal)
+          const addr = await nominatimReverse(latlng, controller.signal)
           if (seq !== reverseSeq.current) return
           setPinAddress(addr || fallbackAddress)
         } catch (err) {
@@ -240,7 +237,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         }
       }, 700)
     },
-    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, showSearch, showZoneWarning, toPoint, t],
+    [activeField, activeZones, fromPoint, hasZones, showSearch, showZoneWarning, toPoint, t],
   )
 
   const armPinFromMapCenter = useCallback(() => {
@@ -258,9 +255,13 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     if (!pinLatLng) return
     const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
     const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-    const finalLatLng = zoneCheckActive
-      ? resolvePickupLocation(pinLatLng, activeZones).latlng
-      : pinLatLng
+    const pickupResolved = zoneCheckActive
+      ? resolvePickupLocation(pinLatLng, activeZones)
+      : { latlng: pinLatLng, snapped: false, zone: null }
+    const finalLatLng = pickupResolved.latlng
+    if (pickupResolved.snapped) {
+      panMapToTarget(finalLatLng)
+    }
     const resolved = pinAddress || `${finalLatLng.lat.toFixed(4)}, ${finalLatLng.lng.toFixed(4)}`
     if (!fromPoint) {
       setFromPoint(finalLatLng)
@@ -283,7 +284,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       reverseAbort.current.abort()
       reverseAbort.current = null
     }
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter, panMapToTarget])
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {

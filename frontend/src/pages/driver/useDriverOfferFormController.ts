@@ -144,17 +144,14 @@ export function useDriverOfferFormController(
 
       const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
       const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-      const resolved = zoneCheckActive
-        ? resolvePickupLocation(latlng, activeZones)
-        : { latlng, zone: null, snapped: false }
-      const effectiveLatLng = resolved.latlng
-
-      setPickupSnapZone(resolved.snapped ? resolved.zone : null)
-      if (resolved.snapped) {
-        panMapToTarget(effectiveLatLng)
+      if (zoneCheckActive) {
+        const preview = resolvePickupLocation(latlng, activeZones)
+        setPickupSnapZone(preview.snapped ? preview.zone : null)
+      } else {
+        setPickupSnapZone(null)
       }
 
-      setPinLatLng(effectiveLatLng)
+      setPinLatLng(latlng)
       setPinAddress('')
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
       if (reverseAbort.current) {
@@ -164,7 +161,7 @@ export function useDriverOfferFormController(
       setIsResolving(true)
       const seq = ++reverseSeq.current
       reverseTimer.current = setTimeout(async () => {
-        const fallbackAddress = `${effectiveLatLng.lat.toFixed(4)}, ${effectiveLatLng.lng.toFixed(4)}`
+        const fallbackAddress = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`
         try {
           if (isRateLimited()) {
             showZoneWarning(t('geo.rateLimitRetry', { seconds: Math.ceil(rateLimitRetryInMs() / 1000), defaultValue: 'Too many map requests.' }))
@@ -173,7 +170,7 @@ export function useDriverOfferFormController(
           }
           const controller = new AbortController()
           reverseAbort.current = controller
-          const addr = await nominatimReverse(effectiveLatLng, controller.signal)
+          const addr = await nominatimReverse(latlng, controller.signal)
           if (seq !== reverseSeq.current) return
           setPinAddress(addr || fallbackAddress)
         } catch (err) {
@@ -188,7 +185,7 @@ export function useDriverOfferFormController(
         }
       }, 700)
     },
-    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, showSearch, showZoneWarning, toPoint, t],
+    [activeField, activeZones, fromPoint, hasZones, showSearch, showZoneWarning, toPoint, t],
   )
 
   const armPinFromMapCenter = useCallback(() => {
@@ -206,9 +203,13 @@ export function useDriverOfferFormController(
     if (!pinLatLng) return
     const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
     const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-    const finalLatLng = zoneCheckActive
-      ? resolvePickupLocation(pinLatLng, activeZones).latlng
-      : pinLatLng
+    const pickupResolved = zoneCheckActive
+      ? resolvePickupLocation(pinLatLng, activeZones)
+      : { latlng: pinLatLng, snapped: false, zone: null }
+    const finalLatLng = pickupResolved.latlng
+    if (pickupResolved.snapped) {
+      panMapToTarget(finalLatLng)
+    }
     const resolved = pinAddress || `${finalLatLng.lat.toFixed(4)}, ${finalLatLng.lng.toFixed(4)}`
     if (!fromPoint) {
       setFromPoint(finalLatLng)
@@ -225,7 +226,7 @@ export function useDriverOfferFormController(
     setPinAddress('')
     setPickupSnapZone(null)
     setIsResolving(false)
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter, panMapToTarget])
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {

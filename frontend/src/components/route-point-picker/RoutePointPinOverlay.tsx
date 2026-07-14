@@ -39,26 +39,20 @@ export function RoutePointPinMarkers({
 export function RoutePointPinLabel({
   visible,
   activeIsFrom,
-  pickupSnapZone,
   isResolving,
   pinAddress,
   pinAnchorYFrac = DEFAULT_PIN_ANCHOR_Y_FRAC,
-}: Omit<RoutePointPinOverlayProps, 'isPanning'>) {
+}: Pick<RoutePointPinOverlayProps, 'visible' | 'activeIsFrom' | 'isResolving' | 'pinAddress' | 'pinAnchorYFrac'>) {
   const { t } = useTranslation()
   if (!visible) return null
-  if (!pickupSnapZone && !isResolving && !pinAddress) return null
+  if (!isResolving && !pinAddress) return null
 
   return (
     <div
       className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
       style={{ top: pinLabelTopCss(pinAnchorYFrac) }}
     >
-      {pickupSnapZone && activeIsFrom && !pinAddress && !isResolving ? (
-        <div className="px-3 py-1.5 rounded-pill bg-point-a text-white text-[11px] font-bold shadow-card animate-fade-in text-center leading-snug">
-          <p>{t('passenger.pickupAvailableHere', { defaultValue: 'Pickup available here' })}</p>
-          <p className="text-[10px] font-semibold opacity-90 mt-0.5">{pickupSnapZone.name}</p>
-        </div>
-      ) : isResolving ? (
+      {isResolving ? (
         <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-fade-in">
           <span className={`w-3 h-3 rounded-full border-[2px] border-border animate-spin ${activeIsFrom ? 'border-t-point-a' : 'border-t-point-b'}`} />
           <span className="inline-flex items-center gap-0.5">
