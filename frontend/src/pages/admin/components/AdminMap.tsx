@@ -41,6 +41,8 @@ interface AdminMapProps {
   isDrawing: boolean
   drawingPoints: LatLng[]
   newZoneColor: string
+  selectedZoneId: string | null
+  zoneFocusKey: number
   selectedReqId: string | null
   onSelectRequest: (requestId: string | null) => void
   onSelectDriver: (driverId: string) => void
@@ -134,6 +136,19 @@ function FlyToDraftBounds({ draft }: { draft: RideDraft | null }) {
   return null
 }
 
+function FlyToZoneBounds({ zone, focusKey }: { zone: ServiceZone | null; focusKey: number }) {
+  const map = useMap()
+  const lastFocusKey = useRef(0)
+  useEffect(() => {
+    if (!zone || focusKey === 0 || focusKey === lastFocusKey.current) return
+    lastFocusKey.current = focusKey
+    if (zone.polygon.length === 0) return
+    const bounds = L.latLngBounds(zone.polygon.map((point) => [point.lat, point.lng] as [number, number]))
+    map.fitBounds(bounds, { padding: [72, 72], maxZoom: 16 })
+  }, [zone, focusKey, map])
+  return null
+}
+
 function FlyToHelper({ target }: { target: LatLng | null }) {
   const map = useMap()
   if (target) {
@@ -193,6 +208,8 @@ export default function AdminMap({
   isDrawing,
   drawingPoints,
   newZoneColor,
+  selectedZoneId,
+  zoneFocusKey,
   selectedReqId,
   onSelectRequest,
   onSelectDriver,
@@ -262,6 +279,11 @@ export default function AdminMap({
     ? drivers.find((d) => d.id === selectedReq.driverId) ?? null
     : null
   const status = selectedReq ? STATUS_CONFIG[selectedReq.status] ?? STATUS_CONFIG.pending : null
+
+  const selectedZone = useMemo(
+    () => (selectedZoneId ? serviceZones.find((zone) => zone.id === selectedZoneId) ?? null : null),
+    [selectedZoneId, serviceZones],
+  )
 
   const dateStr = selectedReq
     ? formatRideDate(selectedReq, { day: 'numeric', month: 'long' })
@@ -1137,6 +1159,7 @@ export default function AdminMap({
         <LocalizedTileLayer />
         <MapViewportPersistence onViewportChange={handleMapViewportChange} />
         <FlyToHelper target={flyTarget} />
+        <FlyToZoneBounds zone={selectedZone} focusKey={zoneFocusKey} />
         <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
 
         {!isRoutePreviewMode && (
@@ -1259,20 +1282,52 @@ export default function AdminMap({
           </Pane>
         )}
 
-        {serviceZones.map((zone) => (
-          <Polygon
-            key={zone.id}
-            positions={zone.polygon.map((point) => [point.lat, point.lng] as [number, number])}
-            pathOptions={{
-              color: zone.color,
-              fillColor: zone.color,
-              fillOpacity: zone.isActive ? 0.12 : 0.04,
-              opacity: zone.isActive ? 0.8 : 0.3,
-            }}
+        {serviceZones.map((zone) => {
+          const highlighted = zone.id === selectedZoneId
+          return (
+            <Polygon
+              key={zone.id}
+              positions={zone.polygon.map((point) => [point.lat, point.lng] as [number, number])}
+              pathOptions={{
+                color: zone.color,
+                fillColor: zone.color,
+                fillOpacity: highlighted ? 0.22 : zone.isActive ? 0.12 : 0.04,
+                opacity: highlighted ? 1 : zone.isActive ? 0.8 : 0.3,
+                weight: highlighted ? 3 : 2,
+              }}
+            />
+          )
+        })}
+
+        {isDrawing && drawingPoints.map((point, index) => (
+          <Marker
+            key={`zone-draw-point-${index}`}
+            position={[point.lat, point.lng]}
+            icon={makeSolidPointIcon(newZoneColor, index === 0 ? 20 : 14, String(index + 1))}
           />
         ))}
-
-        {/* Saved admin map marks */}
+        {isDrawing && drawingPoints.length >= 2 && (
+          <Polyline
+            positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
+            pathOptions={{
+              color: newZoneColor,
+              weight: 2,
+              opacity: 0.9,
+              dashArray: '6, 4',
+            }}
+          />
+        )}
+        {isDrawing && drawingPoints.length >= 2 && (
+          <Polygon
+            positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
+            pathOptions={{
+              color: newZoneColor,
+              fillColor: newZoneColor,
+              fillOpacity: 0.15,
+              dashArray: '8, 4',
+            }}
+          />
+        )}
         {mapMarks.map((mark) => {
           const highlighted = selectedMarkId === mark.id
           return (
@@ -1322,17 +1377,6 @@ export default function AdminMap({
           />
         )}
 
-        {isDrawing && drawingPoints.length >= 2 && (
-          <Polygon
-            positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
-            pathOptions={{
-              color: newZoneColor,
-              fillColor: newZoneColor,
-              fillOpacity: 0.15,
-              dashArray: '8, 4',
-            }}
-          />
-        )}
         {isDrawing && !isRouteEditMode && <DrawingClickHandler onPoint={onDrawPoint} />}
         <MapMarkPlacementHandler
           enabled={isMarkModeEnabled && !isRouteEditMode}

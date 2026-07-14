@@ -74,6 +74,7 @@ export default function AdminDashboard() {
   const [selectedReqId, setSelectedReqId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedReqId)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedGroupId)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedZoneId)
+  const [zoneFocusKey, setZoneFocusKey] = useState(0)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(INITIAL_DASHBOARD_UI.expandedDriverId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(INITIAL_DASHBOARD_UI.sidebarCollapsed)
   const [filterDate, setFilterDate] = useState<string>(INITIAL_DASHBOARD_UI.filterDate)
@@ -382,47 +383,22 @@ export default function AdminDashboard() {
   const handleSaveZone = async () => {
     if (drawingPoints.length < 3 || !newZoneName.trim()) return
     try {
-      if (editingZoneId) {
-        const updated = await updateServiceZone(editingZoneId, {
-          name: newZoneName.trim(),
-          color: newZoneColor,
-          polygon: drawingPoints,
-        })
-        setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
-      } else {
-        await createServiceZone({
-          name: newZoneName.trim(),
-          color: newZoneColor,
-          polygon: drawingPoints,
-          isActive: true,
-        })
-        await loadAll()
-      }
+      await createServiceZone({
+        name: newZoneName.trim(),
+        color: newZoneColor,
+        polygon: drawingPoints,
+        isActive: true,
+      })
+      await loadAll()
       resetZoneDrawing()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createZoneFailed'))
     }
   }
 
-  const handleStartEditZonePolygon = (zone: ServiceZone) => {
-    setEditingZoneId(zone.id)
-    setSelectedZoneId(zone.id)
-    setIsDrawing(true)
-    setDrawingPoints(zone.polygon)
-    setNewZoneName(zone.name)
-    setNewZoneColor(zone.color)
-  }
-
-  const handleUpdateZoneMetadata = async (
-    zoneId: string,
-    payload: { name?: string; color?: string },
-  ) => {
-    try {
-      const updated = await updateServiceZone(zoneId, payload)
-      setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.toggleZoneFailed'))
-    }
+  const handleShowZoneOnMap = (zoneId: string) => {
+    setSelectedZoneId(zoneId)
+    setZoneFocusKey((key) => key + 1)
   }
 
   const handleCreateZone = handleSaveZone
@@ -465,8 +441,10 @@ export default function AdminDashboard() {
     try {
       const updated = await updatePricing(payload)
       setPricing(updated)
+      return true
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updatePricingFailed'))
+      return false
     }
   }
 
@@ -704,13 +682,11 @@ export default function AdminDashboard() {
           drawingPoints={drawingPoints}
           setDrawingPoints={(updater) => setDrawingPoints((prev) => updater(prev))}
           handleCreateZone={handleSaveZone}
-          handleStartEditZonePolygon={handleStartEditZonePolygon}
-          handleUpdateZoneMetadata={handleUpdateZoneMetadata}
-          editingZoneId={editingZoneId}
           resetZoneDrawing={resetZoneDrawing}
           serviceZones={serviceZones}
           selectedZoneId={selectedZoneId}
           setSelectedZoneId={setSelectedZoneId}
+          onShowZoneOnMap={handleShowZoneOnMap}
           handleToggleZone={handleToggleZone}
           handleDeleteZone={handleDeleteZone}
           pricing={pricing}
@@ -775,6 +751,8 @@ export default function AdminDashboard() {
           isDrawing={isDrawing}
           drawingPoints={drawingPoints}
           newZoneColor={newZoneColor}
+          selectedZoneId={selectedZoneId}
+          zoneFocusKey={zoneFocusKey}
           selectedReqId={selectedReqId}
           onSelectRequest={setSelectedReqId}
           onSelectDriver={(driverId) => {

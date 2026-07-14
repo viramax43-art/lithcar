@@ -39,13 +39,11 @@ export interface AdminSidebarProps {
   drawingPoints: LatLng[]
   setDrawingPoints: (updater: (prev: LatLng[]) => LatLng[]) => void
   handleCreateZone: () => Promise<void>
-  handleStartEditZonePolygon: (zone: ServiceZone) => void
-  handleUpdateZoneMetadata: (zoneId: string, payload: { name?: string; color?: string }) => Promise<void>
-  editingZoneId: string | null
   resetZoneDrawing: () => void
   serviceZones: ServiceZone[]
   selectedZoneId: string | null
   setSelectedZoneId: (id: string | null) => void
+  onShowZoneOnMap: (zoneId: string) => void
   handleToggleZone: (zone: ServiceZone) => Promise<void>
   handleDeleteZone: (zoneId: string) => Promise<void>
   pricing: PricingSettings
@@ -66,7 +64,7 @@ export interface AdminSidebarProps {
         | 'slotIntervalMinutes'
       >
     >,
-  ) => Promise<void>
+  ) => Promise<boolean>
   adminSession: AdminSessionUser
   newManagedKeyName: string
   setNewManagedKeyName: (value: string) => void

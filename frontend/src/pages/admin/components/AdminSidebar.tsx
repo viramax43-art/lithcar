@@ -64,13 +64,11 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     drawingPoints,
     setDrawingPoints,
     handleCreateZone,
-    handleStartEditZonePolygon,
-    handleUpdateZoneMetadata,
-    editingZoneId,
     resetZoneDrawing,
     serviceZones,
     selectedZoneId,
     setSelectedZoneId,
+    onShowZoneOnMap,
     handleToggleZone,
     handleDeleteZone,
     pricing,
@@ -301,7 +299,10 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             )}
             {activeTab === 'zones' && !isDrawing && (
               <button
-                onClick={() => setIsDrawing(true)}
+                onClick={() => {
+                  resetZoneDrawing()
+                  setIsDrawing(true)
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pill bg-black text-white text-xs font-bold transition-all hover:bg-zinc-800 active:scale-[0.97]"
               >
                 <Plus size={14} />
@@ -396,13 +397,11 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               drawingPoints={drawingPoints}
               setDrawingPoints={setDrawingPoints}
               handleCreateZone={handleCreateZone}
-              handleStartEditZonePolygon={handleStartEditZonePolygon}
-              handleUpdateZoneMetadata={handleUpdateZoneMetadata}
-              editingZoneId={editingZoneId}
               resetZoneDrawing={resetZoneDrawing}
               serviceZones={serviceZones}
               selectedZoneId={selectedZoneId}
               setSelectedZoneId={setSelectedZoneId}
+              onShowZoneOnMap={onShowZoneOnMap}
               handleToggleZone={handleToggleZone}
               handleDeleteZone={handleDeleteZone}
               pricing={pricing}

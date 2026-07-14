@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MagnifyingGlass, X } from '@phosphor-icons/react'
 
 import { getInitialZonesSettingsUi } from '../../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
@@ -29,13 +30,11 @@ type ZonesSettingsQrSectionProps = Pick<
   | 'drawingPoints'
   | 'setDrawingPoints'
   | 'handleCreateZone'
-  | 'handleStartEditZonePolygon'
-  | 'handleUpdateZoneMetadata'
-  | 'editingZoneId'
   | 'resetZoneDrawing'
   | 'serviceZones'
   | 'selectedZoneId'
   | 'setSelectedZoneId'
+  | 'onShowZoneOnMap'
   | 'handleToggleZone'
   | 'handleDeleteZone'
   | 'pricing'
@@ -56,13 +55,11 @@ export function AdminSidebarZonesSettingsQrSection({
   drawingPoints,
   setDrawingPoints,
   handleCreateZone,
-  handleStartEditZonePolygon,
-  handleUpdateZoneMetadata,
-  editingZoneId,
   resetZoneDrawing,
   serviceZones,
   selectedZoneId,
   setSelectedZoneId,
+  onShowZoneOnMap,
   handleToggleZone,
   handleDeleteZone,
   pricing,
@@ -73,18 +70,27 @@ export function AdminSidebarZonesSettingsQrSection({
 }: ZonesSettingsQrSectionProps) {
   const { t } = useTranslation()
   const initialZonesSettingsUi = getInitialZonesSettingsUi()
+  const initialMainDraft =
+    (initialZonesSettingsUi.userInfoMainDraft as UserInfoTextI18n | null) ??
+    normalizeUserInfoText(pricing.userInfoText)
+  const initialProfileDraft =
+    (initialZonesSettingsUi.userInfoProfileDraft as UserInfoTextI18n | null) ??
+    normalizeUserInfoText(pricing.userInfoTextProfile)
   const skipMainSyncRef = useRef(initialZonesSettingsUi.userInfoMainDraft !== null)
   const skipProfileSyncRef = useRef(initialZonesSettingsUi.userInfoProfileDraft !== null)
+  const mainDirtyRef = useRef(
+    initialZonesSettingsUi.userInfoMainDraft !== null
+    && !userInfoTextEqual(initialMainDraft, normalizeUserInfoText(pricing.userInfoText)),
+  )
+  const profileDirtyRef = useRef(
+    initialZonesSettingsUi.userInfoProfileDraft !== null
+    && !userInfoTextEqual(initialProfileDraft, normalizeUserInfoText(pricing.userInfoTextProfile)),
+  )
   const [isCreatingZone, setIsCreatingZone] = useState(false)
-  const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() =>
-    (initialZonesSettingsUi.userInfoMainDraft as UserInfoTextI18n | null) ??
-    normalizeUserInfoText(pricing.userInfoText),
-  )
-  const [userInfoProfileDraft, setUserInfoProfileDraft] = useState<UserInfoTextI18n>(
-    () =>
-      (initialZonesSettingsUi.userInfoProfileDraft as UserInfoTextI18n | null) ??
-      normalizeUserInfoText(pricing.userInfoTextProfile),
-  )
+  const [isSavingUserInfo, setIsSavingUserInfo] = useState(false)
+  const [zonesSearchQuery, setZonesSearchQuery] = useState('')
+  const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() => initialMainDraft)
+  const [userInfoProfileDraft, setUserInfoProfileDraft] = useState<UserInfoTextI18n>(() => initialProfileDraft)
 
   const zonesSettingsUiPersistence = useMemo(
     () => ({
@@ -100,6 +106,7 @@ export function AdminSidebarZonesSettingsQrSection({
       skipMainSyncRef.current = false
       return
     }
+    if (mainDirtyRef.current) return
     setUserInfoMainDraft(normalizeUserInfoText(pricing.userInfoText))
   }, [pricing.userInfoText])
 
@@ -108,26 +115,29 @@ export function AdminSidebarZonesSettingsQrSection({
       skipProfileSyncRef.current = false
       return
     }
+    if (profileDirtyRef.current) return
     setUserInfoProfileDraft(normalizeUserInfoText(pricing.userInfoTextProfile))
   }, [pricing.userInfoTextProfile])
+
+  const filteredZones = useMemo(() => {
+    const q = zonesSearchQuery.trim().toLowerCase()
+    if (!q) return serviceZones
+    return serviceZones.filter((zone) => zone.name.toLowerCase().includes(q))
+  }, [serviceZones, zonesSearchQuery])
 
   if (activeTab === 'zones') {
     return (
       <div className="space-y-3">
         {isDrawing && (
           <div className="rounded-card border-[1.5px] border-black p-4 space-y-3 bg-surface/50">
-            <p className="text-sm font-bold">
-              {editingZoneId
-                ? t('admin.zones.editZone', { defaultValue: 'Edit zone' })
-                : t('admin.zones.newZone')}
-            </p>
+            <p className="text-sm font-bold">{t('admin.zones.newZone')}</p>
             <input
               value={newZoneName}
               onChange={(event) => setNewZoneName(event.target.value)}
               placeholder={t('admin.zones.zoneNamePlaceholder')}
               className={inputCls}
             />
-            <ZoneColorPicker color={newZoneColor} onChange={setNewZoneColor} />
+            <ZoneColorPicker color={newZoneColor} onChange={setNewZoneColor} presetsOnly />
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">{t('admin.zones.mapPoints')}</span>
               <span className="font-bold">{drawingPoints.length}</span>
@@ -161,7 +171,28 @@ export function AdminSidebarZonesSettingsQrSection({
           </div>
         )}
 
-        {serviceZones.map((zone) => {
+        {!isDrawing && serviceZones.length > 0 && (
+          <div className="relative">
+            <MagnifyingGlass size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              value={zonesSearchQuery}
+              onChange={(event) => setZonesSearchQuery(event.target.value)}
+              placeholder={t('admin.zones.searchPlaceholder', { defaultValue: 'Search zones by name...' })}
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl border-[1.5px] border-border bg-surface text-sm outline-none focus:border-black focus:bg-white transition-colors"
+            />
+            {zonesSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setZonesSearchQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center hover:bg-border rounded-lg transition-colors touch-none"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {filteredZones.map((zone) => {
           const selected = selectedZoneId === zone.id
           return (
             <div
@@ -187,13 +218,11 @@ export function AdminSidebarZonesSettingsQrSection({
                 </div>
               </button>
               {selected && (
-                <ZoneDetailsPanel
+                <ZoneActionsPanel
                   zone={zone}
-                  isEditingPolygon={editingZoneId === zone.id && isDrawing}
+                  onShowOnMap={() => onShowZoneOnMap(zone.id)}
                   onToggle={() => void handleToggleZone(zone)}
                   onDelete={() => void handleDeleteZone(zone.id)}
-                  onEditPolygon={() => handleStartEditZonePolygon(zone)}
-                  onSaveMetadata={(payload) => void handleUpdateZoneMetadata(zone.id, payload)}
                 />
               )}
             </div>
@@ -202,6 +231,11 @@ export function AdminSidebarZonesSettingsQrSection({
 
         {serviceZones.length === 0 && !isDrawing && (
           <p className="text-xs text-muted text-center py-12">{t('admin.zones.empty')}</p>
+        )}
+        {serviceZones.length > 0 && filteredZones.length === 0 && (
+          <p className="text-xs text-muted text-center py-8">
+            {t('admin.zones.searchEmpty', { defaultValue: 'No zones match your search.' })}
+          </p>
         )}
       </div>
     )
@@ -258,12 +292,13 @@ export function AdminSidebarZonesSettingsQrSection({
                   </label>
                   <textarea
                     value={userInfoMainDraft[lang]}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      mainDirtyRef.current = true
                       setUserInfoMainDraft((prev) => ({
                         ...prev,
                         [lang]: event.target.value,
                       }))
-                    }
+                    }}
                     rows={3}
                     placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
                     className={`${inputCls} resize-y min-h-[72px]`}
@@ -281,12 +316,13 @@ export function AdminSidebarZonesSettingsQrSection({
                   </label>
                   <textarea
                     value={userInfoProfileDraft[lang]}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      profileDirtyRef.current = true
                       setUserInfoProfileDraft((prev) => ({
                         ...prev,
                         [lang]: event.target.value,
                       }))
-                    }
+                    }}
                     rows={3}
                     placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
                     className={`${inputCls} resize-y min-h-[72px]`}
@@ -297,17 +333,30 @@ export function AdminSidebarZonesSettingsQrSection({
           </div>
           <div className="flex items-center justify-end gap-3">
             <button
-              onClick={() => void handlePricingChange({
-                userInfoText: normalizeUserInfoText(userInfoMainDraft),
-                userInfoTextProfile: normalizeUserInfoText(userInfoProfileDraft),
-              })}
+              onClick={() => {
+                if (isSavingUserInfo) return
+                setIsSavingUserInfo(true)
+                void handlePricingChange({
+                  userInfoText: normalizeUserInfoText(userInfoMainDraft),
+                  userInfoTextProfile: normalizeUserInfoText(userInfoProfileDraft),
+                })
+                  .then((saved) => {
+                    if (!saved) return
+                    mainDirtyRef.current = false
+                    profileDirtyRef.current = false
+                  })
+                  .finally(() => setIsSavingUserInfo(false))
+              }}
               disabled={
-                userInfoTextEqual(userInfoMainDraft, normalizeUserInfoText(pricing.userInfoText))
-                && userInfoTextEqual(userInfoProfileDraft, normalizeUserInfoText(pricing.userInfoTextProfile))
+                isSavingUserInfo
+                || (
+                  userInfoTextEqual(userInfoMainDraft, normalizeUserInfoText(pricing.userInfoText))
+                  && userInfoTextEqual(userInfoProfileDraft, normalizeUserInfoText(pricing.userInfoTextProfile))
+                )
               }
               className="px-3 py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50 transition-all active:scale-[0.97]"
             >
-              {t('common.save')}
+              {isSavingUserInfo ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </div>
@@ -486,9 +535,11 @@ export function AdminSidebarZonesSettingsQrSection({
 function ZoneColorPicker({
   color,
   onChange,
+  presetsOnly = false,
 }: {
   color: string
   onChange: (value: string) => void
+  presetsOnly?: boolean
 }) {
   const { t } = useTranslation()
   return (
@@ -509,81 +560,39 @@ function ZoneColorPicker({
           />
         ))}
       </div>
-      <input
-        value={color}
-        onChange={(event) => onChange(normalizeHexColor(event.target.value, color))}
-        placeholder="#3B82F6"
-        className={`${inputCls} font-mono text-sm`}
-      />
+      {!presetsOnly && (
+        <input
+          value={color}
+          onChange={(event) => onChange(normalizeHexColor(event.target.value, color))}
+          placeholder="#3B82F6"
+          className={`${inputCls} font-mono text-sm`}
+        />
+      )}
     </div>
   )
 }
 
-function ZoneDetailsPanel({
+function ZoneActionsPanel({
   zone,
-  isEditingPolygon,
+  onShowOnMap,
   onToggle,
   onDelete,
-  onEditPolygon,
-  onSaveMetadata,
 }: {
   zone: ServiceZone
-  isEditingPolygon: boolean
+  onShowOnMap: () => void
   onToggle: () => void
   onDelete: () => void
-  onEditPolygon: () => void
-  onSaveMetadata: (payload: { name?: string; color?: string }) => void
 }) {
   const { t } = useTranslation()
-  const [nameDraft, setNameDraft] = useState(zone.name)
-  const [colorDraft, setColorDraft] = useState(zone.color)
-  const [isSavingMeta, setIsSavingMeta] = useState(false)
-
-  useEffect(() => {
-    setNameDraft(zone.name)
-    setColorDraft(zone.color)
-  }, [zone.id, zone.name, zone.color])
-
-  const metadataDirty = nameDraft.trim() !== zone.name || colorDraft !== zone.color
 
   return (
-    <div className="px-3.5 pb-3.5 border-t border-border pt-3 space-y-3">
-      <div className="space-y-2">
-        <label className="text-[10px] font-semibold text-muted uppercase tracking-wider">
-          {t('admin.zones.zoneNamePlaceholder', { defaultValue: 'Zone name' })}
-        </label>
-        <input
-          value={nameDraft}
-          onChange={(event) => setNameDraft(event.target.value)}
-          className={inputCls}
-        />
-        <ZoneColorPicker color={colorDraft} onChange={setColorDraft} />
-        <button
-          type="button"
-          disabled={!metadataDirty || !nameDraft.trim() || isSavingMeta}
-          onClick={() => {
-            setIsSavingMeta(true)
-            void Promise.resolve(
-              onSaveMetadata({
-                name: nameDraft.trim(),
-                color: normalizeHexColor(colorDraft, zone.color),
-              }),
-            ).finally(() => setIsSavingMeta(false))
-          }}
-          className="w-full py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-50"
-        >
-          {isSavingMeta ? t('common.saving') : t('admin.zones.saveChanges', { defaultValue: 'Save changes' })}
-        </button>
-      </div>
+    <div className="px-3.5 pb-3.5 border-t border-border pt-3 space-y-2">
       <button
         type="button"
-        onClick={onEditPolygon}
-        disabled={isEditingPolygon}
-        className="w-full py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors disabled:opacity-50"
+        onClick={onShowOnMap}
+        className="w-full py-2 rounded-xl bg-black text-white text-xs font-bold transition-all active:scale-[0.97]"
       >
-        {isEditingPolygon
-          ? t('admin.zones.editingPolygon', { defaultValue: 'Editing on map…' })
-          : t('admin.zones.editPolygon', { defaultValue: 'Edit polygon' })}
+        {t('common.showOnMap')}
       </button>
       <div className="flex gap-2">
         <button

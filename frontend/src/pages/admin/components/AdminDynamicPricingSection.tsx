@@ -26,7 +26,7 @@ type PricingChangeHandler = (
       | 'slotIntervalMinutes'
     >
   >,
-) => Promise<void>
+) => Promise<boolean>
 
 interface AdminDynamicPricingSectionProps {
   pricing: PricingSettings
