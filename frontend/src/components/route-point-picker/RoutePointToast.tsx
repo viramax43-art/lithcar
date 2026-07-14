@@ -10,14 +10,14 @@ interface RoutePointToastProps {
 export default function RoutePointToast({
   message,
   onDismiss,
-  topOffset = 'calc(var(--app-user-safe-top) + 48px)',
+  topOffset = 'var(--app-user-safe-top)',
 }: RoutePointToastProps) {
   const { t } = useTranslation()
   if (!message) return null
 
   return (
     <div
-      className="absolute left-3 right-3 z-30 flex items-start gap-3 px-3.5 py-3 bg-white border border-border/60 rounded-2xl shadow-card animate-fade-in md:max-w-md md:mx-auto"
+      className="absolute left-3 right-3 z-40 flex items-start gap-3 px-3.5 py-3 bg-white border border-border/60 rounded-2xl shadow-card animate-fade-in md:max-w-md md:mx-auto"
       style={{ top: topOffset }}
       role="status"
     >
