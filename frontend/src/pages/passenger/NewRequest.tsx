@@ -7,6 +7,7 @@ import RoutePointFields from '../../components/route-point-picker/RoutePointFiel
 import { RoutePointPinLabel, RoutePointPinMarkers } from '../../components/route-point-picker/RoutePointPinOverlay'
 import RoutePointSearchSheet from '../../components/route-point-picker/RoutePointSearchSheet'
 import RoutePointZoneBanner from '../../components/route-point-picker/RoutePointZoneBanner'
+import RoutePointToast from '../../components/route-point-picker/RoutePointToast'
 import { useOfferDaySelection } from '../../hooks/useOfferDaySelection'
 import { useMapPinAnchor } from '../../hooks/useMapPinAnchor'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
@@ -508,7 +509,14 @@ export default function NewRequest() {
       {!isMapMarkViewMode && (
         <RoutePointZoneBanner
           message={model.zoneWarning}
-          onDismiss={() => model.setZoneWarning(null)}
+          onDismiss={() => model.setZoneWarning?.(null)}
+        />
+      )}
+
+      {!isMapMarkViewMode && (
+        <RoutePointToast
+          message={model.pickupToast}
+          onDismiss={() => model.setPickupToast?.(null)}
         />
       )}
 
@@ -587,11 +595,6 @@ export default function NewRequest() {
             </div>
           ) : model.isPinLive ? (
             <div className="space-y-2">
-              {model.pickupSnapZone && model.activeIsFrom && (
-                <p className="text-[11px] text-muted px-1 leading-snug">
-                  {t('passenger.pickupFromHereHint', { defaultValue: 'You can order pickup from here' })}
-                </p>
-              )}
               <RoutePointConfirmButton model={model} />
             </div>
           ) : (

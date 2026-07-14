@@ -8,6 +8,7 @@ import RoutePointFields from '../../../components/route-point-picker/RoutePointF
 import { RoutePointPinLabel, RoutePointPinMarkers } from '../../../components/route-point-picker/RoutePointPinOverlay'
 import RoutePointSearchSheet from '../../../components/route-point-picker/RoutePointSearchSheet'
 import RoutePointZoneBanner from '../../../components/route-point-picker/RoutePointZoneBanner'
+import RoutePointToast from '../../../components/route-point-picker/RoutePointToast'
 import OfferDayFilter from '../../passenger/components/OfferDayFilter'
 import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
 import { useOfferDaySelection } from '../../../hooks/useOfferDaySelection'
@@ -138,8 +139,13 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         />
         <RoutePointZoneBanner
           message={model.zoneWarning}
-          onDismiss={() => model.setZoneWarning(null)}
+          onDismiss={() => model.setZoneWarning?.(null)}
           topOffset="calc(var(--app-safe-area-top-total) + 48px)"
+        />
+        <RoutePointToast
+          message={model.pickupToast}
+          onDismiss={() => model.setPickupToast?.(null)}
+          bottomOffset="calc(var(--app-safe-area-bottom-total) + 220px)"
         />
 
         <button
@@ -214,11 +220,6 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
           {model.isPinLive ? (
             <div className="space-y-2">
-              {model.pickupSnapZone && model.activeIsFrom && (
-                <p className="text-[11px] text-muted px-1 leading-snug">
-                  {t('passenger.pickupFromHereHint', { defaultValue: 'You can order pickup from here' })}
-                </p>
-              )}
               <RoutePointConfirmButton model={model} showCaret={false} />
             </div>
           ) : (

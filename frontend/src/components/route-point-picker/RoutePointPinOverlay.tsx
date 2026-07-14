@@ -1,13 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC, pinLabelTopCss, pinTopCss } from '../../lib/mapPinAnchor'
 
-import type { ServiceZone } from '../../types'
-
 interface RoutePointPinOverlayProps {
   visible: boolean
   activeIsFrom: boolean
   isPanning: boolean
-  pickupSnapZone: ServiceZone | null
   isResolving: boolean
   pinAddress: string
   pinAnchorYFrac?: number

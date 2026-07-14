@@ -11,7 +11,8 @@ export interface RoutePointPickerModel {
   activeIsFrom: boolean
   isPinLive: boolean
   pinReadyForConfirm: boolean
-  pickupSnapZone?: ServiceZone | null
+  pickupToast: string | null
+  setPickupToast?: (message: string | null) => void
   isPanning: boolean
   isResolving: boolean
   pinAddress: string
