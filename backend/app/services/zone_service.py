@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.service_zone import ServiceZone
-from app.services.geo_service import point_in_polygon
+from app.services.geo_service import point_in_polygon, haversine_km
 
 
 class PickupOutOfZoneError(Exception):
@@ -97,6 +97,34 @@ async def is_point_in_any_active_zone(
 ) -> bool:
     """Backward-compatible alias for pickup zone checks."""
     return await is_pickup_in_active_zone(db_session, lat=lat, lng=lng)
+
+
+async def snap_pickup_coordinates(
+    db_session: AsyncSession, *, lat: float, lng: float
+) -> tuple[float, float]:
+    result = await db_session.execute(select(ServiceZone).where(ServiceZone.is_active.is_(True)))
+    zones = list(result.scalars().all())
+    if not zones:
+        return lat, lng
+    if any(point_in_polygon(lat, lng, zone.polygon or []) for zone in zones):
+        return lat, lng
+
+    best_centroid: tuple[float, float] | None = None
+    best_distance_km = float("inf")
+    for zone in zones:
+        polygon = zone.polygon or []
+        if len(polygon) < 3:
+            continue
+        centroid_lat = sum(float(point["lat"]) for point in polygon) / len(polygon)
+        centroid_lng = sum(float(point["lng"]) for point in polygon) / len(polygon)
+        distance_km = haversine_km(lat, lng, centroid_lat, centroid_lng)
+        if distance_km < best_distance_km:
+            best_distance_km = distance_km
+            best_centroid = (centroid_lat, centroid_lng)
+
+    if best_centroid is None:
+        return lat, lng
+    return best_centroid
 
 
 async def assert_pickup_in_active_zone(

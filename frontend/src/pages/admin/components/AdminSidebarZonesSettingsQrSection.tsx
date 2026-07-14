@@ -119,11 +119,25 @@ export function AdminSidebarZonesSettingsQrSection({
     setUserInfoProfileDraft(normalizeUserInfoText(pricing.userInfoTextProfile))
   }, [pricing.userInfoTextProfile])
 
+  const zoneCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
   const filteredZones = useMemo(() => {
     const q = zonesSearchQuery.trim().toLowerCase()
     if (!q) return serviceZones
-    return serviceZones.filter((zone) => zone.name.toLowerCase().includes(q))
-  }, [serviceZones, zonesSearchQuery])
+    const matched = serviceZones.filter((zone) => zone.name.toLowerCase().includes(q))
+    if (!selectedZoneId) return matched
+    if (matched.some((zone) => zone.id === selectedZoneId)) return matched
+    const selected = serviceZones.find((zone) => zone.id === selectedZoneId)
+    return selected ? [selected, ...matched] : matched
+  }, [serviceZones, zonesSearchQuery, selectedZoneId])
+
+  useEffect(() => {
+    if (activeTab !== 'zones' || !selectedZoneId) return
+    const element = zoneCardRefs.current[selectedZoneId]
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [activeTab, selectedZoneId])
 
   if (activeTab === 'zones') {
     return (
@@ -197,6 +211,9 @@ export function AdminSidebarZonesSettingsQrSection({
           return (
             <div
               key={zone.id}
+              ref={(element) => {
+                zoneCardRefs.current[zone.id] = element
+              }}
               className={`rounded-card border-[1.5px] overflow-hidden transition-all ${
                 selected ? 'border-black' : 'border-border'
               }`}

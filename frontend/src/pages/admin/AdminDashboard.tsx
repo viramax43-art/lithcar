@@ -401,6 +401,12 @@ export default function AdminDashboard() {
     setZoneFocusKey((key) => key + 1)
   }
 
+  const handleSelectZoneFromMap = (zoneId: string) => {
+    setActiveTab('zones')
+    setSelectedZoneId(zoneId)
+    setSidebarCollapsed(false)
+  }
+
   const handleCreateZone = handleSaveZone
 
   const handleToggleZone = async (zone: ServiceZone) => {
@@ -759,6 +765,7 @@ export default function AdminDashboard() {
             setActiveTab('drivers')
             setExpandedDriverId(driverId)
           }}
+          onSelectZone={handleSelectZoneFromMap}
           onOpenAssignModal={setAssignModalReqIds}
           onOpenEditRoute={(requestId) => {
             const request = requests.find((item) => item.id === requestId)

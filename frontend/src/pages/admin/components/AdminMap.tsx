@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
@@ -11,6 +11,7 @@ import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../
 import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
+import { zoneLabelPosition } from '../../../utils/serviceZones'
 import { formatRideDate, formatRideTime, formatTime } from '../../../i18n/dateTime'
 import { getInitialMapUi } from '../../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
@@ -46,6 +47,7 @@ interface AdminMapProps {
   selectedReqId: string | null
   onSelectRequest: (requestId: string | null) => void
   onSelectDriver: (driverId: string) => void
+  onSelectZone: (zoneId: string) => void
   onOpenAssignModal: (requestIds: string[]) => void
   onOpenEditRoute: (requestId: string) => void
   routeEditDraft: RideDraft | null
@@ -69,6 +71,12 @@ interface AdminMapProps {
   enabledColors: Set<MapColorGroupKey>
   onToggleColor: (key: MapColorGroupKey) => void
 }
+
+const ZONE_LABEL_ANCHOR_ICON = L.divIcon({
+  className: 'zone-label-anchor',
+  iconSize: [0, 0],
+  iconAnchor: [0, 0],
+})
 
 function getMarkerSize(status: string): number {
   if (status === 'completed') return 28
@@ -213,6 +221,7 @@ export default function AdminMap({
   selectedReqId,
   onSelectRequest,
   onSelectDriver,
+  onSelectZone,
   onOpenAssignModal,
   onOpenEditRoute,
   routeEditDraft,
@@ -1284,18 +1293,43 @@ export default function AdminMap({
 
         {serviceZones.map((zone) => {
           const highlighted = zone.id === selectedZoneId
+          const labelPosition = zoneLabelPosition(zone)
           return (
-            <Polygon
-              key={zone.id}
-              positions={zone.polygon.map((point) => [point.lat, point.lng] as [number, number])}
-              pathOptions={{
-                color: zone.color,
-                fillColor: zone.color,
-                fillOpacity: highlighted ? 0.22 : zone.isActive ? 0.12 : 0.04,
-                opacity: highlighted ? 1 : zone.isActive ? 0.8 : 0.3,
-                weight: highlighted ? 3 : 2,
-              }}
-            />
+            <Fragment key={zone.id}>
+              <Polygon
+                positions={zone.polygon.map((point) => [point.lat, point.lng] as [number, number])}
+                pathOptions={{
+                  color: zone.color,
+                  fillColor: zone.color,
+                  fillOpacity: highlighted ? 0.22 : zone.isActive ? 0.12 : 0.04,
+                  opacity: highlighted ? 1 : zone.isActive ? 0.8 : 0.3,
+                  weight: highlighted ? 3 : 2,
+                }}
+                eventHandlers={{
+                  click: () => {
+                    if (isDrawing || isRouteEditMode || isMarkModeEnabled) return
+                    onSelectZone(zone.id)
+                  },
+                }}
+              />
+              {labelPosition && (
+                <Marker
+                  position={[labelPosition.lat, labelPosition.lng]}
+                  icon={ZONE_LABEL_ANCHOR_ICON}
+                  interactive={false}
+                  zIndexOffset={600}
+                >
+                  <Tooltip
+                    permanent
+                    direction="top"
+                    offset={[0, -6]}
+                    className={`marker-driver-label ${zone.isActive ? '' : 'zone-label--inactive'}`}
+                  >
+                    {zone.name}
+                  </Tooltip>
+                </Marker>
+              )}
+            </Fragment>
           )
         })}
 

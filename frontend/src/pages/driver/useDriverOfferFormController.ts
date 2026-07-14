@@ -13,12 +13,10 @@ import {
 } from '../../lib/geocode'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { LatLng, PricingSettings, ServiceZone } from '../../types'
-import { isPointInAnyZone, coordsNear } from '../../utils/geo'
+import { coordsNear } from '../../utils/geo'
 import {
-  findNearestPickupZone,
   isPickupZoneCheckActive,
-  rankRecommendedPickupZones,
-  zoneCentroid,
+  resolvePickupLocation,
 } from '../../utils/serviceZones'
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../lib/mapRegion'
@@ -63,8 +61,7 @@ export function useDriverOfferFormController(
 
   const [pinLatLng, setPinLatLng] = useState<LatLng | null>(null)
   const [pinAddress, setPinAddress] = useState('')
-  const [pinOutOfZone, setPinOutOfZone] = useState(false)
-  const [snapSuggestion, setSnapSuggestion] = useState<ServiceZone | null>(null)
+  const [pickupSnapZone, setPickupSnapZone] = useState<ServiceZone | null>(null)
   const [isPanning, setIsPanning] = useState(false)
   const [isResolving, setIsResolving] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
@@ -121,21 +118,18 @@ export function useDriverOfferFormController(
   const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
   const pickupZoneCheckActive = isPickupZoneCheckActive(effectiveField, hasZones)
 
-  const recommendedZones = useMemo(() => {
-    if (!pickupZoneCheckActive) return []
-    const mapCenter = mapRef.current?.getCenter()
-    const reference: LatLng | null =
-      toPoint ??
-      (mapCenter ? { lat: mapCenter.lat, lng: mapCenter.lng } : null) ??
-      fromPoint
-    if (!reference) return activeZones.slice(0, 10)
-    return rankRecommendedPickupZones(activeZones, reference, 10)
-  }, [pickupZoneCheckActive, activeZones, toPoint, fromPoint, pinLatLng])
-
-  const recommendedZoneIds = useMemo(
-    () => new Set(recommendedZones.map((zone) => zone.id)),
-    [recommendedZones],
-  )
+  const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
+    const map = mapRef.current
+    if (!map) return
+    skipPinCommitCountRef.current += 1
+    const z = Math.max(map.getZoom(), zoom)
+    const targetPx = map.project([target.lat, target.lng], z)
+    const size = map.getSize()
+    const dy = size.y * (0.5 - anchorRef.current)
+    const desiredCenterPx = targetPx.add(L.point(0, dy))
+    const newCenter = map.unproject(desiredCenterPx, z)
+    map.flyTo(newCenter, z, { duration: 0.5 })
+  }, [anchorRef])
 
   const commitPin = useCallback(
     (latlng: LatLng) => {
@@ -148,16 +142,19 @@ export function useDriverOfferFormController(
         return
       }
 
-      setPinLatLng(latlng)
       const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
       const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-      const inZone = !zoneCheckActive || isPointInAnyZone(latlng, activeZones)
-      setPinOutOfZone(zoneCheckActive && !inZone)
-      if (zoneCheckActive && !inZone) {
-        setSnapSuggestion(findNearestPickupZone(latlng, activeZones))
-      } else {
-        setSnapSuggestion(null)
+      const resolved = zoneCheckActive
+        ? resolvePickupLocation(latlng, activeZones)
+        : { latlng, zone: null, snapped: false }
+      const effectiveLatLng = resolved.latlng
+
+      setPickupSnapZone(resolved.snapped ? resolved.zone : null)
+      if (resolved.snapped) {
+        panMapToTarget(effectiveLatLng)
       }
+
+      setPinLatLng(effectiveLatLng)
       setPinAddress('')
       if (reverseTimer.current) clearTimeout(reverseTimer.current)
       if (reverseAbort.current) {
@@ -167,7 +164,7 @@ export function useDriverOfferFormController(
       setIsResolving(true)
       const seq = ++reverseSeq.current
       reverseTimer.current = setTimeout(async () => {
-        const fallbackAddress = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`
+        const fallbackAddress = `${effectiveLatLng.lat.toFixed(4)}, ${effectiveLatLng.lng.toFixed(4)}`
         try {
           if (isRateLimited()) {
             showZoneWarning(t('geo.rateLimitRetry', { seconds: Math.ceil(rateLimitRetryInMs() / 1000), defaultValue: 'Too many map requests.' }))
@@ -176,7 +173,7 @@ export function useDriverOfferFormController(
           }
           const controller = new AbortController()
           reverseAbort.current = controller
-          const addr = await nominatimReverse(latlng, controller.signal)
+          const addr = await nominatimReverse(effectiveLatLng, controller.signal)
           if (seq !== reverseSeq.current) return
           setPinAddress(addr || fallbackAddress)
         } catch (err) {
@@ -191,7 +188,7 @@ export function useDriverOfferFormController(
         }
       }, 700)
     },
-    [activeField, activeZones, fromPoint, hasZones, showSearch, showZoneWarning, toPoint, t],
+    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, showSearch, showZoneWarning, toPoint, t],
   )
 
   const armPinFromMapCenter = useCallback(() => {
@@ -209,74 +206,26 @@ export function useDriverOfferFormController(
     if (!pinLatLng) return
     const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
     const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-    if (zoneCheckActive && !isPointInAnyZone(pinLatLng, activeZones)) {
-      showZoneWarning(t('geo.pointOutOfZone', { defaultValue: 'Point is outside service area' }))
-      return
-    }
-    const resolved = pinAddress || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`
+    const finalLatLng = zoneCheckActive
+      ? resolvePickupLocation(pinLatLng, activeZones).latlng
+      : pinLatLng
+    const resolved = pinAddress || `${finalLatLng.lat.toFixed(4)}, ${finalLatLng.lng.toFixed(4)}`
     if (!fromPoint) {
-      setFromPoint(pinLatLng)
+      setFromPoint(finalLatLng)
       setFromAddress(resolved)
       setActiveField('to')
       hapticImpact('light')
       window.setTimeout(() => armPinFromMapCenter(), 200)
     } else if (!toPoint) {
-      setToPoint(pinLatLng)
+      setToPoint(finalLatLng)
       setToAddress(resolved)
       hapticImpact('medium')
     }
     setPinLatLng(null)
     setPinAddress('')
-    setPinOutOfZone(false)
-    setSnapSuggestion(null)
+    setPickupSnapZone(null)
     setIsResolving(false)
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, showZoneWarning, armPinFromMapCenter, t])
-
-  const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
-    const map = mapRef.current
-    if (!map) return
-    skipPinCommitCountRef.current += 1
-    const z = Math.max(map.getZoom(), zoom)
-    const targetPx = map.project([target.lat, target.lng], z)
-    const size = map.getSize()
-    const dy = size.y * (0.5 - anchorRef.current)
-    const desiredCenterPx = targetPx.add(L.point(0, dy))
-    const newCenter = map.unproject(desiredCenterPx, z)
-    map.flyTo(newCenter, z, { duration: 0.5 })
-  }, [anchorRef])
-
-  const selectPickupZone = useCallback(
-    (zone: ServiceZone) => {
-      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
-      if (!isPickupZoneCheckActive(fieldForZone, hasZones)) return
-      const centroid = zoneCentroid(zone)
-      if (!centroid) return
-      hapticSelection()
-      setSnapSuggestion(null)
-      panMapToTarget(centroid)
-      setPinLatLng(centroid)
-      setPinOutOfZone(false)
-      setPinAddress(zone.name)
-      setIsResolving(true)
-      const seq = ++reverseSeq.current
-      void (async () => {
-        try {
-          const addr = await nominatimReverse(centroid)
-          if (seq === reverseSeq.current) setPinAddress(addr || zone.name)
-        } catch {
-          if (seq === reverseSeq.current) setPinAddress(zone.name)
-        } finally {
-          if (seq === reverseSeq.current) setIsResolving(false)
-        }
-      })()
-    },
-    [activeField, fromPoint, hasZones, panMapToTarget, toPoint],
-  )
-
-  const acceptSnapSuggestion = useCallback(() => {
-    if (!snapSuggestion) return
-    selectPickupZone(snapSuggestion)
-  }, [selectPickupZone, snapSuggestion])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter])
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {
@@ -323,35 +272,34 @@ export function useDriverOfferFormController(
     (result: NominatimSearchResult) => {
       const latlng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
       const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
-      if (isPickupZoneCheckActive(fieldForZone, hasZones) && !isPointInAnyZone(latlng, activeZones)) {
-        showZoneWarning(t('geo.addressOutOfZone', { defaultValue: 'This address is outside the service area.' }))
-        return
-      }
+      const finalLatLng = isPickupZoneCheckActive(fieldForZone, hasZones)
+        ? resolvePickupLocation(latlng, activeZones).latlng
+        : latlng
       const shortName = result.display_name.split(',').slice(0, 3).join(',')
       if (!fromPoint) {
-        setFromPoint(latlng)
+        setFromPoint(finalLatLng)
         setFromAddress(shortName)
         setActiveField('to')
         hapticSelection()
       } else if (!toPoint) {
-        setToPoint(latlng)
+        setToPoint(finalLatLng)
         setToAddress(shortName)
         hapticSelection()
       } else if (activeField === 'from') {
-        setFromPoint(latlng)
+        setFromPoint(finalLatLng)
         setFromAddress(shortName)
         hapticSelection()
       } else {
-        setToPoint(latlng)
+        setToPoint(finalLatLng)
         setToAddress(shortName)
         hapticSelection()
       }
       setShowSearch(false)
       setSearchQuery('')
       setSearchResults([])
-      panMapToTarget(latlng)
+      panMapToTarget(finalLatLng)
     },
-    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, showZoneWarning, toPoint, t],
+    [activeField, activeZones, fromPoint, hasZones, panMapToTarget, toPoint],
   )
 
   const handleLocateMe = useCallback(() => {
@@ -421,20 +369,14 @@ export function useDriverOfferFormController(
   )
   const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
-  const pinReadyForConfirm = Boolean(
-    pinLatLng && (!pickupZoneCheckActive || !pinOutOfZone) && !isResolving,
-  )
+  const pinReadyForConfirm = Boolean(pinLatLng && !isResolving)
 
   return {
     pricing,
     hasZones,
     activeZones,
     pickupZoneCheckActive,
-    recommendedZones,
-    recommendedZoneIds,
-    snapSuggestion,
-    selectPickupZone,
-    acceptSnapSuggestion,
+    pickupSnapZone,
     activeField,
     setActiveField,
     fromPoint,
@@ -452,7 +394,6 @@ export function useDriverOfferFormController(
     normalizeSeatsInput,
     pinLatLng,
     pinAddress,
-    pinOutOfZone,
     isPanning,
     setIsPanning,
     isResolving,

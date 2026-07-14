@@ -1,12 +1,13 @@
-import { Warning } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC, pinLabelTopCss, pinTopCss } from '../../lib/mapPinAnchor'
+
+import type { ServiceZone } from '../../types'
 
 interface RoutePointPinOverlayProps {
   visible: boolean
   activeIsFrom: boolean
   isPanning: boolean
-  pinOutOfZone: boolean
+  pickupSnapZone: ServiceZone | null
   isResolving: boolean
   pinAddress: string
   pinAnchorYFrac?: number
@@ -38,24 +39,24 @@ export function RoutePointPinMarkers({
 export function RoutePointPinLabel({
   visible,
   activeIsFrom,
-  pinOutOfZone,
+  pickupSnapZone,
   isResolving,
   pinAddress,
   pinAnchorYFrac = DEFAULT_PIN_ANCHOR_Y_FRAC,
 }: Omit<RoutePointPinOverlayProps, 'isPanning'>) {
   const { t } = useTranslation()
   if (!visible) return null
-  if (!pinOutOfZone && !isResolving && !pinAddress) return null
+  if (!pickupSnapZone && !isResolving && !pinAddress) return null
 
   return (
     <div
       className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none max-w-[80vw]"
       style={{ top: pinLabelTopCss(pinAnchorYFrac) }}
     >
-      {pinOutOfZone ? (
-        <div className="px-3 py-1.5 rounded-pill bg-red-500 text-white text-[11px] font-bold shadow-card inline-flex items-center gap-1.5 animate-fade-in">
-          <Warning size={12} weight="fill" />
-          {t('passenger.outOfServiceZone', { defaultValue: 'Out of service zone' })}
+      {pickupSnapZone && activeIsFrom && !pinAddress && !isResolving ? (
+        <div className="px-3 py-1.5 rounded-pill bg-point-a text-white text-[11px] font-bold shadow-card animate-fade-in text-center leading-snug">
+          <p>{t('passenger.pickupAvailableHere', { defaultValue: 'Pickup available here' })}</p>
+          <p className="text-[10px] font-semibold opacity-90 mt-0.5">{pickupSnapZone.name}</p>
         </div>
       ) : isResolving ? (
         <div className="px-3 py-1.5 rounded-pill bg-white text-black text-[11px] font-bold shadow-card inline-flex items-center gap-2 border border-black/10 animate-fade-in">

@@ -1,5 +1,5 @@
 import type { NominatimSearchResult } from '../../lib/geocode'
-import type { LatLng } from '../../types'
+import type { LatLng, ServiceZone } from '../../types'
 
 export interface RoutePointPickerModel {
   activeField: 'from' | 'to'
@@ -11,7 +11,7 @@ export interface RoutePointPickerModel {
   activeIsFrom: boolean
   isPinLive: boolean
   pinReadyForConfirm: boolean
-  pinOutOfZone: boolean
+  pickupSnapZone?: ServiceZone | null
   isPanning: boolean
   isResolving: boolean
   pinAddress: string

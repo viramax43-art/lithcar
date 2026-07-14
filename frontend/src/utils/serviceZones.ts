@@ -12,6 +12,17 @@ export function zoneCentroid(zone: { polygon: LatLng[] }): LatLng | null {
   return { lat, lng }
 }
 
+/** Top-center of zone bounding box — anchor for map labels above the polygon. */
+export function zoneLabelPosition(zone: { polygon: LatLng[] }): LatLng | null {
+  if (zone.polygon.length === 0) return null
+  const lats = zone.polygon.map((point) => point.lat)
+  const lngs = zone.polygon.map((point) => point.lng)
+  return {
+    lat: Math.max(...lats),
+    lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+  }
+}
+
 function haversineMeters(a: LatLng, b: LatLng): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
@@ -41,6 +52,28 @@ export function rankRecommendedPickupZones(
     .map((entry) => entry.zone)
 }
 
+export function findClosestPickupZone(point: LatLng, zones: ServiceZone[]): ServiceZone | null {
+  const active = zones.filter((zone) => zone.isActive && zone.polygon.length >= 3)
+  if (active.length === 0) return null
+
+  if (isPointInAnyZone(point, active)) {
+    return active.find((zone) => isPointInPolygon(point, zone.polygon)) ?? null
+  }
+
+  let best: ServiceZone | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (const zone of active) {
+    const centroid = zoneCentroid(zone)
+    if (!centroid) continue
+    const distanceM = haversineMeters(point, centroid)
+    if (distanceM < bestDistance) {
+      best = zone
+      bestDistance = distanceM
+    }
+  }
+  return best
+}
+
 export function findNearestPickupZone(
   point: LatLng,
   zones: ServiceZone[],
@@ -65,6 +98,33 @@ export function findNearestPickupZone(
     }
   }
   return best
+}
+
+export type PickupLocationResolution = {
+  latlng: LatLng
+  zone: ServiceZone | null
+  snapped: boolean
+}
+
+/** Pickup point inside a zone stays put; otherwise snap to the nearest active zone centroid. */
+export function resolvePickupLocation(point: LatLng, zones: ServiceZone[]): PickupLocationResolution {
+  const active = zones.filter((zone) => zone.isActive && zone.polygon.length >= 3)
+  if (active.length === 0) {
+    return { latlng: point, zone: null, snapped: false }
+  }
+
+  if (isPointInAnyZone(point, active)) {
+    const zone = active.find((entry) => isPointInPolygon(point, entry.polygon)) ?? null
+    return { latlng: point, zone, snapped: false }
+  }
+
+  const closest = findClosestPickupZone(point, active)
+  const centroid = closest ? zoneCentroid(closest) : null
+  if (!closest || !centroid) {
+    return { latlng: point, zone: null, snapped: false }
+  }
+
+  return { latlng: centroid, zone: closest, snapped: true }
 }
 
 export function isSameZonePoint(a: LatLng, b: LatLng, maxMeters = 15): boolean {

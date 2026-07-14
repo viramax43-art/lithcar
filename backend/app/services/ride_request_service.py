@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.geo_service import get_distance_matrix_km, haversine_km
-from app.services.zone_service import assert_pickup_in_active_zone, is_pickup_in_active_zone, PickupOutOfZoneError
+from app.services.zone_service import snap_pickup_coordinates
 
 
 async def create_ride_request_record(
@@ -34,10 +34,7 @@ async def create_ride_request_record(
     offer_id: str | None = None,
     status: str = RideRequestStatus.PENDING,
 ) -> RideRequest:
-    try:
-        await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
-    except PickupOutOfZoneError as exc:
-        raise ValueError(str(exc)) from exc
+    from_lat, from_lng = await snap_pickup_coordinates(db_session, lat=from_lat, lng=from_lng)
 
     request = RideRequest(
         passenger_id=passenger_id,

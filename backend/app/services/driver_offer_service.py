@@ -29,7 +29,7 @@ from app.services.ride_request_service import (
     create_ride_request_record,
 )
 from app.services.geo_service import haversine_km
-from app.services.zone_service import assert_pickup_in_active_zone, is_pickup_in_active_zone, PickupOutOfZoneError
+from app.services.zone_service import is_pickup_in_active_zone, snap_pickup_coordinates
 
 
 logger = logging.getLogger(__name__)
@@ -167,10 +167,7 @@ async def create_driver_offer(
     except InvalidRideDateTimeError as exc:
         raise DriverOfferError("invalid_status", str(exc)) from exc
 
-    try:
-        await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
-    except PickupOutOfZoneError as exc:
-        raise DriverOfferError("out_of_zone", exc.message) from exc
+    from_lat, from_lng = await snap_pickup_coordinates(db_session, lat=from_lat, lng=from_lng)
 
     now = datetime.now(timezone.utc)
     offer = DriverRideOffer(
