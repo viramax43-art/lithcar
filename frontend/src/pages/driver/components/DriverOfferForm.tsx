@@ -145,7 +145,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         <RoutePointToast
           message={model.pickupToast}
           onDismiss={() => model.setPickupToast?.(null)}
-          bottomOffset="calc(var(--app-safe-area-bottom-total) + 220px)"
+          topOffset="calc(var(--app-safe-area-top-total) + 48px)"
         />
 
         <button

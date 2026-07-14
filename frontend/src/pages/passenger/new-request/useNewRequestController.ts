@@ -153,14 +153,8 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     zoneWarningTimer.current = setTimeout(() => setZoneWarning(null), 3000)
   }, [])
 
-  const showPickupToast = useCallback((zone: ServiceZone) => {
-    const message = zone.name
-      ? t('passenger.pickupAvailableInZone', {
-          zone: zone.name,
-          defaultValue: `You can order pickup in zone «${zone.name}»`,
-        })
-      : t('passenger.pickupAvailableHere', { defaultValue: 'Pickup available here' })
-    setPickupToast(message)
+  const showPickupToast = useCallback(() => {
+    setPickupToast(t('passenger.pickupAvailableHere', { defaultValue: 'Pickup available here' }))
     if (pickupToastTimer.current) clearTimeout(pickupToastTimer.current)
     pickupToastTimer.current = setTimeout(() => setPickupToast(null), 4000)
   }, [t])
@@ -202,19 +196,6 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       if (prev && coordsNear(prev, latlng)) {
         setIsResolving(false)
         return
-      }
-
-      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
-      const zoneCheckActive = isPickupZoneCheckActive(fieldForZone, hasZones)
-      if (zoneCheckActive) {
-        const preview = resolvePickupLocation(latlng, activeZones)
-        if (preview.snapped && preview.zone) {
-          blockAutoPinOnceRef.current = true
-          cancelPinResolution()
-          panMapToTarget(preview.latlng)
-          showPickupToast(preview.zone)
-          return
-        }
       }
 
       setPinLatLng(latlng)
@@ -267,7 +248,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         }
       }, 700)
     },
-    [activeField, activeZones, cancelPinResolution, fromPoint, hasZones, panMapToTarget, showPickupToast, showSearch, showZoneWarning, toPoint, t],
+    [fromPoint, showSearch, showZoneWarning, toPoint, t],
   )
 
   const armPinFromMapCenter = useCallback(() => {
@@ -287,6 +268,17 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
+    const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+    if (isPickupZoneCheckActive(fieldForZone, hasZones)) {
+      const preview = resolvePickupLocation(pinLatLng, activeZones)
+      if (preview.snapped && preview.zone) {
+        blockAutoPinOnceRef.current = true
+        cancelPinResolution()
+        panMapToTarget(preview.latlng)
+        showPickupToast()
+        return
+      }
+    }
     const resolved = pinAddress || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`
     if (!fromPoint) {
       setFromPoint(pinLatLng)
@@ -302,7 +294,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     cancelPinResolution()
     setZoneWarning(null)
     setPickupToast(null)
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, armPinFromMapCenter, cancelPinResolution])
+  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter, cancelPinResolution, panMapToTarget, showPickupToast])
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {
@@ -422,20 +414,6 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const handleSelectSearchResult = useCallback(
     (result: NominatimSearchResult) => {
       const latlng: LatLng = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) }
-      const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
-      if (isPickupZoneCheckActive(fieldForZone, hasZones)) {
-        const preview = resolvePickupLocation(latlng, activeZones)
-        if (preview.snapped && preview.zone) {
-          blockAutoPinOnceRef.current = true
-          cancelPinResolution()
-          panMapToTarget(preview.latlng)
-          showPickupToast(preview.zone)
-          setShowSearch(false)
-          setSearchQuery('')
-          setSearchResults([])
-          return
-        }
-      }
       const shortName = result.display_name.split(',').slice(0, 3).join(',')
       if (!fromPoint) {
         setFromPoint(latlng)
@@ -460,7 +438,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       setSearchResults([])
       panMapToTarget(latlng)
     },
-    [activeField, activeZones, cancelPinResolution, fromPoint, hasZones, panMapToTarget, showPickupToast, toPoint],
+    [activeField, fromPoint, panMapToTarget, toPoint],
   )
 
   const handleLocateMe = useCallback(() => {
