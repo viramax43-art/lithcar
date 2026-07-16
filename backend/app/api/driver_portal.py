@@ -166,7 +166,7 @@ class DriverRideOut(BaseModel):
     dateTime: datetime
     dateTimeLocal: str
     createdAt: datetime
-    routeOrder: int | None
+    passengerNumber: int | None
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
@@ -213,6 +213,7 @@ class DriverMapPointOut(BaseModel):
     id: str
     rideId: str
     rideNumber: int
+    passengerNumber: int | None
     pointType: str
     passengerName: str
     passengerTelegramId: str
@@ -394,7 +395,7 @@ async def _to_driver_ride_out(
         dateTime=ride.date_time,
         dateTimeLocal=to_app_local_iso(ride.date_time),
         createdAt=ride.created_at,
-        routeOrder=ride.route_order,
+        passengerNumber=ride.passenger_number,
         pickupChangedByDriver=ride.pickup_changed_by_driver,
         pickupNotifiedAt=ride.pickup_notified_at,
         pickupConfirmedAt=ride.pickup_confirmed_at,
@@ -467,7 +468,7 @@ def _compute_dynamic_ride_order(
 
     order: dict[str, int] = {}
     seq = 1
-    for r in sorted(active, key=lambda x: (x.route_order or 9999, x.created_at)):
+    for r in sorted(active, key=lambda x: (x.passenger_number or 9999, x.created_at)):
         order[r.id] = seq
         seq += 1
 
@@ -545,6 +546,7 @@ def _build_driver_map_points(
                     id=f"{ride.id}:{point_type}",
                     rideId=ride.id,
                     rideNumber=ride.ride_number,
+                    passengerNumber=ride.passenger_number,
                     pointType=point_type,
                     passengerName=ride.passenger_name,
                     passengerTelegramId=ride.passenger_id,
@@ -790,7 +792,7 @@ async def driver_cabinet(
         can_sell_points=session.can_sell_points,
         can_self_assign=session.can_self_assign,
     )
-    sorted_rides = sorted(rides, key=lambda r: (r.route_order or 9999, r.created_at))
+    sorted_rides = sorted(rides, key=lambda r: (r.passenger_number or 9999, r.created_at))
     ride_outs = [
         await _to_driver_ride_out(db_session, item, driver_id=session.driver_id)
         for item in sorted_rides

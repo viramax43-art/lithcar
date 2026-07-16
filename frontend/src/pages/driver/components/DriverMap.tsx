@@ -42,7 +42,11 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
         : '#3B82F6'
 
   const sz = isDone ? 28 : isNext ? 44 : 36
-  const label = pt.recommendedOrder != null ? String(pt.recommendedOrder) : isPickup ? 'A' : 'B'
+  const label = isAvailable
+    ? isPickup ? 'A' : 'B'
+    : pt.passengerNumber != null
+      ? String(pt.passengerNumber)
+      : isPickup ? 'A' : 'B'
   const fontSize = isDone ? 10 : isNext ? 16 : 13
 
   let shadow = '0 2px 8px rgba(0,0,0,0.3)'

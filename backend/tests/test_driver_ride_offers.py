@@ -210,6 +210,9 @@ async def test_book_creates_assigned_request(client, db_session):
     assert body["status"] == "assigned"
     assert body["offerId"] == offer["id"]
     assert body["driverId"] is not None
+    request = await db_session.get(RideRequest, body["id"])
+    assert request is not None
+    assert request.passenger_number == 1
 
 
 @pytest.mark.asyncio

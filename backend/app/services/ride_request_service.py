@@ -5,8 +5,8 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.driver import Driver
 from app.models.ride_request import RideRequest, RideRequestStatus
-from app.services.geo_service import get_distance_matrix_km, haversine_km
 from app.services.zone_service import snap_pickup_coordinates
 
 
@@ -59,6 +59,13 @@ async def create_ride_request_record(
         quote_breakdown_json=quote_breakdown_json,
     )
     db_session.add(request)
+    if driver_id is not None:
+        with db_session.no_autoflush:
+            await assign_passenger_numbers(
+                db_session,
+                driver_id=driver_id,
+                requests=[request],
+            )
     await db_session.flush()
     return request
 
@@ -224,34 +231,39 @@ async def list_driver_ride_history(
     return list(result.scalars().all()), total
 
 
-async def _compute_route_order(requests: list[RideRequest]) -> list[RideRequest]:
-    """Nearest-neighbor heuristic using OSRM road distances (haversine fallback)."""
-    if len(requests) <= 1:
-        return list(requests)
-    # Build distance matrix for all pickup points + a virtual centroid start
-    avg_lat = sum(r.from_lat for r in requests) / len(requests)
-    avg_lng = sum(r.from_lng for r in requests) / len(requests)
-    # points[0] = centroid, points[1..N] = pickup locations
-    points: list[tuple[float, float]] = [(avg_lat, avg_lng)]
-    for r in requests:
-        points.append((r.from_lat, r.from_lng))
-    matrix = await get_distance_matrix_km(points)
-    # Nearest-neighbor starting from centroid (index 0)
-    remaining = list(range(1, len(points)))  # indices 1..N
-    ordered: list[RideRequest] = []
-    current_idx = 0
-    while remaining:
-        best_idx_in_remaining = 0
-        best_dist = float("inf")
-        for ri, point_idx in enumerate(remaining):
-            dist = matrix[current_idx][point_idx]
-            if dist < best_dist:
-                best_dist = dist
-                best_idx_in_remaining = ri
-        chosen_point_idx = remaining.pop(best_idx_in_remaining)
-        ordered.append(requests[chosen_point_idx - 1])  # -1 because centroid is at index 0
-        current_idx = chosen_point_idx
-    return ordered
+async def assign_passenger_numbers(
+    db_session: AsyncSession,
+    *,
+    driver_id: str,
+    requests: list[RideRequest],
+) -> None:
+    """Assign immutable numbers to newly approved passengers.
+
+    Locking the driver serializes approvals from admin, self-assign and offer
+    booking flows. Numbers are monotonically increasing per driver and are
+    never reused, including after a passenger completes the ride.
+    """
+    if not requests:
+        return
+
+    # Callers may already have dirty driver_id/status on these rows. Lock/max
+    # queries must not autoflush that state before passenger_number is set, or
+    # ck_ride_requests_active_driver_has_passenger_number rejects the flush.
+    with db_session.no_autoflush:
+        await db_session.execute(
+            select(Driver.id).where(Driver.id == driver_id).with_for_update()
+        )
+        result = await db_session.execute(
+            select(func.max(RideRequest.passenger_number)).where(
+                RideRequest.driver_id == driver_id,
+            )
+        )
+        next_number = int(result.scalar_one_or_none() or 0) + 1
+        for request in requests:
+            if request.passenger_number is not None:
+                continue
+            request.passenger_number = next_number
+            next_number += 1
 
 
 async def assign_driver(
@@ -264,9 +276,16 @@ async def assign_driver(
     if not request_ids:
         return []
     result = await db_session.execute(
-        select(RideRequest).where(RideRequest.id.in_(request_ids))
+        select(RideRequest)
+        .where(RideRequest.id.in_(request_ids))
+        .with_for_update()
     )
-    requests = list(result.scalars().all())
+    requests_by_id = {request.id: request for request in result.scalars().all()}
+    requests = [
+        requests_by_id[request_id]
+        for request_id in request_ids
+        if request_id in requests_by_id
+    ]
     overrides = point_overrides or {}
     assignable_statuses = {RideRequestStatus.PENDING, RideRequestStatus.GROUPED}
     for request in requests:
@@ -300,13 +319,11 @@ async def assign_driver(
                 request.to_lng = next_to_lng
         request.driver_id = driver_id
         request.status = RideRequestStatus.ASSIGNED
-    # Compute optimized route order using OSRM road distances
-    if len(requests) > 1:
-        ordered = await _compute_route_order(requests)
-        for idx, req in enumerate(ordered):
-            req.route_order = idx + 1
-    elif len(requests) == 1:
-        requests[0].route_order = 1
+    await assign_passenger_numbers(
+        db_session,
+        driver_id=driver_id,
+        requests=requests,
+    )
     await db_session.commit()
     for request in requests:
         await db_session.refresh(request)

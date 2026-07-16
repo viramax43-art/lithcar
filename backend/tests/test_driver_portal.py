@@ -90,7 +90,18 @@ async def test_driver_key_login_and_cabinet_contains_assigned_rides(client, db_s
     body = cabinet.json()
     assert body["session"]["driverId"] == driver_id
     assert body["total"] >= 1
-    assert any(item["id"] == request_id for item in body["rides"])
+    assigned_ride = next(item for item in body["rides"] if item["id"] == request_id)
+    assert assigned_ride["passengerNumber"] == 1
+
+    map_response = await client.get("/api/driver/cabinet/map")
+    assert map_response.status_code == 200
+    ride_points = [
+        point
+        for point in map_response.json()["points"]
+        if point["rideId"] == request_id
+    ]
+    assert len(ride_points) == 2
+    assert {point["passengerNumber"] for point in ride_points} == {1}
 
 
 async def test_driver_ride_history_lists_passenger(client, db_session):

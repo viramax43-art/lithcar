@@ -240,7 +240,7 @@ function NextStopBar({
             className="w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center text-white text-sm font-extrabold"
             style={{ background: pointColor }}
           >
-            {point.recommendedOrder ?? (isPickup ? 'A' : 'B')}
+            {point.passengerNumber ?? (isPickup ? 'A' : 'B')}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted">

@@ -25,7 +25,7 @@ from app.services.ride_booking_service import (
 from app.services.ride_quote_service import calculate_ride_quote
 from app.services.ride_request_service import (
     ClaimRideError,
-    _compute_route_order,
+    assign_passenger_numbers,
     create_ride_request_record,
 )
 from app.services.geo_service import haversine_km
@@ -64,22 +64,6 @@ async def _count_bookings_for_offer(db_session: AsyncSession, *, offer_id: str) 
         .where(RideRequest.status != RideRequestStatus.COMPLETED)
     )
     return int(result.scalar_one() or 0)
-
-
-async def _refresh_driver_route_order(db_session: AsyncSession, *, driver_id: str) -> None:
-    result = await db_session.execute(
-        select(RideRequest).where(
-            RideRequest.driver_id == driver_id,
-            RideRequest.status == RideRequestStatus.ASSIGNED,
-        )
-    )
-    requests = list(result.scalars().all())
-    if len(requests) > 1:
-        ordered = await _compute_route_order(requests)
-        for idx, req in enumerate(ordered):
-            req.route_order = idx + 1
-    elif len(requests) == 1:
-        requests[0].route_order = 1
 
 
 async def _maybe_mark_offer_completed(db_session: AsyncSession, offer: DriverRideOffer) -> None:
@@ -567,8 +551,6 @@ async def book_offer_seat(
             status=RideRequestStatus.ASSIGNED,
         )
 
-        await _refresh_driver_route_order(db_session, driver_id=offer.driver_id)
-
         user.points_balance = current_balance - points_per_ride
         transaction = PointsTransaction(
             user_id=user.user_id,
@@ -658,14 +640,17 @@ async def claim_request_with_offer(
     request.driver_id = driver_id
     request.status = RideRequestStatus.ASSIGNED
     request.offer_id = offer_id
-    request.route_order = 1
 
     offer.seats_available -= 1
     if offer.seats_available == 0:
         offer.status = DriverRideOfferStatus.FULL
     offer.updated_at = now
 
-    await _refresh_driver_route_order(db_session, driver_id=driver_id)
+    await assign_passenger_numbers(
+        db_session,
+        driver_id=driver_id,
+        requests=[request],
+    )
     await db_session.commit()
     await db_session.refresh(request)
     return request

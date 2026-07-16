@@ -18,7 +18,6 @@ import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus }
 
 interface DriverPassengerCardProps {
   ride: DriverCabinetRide
-  index: number
   isSelected: boolean
   isAdvancing: boolean
   isNotifying: boolean
@@ -29,7 +28,6 @@ interface DriverPassengerCardProps {
 
 export default function DriverPassengerCard({
   ride,
-  index,
   isSelected,
   isAdvancing,
   isNotifying,
@@ -60,7 +58,7 @@ export default function DriverPassengerCard({
         className="w-full px-4 py-3.5 flex items-center gap-3 text-left touch-none"
       >
         <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center text-sm font-extrabold flex-shrink-0">
-          {index + 1}
+          {ride.passengerNumber ?? '—'}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">

@@ -278,7 +278,7 @@ export interface DriverCabinetRide {
   dateTime: string
   dateTimeLocal?: string
   createdAt: string
-  routeOrder: number | null
+  passengerNumber: number | null
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
@@ -305,6 +305,7 @@ export interface DriverMapPoint {
   id: string
   rideId: string
   rideNumber: number
+  passengerNumber: number | null
   pointType: 'pickup' | 'dropoff'
   passengerName: string
   passengerTelegramId: string
