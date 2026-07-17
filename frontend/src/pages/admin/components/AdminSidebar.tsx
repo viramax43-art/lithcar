@@ -234,13 +234,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id)
-                  // Desktop: clicking a tab on the collapsed rail re-opens the panel.
-                  if (collapsed && typeof window !== 'undefined' && window.matchMedia('(min-width: 769px)').matches) {
-                    onToggleCollapse()
-                  }
-                }}
+                onClick={() => setActiveTab(tab.id)}
                 className={`w-[52px] min-h-[52px] flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all ${
                   active ? 'bg-black text-white' : 'text-muted hover:bg-white hover:text-black'
                 }`}
@@ -311,7 +305,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 scroll-smooth-y gpu-scroll">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth-y gpu-scroll">
             <AdminSidebarRequestsSuggestionsSection
               activeTab={activeTab}
               filterDate={filterDate}

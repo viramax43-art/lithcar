@@ -497,14 +497,17 @@ body {
   height: 100%;
 }
 
-/* === Sidebar collapse (desktop: keep a slim icon rail so tab navigation never disappears) === */
+/* === Sidebar collapse (desktop: fully hide; reopen via map expand button) === */
 @media (min-width: 769px) {
   .admin-sidebar-collapsed {
-    width: 64px !important;
-    min-width: 64px !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    border: none !important;
     overflow: hidden;
+    pointer-events: none;
   }
-  .admin-sidebar-collapsed .admin-sidebar-panel {
+  .admin-sidebar-collapsed .admin-sidebar-panel,
+  .admin-sidebar-collapsed .admin-sidebar-icon-rail {
     display: none;
   }
 }
