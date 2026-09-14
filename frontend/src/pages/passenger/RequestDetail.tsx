@@ -170,11 +170,11 @@ export default function RequestDetail() {
           >
             <ArrowLeft size={20} weight="bold" />
           </button>
-          <h1 className="text-base font-bold flex-1">
+          <h1 className="text-base font-bold flex-1 min-w-0 truncate">
             {t('passenger.requestTitle', { number: request.rideNumber, defaultValue: `Request #${request.rideNumber}` })}
           </h1>
           <span
-            className="text-xs font-bold px-3 py-1 rounded-pill"
+            className="text-xs font-bold px-3 py-1 rounded-pill whitespace-nowrap flex-shrink-0"
             style={{ color: status.color, background: status.bg }}
           >
             {t(`status.${request.status}`, { defaultValue: request.status })}

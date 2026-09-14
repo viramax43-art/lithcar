@@ -170,7 +170,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
         style={{ bottom: 0, paddingBottom: 'var(--app-safe-area-bottom-total)' }}
       >
         <div className="w-9 h-1 rounded-full bg-border mx-auto mt-2 mb-1" />
-        <div className="px-4 pb-4 space-y-3 max-w-2xl mx-auto">
+        <div className="px-4 pb-4 space-y-3 max-w-2xl mx-auto max-h-[70dvh] overflow-y-auto overscroll-contain">
           {model.errorMessage && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">
               {model.errorMessage}

@@ -56,7 +56,9 @@ async def test_passenger_number_is_assigned_once_and_survives_ride_stages(db_ses
         _ride(passenger_id=passenger.user_id, name=f"Passenger {index}", minute=index)
         for index, passenger in enumerate(passengers, start=1)
     ]
-    db_session.add_all([driver, *passengers, *rides])
+    db_session.add_all([driver, *passengers])
+    await db_session.commit()
+    db_session.add_all(rides)
     await db_session.commit()
 
     await assign_driver(
@@ -76,8 +78,10 @@ async def test_passenger_number_is_assigned_once_and_survives_ride_stages(db_ses
     with pytest.raises(DBAPIError):
         await db_session.commit()
     await db_session.rollback()
+    await db_session.refresh(driver)
     await db_session.refresh(rides[0])
     await db_session.refresh(rides[1])
+    await db_session.refresh(rides[2])
     assert rides[0].passenger_number == 1
 
     for target_status in (
@@ -132,7 +136,9 @@ async def test_passenger_number_is_assigned_once_and_survives_ride_stages(db_ses
         name="Passenger 4",
         minute=4,
     )
-    db_session.add_all([fourth_passenger, fourth_ride])
+    db_session.add(fourth_passenger)
+    await db_session.commit()
+    db_session.add(fourth_ride)
     await db_session.commit()
     await assign_driver(
         db_session,
@@ -167,7 +173,9 @@ async def test_bulk_assignment_preserves_approval_order(db_session):
     ]
     first = _ride(passenger_id=passengers[0].user_id, name="Bulk First", minute=1)
     second = _ride(passenger_id=passengers[1].user_id, name="Bulk Second", minute=2)
-    db_session.add_all([driver, *passengers, first, second])
+    db_session.add_all([driver, *passengers])
+    await db_session.commit()
+    db_session.add_all([first, second])
     await db_session.commit()
 
     await assign_driver(
@@ -207,7 +215,9 @@ async def test_parallel_approvals_get_distinct_passenger_numbers(db_session):
         _ride(passenger_id=passenger.user_id, name=f"Parallel {index}", minute=index)
         for index, passenger in enumerate(passengers, start=1)
     ]
-    db_session.add_all([driver, *passengers, *rides])
+    db_session.add_all([driver, *passengers])
+    await db_session.commit()
+    db_session.add_all(rides)
     await db_session.commit()
 
     engine = create_async_engine(settings.database_url, echo=False)

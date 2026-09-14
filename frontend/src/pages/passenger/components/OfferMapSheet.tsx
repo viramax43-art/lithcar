@@ -163,7 +163,7 @@ export default function OfferMapSheet({
                 {t('passenger.offers.viewMyBooking', { defaultValue: 'View my booking' })}
               </button>
             ) : isConfirming ? (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {telegramUsername && (
                   <button
                     type="button"
@@ -186,7 +186,7 @@ export default function OfferMapSheet({
                   type="button"
                   onClick={onConfirmBook}
                   disabled={isBooking}
-                  className="flex-1 py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
+                  className="flex-1 min-w-[55%] py-3 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.97] transition-transform"
                 >
                   {isBooking
                     ? t('passenger.offers.map.booking', { defaultValue: 'Booking…' })

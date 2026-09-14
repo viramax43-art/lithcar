@@ -122,7 +122,7 @@ async def test_create_request_with_insufficient_points_returns_400(client, db_se
     assert response.json()["detail"]["code"] == "insufficient_points"
 
 
-async def test_create_request_outside_zone_returns_400(client, db_session):
+async def test_create_request_outside_zone_snaps_pickup_into_zone(client, db_session):
     passenger = await _create_user(db_session, user_id="p-2", role=UserRole.PASSENGER)
     await _create_zone(client)
 
@@ -136,13 +136,13 @@ async def test_create_request_outside_zone_returns_400(client, db_session):
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
-    assert response.status_code == 400
-    await db_session.refresh(passenger)
-    assert passenger.points_balance == 100
-    tx_result = await db_session.execute(
-        select(PointsTransaction).where(PointsTransaction.user_id == passenger.user_id)
-    )
-    assert list(tx_result.scalars().all()) == []
+    assert response.status_code == 201
+    body = response.json()
+    from_latlng = body["fromPoint"]["latlng"]
+    assert 54.65 <= from_latlng["lat"] <= 54.72
+    assert 25.22 <= from_latlng["lng"] <= 25.34
+    assert body["toPoint"]["latlng"]["lat"] == 55.3
+    assert body["toPoint"]["latlng"]["lng"] == 26.1
 
 
 async def test_create_request_to_outside_zone_allowed(client, db_session):

@@ -441,6 +441,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "🎫 New booking: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nSeats left: {seats_available}",
         "ru": "🎫 Новое бронирование: {passenger_name}\n{from_address} → {to_address}\n{date_time}\nСвободных мест: {seats_available}",
     },
+    "driver.ride.assigned": {
+        "lt": "🚕 Jums paskirta kelione №{ride_number}\n👤 {passenger_name}\n📍 {from_address} → {to_address}\n📅 {date}\n🕐 {time}",
+        "pl": "🚕 Przypisano Ci przejazd №{ride_number}\n👤 {passenger_name}\n📍 {from_address} → {to_address}\n📅 {date}\n🕐 {time}",
+        "en": "🚕 A ride was assigned to you №{ride_number}\n👤 {passenger_name}\n📍 {from_address} → {to_address}\n📅 {date}\n🕐 {time}",
+        "ru": "🚕 Вам назначена поездка №{ride_number}\n👤 {passenger_name}\n📍 {from_address} → {to_address}\n📅 {date}\n🕐 {time}",
+    },
 }
 
 

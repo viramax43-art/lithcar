@@ -14,6 +14,7 @@ from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
 from app.models.user import User, UserRole
 from app.services.driver_service import get_driver, is_driver_online
+from app.services.driver_notification_service import notify_driver_ride_assigned
 from app.services.passenger_notification_service import (
     notify_passenger_driver_assigned,
     notify_passenger_status_changed,
@@ -476,6 +477,7 @@ async def assign_driver_single(
         raise HTTPException(status_code=404, detail="Ride request not found.")
     driver = await get_driver(db_session, driver_id=payload.driverId)
     await notify_passenger_driver_assigned(request=updated[0], driver=driver)
+    await notify_driver_ride_assigned(request=updated[0], driver=driver)
     return await _build_ride_request_out_with_driver(db_session, updated[0])
 
 
@@ -514,6 +516,7 @@ async def assign_driver_bulk(
     driver = await get_driver(db_session, driver_id=payload.driverId)
     for request in updated:
         await notify_passenger_driver_assigned(request=request, driver=driver)
+        await notify_driver_ride_assigned(request=request, driver=driver)
     items = []
     for request in updated:
         items.append(await _build_ride_request_out_with_driver(db_session, request))
@@ -672,12 +675,7 @@ async def patch_request_route_admin(
         raise HTTPException(status_code=400, detail=route_error)
     if updated is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
-    passenger_id_for_rating_ctx = current_user.user_id if is_owner else None
-    return await _build_ride_request_out_with_driver(
-        db_session,
-        updated,
-        passenger_id_for_rating_ctx=passenger_id_for_rating_ctx,
-    )
+    return await _build_ride_request_out_with_driver(db_session, updated)
 
 
 @router.post("/{request_id}/confirm-pickup", response_model=RideRequestOut)

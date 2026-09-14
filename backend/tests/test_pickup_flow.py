@@ -252,8 +252,8 @@ async def test_driver_cannot_edit_pickup_of_other_drivers_ride(client, db_sessio
     assert response.status_code == 400
 
 
-async def test_driver_cannot_edit_pickup_outside_active_zone(client, db_session):
-    """Driver cannot move pickup to a point outside active service zones."""
+async def test_driver_pickup_edit_outside_zone_snaps_into_zone(client, db_session):
+    """Pickup moved outside active zones is snapped back into the nearest zone."""
     ctx = await _setup_driver_and_passenger(client, db_session)
 
     response = await client.patch(
@@ -264,8 +264,11 @@ async def test_driver_cannot_edit_pickup_outside_active_zone(client, db_session)
             "fromLng": 26.5,
         },
     )
-    assert response.status_code == 400
-    assert "зон" in response.json()["detail"].lower()
+    assert response.status_code == 200
+    body = response.json()
+    assert 54.65 <= body["fromLatLng"]["lat"] <= 54.72
+    assert 25.22 <= body["fromLatLng"]["lng"] <= 25.34
+    assert body["pickupChangedByDriver"] is True
 
 
 async def test_driver_can_edit_pickup_while_in_progress(client, db_session):

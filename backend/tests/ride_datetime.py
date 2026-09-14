@@ -30,7 +30,7 @@ def future_ride_datetime(
     """Return a UTC datetime valid for ride booking tests (Europe/Vilnius wall clock)."""
     now_utc = datetime.now(timezone.utc)
     min_utc = now_utc + timedelta(hours=max(hours_ahead, MIN_BOOKING_LEAD_HOURS), minutes=minutes_offset)
-    local = min_utc.astimezone(APP_TZ)
+    local = min_utc.astimezone(APP_TZ).replace(second=0, microsecond=0)
 
     start_total = _parse_hhmm(work_start)
     end_total = _parse_hhmm(work_end)
@@ -52,7 +52,8 @@ def future_ride_datetime(
         total_minutes = start_total
 
     candidate = local.astimezone(timezone.utc)
-    min_allowed = now_utc + timedelta(hours=MIN_BOOKING_LEAD_HOURS)
+    # Buffer keeps the slot >= lead time even after the API call happens moments later.
+    min_allowed = now_utc + timedelta(hours=MIN_BOOKING_LEAD_HOURS, minutes=2)
     while candidate < min_allowed:
         total_minutes = local.hour * 60 + local.minute + interval
         if total_minutes > end_total:

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.driver import Driver
 from app.models.ride_request import RideRequest, RideRequestStatus
-from app.services.zone_service import snap_pickup_coordinates
+from app.services.zone_service import is_pickup_in_active_zone, snap_pickup_coordinates
 
 
 async def create_ride_request_record(

@@ -112,3 +112,22 @@ async def notify_driver_offer_booked(
         .replace("{seats_available}", str(offer.seats_available))
     )
     await _send_to_user(user_id=driver.user_id, text=text)
+
+
+async def notify_driver_ride_assigned(*, request, driver) -> None:
+    """Notify driver in Telegram when admin assigns a ride."""
+    if driver is None or not driver.user_id:
+        return
+    from app.bot.datetime_format import format_bot_date, format_bot_time
+
+    lang = await _resolve_lang(driver.user_id)
+    template = t("driver.ride.assigned", lang)
+    text = (
+        template.replace("{ride_number}", str(request.ride_number))
+        .replace("{passenger_name}", request.passenger_name)
+        .replace("{from_address}", request.from_address)
+        .replace("{to_address}", request.to_address)
+        .replace("{date}", format_bot_date(request.date_time))
+        .replace("{time}", format_bot_time(request.date_time))
+    )
+    await _send_to_user(user_id=driver.user_id, text=text)

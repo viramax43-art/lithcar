@@ -70,7 +70,7 @@ export default function DriverSideMenu({
       )}
 
       <div
-        className="fixed top-0 left-0 bottom-0 z-[50] w-[300px] bg-white shadow-[4px_0_24px_rgba(0,0,0,0.18)] flex flex-col transition-transform duration-300 will-change-transform"
+        className="fixed top-0 left-0 bottom-0 z-[50] w-[300px] max-w-[85vw] bg-white shadow-[4px_0_24px_rgba(0,0,0,0.18)] flex flex-col transition-transform duration-300 will-change-transform"
         style={{
           transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
           paddingTop: 'var(--app-safe-area-top-total)',
