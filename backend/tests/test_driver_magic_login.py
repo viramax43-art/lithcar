@@ -62,17 +62,20 @@ async def test_approval_enter_url_uses_frontend_route(client):
     assert "/api/driver/session/enter/" not in enter_url
 
 
-async def test_permanent_approval_link_never_expires(client):
+async def test_approval_enter_link_is_single_use(client):
     await _admin_login(client)
     application_id = await _submit_application(client, user_id="304")
     enter_url = await _approve_and_capture_enter_url(client, application_id)
     token = _extract_token_from_enter_url(enter_url)
     assert token.count(".") == 2
 
-    for _ in range(3):
-        response = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
-        assert response.status_code == 302
-        assert response.headers["location"].endswith("/driver")
+    first = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
+    assert first.status_code == 302
+    assert first.headers["location"].endswith("/driver")
+
+    second = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
+    assert second.status_code == 302
+    assert "login=invalid" in second.headers["location"]
 
 
 async def test_magic_login_sets_session_and_is_single_use(client):
@@ -92,7 +95,7 @@ async def test_magic_login_sets_session_and_is_single_use(client):
 
     second = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
     assert second.status_code == 302
-    assert second.headers["location"].endswith("/driver")
+    assert "login=invalid" in second.headers["location"]
 
 
 async def test_bootstrap_driver_access_from_passenger_session(client):

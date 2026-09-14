@@ -31,6 +31,8 @@ os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "5")
 os.environ.setdefault("CHIEF_ADMIN_KEY", "ride_chief_admin_test_bootstrap_key")
 os.environ.setdefault("ALLOW_TEST_TELEGRAM_INIT_DATA", "true")
+os.environ.setdefault("FRONTEND_CORS_ORIGINS", "http://localhost:5173")
+os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("S3_REQUIRED_ON_STARTUP", "false")
 

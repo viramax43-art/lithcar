@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_timezone import to_app_local_iso
 from app.core.config import settings
-from app.core.dependencies import get_db_session
+from app.core.dependencies import get_db_session, get_redis_client
 from app.models.user import User
 from app.core.security import decode_driver_session_token
 from app.services.driver_login_token_service import redeem_driver_login_token
@@ -619,11 +619,16 @@ async def driver_login_with_key(
 @router.get("/session/enter/{token}")
 async def driver_login_with_magic_link(
     token: str,
+    request: Request,
     db_session: AsyncSession = Depends(get_db_session),
 ):
     frontend_base = settings.frontend_public_url.strip().rstrip("/")
     try:
-        redemption = await redeem_driver_login_token(db_session, raw_token=token)
+        redemption = await redeem_driver_login_token(
+            db_session,
+            raw_token=token,
+            redis_client=get_redis_client(request),
+        )
     except HTTPException as error:
         if error.status_code == status.HTTP_401_UNAUTHORIZED:
             return RedirectResponse(

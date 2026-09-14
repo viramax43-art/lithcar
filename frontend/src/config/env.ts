@@ -10,6 +10,9 @@ export function resolveApiBaseUrl(): string {
 }
 
 export function isBrowserTestAuthEnabled(): boolean {
+  if (import.meta.env.PROD) {
+    return false
+  }
   const configured =
     (import.meta.env.VITE_ENABLE_BROWSER_TEST_AUTH as string | undefined) ??
     (API_TARGET === 'remote' ? 'false' : 'true')

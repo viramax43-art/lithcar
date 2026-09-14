@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_timezone import to_app_local_iso
 from app.core.dependencies import get_db_session
+from app.core.limiter import limiter
 from app.models.ride_request import RideRequest
 from app.models.user import DEFAULT_USER_LANGUAGE, User, UserRole
 from app.services.auth_service import AuthService
@@ -157,8 +158,11 @@ def require_roles(*allowed_roles: str) -> Callable[[User], User]:
 # --- Роуты ---
 
 @router.post("/auth", response_model=Token)
+@limiter.limit("5/minute")
 async def login_for_access_token(
-    data: InitData, auth_service: AuthService = Depends(get_auth_service)
+    request: Request,
+    data: InitData,
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Авторизация через Telegram InitData.

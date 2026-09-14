@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin_session import AdminSession, get_admin_session, require_admin_roles
 from app.core.config import settings
 from app.core.dependencies import get_db_session
+from app.core.limiter import limiter
 from app.core.security import create_admin_session_token
 from app.models.admin_api_key import AdminApiKey, AdminApiRole
 from app.services.admin_key_service import (
@@ -88,7 +89,9 @@ def _ensure_not_chief_admin(entity) -> None:
 
 
 @router.post("/session/login", response_model=AdminSessionOut)
+@limiter.limit("3/minute")
 async def admin_login_with_key(
+    request: Request,
     payload: AdminKeyLoginPayload,
     response: Response,
     db_session: AsyncSession = Depends(get_db_session),

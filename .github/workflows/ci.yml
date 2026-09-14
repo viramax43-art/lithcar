@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lithcar
+          POSTGRES_PASSWORD: lithcar_test
+          POSTGRES_DB: lithcar_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r backend/requirements.txt
+
+      - name: Run migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://lithcar:lithcar_test@localhost:5432/lithcar_test
+        run: alembic upgrade head
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://lithcar:lithcar_test@localhost:5432/lithcar_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-not-for-prod
+          BOT_TOKEN: test-token
+          ALLOW_TEST_TELEGRAM_INIT_DATA: "true"
+          FRONTEND_CORS_ORIGINS: http://localhost:5173
+          S3_REQUIRED_ON_STARTUP: "false"
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: "5432"
+          POSTGRES_DB_TEST: lithcar_test
+          POSTGRES_USER_TEST: lithcar
+          POSTGRES_PASSWORD_TEST: lithcar_test
+        run: pytest tests/ -q
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_ENABLE_BROWSER_TEST_AUTH: "false"
+        run: npm run build

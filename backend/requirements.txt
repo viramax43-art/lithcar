@@ -14,3 +14,5 @@ boto3
 aiogram
 pytest
 pytest-asyncio
+slowapi>=0.1.9
+tenacity>=8.0.0

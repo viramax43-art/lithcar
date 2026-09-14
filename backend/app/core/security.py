@@ -131,27 +131,35 @@ def decode_driver_session_token(token: str) -> dict[str, Any]:
 
 
 DRIVER_ENTER_TOKEN_PURPOSE = "driver_enter"
+DRIVER_ENTER_TOKEN_TTL_SECONDS = 86400
 
 
 def create_permanent_driver_enter_token(*, driver_id: str) -> str:
-    """Permanent cabinet enter link for a driver (no expiry, reusable)."""
-    payload = {"purpose": DRIVER_ENTER_TOKEN_PURPOSE, "driver_id": driver_id}
+    """Short-lived, single-use cabinet enter link for a driver."""
+    expire = datetime.utcnow() + timedelta(seconds=DRIVER_ENTER_TOKEN_TTL_SECONDS)
+    payload = {
+        "purpose": DRIVER_ENTER_TOKEN_PURPOSE,
+        "driver_id": driver_id,
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "jti": secrets.token_urlsafe(16),
+    }
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
-def decode_permanent_driver_enter_token(token: str) -> str:
+def decode_permanent_driver_enter_token(token: str) -> dict[str, Any]:
     payload = jwt.decode(
         token,
         settings.secret_key,
         algorithms=[settings.algorithm],
-        options={"verify_exp": False},
+        options={"verify_exp": True},
     )
     if payload.get("purpose") != DRIVER_ENTER_TOKEN_PURPOSE:
         raise ValueError("Invalid driver enter token purpose.")
     driver_id = str(payload.get("driver_id", "")).strip()
     if not driver_id:
         raise ValueError("Invalid driver enter token payload.")
-    return driver_id
+    return payload
 
 
 def decode_token(token: str) -> dict[str, Any]:
