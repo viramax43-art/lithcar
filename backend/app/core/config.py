@@ -17,14 +17,20 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
 
     environment: str = Field(default="development")
+    trusted_hosts: str = Field(default="localhost,127.0.0.1")
     debug: bool = Field(default=False)
     frontend_cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")
     public_base_url: str = Field(default="http://localhost:8000")
     telegram_mini_app_url: str = Field(default="https://t.me/rideminiapp_bot/ride")
     frontend_public_url: str = Field(default="https://ride.leandoer.online")
     allow_test_telegram_init_data: bool = Field(default=False)
+
+    passenger_access_cookie_name: str = Field(default="ride_access_token")
+    passenger_refresh_cookie_name: str = Field(default="ride_refresh_token")
+    passenger_session_cookie_secure: bool = Field(default=False)
 
     admin_session_cookie_name: str = Field(default="ride_admin_session")
     admin_session_ttl_hours: int = Field(default=24 * 7)
@@ -55,6 +61,10 @@ class Settings(BaseSettings):
     @property
     def frontend_cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_cors_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_hosts_list(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts.split(",") if host.strip()]
 
     @property
     def payments_enabled(self) -> bool:

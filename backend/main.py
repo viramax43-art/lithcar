@@ -51,7 +51,9 @@ fastapi_app.state.limiter = limiter
 fastapi_app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 fastapi_app.add_middleware(SlowAPIMiddleware)
 fastapi_app.add_middleware(SecurityHeadersMiddleware)
-fastapi_app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+if settings.trusted_hosts_list:
+    fastapi_app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts_list)
 
 if not settings.frontend_cors_origins_list:
     raise RuntimeError("FRONTEND_CORS_ORIGINS must be set explicitly")
@@ -64,40 +66,45 @@ fastapi_app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Idempotence-Key", "X-Content-HMAC-Signature"],
 )
 
-api_router = APIRouter(prefix="/api")
+
+def _register_api_routes(api_router: APIRouter) -> None:
+    @api_router.get("/ping", tags=["Health Check"])
+    async def index(
+        db_session: AsyncSession = Depends(get_db_session),
+    ):
+        pg_pong_res = await db_session.execute(text("SELECT 1"))
+        pg_pong = "ok" if pg_pong_res.scalar_one_or_none() == 1 else "error"
+        return {"message": "pong", "postgres": pg_pong}
+
+    api_router.include_router(health.router, tags=["Health"])
+    api_router.include_router(auth.router, tags=["Auth & Users"])
+    api_router.include_router(admin_keys.router, tags=["Admin Keys & Sessions"])
+    api_router.include_router(admin_audit.router, tags=["Admin Audit"])
+    api_router.include_router(ride_requests.router, tags=["Ride Requests"])
+    api_router.include_router(drivers.router, tags=["Drivers"])
+    api_router.include_router(driver_registration.router, tags=["Driver Registration"])
+    api_router.include_router(driver_portal.router, tags=["Driver Portal"])
+    api_router.include_router(driver_offers.router, tags=["Driver Offers"])
+    api_router.include_router(points_card.router, tags=["Points Card"])
+    api_router.include_router(points_qr.router, tags=["Points QR"])
+    api_router.include_router(points_transfer.router, tags=["Points Transfer"])
+    api_router.include_router(service_zones.router, tags=["Service Zones"])
+    api_router.include_router(pricing.router, tags=["Pricing"])
+    api_router.include_router(ride_quote.router, tags=["Ride Quote"])
+    api_router.include_router(ride_offers.router, tags=["Ride Offers"])
+    api_router.include_router(group_suggestions.router, tags=["Group Suggestions"])
+    api_router.include_router(map_drawings.router, tags=["Map Drawings"])
+    api_router.include_router(map_marks.router, tags=["Map Marks"])
+    api_router.include_router(notifications.passenger_router, tags=["Notifications"])
+    api_router.include_router(notifications.admin_router, tags=["Admin Notifications"])
+    api_router.include_router(notifications.info_blocks_router, tags=["Admin Info Blocks"])
+    api_router.include_router(push.router, tags=["Push"])
 
 
-@api_router.get("/ping", tags=["Health Check"])
-async def index(
-    db_session: AsyncSession = Depends(get_db_session),
-):
-    """Проверка доступности PostgreSQL"""
-    pg_pong_res = await db_session.execute(text("SELECT 1"))
-    pg_pong = "ok" if pg_pong_res.scalar_one_or_none() == 1 else "error"
-    return {"message": "pong", "postgres": pg_pong}
+api_v1_router = APIRouter(prefix="/api/v1")
+_register_api_routes(api_v1_router)
+fastapi_app.include_router(api_v1_router)
 
-
-api_router.include_router(health.router, tags=["Health"])
-api_router.include_router(auth.router, tags=["Auth & Users"])
-api_router.include_router(admin_keys.router, tags=["Admin Keys & Sessions"])
-api_router.include_router(admin_audit.router, tags=["Admin Audit"])
-api_router.include_router(ride_requests.router, tags=["Ride Requests"])
-api_router.include_router(drivers.router, tags=["Drivers"])
-api_router.include_router(driver_registration.router, tags=["Driver Registration"])
-api_router.include_router(driver_portal.router, tags=["Driver Portal"])
-api_router.include_router(driver_offers.router, tags=["Driver Offers"])
-api_router.include_router(points_card.router, tags=["Points Card"])
-api_router.include_router(points_qr.router, tags=["Points QR"])
-api_router.include_router(points_transfer.router, tags=["Points Transfer"])
-api_router.include_router(service_zones.router, tags=["Service Zones"])
-api_router.include_router(pricing.router, tags=["Pricing"])
-api_router.include_router(ride_quote.router, tags=["Ride Quote"])
-api_router.include_router(ride_offers.router, tags=["Ride Offers"])
-api_router.include_router(group_suggestions.router, tags=["Group Suggestions"])
-api_router.include_router(map_drawings.router, tags=["Map Drawings"])
-api_router.include_router(map_marks.router, tags=["Map Marks"])
-api_router.include_router(notifications.passenger_router, tags=["Notifications"])
-api_router.include_router(notifications.admin_router, tags=["Admin Notifications"])
-api_router.include_router(notifications.info_blocks_router, tags=["Admin Info Blocks"])
-api_router.include_router(push.router, tags=["Push"])
-fastapi_app.include_router(api_router)
+legacy_api_router = APIRouter(prefix="/api")
+_register_api_routes(legacy_api_router)
+fastapi_app.include_router(legacy_api_router)

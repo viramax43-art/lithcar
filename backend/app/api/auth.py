@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_timezone import to_app_local_iso
+from app.core.auth_cookies import clear_passenger_auth_cookies, set_passenger_auth_cookies
+from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.core.limiter import limiter
 from app.models.ride_request import RideRequest
@@ -26,6 +28,10 @@ class InitData(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class RefreshResult(BaseModel):
+    ok: bool = True
 
 class UserData(BaseModel):
     user_id: str
@@ -124,17 +130,35 @@ optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth", auto_error=Fa
 def get_auth_service(db: AsyncSession = Depends(get_db_session)) -> AuthService:
     return AuthService(db)
 
+async def resolve_access_token(
+    request: Request,
+    bearer_token: str | None = Depends(optional_oauth2_scheme),
+) -> str:
+    cookie_token = request.cookies.get(settings.passenger_access_cookie_name)
+    if cookie_token:
+        return cookie_token
+    if bearer_token:
+        return bearer_token
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    auth_service: AuthService = Depends(get_auth_service)
+    token: str = Depends(resolve_access_token),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
     return await auth_service.get_user_from_token(token)
 
 
 async def get_current_user_optional(
-    token: str | None = Depends(optional_oauth2_scheme),
+    request: Request,
+    bearer_token: str | None = Depends(optional_oauth2_scheme),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> User | None:
+    token = request.cookies.get(settings.passenger_access_cookie_name) or bearer_token
     if not token:
         return None
     try:
@@ -162,13 +186,36 @@ def require_roles(*allowed_roles: str) -> Callable[[User], User]:
 async def login_for_access_token(
     request: Request,
     data: InitData,
+    response: Response,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Авторизация через Telegram InitData.
     """
-    access_token = await auth_service.login_and_get_token(data.initData)
+    access_token, refresh_token = await auth_service.issue_token_pair(data.initData)
+    set_passenger_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
     return {"access_token": access_token}
+
+
+@router.post("/auth/refresh", response_model=RefreshResult)
+@limiter.limit("10/minute")
+async def refresh_access_token(
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    refresh_token = request.cookies.get(settings.passenger_refresh_cookie_name)
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
+    access_token, new_refresh = await auth_service.refresh_access_token(refresh_token)
+    set_passenger_auth_cookies(response, access_token=access_token, refresh_token=new_refresh)
+    return RefreshResult()
+
+
+@router.post("/auth/logout", response_model=RefreshResult)
+async def logout_passenger(response: Response):
+    clear_passenger_auth_cookies(response)
+    return RefreshResult()
 
 
 @router.get("/users/me", response_model=UserData)

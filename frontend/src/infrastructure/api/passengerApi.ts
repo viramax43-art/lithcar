@@ -14,18 +14,18 @@ import type {
 import { mapPassengerRideOffer, mapRideRequest, mapUserCabinetData, mapMatchedPassengerRideOffer, toPageQuery } from './sharedMappers'
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  return apiRequest<CurrentUser>('/api/users/me')
+  return apiRequest<CurrentUser>('/api/v1/users/me')
 }
 
 export async function updateCurrentUserLanguage(language: 'lt' | 'pl' | 'en' | 'ru'): Promise<CurrentUser> {
-  return apiRequest<CurrentUser>('/api/users/me/language', {
+  return apiRequest<CurrentUser>('/api/v1/users/me/language', {
     method: 'PATCH',
     body: { language },
   })
 }
 
 export async function completeOnboarding(): Promise<{ success: boolean }> {
-  return apiRequest<{ success: boolean }>('/api/users/me/complete-onboarding', { method: 'POST' })
+  return apiRequest<{ success: boolean }>('/api/v1/users/me/complete-onboarding', { method: 'POST' })
 }
 
 export async function listMyRequests(
@@ -50,7 +50,7 @@ export async function createRequest(payload: {
   to: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string
 }): Promise<RideRequest> {
-  const created = await apiRequest<RideRequestApi>('/api/ride-requests', {
+  const created = await apiRequest<RideRequestApi>('/api/v1/ride-requests', {
     method: 'POST',
     body: {
       passengerName: payload.passengerName,
@@ -120,7 +120,7 @@ export async function listPublicMapMarks(
 }
 
 export async function getPricing(authMode: 'bearer' | 'cookie' = 'bearer'): Promise<PricingSettings> {
-  const result = await apiRequest<PricingSettings>('/api/pricing', { authMode })
+  const result = await apiRequest<PricingSettings>('/api/v1/pricing', { authMode })
   return mapPricingSettings(result)
 }
 
@@ -143,7 +143,7 @@ export async function getUserCabinet(params?: PaginationParams): Promise<UserCab
 }
 
 export async function issuePassengerQrSale(points: number): Promise<PassengerQrIssueResult> {
-  return apiRequest<PassengerQrIssueResult>('/api/points/qr/issue', {
+  return apiRequest<PassengerQrIssueResult>('/api/v1/points/qr/issue', {
     method: 'POST',
     body: { points },
   })
@@ -151,7 +151,7 @@ export async function issuePassengerQrSale(points: number): Promise<PassengerQrI
 
 export async function purchasePointsByCard(points: number): Promise<{ success: boolean; pointsAdded: number; pointsBalance: number; eurAmountCents: number }> {
   return apiRequest<{ success: boolean; pointsAdded: number; pointsBalance: number; eurAmountCents: number }>(
-    '/api/points/card/purchase',
+    '/api/v1/points/card/purchase',
     { method: 'POST', body: { points } },
   )
 }
@@ -174,7 +174,7 @@ export async function transferPoints(payload: {
     pointsBalance: number
     recipientUserId: string
     recipientUsername: string | null
-  }>('/api/points/transfer', {
+  }>('/api/v1/points/transfer', {
     method: 'POST',
     body: payload,
   })

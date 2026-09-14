@@ -1,4 +1,3 @@
-const TOKEN_KEY = 'ride_access_token'
 const INIT_DATA_KEY = 'ride_init_data'
 
 function safeGet(key: string): string {
@@ -17,26 +16,16 @@ function safeSet(key: string, value: string): void {
   }
 }
 
-function safeRemove(key: string): void {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    // noop
-  }
-}
-
 export function getAccessToken(): string | null {
-  const token = safeGet(TOKEN_KEY)
-  return token || null
+  return null
 }
 
-export function saveAccessToken(token: string): void {
-  if (!token) return
-  safeSet(TOKEN_KEY, token)
+export function saveAccessToken(_token: string): void {
+  // Access tokens are issued as httpOnly cookies by the backend.
 }
 
 export function clearAccessToken(): void {
-  safeRemove(TOKEN_KEY)
+  // Handled by passengerAuthSession.logout via /auth/logout.
 }
 
 export function readCachedInitData(): string {

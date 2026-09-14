@@ -47,15 +47,15 @@ function withNotificationQuery(base: string, params?: NotificationListParams): s
 }
 
 function passengerBase() {
-  return '/api/notifications/passenger'
+  return '/api/v1/notifications/passenger'
 }
 
 function adminBase() {
-  return '/api/admin/notifications'
+  return '/api/v1/admin/notifications'
 }
 
 function infoBlocksBase() {
-  return '/api/admin/info-blocks'
+  return '/api/v1/admin/info-blocks'
 }
 
 export async function listPassengerNotifications(
@@ -84,13 +84,13 @@ export async function markAllPassengerNotificationsRead(): Promise<void> {
 export async function listDriverNotifications(
   params?: NotificationListParams,
 ): Promise<PaginatedResult<AppNotification>> {
-  return apiRequest<NotificationPageApi>(withNotificationQuery('/api/driver/notifications', params), {
+  return apiRequest<NotificationPageApi>(withNotificationQuery('/api/v1/driver/notifications', params), {
     authMode: 'cookie',
   })
 }
 
 export async function getDriverUnreadCount(): Promise<number> {
-  const result = await apiRequest<UnreadCountApi>('/api/driver/notifications/unread-count', { authMode: 'cookie' })
+  const result = await apiRequest<UnreadCountApi>('/api/v1/driver/notifications/unread-count', { authMode: 'cookie' })
   return result.count
 }
 
@@ -106,7 +106,7 @@ export async function markDriverNotificationRead(
 }
 
 export async function markAllDriverNotificationsRead(): Promise<void> {
-  await apiRequest<UnreadCountApi>('/api/driver/notifications/read-all', { method: 'POST', authMode: 'cookie' })
+  await apiRequest<UnreadCountApi>('/api/v1/driver/notifications/read-all', { method: 'POST', authMode: 'cookie' })
 }
 
 export async function listAdminNotifications(

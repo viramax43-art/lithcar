@@ -67,17 +67,19 @@ function extractErrorMessage(rawBody: string, status: number): string {
 async function performRequest(
   path: string,
   options: ApiRequestOptions,
-  forceRefreshToken: boolean,
+  forceRefreshSession: boolean,
 ): Promise<Response> {
   const { method = 'GET', body, authMode = 'bearer', withCredentials = false } = options
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const useCookies = authMode === 'cookie' || authMode === 'bearer' || withCredentials
+
   if (authMode === 'bearer') {
-    const token = await ensurePassengerAccessToken(forceRefreshToken)
-    headers.Authorization = `Bearer ${token}`
+    await ensurePassengerAccessToken(forceRefreshSession)
   }
+
   return fetch(`${resolveApiBaseUrl()}${path}`, {
     method,
-    credentials: authMode === 'cookie' || withCredentials ? 'include' : undefined,
+    credentials: useCookies ? 'include' : undefined,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -120,10 +122,10 @@ export async function uploadMultipart<T>(path: string, formData: FormData): Prom
 }
 
 export async function uploadMultipartBearer<T>(path: string, formData: FormData): Promise<T> {
-  const token = await ensurePassengerAccessToken(false)
+  await ensurePassengerAccessToken(false)
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
     body: formData,
   })
   if (!response.ok) {

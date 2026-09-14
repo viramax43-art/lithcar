@@ -85,11 +85,22 @@ def create_access_token(subject: Any, role: str) -> str:
     expire = datetime.utcnow() + timedelta(
         minutes=settings.access_token_expire_minutes
     )
-    to_encode = {"exp": expire, "sub": str(subject), "role": role}
+    to_encode = {"exp": expire, "sub": str(subject), "role": role, "type": "access"}
     encoded_jwt = jwt.encode(
         to_encode, settings.secret_key, algorithm=settings.algorithm
     )
     return encoded_jwt
+
+
+def create_refresh_token(subject: Any, role: str) -> str:
+    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "role": role,
+        "type": "refresh",
+    }
+    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
 def hash_admin_key(raw_key: str) -> str:

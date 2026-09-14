@@ -4,14 +4,14 @@ import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, Driv
 import { mapDriverRideOffer, mapMatchedRideRequest, toPageQuery } from './sharedMappers'
 
 export async function bootstrapDriverAccess(): Promise<DriverSessionUser> {
-  return apiRequest<DriverSessionUser>('/api/driver-registration/driver-access/bootstrap', {
+  return apiRequest<DriverSessionUser>('/api/v1/driver-registration/driver-access/bootstrap', {
     method: 'POST',
     withCredentials: true,
   })
 }
 
 export async function loginDriverByKey(key: string): Promise<DriverSessionUser> {
-  return apiRequest<DriverSessionUser>('/api/driver/session/login', {
+  return apiRequest<DriverSessionUser>('/api/v1/driver/session/login', {
     method: 'POST',
     body: { key },
     authMode: 'cookie',
@@ -19,11 +19,11 @@ export async function loginDriverByKey(key: string): Promise<DriverSessionUser> 
 }
 
 export async function getDriverSession(): Promise<DriverSessionUser> {
-  return apiRequest<DriverSessionUser>('/api/driver/session/me', { authMode: 'cookie' })
+  return apiRequest<DriverSessionUser>('/api/v1/driver/session/me', { authMode: 'cookie' })
 }
 
 export async function logoutDriverSession(): Promise<void> {
-  await apiRequest<{ success: boolean }>('/api/driver/session/logout', { method: 'POST', authMode: 'cookie' })
+  await apiRequest<{ success: boolean }>('/api/v1/driver/session/logout', { method: 'POST', authMode: 'cookie' })
 }
 
 export async function getDriverCabinet(params?: PaginationParams): Promise<DriverCabinetData> {
@@ -48,7 +48,7 @@ export async function setDriverRideStatus(rideId: string, status: RideStatus): P
 }
 
 export async function sendDriverLocation(lat: number, lng: number): Promise<void> {
-  await apiRequest<{ success: boolean }>('/api/driver/cabinet/location', {
+  await apiRequest<{ success: boolean }>('/api/v1/driver/cabinet/location', {
     method: 'POST',
     body: { lat, lng },
     authMode: 'cookie',
@@ -56,7 +56,7 @@ export async function sendDriverLocation(lat: number, lng: number): Promise<void
 }
 
 export async function setDriverOnlineStatus(isOnline: boolean): Promise<DriverSessionUser> {
-  return apiRequest<DriverSessionUser>('/api/driver/cabinet/online', {
+  return apiRequest<DriverSessionUser>('/api/v1/driver/cabinet/online', {
     method: 'PATCH',
     body: { isOnline },
     authMode: 'cookie',
@@ -105,7 +105,7 @@ export async function notifyPickupChange(rideId: string): Promise<DriverCabinetR
 }
 
 export async function getDriverMapData(): Promise<DriverMapData> {
-  return apiRequest<DriverMapData>('/api/driver/cabinet/map', { authMode: 'cookie' })
+  return apiRequest<DriverMapData>('/api/v1/driver/cabinet/map', { authMode: 'cookie' })
 }
 
 export async function claimDriverRide(requestId: string, payload?: { offerId?: string }): Promise<DriverCabinetRide> {
@@ -140,7 +140,7 @@ export async function rateRideAsDriver(
 }
 
 export async function issueDriverQrSale(points: number): Promise<DriverQrIssueResult> {
-  return apiRequest<DriverQrIssueResult>('/api/driver/cabinet/qr-sales/issue', {
+  return apiRequest<DriverQrIssueResult>('/api/v1/driver/cabinet/qr-sales/issue', {
     method: 'POST',
     body: { points },
     authMode: 'cookie',
@@ -148,7 +148,7 @@ export async function issueDriverQrSale(points: number): Promise<DriverQrIssueRe
 }
 
 export async function redeemPassengerQrSale(token: string): Promise<DriverQrRedeemResult> {
-  return apiRequest<DriverQrRedeemResult>('/api/points/qr/redeem', {
+  return apiRequest<DriverQrRedeemResult>('/api/v1/points/qr/redeem', {
     method: 'POST',
     body: { token },
     authMode: 'cookie',
@@ -161,7 +161,7 @@ export async function createDriverOffer(payload: {
   dateTime: string
   totalSeats: number
 }): Promise<DriverRideOffer> {
-  const created = await apiRequest<DriverRideOfferApi>('/api/driver/offers', {
+  const created = await apiRequest<DriverRideOfferApi>('/api/v1/driver/offers', {
     method: 'POST',
     body: payload,
     authMode: 'cookie',

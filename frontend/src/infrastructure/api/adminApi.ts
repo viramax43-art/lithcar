@@ -43,7 +43,7 @@ export async function assignDriverBulk(
 ): Promise<RideRequest[]> {
   const body: { requestIds: string[]; driverId: string; pointOverrides?: RidePointOverride[] } = { requestIds, driverId }
   if (pointOverrides && pointOverrides.length > 0) body.pointOverrides = pointOverrides
-  const updated = await apiRequest<RideRequestApi[]>('/api/ride-requests/assign-bulk', {
+  const updated = await apiRequest<RideRequestApi[]>('/api/v1/ride-requests/assign-bulk', {
     method: 'POST',
     body,
     authMode: 'cookie',
@@ -71,7 +71,7 @@ export async function createDriver(payload: {
   canSellPoints?: boolean
   canSelfAssign?: boolean
 }): Promise<{ driver: Driver; key: string }> {
-  return apiRequest<{ driver: Driver; key: string }>('/api/drivers', { method: 'POST', body: payload, authMode: 'cookie' })
+  return apiRequest<{ driver: Driver; key: string }>('/api/v1/drivers', { method: 'POST', body: payload, authMode: 'cookie' })
 }
 
 export async function rotateDriverKey(driverId: string): Promise<{ driver: Driver; key: string }> {
@@ -84,7 +84,7 @@ export async function rotateDriverKey(driverId: string): Promise<{ driver: Drive
 export async function uploadDriverPhoto(file: File): Promise<{ photoKey: string; photoUrl: string }> {
   const formData = new FormData()
   formData.append('file', file)
-  return uploadMultipart('/api/drivers/photo', formData)
+  return uploadMultipart('/api/v1/drivers/photo', formData)
 }
 
 export async function updateDriver(
@@ -116,7 +116,7 @@ export async function createServiceZone(payload: {
   polygon: { lat: number; lng: number }[]
   isActive: boolean
 }): Promise<ServiceZone> {
-  return apiRequest<ServiceZone>('/api/service-zones', { method: 'POST', body: payload, authMode: 'cookie' })
+  return apiRequest<ServiceZone>('/api/v1/service-zones', { method: 'POST', body: payload, authMode: 'cookie' })
 }
 
 export async function updateServiceZone(
@@ -146,7 +146,7 @@ export async function updatePricing(
     >
   >,
 ): Promise<PricingSettings> {
-  const result = await apiRequest<PricingSettings>('/api/pricing', {
+  const result = await apiRequest<PricingSettings>('/api/v1/pricing', {
     method: 'PATCH',
     body: payload,
     authMode: 'cookie',
@@ -170,15 +170,15 @@ export async function getRideQuoteAdmin(params: {
 }
 
 export async function loginAdminByKey(key: string): Promise<AdminSessionUser> {
-  return apiRequest<AdminSessionUser>('/api/admin/session/login', { method: 'POST', body: { key }, authMode: 'cookie' })
+  return apiRequest<AdminSessionUser>('/api/v1/admin/session/login', { method: 'POST', body: { key }, authMode: 'cookie' })
 }
 
 export async function getAdminSession(): Promise<AdminSessionUser> {
-  return apiRequest<AdminSessionUser>('/api/admin/session/me', { authMode: 'cookie' })
+  return apiRequest<AdminSessionUser>('/api/v1/admin/session/me', { authMode: 'cookie' })
 }
 
 export async function logoutAdminSession(): Promise<void> {
-  await apiRequest<{ success: boolean }>('/api/admin/session/logout', { method: 'POST', authMode: 'cookie' })
+  await apiRequest<{ success: boolean }>('/api/v1/admin/session/logout', { method: 'POST', authMode: 'cookie' })
 }
 
 export async function listAdminKeys(params?: PaginationParams): Promise<PaginatedResult<AdminKeyInfo>> {
@@ -189,7 +189,7 @@ export async function createAdminKey(payload: {
   name: string
   role: 'admin' | 'moderator'
 }): Promise<{ item: AdminKeyInfo; key: string }> {
-  return apiRequest<{ item: AdminKeyInfo; key: string }>('/api/admin/keys', {
+  return apiRequest<{ item: AdminKeyInfo; key: string }>('/api/v1/admin/keys', {
     method: 'POST',
     body: payload,
     authMode: 'cookie',
@@ -247,7 +247,7 @@ export async function createMapMark(payload: {
   visibility: 'admin_only' | 'public'
   photoKey?: string
 }): Promise<MapMark> {
-  return apiRequest<MapMark>('/api/map-marks', {
+  return apiRequest<MapMark>('/api/v1/map-marks', {
     method: 'POST',
     body: payload,
     authMode: 'cookie',
@@ -261,5 +261,5 @@ export async function deleteMapMark(markId: string): Promise<void> {
 export async function uploadMapMarkPhoto(file: File): Promise<{ photoKey: string; photoUrl: string }> {
   const formData = new FormData()
   formData.append('file', file)
-  return uploadMultipart('/api/map-marks/photo', formData)
+  return uploadMultipart('/api/v1/map-marks/photo', formData)
 }

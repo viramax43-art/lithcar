@@ -4,15 +4,15 @@ import type { PaginatedResult, PaginationParams } from './contracts'
 import { toPageQuery } from './sharedMappers'
 
 export async function getDriverRegistrationForm(): Promise<DriverRegistrationFormSchema> {
-  return apiRequest<DriverRegistrationFormSchema>('/api/driver-registration/form', { authMode: 'none' })
+  return apiRequest<DriverRegistrationFormSchema>('/api/v1/driver-registration/form', { authMode: 'none' })
 }
 
 export async function getMyDriverApplication(): Promise<DriverApplication | null> {
-  return apiRequest<DriverApplication | null>('/api/driver-registration/applications/me')
+  return apiRequest<DriverApplication | null>('/api/v1/driver-registration/applications/me')
 }
 
 export async function getDriverCabinetEnterUrl(): Promise<{ enterUrl: string }> {
-  return apiRequest<{ enterUrl: string }>('/api/driver-registration/driver-access/enter-url')
+  return apiRequest<{ enterUrl: string }>('/api/v1/driver-registration/driver-access/enter-url')
 }
 
 export async function submitDriverApplication(payload: {
@@ -20,7 +20,7 @@ export async function submitDriverApplication(payload: {
   answers: Record<string, string>
   files: Record<string, { objectKey: string; fileName: string; contentType: string; sizeBytes: number }>
 }): Promise<DriverApplication> {
-  return apiRequest<DriverApplication>('/api/driver-registration/applications', {
+  return apiRequest<DriverApplication>('/api/v1/driver-registration/applications', {
     method: 'POST',
     body: payload,
   })
@@ -35,7 +35,7 @@ export async function uploadDriverApplicationFile(file: File): Promise<{
 }> {
   const formData = new FormData()
   formData.append('file', file)
-  return uploadMultipartBearer('/api/driver-registration/files', formData)
+  return uploadMultipartBearer('/api/v1/driver-registration/files', formData)
 }
 
 export async function listDriverApplications(
@@ -76,13 +76,13 @@ export async function rejectDriverApplication(
 }
 
 export async function getDriverRegistrationSettings(): Promise<DriverRegistrationFormSchema> {
-  return apiRequest<DriverRegistrationFormSchema>('/api/driver-registration/settings', { authMode: 'cookie' })
+  return apiRequest<DriverRegistrationFormSchema>('/api/v1/driver-registration/settings', { authMode: 'cookie' })
 }
 
 export async function updateDriverRegistrationSettings(
   schema: DriverRegistrationFormSchema,
 ): Promise<DriverRegistrationFormSchema> {
-  return apiRequest<DriverRegistrationFormSchema>('/api/driver-registration/settings', {
+  return apiRequest<DriverRegistrationFormSchema>('/api/v1/driver-registration/settings', {
     method: 'PUT',
     body: schema,
     authMode: 'cookie',
