@@ -1,15 +1,22 @@
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    WebAppInfo,
 )
 
 from app.bot.i18n import t
+from app.core.config import settings
+
+
+def _mini_app_url() -> str:
+    base = (settings.frontend_public_url or settings.public_base_url or "https://sfera5.world/ride").strip().rstrip("/")
+    return f"{base}/?v=20260916v4"
 
 
 def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=t("menu.open_mini_app", lang), url="https://t.me/rideminiapp_bot/ride")],
+            [InlineKeyboardButton(text=t("menu.open_mini_app", lang), web_app=WebAppInfo(url=_mini_app_url()))],
             [InlineKeyboardButton(text=t("menu.book_in_bot", lang), callback_data="start_bot_booking")],
             [InlineKeyboardButton(text=t("menu.change_language", lang), callback_data="language:choose")],
         ]

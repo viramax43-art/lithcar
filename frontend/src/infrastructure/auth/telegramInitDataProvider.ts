@@ -54,7 +54,7 @@ function sleep(ms: number): Promise<void> {
   })
 }
 
-export async function waitForTelegramInitData(maxAttempts = 10, delayMs = 120): Promise<string> {
+export async function waitForTelegramInitData(maxAttempts = 40, delayMs = 150): Promise<string> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const initData = resolveInitDataOnce()
     if (initData) return initData

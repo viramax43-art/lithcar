@@ -15,7 +15,7 @@ function PassengerRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/ride">
       <Routes>
         <Route path="/" element={<PassengerRoute><NewRequest /></PassengerRoute>} />
         <Route path="/requests" element={<PassengerRoute><MyRequests /></PassengerRoute>} />

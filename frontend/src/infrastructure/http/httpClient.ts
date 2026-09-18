@@ -1,5 +1,5 @@
 import { resolveApiBaseUrl } from '../../config/env'
-import { clearAccessToken, ensurePassengerAccessToken } from '../auth/passengerAuthSession'
+import { clearAccessToken, ensurePassengerAccessToken, getAccessToken } from '../auth/passengerAuthSession'
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 export type AuthMode = 'bearer' | 'cookie' | 'none'
@@ -75,6 +75,8 @@ async function performRequest(
 
   if (authMode === 'bearer') {
     await ensurePassengerAccessToken(forceRefreshSession)
+    const token = getAccessToken()
+    if (token) headers.Authorization = `Bearer ${token}`
   }
 
   return fetch(`${resolveApiBaseUrl()}${path}`, {
@@ -123,9 +125,11 @@ export async function uploadMultipart<T>(path: string, formData: FormData): Prom
 
 export async function uploadMultipartBearer<T>(path: string, formData: FormData): Promise<T> {
   await ensurePassengerAccessToken(false)
+  const token = getAccessToken()
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: 'POST',
     credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   })
   if (!response.ok) {

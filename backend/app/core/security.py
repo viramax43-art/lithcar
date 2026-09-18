@@ -12,10 +12,26 @@ from jose import jwt
 from app.core.config import settings
 
 
+def _is_stub_bot_token() -> bool:
+    token = (settings.bot_token or "").strip().lower()
+    return (
+        not token
+        or token.startswith("stub")
+        or token in {"local-dev-bot-token", "telegram-bot-token", "dummy_token", "dummy-token"}
+    )
+
+
 def validate_tg_data(init_data: str) -> bool:
     """
     Проверяет валидность данных, полученных от Telegram Mini App.
     """
+    if _is_stub_bot_token():
+        # Without a real BOT_TOKEN HMAC cannot be verified; accept initData shape for demo.
+        try:
+            data_dict = dict(parse_qsl(init_data, keep_blank_values=True))
+            return bool(data_dict.get("user"))
+        except Exception:
+            return False
     try:
         # Секретный ключ для проверки генерируется из токена бота.
         secret_key = hmac.new(
@@ -24,12 +40,13 @@ def validate_tg_data(init_data: str) -> bool:
             digestmod=hashlib.sha256
         ).digest()
 
-        # Декодируем и парсим строку initData в словарь.
-        decoded_data = unquote(init_data)
-        data_dict = dict(parse_qsl(decoded_data))
+        # parse_qsl already URL-decodes values; do not unquote the whole string first.
+        data_dict = dict(parse_qsl(init_data, keep_blank_values=True))
         
         # Хеш для проверки присылается Telegram.
-        received_hash = data_dict.pop("hash")
+        received_hash = data_dict.pop("hash", None)
+        if not received_hash:
+            return False
 
         # Формируем строку для подписи из остальных данных.
         data_check_string = "\n".join(
@@ -43,7 +60,7 @@ def validate_tg_data(init_data: str) -> bool:
             digestmod=hashlib.sha256
         ).hexdigest()
 
-        return calculated_hash == received_hash
+        return hmac.compare_digest(calculated_hash, received_hash)
     except Exception:
         return False
 
@@ -62,8 +79,7 @@ def parse_tg_user_data(init_data: str) -> dict[str, Any] | None:
         return None
 
     try:
-        decoded_data = unquote(init_data)
-        data = dict(parse_qsl(decoded_data))
+        data = dict(parse_qsl(init_data, keep_blank_values=True))
         raw_user = data.get("user")
         if not raw_user:
             return None

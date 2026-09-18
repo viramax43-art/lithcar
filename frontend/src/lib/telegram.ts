@@ -16,6 +16,8 @@ type TelegramSafeAreaInset = {
 
 type TelegramWebApp = {
   platform?: string
+  version?: string
+  isVersionAtLeast?: (version: string) => boolean
   isFullscreen?: boolean
   safeAreaInset?: TelegramSafeAreaInset
   contentSafeAreaInset?: TelegramSafeAreaInset
@@ -82,13 +84,13 @@ export function initTelegramWebAppUI(): void {
     // Avoid forcing fullscreen in desktop Telegram clients.
     const platform = (webApp.platform ?? '').toLowerCase()
     const isDesktopPlatform = DESKTOP_PLATFORMS.has(platform)
-    if (!isDesktopPlatform) {
-      // Newer mobile clients support explicit fullscreen mode.
-      if (webApp.requestFullscreen) {
+    if (!isDesktopPlatform && webApp.isVersionAtLeast?.('8.0') && webApp.requestFullscreen) {
+      try {
         webApp.requestFullscreen()
         fullscreenRequested = true
+      } catch {
+        // Older clients expose the method but reject it.
       }
-      // Fullscreen and safe-area values can settle asynchronously after request.
       setTimeout(syncViewportState, 100)
       setTimeout(syncViewportState, 500)
       setTimeout(syncViewportState, 1000)
@@ -105,8 +107,9 @@ export function initTelegramWebAppUI(): void {
     // noop
   }
   try {
-    // Avoid accidental collapse while scrolling in the app.
-    webApp.disableVerticalSwipes?.()
+    if (webApp.isVersionAtLeast?.('7.7')) {
+      webApp.disableVerticalSwipes?.()
+    }
   } catch {
     // noop
   }
