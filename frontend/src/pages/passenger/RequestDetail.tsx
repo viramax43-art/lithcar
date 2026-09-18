@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import L from 'leaflet'
-import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, Star, Users, Warning } from '@phosphor-icons/react'
+import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, ShareNetwork, Star, Users, Warning } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import type { RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
@@ -17,6 +17,7 @@ import { showOnMapHref } from '../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../i18n/dateTime'
 import EditRequestSheet from './components/EditRequestSheet'
 import { useEscapeClose } from '../../lib/useEscapeClose'
+import { shareLocation } from '../../lib/shareLocation'
 
 const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
   pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -328,6 +329,14 @@ export default function RequestDetail() {
               <p className="text-sm font-semibold text-black">{request.to.address}</p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => shareLocation(request.from.latlng, request.from.address)}
+            className="mt-4 w-full rounded-xl border border-border py-2.5 text-xs font-bold inline-flex items-center justify-center gap-2"
+          >
+            <ShareNetwork size={15} weight="bold" />
+            {t('passenger.sharePickup', { defaultValue: 'Поделиться точкой посадки' })}
+          </button>
         </div>
 
         {/* Date/Time */}

@@ -39,6 +39,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     driverId: item.driverId,
     offerId: item.offerId ?? null,
     pickupChangedByDriver: item.pickupChangedByDriver,
+    pickupNotifiedAt: item.pickupNotifiedAt ?? null,
     pickupConfirmedAt: item.pickupConfirmedAt,
     pickupRevision: item.pickupRevision ?? 0,
     assignedDriver,

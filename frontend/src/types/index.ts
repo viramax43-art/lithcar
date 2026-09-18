@@ -105,6 +105,7 @@ export interface RideRequest {
   driverId?: string
   offerId?: string | null
   pickupChangedByDriver: boolean
+  pickupNotifiedAt?: string | null
   pickupConfirmedAt: string | null
   pickupRevision?: number
   assignedDriver?: Driver | null
