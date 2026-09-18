@@ -170,6 +170,7 @@ class DriverRideOut(BaseModel):
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
+    pickupRevision: int = 0
     rating: DriverRideRatingOut | None = None
 
 
@@ -231,6 +232,7 @@ class DriverMapPointOut(BaseModel):
     pickupChangedByDriver: bool
     pickupNotifiedAt: datetime | None
     pickupConfirmedAt: datetime | None
+    pickupRevision: int = 0
     passengerRating: float = 5.0
     passengerRatingCount: int = 0
     pointKind: str = "mine"
@@ -399,6 +401,7 @@ async def _to_driver_ride_out(
         pickupChangedByDriver=ride.pickup_changed_by_driver,
         pickupNotifiedAt=ride.pickup_notified_at,
         pickupConfirmedAt=ride.pickup_confirmed_at,
+        pickupRevision=int(ride.pickup_revision or 0),
         rating=_to_driver_ride_rating_out(rating_ctx),
     )
 
@@ -564,6 +567,7 @@ def _build_driver_map_points(
                     pickupChangedByDriver=ride.pickup_changed_by_driver if is_pickup else False,
                     pickupNotifiedAt=ride.pickup_notified_at if is_pickup else None,
                     pickupConfirmedAt=ride.pickup_confirmed_at if is_pickup else None,
+                    pickupRevision=int(ride.pickup_revision or 0) if is_pickup else 0,
                     passengerRating=passenger_rating,
                     passengerRatingCount=passenger_rating_count,
                     pointKind=point_kind,

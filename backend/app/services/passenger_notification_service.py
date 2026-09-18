@@ -144,7 +144,7 @@ async def notify_passenger_pickup_changed(*, request: RideRequest, driver: Drive
         inline_keyboard=[
             [InlineKeyboardButton(
                 text=t("pickup.confirm_button", lang),
-                callback_data=f"pickup_confirm:{request.id}",
+                callback_data=f"pickup_confirm:{request.id}:{int(request.pickup_revision or 0)}",
             )],
         ]
     )

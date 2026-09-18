@@ -15,7 +15,11 @@ router = Router(name="pickup_confirm")
 @router.callback_query(F.data.startswith("pickup_confirm:"))
 async def handle_pickup_confirm(callback: CallbackQuery):
     """Passenger confirms the new pickup point via inline button in bot chat."""
-    request_id = callback.data.split(":", 1)[1]
+    parts = (callback.data or "").split(":")
+    if len(parts) != 3 or not parts[2].isdigit():
+        await callback.answer("Откройте поездку и подтвердите актуальную точку посадки.", show_alert=True)
+        return
+    request_id, revision = parts[1], int(parts[2])
     passenger_id = str(callback.from_user.id)
     lang = "lt"
 
@@ -27,6 +31,7 @@ async def handle_pickup_confirm(callback: CallbackQuery):
             db_session,
             request_id=request_id,
             passenger_id=passenger_id,
+            pickup_revision=revision,
         )
 
     if error:

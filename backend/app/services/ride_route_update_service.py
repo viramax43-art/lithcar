@@ -55,9 +55,15 @@ def _reset_pickup_confirmation_flags(request: RideRequest) -> None:
     request.pickup_changed_by_driver = False
     request.pickup_notified_at = None
     request.pickup_confirmed_at = None
+    request.pickup_revision = 0
     request.original_from_address = None
     request.original_from_lat = None
     request.original_from_lng = None
+
+
+def _bump_pickup_revision(request: RideRequest) -> int:
+    request.pickup_revision = int(request.pickup_revision or 0) + 1
+    return request.pickup_revision
 
 
 async def update_ride_route_points(
@@ -128,6 +134,7 @@ async def update_ride_route_points(
             request.pickup_changed_by_driver = True
             request.pickup_notified_at = None
             request.pickup_confirmed_at = None
+            _bump_pickup_revision(request)
         else:
             _reset_pickup_confirmation_flags(request)
         request.from_address = from_point.address.strip()

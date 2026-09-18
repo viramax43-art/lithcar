@@ -204,16 +204,32 @@ async def test_passenger_can_confirm_pickup(client, db_session):
     assert body["pickupChangedByDriver"] is True
 
 
-async def test_passenger_can_confirm_even_without_driver_edit(client, db_session):
-    """Passenger can hit confirm-pickup even if driver didn't change it (no-op is fine)."""
+async def test_passenger_cannot_confirm_without_driver_edit(client, db_session):
+    """Passenger cannot confirm pickup if driver did not change it."""
     ctx = await _setup_driver_and_passenger(client, db_session)
 
     response = await client.post(
         f"/api/ride-requests/{ctx['request_id']}/confirm-pickup",
         headers=ctx["passenger_headers"],
     )
-    assert response.status_code == 200
-    assert response.json()["pickupConfirmedAt"] is not None
+    assert response.status_code == 400
+
+
+async def test_passenger_cannot_confirm_stale_pickup_revision(client, db_session):
+    """Passenger cannot confirm an outdated pickup revision."""
+    ctx = await _setup_driver_and_passenger(client, db_session)
+
+    await client.patch(
+        f"/api/driver/cabinet/rides/{ctx['request_id']}/pickup",
+        json={"fromAddress": "First edit", "fromLat": 54.691, "fromLng": 25.271},
+    )
+
+    response = await client.post(
+        f"/api/ride-requests/{ctx['request_id']}/confirm-pickup",
+        headers=ctx["passenger_headers"],
+        json={"pickupRevision": 0},
+    )
+    assert response.status_code == 400
 
 
 async def test_driver_cannot_edit_pickup_of_other_drivers_ride(client, db_session):

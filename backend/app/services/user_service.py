@@ -1,10 +1,38 @@
 from __future__ import annotations
 
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
 
 from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User, UserRole
+
+
+class UsernameConflictError(ValueError):
+    """Raised when a Telegram username is already linked to another account."""
+
+
+def _normalize_username(username: str | None) -> str | None:
+    if username is None:
+        return None
+    normalized = str(username).strip()
+    return normalized or None
+
+
+async def find_user_by_username_insensitive(
+    db_session: AsyncSession,
+    username: str,
+    *,
+    exclude_user_id: str | None = None,
+) -> User | None:
+    normalized = _normalize_username(username)
+    if not normalized:
+        return None
+    query = select(User).where(func.lower(User.username) == normalized.lower())
+    if exclude_user_id:
+        query = query.where(User.user_id != exclude_user_id)
+    result = await db_session.execute(query)
+    return result.scalar_one_or_none()
 
 
 async def get_or_create_user(
@@ -18,7 +46,8 @@ async def get_or_create_user(
     """
     Получает пользователя по user_id или создает нового, если он не найден.
     """
-    # Пытаемся найти пользователя в базе данных
+    username = _normalize_username(username)
+
     result = await db_session.execute(select(User).filter(User.user_id == user_id))
     user = result.scalar_one_or_none()
 
@@ -30,20 +59,40 @@ async def get_or_create_user(
         normalized_language = None
 
     if user:
-        # Если пользователь найден, проверяем, изменился ли его username
         did_change = False
-        if user.username != username:
+        if username and (user.username or "").lower() != username.lower():
+            owner = await find_user_by_username_insensitive(
+                db_session,
+                username,
+                exclude_user_id=user.user_id,
+            )
+            if owner is not None:
+                raise UsernameConflictError(
+                    f"Telegram username @{username} is already linked to another account."
+                )
             user.username = username
             did_change = True
         if not user.language and normalized_language:
             user.language = normalized_language
             did_change = True
         if did_change:
-            await db_session.commit()
-            await db_session.refresh(user)
+            try:
+                await db_session.commit()
+                await db_session.refresh(user)
+            except IntegrityError as exc:
+                await db_session.rollback()
+                raise UsernameConflictError(
+                    f"Telegram username @{username} is already linked to another account."
+                ) from exc
         return user
 
-    # Создаём нового пользователя; возможна гонка при параллельных логинах.
+    if username:
+        owner = await find_user_by_username_insensitive(db_session, username)
+        if owner is not None:
+            raise UsernameConflictError(
+                f"Telegram username @{username} is already linked to another account."
+            )
+
     new_user = User(
         user_id=str(user_id),
         username=username,
@@ -57,28 +106,54 @@ async def get_or_create_user(
         await db_session.refresh(new_user)
         return new_user
     except IntegrityError:
-        # Параллельная вставка могла произойти — откатываем и читаем существующего
         await db_session.rollback()
         result = await db_session.execute(select(User).filter(User.user_id == user_id))
         user = result.scalar_one_or_none()
-        if user is None:
-            # Нечего возвращать — пробуем ещё раз создать (редкий случай)
-            db_session.add(new_user)
+        if user is not None:
+            did_change = False
+            if username and (user.username or "").lower() != username.lower():
+                owner = await find_user_by_username_insensitive(
+                    db_session,
+                    username,
+                    exclude_user_id=user.user_id,
+                )
+                if owner is not None:
+                    raise UsernameConflictError(
+                        f"Telegram username @{username} is already linked to another account."
+                    )
+                user.username = username
+                did_change = True
+            if not user.language and normalized_language:
+                user.language = normalized_language
+                did_change = True
+            if did_change:
+                try:
+                    await db_session.commit()
+                    await db_session.refresh(user)
+                except IntegrityError as exc:
+                    await db_session.rollback()
+                    raise UsernameConflictError(
+                        f"Telegram username @{username} is already linked to another account."
+                    ) from exc
+            return user
+
+        if username:
+            owner = await find_user_by_username_insensitive(db_session, username)
+            if owner is not None:
+                raise UsernameConflictError(
+                    f"Telegram username @{username} is already linked to another account."
+                )
+
+        db_session.add(new_user)
+        try:
             await db_session.commit()
             await db_session.refresh(new_user)
             return new_user
-        # Обновим username при необходимости
-        did_change = False
-        if user.username != username:
-            user.username = username
-            did_change = True
-        if not user.language and normalized_language:
-            user.language = normalized_language
-            did_change = True
-        if did_change:
-            await db_session.commit()
-            await db_session.refresh(user)
-        return user
+        except IntegrityError as exc:
+            await db_session.rollback()
+            raise UsernameConflictError(
+                f"Telegram username @{username} is already linked to another account."
+            ) from exc
 
 
 async def get_user_by_id(db_session: AsyncSession, *, user_id: str) -> User | None:

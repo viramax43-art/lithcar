@@ -40,6 +40,7 @@ export function mapRideRequest(item: RideRequestApi): RideRequest {
     offerId: item.offerId ?? null,
     pickupChangedByDriver: item.pickupChangedByDriver,
     pickupConfirmedAt: item.pickupConfirmedAt,
+    pickupRevision: item.pickupRevision ?? 0,
     assignedDriver,
     rating: item.rating
       ? {

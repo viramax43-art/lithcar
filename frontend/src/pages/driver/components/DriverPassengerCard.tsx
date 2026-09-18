@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import RatingBadge from '../../../components/RatingBadge'
 import type { DriverCabinetRide } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
+import { shareLocation } from '../../../lib/shareLocation'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
 
@@ -170,6 +171,17 @@ export default function DriverPassengerCard({
 
           {/* Show on map links */}
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => shareLocation(
+                ride.fromLatLng,
+                t('driver.pickupWithName', { name: ride.passengerName, defaultValue: `Pickup · ${ride.passengerName}` }),
+              )}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-surface text-[11px] font-bold text-muted hover:text-black transition-colors touch-none"
+            >
+              <PaperPlaneTilt size={12} weight="fill" />
+              {t('driver.sharePickup', { defaultValue: 'Share pickup' })}
+            </button>
             <a
               href={showOnMapHref(ride.fromLatLng, t('driver.pickupWithName', { name: ride.passengerName, defaultValue: `Pickup · ${ride.passengerName}` }))}
               target="_blank"

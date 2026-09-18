@@ -83,9 +83,10 @@ export async function updateRequest(
   return mapRideRequest(updated)
 }
 
-export async function confirmPickup(requestId: string): Promise<RideRequest> {
-  const item = await apiRequest<RideRequestApi>(`/api/ride-requests/${requestId}/confirm-pickup`, {
+export async function confirmPickup(requestId: string, pickupRevision?: number): Promise<RideRequest> {
+  const item = await apiRequest<RideRequestApi>(`/api/v1/ride-requests/${requestId}/confirm-pickup`, {
     method: 'POST',
+    body: pickupRevision === undefined ? undefined : { pickupRevision },
   })
   return mapRideRequest(item)
 }

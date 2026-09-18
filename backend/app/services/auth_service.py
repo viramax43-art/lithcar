@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, create_refresh_token, decode_token, parse_tg_user_data
 from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User, UserRole
-from app.services.user_service import get_or_create_user
+from app.services.user_service import UsernameConflictError, get_or_create_user
 
 
 class AuthService:
@@ -34,12 +34,18 @@ class AuthService:
             if normalized_language not in SUPPORTED_USER_LANGUAGES:
                 normalized_language = None
 
-        user = await get_or_create_user(
-            self.db,
-            user_id=str(user_id),
-            username=username,
-            language=normalized_language,
-        )
+        try:
+            user = await get_or_create_user(
+                self.db,
+                user_id=str(user_id),
+                username=username,
+                language=normalized_language,
+            )
+        except (ValueError, UsernameConflictError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
 
         access_token = create_access_token(subject=user.user_id, role=user.role)
         return access_token

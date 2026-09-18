@@ -106,6 +106,7 @@ export interface RideRequest {
   offerId?: string | null
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
+  pickupRevision?: number
   assignedDriver?: Driver | null
   rating?: RideRatingContext | null
   createdAt: string
@@ -282,6 +283,7 @@ export interface DriverCabinetRide {
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
+  pickupRevision?: number
   rating?: RideRatingContext | null
 }
 
@@ -323,6 +325,7 @@ export interface DriverMapPoint {
   pickupChangedByDriver: boolean
   pickupNotifiedAt: string | null
   pickupConfirmedAt: string | null
+  pickupRevision?: number
   passengerRating: number
   passengerRatingCount: number
   pointKind?: 'mine' | 'available'

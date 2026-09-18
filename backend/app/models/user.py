@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, func
 
 from app.models import Base
 
@@ -37,6 +37,10 @@ class User(Base):
 
     user_id = Column(String, primary_key=True)
     username = Column(String, nullable=True)
+    __table_args__ = (
+        # Telegram usernames are case-insensitive; NULL values remain allowed.
+        Index("uq_users_username_lower", func.lower(username), unique=True),
+    )
     role = Column(String, nullable=False, server_default=UserRole.PASSENGER)
     language = Column(String(8), nullable=False, server_default=DEFAULT_USER_LANGUAGE)
     points_balance = Column(Integer, nullable=False, server_default="0")
@@ -54,5 +58,3 @@ class User(Base):
 
     def __str__(self) -> str:
         return f"{self.user_id} ({self.role})"
-
-

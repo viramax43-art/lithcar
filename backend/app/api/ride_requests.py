@@ -133,6 +133,7 @@ class RideRequestOut(BaseModel):
     offerId: str | None = None
     pickupChangedByDriver: bool
     pickupConfirmedAt: datetime | None
+    pickupRevision: int = 0
     assignedDriver: "RideAssignedDriverOut | None" = None
     passengerRating: float = 5.0
     passengerRatingCount: int = 0
@@ -191,6 +192,7 @@ def _to_ride_request_out(
         offerId=request.offer_id,
         pickupChangedByDriver=request.pickup_changed_by_driver,
         pickupConfirmedAt=request.pickup_confirmed_at,
+        pickupRevision=int(request.pickup_revision or 0),
         assignedDriver=assigned_driver,
         passengerRating=passenger_rating,
         passengerRatingCount=passenger_rating_count,
@@ -678,9 +680,14 @@ async def patch_request_route_admin(
     return await _build_ride_request_out_with_driver(db_session, updated)
 
 
+class ConfirmPickupPayload(BaseModel):
+    pickupRevision: int | None = None
+
+
 @router.post("/{request_id}/confirm-pickup", response_model=RideRequestOut)
 async def confirm_pickup(
     request_id: str,
+    payload: ConfirmPickupPayload | None = None,
     current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
@@ -688,6 +695,7 @@ async def confirm_pickup(
         db_session,
         request_id=request_id,
         passenger_id=current_user.user_id,
+        pickup_revision=payload.pickupRevision if payload else None,
     )
     if request is None:
         raise HTTPException(status_code=404, detail=error or "Ride request not found.")

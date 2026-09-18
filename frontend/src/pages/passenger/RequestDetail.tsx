@@ -272,7 +272,7 @@ export default function RequestDetail() {
                 setIsConfirmingPickup(true)
                 setErrorMessage(null)
                 try {
-                  const updated = await confirmPickup(request.id)
+                  const updated = await confirmPickup(request.id, request.pickupRevision ?? 0)
                   setRequest(updated)
                 } catch (error) {
                   setErrorMessage(

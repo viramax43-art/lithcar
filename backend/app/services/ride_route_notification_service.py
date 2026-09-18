@@ -132,7 +132,7 @@ async def _notify_passenger_route_changed(
                             inline_keyboard=[
                                 [InlineKeyboardButton(
                                     text=t("pickup.confirm_button", lang),
-                                    callback_data=f"pickup_confirm:{request.id}",
+                                    callback_data=f"pickup_confirm:{request.id}:{int(request.pickup_revision or 0)}",
                                 )],
                             ]
                         )

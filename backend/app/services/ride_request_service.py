@@ -590,6 +590,7 @@ async def reset_driver_pickup_point(
     request.pickup_changed_by_driver = False
     request.pickup_notified_at = None
     request.pickup_confirmed_at = None
+    request.pickup_revision = 0
     request.original_from_address = None
     request.original_from_lat = None
     request.original_from_lng = None
@@ -625,6 +626,7 @@ async def confirm_pickup_point(
     *,
     request_id: str,
     passenger_id: str,
+    pickup_revision: int | None = None,
 ) -> tuple[RideRequest | None, str | None]:
     """Passenger confirms they've seen the updated pickup point."""
     request = await get_request(db_session, request_id=request_id)
@@ -632,6 +634,14 @@ async def confirm_pickup_point(
         return None, "Поездка не найдена."
     if request.passenger_id != passenger_id:
         return None, "Эта поездка не принадлежит вам."
+    if pickup_revision is not None and int(request.pickup_revision or 0) != pickup_revision:
+        return request, "Точка посадки была обновлена снова — откройте последнее уведомление."
+    if not request.pickup_changed_by_driver:
+        return request, "Точка посадки не была изменена водителем."
+    if request.pickup_notified_at is None:
+        return request, "Водитель ещё не отправил обновлённую точку посадки."
+    if request.pickup_confirmed_at is not None:
+        return request, None
     request.pickup_confirmed_at = func.now()
     await db_session.commit()
     await db_session.refresh(request)

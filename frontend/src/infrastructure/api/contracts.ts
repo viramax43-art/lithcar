@@ -128,6 +128,7 @@ export interface RideRequestApi {
   offerId?: string | null
   pickupChangedByDriver: boolean
   pickupConfirmedAt: string | null
+  pickupRevision?: number
   assignedDriver?: {
     id: string
     userId?: string | null
