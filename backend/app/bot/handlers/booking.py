@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 from datetime import date, datetime, time, timedelta, timezone
 
 from aiogram import F, Router
@@ -15,6 +16,7 @@ from app.core.app_timezone import normalize_app_datetime, to_app_local
 from app.bot.keyboards.booking import (
     confirm_keyboard,
     edit_keyboard,
+    map_picker_keyboard,
     welcome_keyboard,
 )
 from app.bot.services.user_binding import get_or_create_passenger_from_telegram
@@ -106,6 +108,51 @@ async def _get_user_lang(telegram_user: TgUser) -> str:
     return normalize_lang(user.preferred_language)
 
 
+async def _prompt_point(message: Message, *, field: str, text_key: str, lang: str):
+    await message.answer(
+        t(text_key, lang),
+        reply_markup=map_picker_keyboard(lang, field),
+    )
+
+
+async def _apply_picked_point(
+    message: Message,
+    state: FSMContext,
+    *,
+    expected_field: str,
+    field: str,
+    lat: float,
+    lng: float,
+    address: str,
+) -> bool:
+    if field != expected_field:
+        return False
+
+    lang = await _get_user_lang(message.from_user)
+
+    if expected_field == "from":
+        await state.update_data(
+            from_lat=lat,
+            from_lng=lng,
+            from_address=address,
+        )
+        await state.set_state(BookingStates.awaiting_to_location)
+        await _prompt_point(message, field="to", text_key="booking.ask_point_b", lang=lang)
+        return True
+
+    if expected_field == "to":
+        await state.update_data(
+            to_lat=lat,
+            to_lng=lng,
+            to_address=address,
+        )
+        await state.set_state(BookingStates.awaiting_date)
+        await message.answer(t("booking.ask_date", lang))
+        return True
+
+    return False
+
+
 async def _show_confirmation(message: Message, state: FSMContext):
     data = await state.get_data()
     user, pricing = await _load_user_and_pricing(message)
@@ -172,18 +219,38 @@ async def begin_booking_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(BookingStates.awaiting_from_location)
     lang = await _get_user_lang(callback.from_user)
-    await callback.message.answer(
-        t("booking.ask_point_a", lang),
-    )
+    await _prompt_point(callback.message, field="from", text_key="booking.ask_point_a", lang=lang)
     await callback.answer()
 
 
-@router.message(BookingStates.awaiting_from_location, ~F.location)
+@router.message(BookingStates.awaiting_from_location, F.web_app_data)
+async def pick_from_via_map(message: Message, state: FSMContext):
+    lang = await _get_user_lang(message.from_user)
+    try:
+        payload = json.loads(message.web_app_data.data)
+        lat = float(payload["lat"])
+        lng = float(payload["lng"])
+        address = str(payload.get("address") or format_point(lat=lat, lng=lng))
+        field = str(payload.get("field") or "from")
+    except (TypeError, ValueError, json.JSONDecodeError, KeyError):
+        await _prompt_point(message, field="from", text_key="booking.ask_point_a_retry", lang=lang)
+        return
+    if not await _apply_picked_point(
+        message,
+        state,
+        expected_field="from",
+        field=field,
+        lat=lat,
+        lng=lng,
+        address=address,
+    ):
+        await _prompt_point(message, field="from", text_key="booking.ask_point_a_retry", lang=lang)
+
+
+@router.message(BookingStates.awaiting_from_location, ~F.location, ~F.web_app_data)
 async def reject_non_location_from(message: Message):
     lang = await _get_user_lang(message.from_user)
-    await message.answer(
-        t("booking.ask_point_a_retry", lang),
-    )
+    await _prompt_point(message, field="from", text_key="booking.ask_point_a_retry", lang=lang)
 
 
 @router.message(BookingStates.awaiting_from_location, F.location)
@@ -196,17 +263,37 @@ async def set_from_location(message: Message, state: FSMContext):
     await state.update_data(**from_point)
     await state.set_state(BookingStates.awaiting_to_location)
     lang = await _get_user_lang(message.from_user)
-    await message.answer(
-        t("booking.ask_point_b", lang),
-    )
+    await _prompt_point(message, field="to", text_key="booking.ask_point_b", lang=lang)
 
 
-@router.message(BookingStates.awaiting_to_location, ~F.location)
+@router.message(BookingStates.awaiting_to_location, F.web_app_data)
+async def pick_to_via_map(message: Message, state: FSMContext):
+    lang = await _get_user_lang(message.from_user)
+    try:
+        payload = json.loads(message.web_app_data.data)
+        lat = float(payload["lat"])
+        lng = float(payload["lng"])
+        address = str(payload.get("address") or format_point(lat=lat, lng=lng))
+        field = str(payload.get("field") or "to")
+    except (TypeError, ValueError, json.JSONDecodeError, KeyError):
+        await _prompt_point(message, field="to", text_key="booking.ask_point_b_retry", lang=lang)
+        return
+    if not await _apply_picked_point(
+        message,
+        state,
+        expected_field="to",
+        field=field,
+        lat=lat,
+        lng=lng,
+        address=address,
+    ):
+        await _prompt_point(message, field="to", text_key="booking.ask_point_b_retry", lang=lang)
+
+
+@router.message(BookingStates.awaiting_to_location, ~F.location, ~F.web_app_data)
 async def reject_non_location_to(message: Message):
     lang = await _get_user_lang(message.from_user)
-    await message.answer(
-        t("booking.ask_point_b_retry", lang),
-    )
+    await _prompt_point(message, field="to", text_key="booking.ask_point_b_retry", lang=lang)
 
 
 @router.message(BookingStates.awaiting_to_location, F.location)
@@ -277,7 +364,7 @@ async def edit_back(callback: CallbackQuery):
 async def edit_from_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_from_location)
     lang = await _get_user_lang(callback.from_user)
-    await callback.message.answer(t("booking.ask_point_a_new", lang))
+    await _prompt_point(callback.message, field="from", text_key="booking.ask_point_a_new", lang=lang)
     await callback.answer()
 
 
@@ -285,7 +372,7 @@ async def edit_from_point(callback: CallbackQuery, state: FSMContext):
 async def edit_to_point(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.awaiting_to_location)
     lang = await _get_user_lang(callback.from_user)
-    await callback.message.answer(t("booking.ask_point_b_new", lang))
+    await _prompt_point(callback.message, field="to", text_key="booking.ask_point_b_new", lang=lang)
     await callback.answer()
 
 

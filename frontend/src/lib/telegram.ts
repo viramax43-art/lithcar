@@ -26,6 +26,8 @@ type TelegramWebApp = {
   requestFullscreen?: () => void
   disableVerticalSwipes?: () => void
   openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
+  sendData?: (data: string) => void
+  close?: () => void
   onEvent?: (eventType: string, callback: () => void) => void
   HapticFeedback?: TelegramHapticFeedback
 }
@@ -161,4 +163,23 @@ export function hapticNotification(type: HapticNotificationType): void {
   if (type === 'success') vibrateFallback(20)
   else if (type === 'warning') vibrateFallback(30)
   else vibrateFallback(40)
+}
+
+export function sendTelegramWebAppData(payload: unknown): boolean {
+  const webApp = getTelegramWebApp()
+  if (!webApp?.sendData) return false
+  try {
+    webApp.sendData(JSON.stringify(payload))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function closeTelegramWebApp(): void {
+  try {
+    getTelegramWebApp()?.close?.()
+  } catch {
+    // noop
+  }
 }
