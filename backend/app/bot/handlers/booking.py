@@ -17,16 +17,19 @@ from app.bot.keyboards.booking import (
     confirm_keyboard,
     edit_keyboard,
     map_picker_keyboard,
+    payment_method_keyboard,
     welcome_keyboard,
 )
+from app.models.ride_payment_method import RidePaymentMethod
 from app.bot.services.user_binding import get_or_create_passenger_from_telegram
 from app.bot.states.booking import BookingStates
 from app.db import async_session_factory
 from app.services.pricing_service import get_or_create_pricing
+from app.services.ride_quote_service import calculate_ride_quote
 from app.services.ride_booking_service import (
     InsufficientPointsError,
     InvalidRideDateTimeError,
-    book_ride_with_points,
+    book_ride,
 )
 from app.services.user_service import update_user_language
 
@@ -153,19 +156,70 @@ async def _apply_picked_point(
     return False
 
 
+def _payment_method_label(lang: str, payment_method: str) -> str:
+    normalized = RidePaymentMethod.normalize(payment_method)
+    key = {
+        RidePaymentMethod.POINTS: "booking.payment.points",
+        RidePaymentMethod.DRIVER_CASH: "booking.payment.driver_cash",
+        RidePaymentMethod.DRIVER_CARD: "booking.payment.driver_card",
+    }.get(normalized, "booking.payment.points")
+    return t(key, lang)
+
+
+def _payment_terms_text(lang: str, payment_method: str) -> str:
+    normalized = RidePaymentMethod.normalize(payment_method)
+    if normalized == RidePaymentMethod.DRIVER_CASH:
+        return t("booking.payment.driver_cash_terms", lang)
+    if normalized == RidePaymentMethod.DRIVER_CARD:
+        return t("booking.payment.driver_card_terms", lang)
+    return ""
+
+
+async def _prompt_payment_method(message: Message, state: FSMContext, *, lang: str):
+    await state.set_state(BookingStates.awaiting_payment_method)
+    await message.answer(
+        t("booking.payment.choose", lang),
+        reply_markup=payment_method_keyboard(lang),
+    )
+
+
 async def _show_confirmation(message: Message, state: FSMContext):
     data = await state.get_data()
     user, pricing = await _load_user_and_pricing(message)
     lang = normalize_lang(user.preferred_language)
     ride_datetime = get_selected_datetime(data)
+    payment_method = RidePaymentMethod.normalize(data.get("payment_method"))
+    payment_label = _payment_method_label(lang, payment_method)
     text = (
         f"{t('booking.confirm.title', lang)}\n\n"
         f"{t('booking.pointA', lang)}: {html.escape(str(data['from_address']))}\n"
         f"{t('booking.pointB', lang)}: {html.escape(str(data['to_address']))}\n"
         f"{format_bot_date_time_html(ride_datetime, lang)}\n\n"
-        f"{t('booking.cost', lang)}: {pricing.points_per_ride}\n"
-        f"{t('booking.balance', lang)}: {int(user.points_balance or 0)}"
+        f"{t('booking.payment.summary', lang)}: {html.escape(payment_label)}\n"
     )
+    quote = None
+    try:
+        quote = await calculate_ride_quote(
+            pricing,
+            from_lat=float(data["from_lat"]),
+            from_lng=float(data["from_lng"]),
+            to_lat=float(data["to_lat"]),
+            to_lng=float(data["to_lng"]),
+        )
+    except ValueError:
+        quote = None
+
+    if payment_method == RidePaymentMethod.POINTS:
+        cost_points = int(quote.points) if quote is not None else pricing.points_per_ride
+        text += (
+            f"{t('booking.cost', lang)}: {cost_points}\n"
+            f"{t('booking.balance', lang)}: {int(user.points_balance or 0)}"
+        )
+    elif quote is not None:
+        text += f"{t('booking.payment.estimated_price', lang)}: €{quote.price_cents / 100:.2f}\n"
+    terms = _payment_terms_text(lang, payment_method)
+    if terms:
+        text += f"\n{html.escape(terms)}"
     await state.set_state(BookingStates.confirming)
     await message.answer(text, reply_markup=confirm_keyboard(lang), parse_mode="HTML")
 
@@ -332,7 +386,19 @@ async def pick_time_manual(message: Message, state: FSMContext):
         await message.answer(t("booking.ask_time_retry", lang))
         return
     await state.update_data(ride_time=ride_time.isoformat())
-    await _show_confirmation(message, state)
+    await _prompt_payment_method(message, state, lang=lang)
+
+
+@router.callback_query(BookingStates.awaiting_payment_method, F.data.startswith("payment:"))
+async def pick_payment_method(callback: CallbackQuery, state: FSMContext):
+    payment_method = callback.data.split(":", 1)[-1]
+    if payment_method not in RidePaymentMethod.ALL:
+        lang = await _get_user_lang(callback.from_user)
+        await callback.answer(t("booking.payment.invalid", lang), show_alert=True)
+        return
+    await state.update_data(payment_method=payment_method)
+    await _show_confirmation(callback.message, state)
+    await callback.answer()
 
 
 @router.callback_query(BookingStates.confirming, F.data == "confirm:cancel")
@@ -392,6 +458,13 @@ async def edit_time(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@router.callback_query(BookingStates.confirming, F.data == "edit:payment")
+async def edit_payment(callback: CallbackQuery, state: FSMContext):
+    lang = await _get_user_lang(callback.from_user)
+    await _prompt_payment_method(callback.message, state, lang=lang)
+    await callback.answer()
+
+
 @router.callback_query(BookingStates.confirming, F.data == "confirm:submit")
 async def submit_booking(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -408,7 +481,7 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
                 db_session,
                 telegram_user=callback.from_user,
             )
-            booking = await book_ride_with_points(
+            booking = await book_ride(
                 db_session,
                 user=user,
                 passenger_name=callback.from_user.full_name,
@@ -419,6 +492,7 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
                 to_lat=data["to_lat"],
                 to_lng=data["to_lng"],
                 date_time=ride_datetime,
+                payment_method=data.get("payment_method", RidePaymentMethod.POINTS),
             )
     except InsufficientPointsError as exc:
         await state.update_data(submitted=False)
@@ -435,11 +509,22 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
         return
 
     await state.clear()
+    payment_method = RidePaymentMethod.normalize(data.get("payment_method"))
+    success_lines = [t("booking.created", lang)]
+    if payment_method == RidePaymentMethod.POINTS:
+        success_lines.extend([
+            f"{t('booking.debited', lang)}: {booking.points_debited}",
+            f"{t('booking.remaining', lang)}: {booking.points_balance_after}",
+        ])
+    else:
+        success_lines.append(_payment_method_label(lang, payment_method))
+        terms = _payment_terms_text(lang, payment_method)
+        if terms:
+            success_lines.append(terms)
+    success_lines.append("")
+    success_lines.append(t("menu.welcome", lang))
     await callback.message.answer(
-        f"{t('booking.created', lang)}\n"
-        f"{t('booking.debited', lang)}: {booking.points_debited}\n"
-        f"{t('booking.remaining', lang)}: {booking.points_balance_after}\n\n"
-        + t("menu.welcome", lang),
+        "\n".join(success_lines),
         reply_markup=welcome_keyboard(lang),
     )
     await callback.answer(t("common.done", lang))

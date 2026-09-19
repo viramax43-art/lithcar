@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.app_timezone import MIN_BOOKING_LEAD_HOURS, normalize_app_datetime, to_app_local
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.pricing_settings import PricingSettings
+from app.models.ride_payment_method import RidePaymentMethod
 from app.models.ride_request import RideRequest
 from app.models.user import User
 from app.services.pricing_service import (
@@ -108,7 +109,7 @@ def _quote_breakdown_to_json(quote) -> list[dict] | None:
     return [asdict(line) for line in quote.breakdown]
 
 
-async def book_ride_with_points(
+async def book_ride(
     db_session: AsyncSession,
     *,
     user: User,
@@ -120,7 +121,9 @@ async def book_ride_with_points(
     to_lat: float,
     to_lng: float,
     date_time: datetime,
+    payment_method: str = RidePaymentMethod.POINTS,
 ) -> RideBookingResult:
+    normalized_payment_method = RidePaymentMethod.normalize(payment_method)
     try:
         pricing = await _get_or_create_pricing_no_commit(db_session)
         normalized_date_time = validate_ride_datetime(
@@ -143,7 +146,7 @@ async def book_ride_with_points(
 
         points_per_ride = int(quote.points)
         current_balance = int(user.points_balance or 0)
-        if current_balance < points_per_ride:
+        if normalized_payment_method == RidePaymentMethod.POINTS and current_balance < points_per_ride:
             raise InsufficientPointsError(
                 required_points=points_per_ride,
                 current_balance=current_balance,
@@ -169,17 +172,22 @@ async def book_ride_with_points(
             quote_duration_min=metrics.duration_min if metrics else None,
             quote_tier_label=metrics.tier_label if metrics else None,
             quote_breakdown_json=_quote_breakdown_to_json(quote),
+            payment_method=normalized_payment_method,
         )
 
-        user.points_balance = current_balance - points_per_ride
-        transaction = PointsTransaction(
-            user_id=user.user_id,
-            amount=-points_per_ride,
-            transaction_type=PointsTransactionType.RIDE_BOOKING_DEBIT,
-            reference_id=request.id,
-            eur_amount_cents=int(quote.price_cents),
-        )
-        db_session.add(transaction)
+        points_debited = 0
+        if normalized_payment_method == RidePaymentMethod.POINTS:
+            user.points_balance = current_balance - points_per_ride
+            points_debited = points_per_ride
+            transaction = PointsTransaction(
+                user_id=user.user_id,
+                amount=-points_per_ride,
+                transaction_type=PointsTransactionType.RIDE_BOOKING_DEBIT,
+                reference_id=request.id,
+                eur_amount_cents=int(quote.price_cents),
+            )
+            db_session.add(transaction)
+
         await db_session.flush()
         await db_session.commit()
     except Exception:
@@ -190,6 +198,34 @@ async def book_ride_with_points(
     await db_session.refresh(request)
     return RideBookingResult(
         request=request,
-        points_debited=points_per_ride,
+        points_debited=points_debited,
         points_balance_after=int(user.points_balance or 0),
+    )
+
+
+async def book_ride_with_points(
+    db_session: AsyncSession,
+    *,
+    user: User,
+    passenger_name: str,
+    from_address: str,
+    from_lat: float,
+    from_lng: float,
+    to_address: str,
+    to_lat: float,
+    to_lng: float,
+    date_time: datetime,
+) -> RideBookingResult:
+    return await book_ride(
+        db_session,
+        user=user,
+        passenger_name=passenger_name,
+        from_address=from_address,
+        from_lat=from_lat,
+        from_lng=from_lng,
+        to_address=to_address,
+        to_lat=to_lat,
+        to_lng=to_lng,
+        date_time=date_time,
+        payment_method=RidePaymentMethod.POINTS,
     )

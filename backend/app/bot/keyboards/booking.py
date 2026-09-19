@@ -6,6 +6,7 @@ from aiogram.types import (
 
 from app.bot.i18n import t
 from app.core.config import settings
+from app.models.ride_payment_method import RidePaymentMethod
 
 
 def _frontend_base_url() -> str:
@@ -43,6 +44,16 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
     )
 
 
+def payment_method_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t("booking.payment.points", lang), callback_data=f"payment:{RidePaymentMethod.POINTS}")],
+            [InlineKeyboardButton(text=t("booking.payment.driver_cash", lang), callback_data=f"payment:{RidePaymentMethod.DRIVER_CASH}")],
+            [InlineKeyboardButton(text=t("booking.payment.driver_card", lang), callback_data=f"payment:{RidePaymentMethod.DRIVER_CARD}")],
+        ]
+    )
+
+
 def confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -64,6 +75,7 @@ def edit_keyboard(lang: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text=t("booking.datetime_date", lang), callback_data="edit:date"),
                 InlineKeyboardButton(text=t("booking.datetime_time", lang), callback_data="edit:time"),
             ],
+            [InlineKeyboardButton(text=t("booking.payment.edit", lang), callback_data="edit:payment")],
             [InlineKeyboardButton(text=t("menu.back_to_confirm", lang), callback_data="edit:back")],
         ]
     )

@@ -70,4 +70,5 @@ class RideRequest(Base):
     quote_duration_min = Column(Float, nullable=True)
     quote_tier_label = Column(String, nullable=True)
     quote_breakdown_json = Column(JSONB, nullable=True)
+    payment_method = Column(String, nullable=False, server_default="points")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

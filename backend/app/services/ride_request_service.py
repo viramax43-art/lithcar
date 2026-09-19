@@ -30,6 +30,7 @@ async def create_ride_request_record(
     quote_duration_min: float | None = None,
     quote_tier_label: str | None = None,
     quote_breakdown_json: list[dict] | None = None,
+    payment_method: str = "points",
     driver_id: str | None = None,
     offer_id: str | None = None,
     status: str = RideRequestStatus.PENDING,
@@ -57,6 +58,7 @@ async def create_ride_request_record(
         quote_duration_min=quote_duration_min,
         quote_tier_label=quote_tier_label,
         quote_breakdown_json=quote_breakdown_json,
+        payment_method=payment_method,
     )
     db_session.add(request)
     if driver_id is not None:

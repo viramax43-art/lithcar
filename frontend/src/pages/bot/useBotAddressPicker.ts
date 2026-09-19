@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import i18n from '../../i18n'
+import { normalizeLanguage } from '../../i18n/languages'
+import { getCurrentUser } from '../../infrastructure/api/passengerApi'
 import L from 'leaflet'
 import { listServiceZones } from '../../lib/backend'
 import { ensurePassengerAccessToken } from '../../infrastructure/auth/passengerAuthSession'
@@ -63,6 +66,14 @@ export function useBotAddressPicker() {
     ;(async () => {
       try {
         await ensurePassengerAccessToken()
+        try {
+          const user = await getCurrentUser()
+          if (!cancelled) {
+            await i18n.changeLanguage(normalizeLanguage(user.language))
+          }
+        } catch {
+          // keep locally selected language
+        }
         const zonesData = await listServiceZones('bearer', { limit: 500, offset: 0 })
         if (!cancelled) setServiceZones(zonesData.items)
       } catch (error) {

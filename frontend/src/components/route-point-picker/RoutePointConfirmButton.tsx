@@ -12,14 +12,15 @@ export default function RoutePointConfirmButton({ model, showCaret = true }: Rou
 
   if (!model.isPinLive) return null
 
+  const isBotPicker = typeof window !== 'undefined' && window.location.pathname.includes('/bot/pick')
   const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
   const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
   const activeSetupHint = model.activeIsFrom ? pointASetupHint : pointBSetupHint
 
   const label = model.pinReadyForConfirm
     ? model.activeIsFrom
-      ? t('passenger.confirmPointA', { defaultValue: 'Confirm point A' })
-      : t('passenger.confirmPointB', { defaultValue: 'Confirm point B' })
+      ? t(isBotPicker ? 'bot.confirmPointA' : 'passenger.confirmPointA', { defaultValue: 'Confirm point A' })
+      : t(isBotPicker ? 'bot.confirmPointB' : 'passenger.confirmPointB', { defaultValue: 'Confirm point B' })
     : activeSetupHint
 
   return (
