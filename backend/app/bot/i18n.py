@@ -310,16 +310,48 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Картой водителю по факту",
     },
     "booking.payment.driver_cash_terms": {
-        "lt": "Mokejimo salygos bus pateiktos veliau.",
-        "pl": "Warunki platnosci zostana podane pozniej.",
-        "en": "Payment terms will be provided later.",
-        "ru": "Условия оплаты будут добавлены позже.",
+        "lt": (
+            "Testinis tekstas: mokate grynais vairuotojui keliones pabaigoje. "
+            "Taskai nuo balanso nenuwrite. Sumokate orientacine kaina, rodoma uzsakyme. "
+            "Pasiruoškite tikslią sumą arba apvalią sumą."
+        ),
+        "pl": (
+            "Tekst testowy: placisz gotowka kierowcy po zakonczeniu przejazdu. "
+            "Punkty z salda nie sa pobierane. Placisz orientacyjna cene z zamowienia. "
+            "Przygotuj dokladna lub zaokraglona kwote."
+        ),
+        "en": (
+            "Test text: you pay the driver in cash at the end of the ride. "
+            "No points are deducted from your balance. You pay the estimated price shown in the booking. "
+            "Please have the exact or rounded amount ready."
+        ),
+        "ru": (
+            "Тестовый текст: оплата наличными водителю по завершении поездки. "
+            "Поинты с баланса не списываются. Сумма — ориентировочная, как в заявке. "
+            "Подготовьте точную или округлённую сумму."
+        ),
     },
     "booking.payment.driver_card_terms": {
-        "lt": "Mokejimo salygos bus pateiktos veliau.",
-        "pl": "Warunki platnosci zostana podane pozniej.",
-        "en": "Payment terms will be provided later.",
-        "ru": "Условия оплаты будут добавлены позже.",
+        "lt": (
+            "Testinis tekstas: mokate kortele vairuotojui keliones pabaigoje. "
+            "Taskai nuo balanso nenuwrite. Vairuotojas gali priimti bekontakti arba per terminala. "
+            "Orientacine suma rodoma uzsakyme."
+        ),
+        "pl": (
+            "Tekst testowy: placisz karta u kierowcy po zakonczeniu przejazdu. "
+            "Punkty z salda nie sa pobierane. Kierowca moze przyjac platnosc zblieniowa lub terminalem. "
+            "Orientacyjna cena jest widoczna w zamowieniu."
+        ),
+        "en": (
+            "Test text: you pay the driver by card at the end of the ride. "
+            "No points are deducted from your balance. The driver may accept contactless or terminal payment. "
+            "The estimated price is shown in the booking."
+        ),
+        "ru": (
+            "Тестовый текст: оплата картой водителю по завершении поездки. "
+            "Поинты с баланса не списываются. Водитель может принять бесконтактную оплату или через терминал. "
+            "Ориентировочная сумма указана в заявке."
+        ),
     },
     "booking.payment.estimated_price": {
         "lt": "Numatoma kaina",
