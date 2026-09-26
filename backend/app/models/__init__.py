@@ -10,6 +10,7 @@ from app.models.ride_request import RideRequest
 from app.models.driver_ride_offer import DriverRideOffer
 from app.models.service_zone import ServiceZone
 from app.models.pricing_settings import PricingSettings
+from app.models.platform_settings import PlatformSettings
 from app.models.admin_api_key import AdminApiKey
 from app.models.points_transaction import PointsTransaction
 from app.models.driver_qr_sale import DriverQrSale
@@ -32,6 +33,7 @@ __all__ = [
     "DriverRideOffer",
     "ServiceZone",
     "PricingSettings",
+    "PlatformSettings",
     "AdminApiKey",
     "PointsTransaction",
     "DriverQrSale",

@@ -39,6 +39,7 @@ os.environ.setdefault("S3_REQUIRED_ON_STARTUP", "false")
 
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.models import Base
 
 
@@ -57,6 +58,15 @@ async def db_session():
     async with session_factory() as session:
         yield session
     await engine.dispose()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def reset_rate_limiter():
+    # slowapi keeps counters in process memory; without a reset the shared test
+    # client IP trips endpoint limits (e.g. 3/min on admin login) across tests.
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -79,5 +89,6 @@ async def client():
     # из-за чего не инициализируются app.state.* зависимости (например db_session_factory).
     async with fastapi_app.router.lifespan_context(fastapi_app):
         transport = ASGITransport(app=fastapi_app)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Host must be in TRUSTED_HOSTS, otherwise TrustedHostMiddleware returns 400.
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
             yield ac

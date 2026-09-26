@@ -89,6 +89,29 @@ async def test_transfer_points_self_transfer_rejected(client, db_session):
     assert response.json()["detail"]["code"] == "self_transfer"
 
 
+async def test_transfer_points_to_admin_role_user(client, db_session):
+    sender = await _create_user(db_session, user_id="transfer-to-admin-sender", points_balance=50)
+    admin_user = User(
+        user_id="transfer-admin-target",
+        username="admin_target",
+        role=UserRole.ADMIN,
+        points_balance=0,
+    )
+    db_session.add(admin_user)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/points/transfer",
+        json={"recipientUserId": admin_user.user_id, "points": 15},
+        headers=_auth_headers(sender),
+    )
+    assert response.status_code == 200
+    assert response.json()["recipientUserId"] == admin_user.user_id
+
+    await db_session.refresh(admin_user)
+    assert admin_user.points_balance == 15
+
+
 async def test_transfer_points_insufficient_balance(client, db_session):
     sender = await _create_user(db_session, user_id="transfer-poor", points_balance=5)
     recipient = await _create_user(db_session, user_id="transfer-rich-target", points_balance=0)

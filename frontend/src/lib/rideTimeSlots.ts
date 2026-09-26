@@ -1,6 +1,6 @@
 import { APP_TIMEZONE } from '../i18n/dateTime'
 
-export const MIN_BOOKING_LEAD_HOURS = 5
+export const MIN_BOOKING_LEAD_HOURS = 0
 
 function getAppLocalNow(): { date: string; totalMinutes: number } {
   const now = new Date()
@@ -17,6 +17,7 @@ function getAppLocalNow(): { date: string; totalMinutes: number } {
 }
 
 export function buildRideTimeSlots(params: {
+  /** Legacy fields kept in the API contract; booking is available around the clock. */
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number
@@ -24,24 +25,18 @@ export function buildRideTimeSlots(params: {
   minLeadHours?: number
 }): string[] {
   const {
-    workStartTime,
-    workEndTime,
     slotIntervalMinutes,
     selectedDate,
     minLeadHours = MIN_BOOKING_LEAD_HOURS,
   } = params
 
-  const [sh, sm] = workStartTime.split(':').map(Number)
-  const [eh, em] = workEndTime.split(':').map(Number)
   const interval = Math.max(1, slotIntervalMinutes)
-  const startMin = sh * 60 + sm
-  const endMin = eh * 60 + em
 
   const { date: today, totalMinutes: nowMinutes } = getAppLocalNow()
-  const minMinutes = selectedDate === today ? nowMinutes + minLeadHours * 60 : startMin
+  const minMinutes = selectedDate === today ? nowMinutes + minLeadHours * 60 : 0
 
   const slots: string[] = []
-  for (let t = startMin; t <= endMin; t += interval) {
+  for (let t = 0; t < 24 * 60; t += interval) {
     if (t < minMinutes) continue
     const hh = String(Math.floor(t / 60)).padStart(2, '0')
     const mm = String(t % 60).padStart(2, '0')

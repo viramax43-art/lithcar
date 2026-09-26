@@ -244,6 +244,10 @@ async def test_targeted_info_block_visible_only_to_username(client):
     block_id = created.json()["id"]
     assert created.json()["targetUsername"] == "only_me"
 
+    # Each /api/auth call also stores passenger session cookies, and resolve_access_token
+    # reads the cookie before the Authorization header. Drop the cookies so the request
+    # below is served strictly as the user identified by the Bearer token.
+    client.cookies.clear()
     inbox_target = await client.get(
         "/api/notifications/passenger",
         headers={"Authorization": f"Bearer {token_target}"},
@@ -251,6 +255,7 @@ async def test_targeted_info_block_visible_only_to_username(client):
     assert inbox_target.status_code == 200
     assert any(item["id"] == block_id for item in inbox_target.json()["items"])
 
+    client.cookies.clear()
     inbox_other = await client.get(
         "/api/notifications/passenger",
         headers={"Authorization": f"Bearer {token_other}"},

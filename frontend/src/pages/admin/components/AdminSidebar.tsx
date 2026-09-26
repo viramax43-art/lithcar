@@ -48,6 +48,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     selectedReqId,
     setSelectedReqId,
     setAssignModalReqIds,
+    handleUnassignDriver,
+    unassigningRequestId,
     suggestions,
     selectedGroupId,
     setSelectedGroupId,
@@ -322,6 +324,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               selectedReqId={selectedReqId}
               setSelectedReqId={setSelectedReqId}
               setAssignModalReqIds={setAssignModalReqIds}
+              handleUnassignDriver={handleUnassignDriver}
+              unassigningRequestId={unassigningRequestId}
             />
 
             <AdminSidebarDriverRegistrationSection

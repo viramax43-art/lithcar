@@ -613,7 +613,21 @@ export default function NewRequest() {
           )}
 
           {(model.errorMessage || passengerSession.error) && (
-            <p className="text-[11px] font-medium text-red-600">{model.errorMessage || passengerSession.error}</p>
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium text-red-600">{model.errorMessage || passengerSession.error}</p>
+              {model.showPayViaDriver && (
+                <button
+                  type="button"
+                  onClick={() => void model.handleSubmitViaDriver()}
+                  disabled={model.submitting}
+                  className="w-full py-2.5 rounded-xl border border-black bg-white text-black text-xs font-bold active:scale-[0.97] transition-all disabled:opacity-50"
+                >
+                  {model.submitting
+                    ? t('common.sending', { defaultValue: 'Sending...' })
+                    : t('passenger.payViaDriver', { defaultValue: 'Pay via driver' })}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -34,6 +34,7 @@ import {
   updateDriverRegistrationSettings,
   updatePricing,
   updateServiceZone,
+  unassignAdminDriver,
   type AdminKeyInfo,
   type AdminSessionUser,
 } from '../../lib/backend'
@@ -101,6 +102,7 @@ export default function AdminDashboard() {
   const [isSavingRoute, setIsSavingRoute] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState<string>(INITIAL_DASHBOARD_UI.assignDriverId)
   const [isAssigning, setIsAssigning] = useState(false)
+  const [unassigningRequestId, setUnassigningRequestId] = useState<string | null>(null)
 
   const [isDrawing, setIsDrawing] = useState(INITIAL_DASHBOARD_UI.isDrawing)
   const [drawingPoints, setDrawingPoints] = useState<LatLng[]>(INITIAL_DASHBOARD_UI.drawingPoints)
@@ -370,6 +372,19 @@ export default function AdminDashboard() {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.assignDriverFailed'))
     } finally {
       setIsAssigning(false)
+    }
+  }
+
+  const handleUnassignDriver = async (requestId: string) => {
+    if (unassigningRequestId) return
+    setUnassigningRequestId(requestId)
+    try {
+      await unassignAdminDriver(requestId)
+      await loadAll()
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.unassignDriverFailed'))
+    } finally {
+      setUnassigningRequestId(null)
     }
   }
 
@@ -673,6 +688,8 @@ export default function AdminDashboard() {
           setSelectedReqId={setSelectedReqId}
           setAssignModalReqIds={setAssignModalReqIds}
           suggestions={suggestions}
+          handleUnassignDriver={handleUnassignDriver}
+          unassigningRequestId={unassigningRequestId}
           selectedGroupId={selectedGroupId}
           setSelectedGroupId={setSelectedGroupId}
           groupColorMap={groupColorMap}
@@ -767,6 +784,8 @@ export default function AdminDashboard() {
           }}
           onSelectZone={handleSelectZoneFromMap}
           onOpenAssignModal={setAssignModalReqIds}
+          onUnassignDriver={handleUnassignDriver}
+          unassigningRequestId={unassigningRequestId}
           onOpenEditRoute={(requestId) => {
             const request = requests.find((item) => item.id === requestId)
             if (request) startRouteEdit(request)
@@ -781,6 +800,9 @@ export default function AdminDashboard() {
             if (!isDrawing) return
             setDrawingPoints((prev) => [...prev, point])
           }}
+          onUndoZonePoint={() => setDrawingPoints((prev) => prev.slice(0, -1))}
+          onCancelZoneDrawing={resetZoneDrawing}
+          onSaveZone={() => void handleSaveZone()}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
           filterDate={filterDate}
