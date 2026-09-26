@@ -157,13 +157,6 @@ export default function EditRequestSheet({
                   </select>
                 </label>
               </div>
-
-              <p className="text-[11px] text-muted">
-                {t('passenger.minLeadHoursHint', {
-                  hours: 5,
-                  defaultValue: 'Ride must be at least 5 hours from now.',
-                })}
-              </p>
             </>
           )}
 

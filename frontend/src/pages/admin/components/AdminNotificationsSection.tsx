@@ -10,6 +10,7 @@ import {
   resolveUserInfoText,
   type UserInfoTextI18n,
 } from '../../../lib/userInfoText'
+import { useAutoTranslatedText } from '../../../lib/useAutoTranslatedText'
 import type { InfoBlock } from '../../../types'
 import InlineConfirm from './InlineConfirm'
 import { inputCls, Section } from './AdminSidebarShared'
@@ -29,6 +30,8 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const updateTranslatedTitle = useAutoTranslatedText(setTitleDraft)
+  const updateTranslatedBody = useAutoTranslatedText(setBodyDraft)
 
   const loadItems = useCallback(async () => {
     if (!canManage) return
@@ -194,12 +197,7 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
                 </label>
                 <input
                   value={titleDraft[lang]}
-                  onChange={(e) =>
-                    setTitleDraft((prev) => ({
-                      ...prev,
-                      [lang]: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => updateTranslatedTitle(lang, e.target.value)}
                   placeholder={t('notifications.send.titlePlaceholder')}
                   className={inputCls}
                 />
@@ -216,12 +214,7 @@ export function AdminNotificationsSection({ canManage }: AdminNotificationsSecti
                 </label>
                 <textarea
                   value={bodyDraft[lang]}
-                  onChange={(e) =>
-                    setBodyDraft((prev) => ({
-                      ...prev,
-                      [lang]: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => updateTranslatedBody(lang, e.target.value)}
                   placeholder={t('notifications.send.bodyPlaceholder')}
                   rows={3}
                   className={`${inputCls} resize-y min-h-[72px]`}

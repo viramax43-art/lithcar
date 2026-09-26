@@ -38,6 +38,7 @@ from app.services.ride_request_service import (
     get_request,
     list_passenger_requests,
     list_requests,
+    unassign_driver,
     update_passenger_live_location,
     update_ride_request,
     update_request_status,
@@ -484,6 +485,21 @@ async def assign_driver_single(
     await notify_passenger_driver_assigned(request=updated[0], driver=driver)
     await notify_driver_ride_assigned(request=updated[0], driver=driver)
     return await _build_ride_request_out_with_driver(db_session, updated[0])
+
+
+@router.delete("/{request_id}/assignment", response_model=RideRequestOut)
+async def remove_driver_assignment(
+    request_id: str,
+    _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN, AdminApiRole.MODERATOR)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        request = await unassign_driver(db_session, request_id=request_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if request is None:
+        raise HTTPException(status_code=404, detail="Ride request not found.")
+    return await _build_ride_request_out(db_session, request)
 
 
 @router.post("/assign-bulk", response_model=list[RideRequestOut])

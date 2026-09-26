@@ -6,6 +6,7 @@ import { CaretRight, Clock, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RatingBadge from '../../../components/RatingBadge'
+import InlineConfirm from './InlineConfirm'
 import { formatRideDateTime } from '../../../i18n/dateTime'
 import { matchesPeriodFilter } from '../../../lib/periodFilter'
 import { MAP_COLOR_GROUPS, STATUS_CONFIG } from '../constants'
@@ -28,6 +29,8 @@ type RequestsSuggestionsProps = Pick<
   | 'selectedReqId'
   | 'setSelectedReqId'
   | 'setAssignModalReqIds'
+  | 'handleUnassignDriver'
+  | 'unassigningRequestId'
 >
 
 export function AdminSidebarRequestsSuggestionsSection({
@@ -46,6 +49,8 @@ export function AdminSidebarRequestsSuggestionsSection({
   selectedReqId,
   setSelectedReqId,
   setAssignModalReqIds,
+  handleUnassignDriver,
+  unassigningRequestId,
 }: RequestsSuggestionsProps) {
   const { t } = useTranslation()
   const initialSidebarUi = getInitialSidebarUi()
@@ -249,6 +254,20 @@ export function AdminSidebarRequestsSuggestionsSection({
                     >
                       {t('admin.requests.assign', { defaultValue: 'Assign' })}
                     </button>
+                  )}
+                  {request.driverId && request.status === 'assigned' && (
+                    unassigningRequestId === request.id ? (
+                      <span className="min-h-[44px] inline-flex items-center px-3 text-[11px] font-semibold text-muted">
+                        {t('common.updating')}
+                      </span>
+                    ) : (
+                      <InlineConfirm
+                        label={t('admin.requests.unassignDriver')}
+                        confirmLabel={t('admin.requests.confirmUnassignDriver')}
+                        onConfirm={() => void handleUnassignDriver(request.id)}
+                        className="min-h-[44px]"
+                      />
+                    )
                   )}
                 </div>
               </div>

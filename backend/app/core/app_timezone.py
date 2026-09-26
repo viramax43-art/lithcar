@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 APP_TIMEZONE = ZoneInfo("Europe/Vilnius")
-MIN_BOOKING_LEAD_HOURS = 5
+MIN_BOOKING_LEAD_HOURS = 0
 
 
 def normalize_app_datetime(value: datetime) -> datetime:

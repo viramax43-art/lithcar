@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.app_timezone import MIN_BOOKING_LEAD_HOURS, normalize_app_datetime, to_app_local
+from app.core.app_timezone import normalize_app_datetime, to_app_local
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.pricing_settings import PricingSettings
 from app.models.ride_payment_method import RidePaymentMethod
@@ -70,35 +70,32 @@ def validate_ride_datetime(
     work_start: str = "06:00",
     work_end: str = "19:00",
     slot_interval_minutes: int = 30,
-    min_lead_hours: int = MIN_BOOKING_LEAD_HOURS,
+    min_lead_hours: int = 0,
 ) -> datetime:
+    # work_start/work_end remain in the signature for backward compatibility
+    # with pricing records and callers. Rides are now available around the
+    # clock; only the configured slot interval limits the chosen time.
+    del work_start, work_end
     normalized = normalize_app_datetime(date_time)
     now = datetime.now(timezone.utc)
     min_time = now + timedelta(hours=min_lead_hours)
     if normalized < min_time:
-        raise InvalidRideDateTimeError(
-            f"Ride must be scheduled at least {min_lead_hours} hours in advance."
-        )
+        if min_lead_hours > 0:
+            raise InvalidRideDateTimeError(
+                f"Ride must be scheduled at least {min_lead_hours} hours in advance."
+            )
+        raise InvalidRideDateTimeError("Ride time must be in the future.")
     max_date = now + timedelta(days=2)
     if normalized > max_date:
         raise InvalidRideDateTimeError("Ride can be planned at most 2 days ahead.")
 
     local = to_app_local(normalized)
     ride_total_minutes = local.hour * 60 + local.minute
-
-    start_h, start_m = (int(x) for x in work_start.split(":"))
-    end_h, end_m = (int(x) for x in work_end.split(":"))
-    start_total = start_h * 60 + start_m
-    end_total = end_h * 60 + end_m
     interval = max(1, int(slot_interval_minutes))
 
-    if ride_total_minutes < start_total or ride_total_minutes > end_total:
+    if ride_total_minutes % interval != 0:
         raise InvalidRideDateTimeError(
-            f"Ride time must be between {work_start} and {work_end}."
-        )
-    if (ride_total_minutes - start_total) % interval != 0:
-        raise InvalidRideDateTimeError(
-            f"Ride time must align to {interval}-minute slots starting at {work_start}."
+            f"Ride time must align to {interval}-minute slots starting at 00:00."
         )
     return normalized
 

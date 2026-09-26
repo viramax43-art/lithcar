@@ -24,6 +24,8 @@ export interface AdminSidebarProps {
   selectedReqId: string | null
   setSelectedReqId: (id: string | null) => void
   setAssignModalReqIds: (ids: string[] | null) => void
+  handleUnassignDriver: (requestId: string) => Promise<void>
+  unassigningRequestId: string | null
   suggestions: GroupSuggestion[]
   selectedGroupId: string | null
   setSelectedGroupId: (id: string | null) => void

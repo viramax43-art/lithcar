@@ -48,6 +48,7 @@ export {
   uploadDriverPhoto,
   assignDriverBulk,
   patchAdminRideRoute,
+  unassignAdminDriver,
 } from '../infrastructure/api/adminApi'
 
 export {

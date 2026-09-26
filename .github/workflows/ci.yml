@@ -48,8 +48,15 @@ jobs:
 
       - name: Run migrations
         working-directory: backend
+        # alembic/env.py imports app.core.config, and Settings declares
+        # `secret_key: str` without a default, so the migration step needs the
+        # same env vars as the test step below (otherwise the import raises
+        # ValidationError: secret_key Field required).
         env:
           DATABASE_URL: postgresql+asyncpg://lithcar:lithcar_test@localhost:5432/lithcar_test
+          SECRET_KEY: test-secret-not-for-prod
+          BOT_TOKEN: test-token
+          CHIEF_ADMIN_KEY: ride_chief_admin_test_bootstrap_key
         run: alembic upgrade head
 
       - name: Run backend tests

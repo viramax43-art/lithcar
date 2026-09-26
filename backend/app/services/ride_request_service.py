@@ -332,6 +332,37 @@ async def assign_driver(
     return requests
 
 
+async def unassign_driver(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+) -> RideRequest | None:
+    result = await db_session.execute(
+        select(RideRequest)
+        .where(RideRequest.id == request_id)
+        .with_for_update()
+    )
+    request = result.scalar_one_or_none()
+    if request is None:
+        return None
+    if request.status != RideRequestStatus.ASSIGNED or request.driver_id is None:
+        raise ValueError("Водителя можно снять только с назначенной поездки до её начала.")
+
+    request.driver_id = None
+    request.passenger_number = None
+    request.status = (
+        RideRequestStatus.GROUPED
+        if request.group_id
+        else RideRequestStatus.PENDING
+    )
+    request.pickup_changed_by_driver = False
+    request.pickup_notified_at = None
+    request.pickup_confirmed_at = None
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request
+
+
 class ClaimRideError(Exception):
     def __init__(self, code: str, message: str) -> None:
         self.code = code

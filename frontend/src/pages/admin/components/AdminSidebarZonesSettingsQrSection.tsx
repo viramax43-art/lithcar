@@ -17,6 +17,7 @@ import { normalizeHexColor } from '../../../utils/serviceZones'
 import type { ServiceZone } from '../../../types'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { AdminNotificationsSection } from './AdminNotificationsSection'
+import { useAutoTranslatedText } from '../../../lib/useAutoTranslatedText'
 
 type ZonesSettingsQrSectionProps = Pick<
   AdminSidebarProps,
@@ -91,6 +92,8 @@ export function AdminSidebarZonesSettingsQrSection({
   const [zonesSearchQuery, setZonesSearchQuery] = useState('')
   const [userInfoMainDraft, setUserInfoMainDraft] = useState<UserInfoTextI18n>(() => initialMainDraft)
   const [userInfoProfileDraft, setUserInfoProfileDraft] = useState<UserInfoTextI18n>(() => initialProfileDraft)
+  const updateTranslatedMainInfo = useAutoTranslatedText(setUserInfoMainDraft)
+  const updateTranslatedProfileInfo = useAutoTranslatedText(setUserInfoProfileDraft)
 
   const zonesSettingsUiPersistence = useMemo(
     () => ({
@@ -311,10 +314,7 @@ export function AdminSidebarZonesSettingsQrSection({
                     value={userInfoMainDraft[lang]}
                     onChange={(event) => {
                       mainDirtyRef.current = true
-                      setUserInfoMainDraft((prev) => ({
-                        ...prev,
-                        [lang]: event.target.value,
-                      }))
+                      updateTranslatedMainInfo(lang, event.target.value)
                     }}
                     rows={3}
                     placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}
@@ -335,10 +335,7 @@ export function AdminSidebarZonesSettingsQrSection({
                     value={userInfoProfileDraft[lang]}
                     onChange={(event) => {
                       profileDirtyRef.current = true
-                      setUserInfoProfileDraft((prev) => ({
-                        ...prev,
-                        [lang]: event.target.value,
-                      }))
+                      updateTranslatedProfileInfo(lang, event.target.value)
                     }}
                     rows={3}
                     placeholder={t(`admin.settings.userInfoPlaceholder.${lang}`)}

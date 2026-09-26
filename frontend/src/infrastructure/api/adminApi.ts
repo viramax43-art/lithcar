@@ -51,6 +51,14 @@ export async function assignDriverBulk(
   return updated.map(mapRideRequest)
 }
 
+export async function unassignAdminDriver(requestId: string): Promise<RideRequest> {
+  const updated = await apiRequest<RideRequestApi>(
+    `/api/ride-requests/${encodeURIComponent(requestId)}/assignment`,
+    { method: 'DELETE', authMode: 'cookie' },
+  )
+  return mapRideRequest(updated)
+}
+
 export async function listDrivers(onlineOnly = false, params?: PaginationParams): Promise<PaginatedResult<Driver>> {
   const onlinePart = onlineOnly ? 'onlineOnly=true&' : ''
   return apiRequest<PaginatedResult<Driver>>(`/api/drivers?${onlinePart}${toPageQuery(params)}`, { authMode: 'cookie' })

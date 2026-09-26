@@ -5,6 +5,7 @@ import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretLeft, CaretRight,
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import RatingBadge from '../../../components/RatingBadge'
+import InlineConfirm from './InlineConfirm'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
@@ -50,6 +51,8 @@ interface AdminMapProps {
   onSelectZone: (zoneId: string) => void
   onOpenAssignModal: (requestIds: string[]) => void
   onOpenEditRoute: (requestId: string) => void
+  onUnassignDriver: (requestId: string) => Promise<void>
+  unassigningRequestId: string | null
   routeEditDraft: RideDraft | null
   onRouteEditDraftChange: (draft: RideDraft) => void
   onCancelRouteEdit: () => void
@@ -227,6 +230,8 @@ export default function AdminMap({
   onSelectZone,
   onOpenAssignModal,
   onOpenEditRoute,
+  onUnassignDriver,
+  unassigningRequestId,
   routeEditDraft,
   onRouteEditDraftChange,
   onCancelRouteEdit,
@@ -1830,6 +1835,20 @@ export default function AdminMap({
               >
                 {t('admin.requests.assignDriver')}
               </button>
+            )}
+            {selectedReq.driverId && selectedReq.status === 'assigned' && (
+              unassigningRequestId === selectedReq.id ? (
+                <div className="w-full py-2.5 text-center text-xs font-semibold text-muted">
+                  {t('common.updating')}
+                </div>
+              ) : (
+                <InlineConfirm
+                  label={t('admin.requests.unassignDriver')}
+                  confirmLabel={t('admin.requests.confirmUnassignDriver')}
+                  onConfirm={() => void onUnassignDriver(selectedReq.id)}
+                  className="w-full min-h-[42px] rounded-xl"
+                />
+              )
             )}
           </div>
         </div>
