@@ -48,6 +48,7 @@ export {
   uploadDriverPhoto,
   assignDriverBulk,
   patchAdminRideRoute,
+  unassignAdminDriver,
 } from '../infrastructure/api/adminApi'
 
 export {
@@ -98,6 +99,7 @@ export {
   purchasePointsByCard,
   transferPoints,
   issuePassengerQrSale,
+  sendPassengerLocation,
   updateCurrentUserLanguage,
   updateRequest,
 } from '../infrastructure/api/passengerApi'

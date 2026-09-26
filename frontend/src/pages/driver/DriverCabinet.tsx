@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Car, CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
+import { CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
@@ -22,8 +22,10 @@ import {
   getDriverMapData,
   bootstrapDriverAccess,
   getDriverSession,
+  listDriverOffers,
   loginDriverByKey,
   logoutDriverSession,
+  notifyPickupChange,
   rateRideAsDriver,
   resetDriverRidePickup,
   sendDriverLocation,
@@ -38,11 +40,12 @@ import { ApiError } from '../../infrastructure/http/httpClient'
 import { getDefaultPeriodFilter, matchesPeriodFilter } from '../../lib/periodFilter'
 import { hapticImpact, hapticNotification } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
-import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng } from '../../types'
+import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
 
 import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
 import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/DriverCabinetModeSwitch'
 import DriverMap from './components/DriverMap'
+import DriverMapLegend from './components/DriverMapLegend'
 import DriverMapPeriodFilter from './components/DriverMapPeriodFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import DriverSideMenu from './components/DriverSideMenu'
@@ -53,6 +56,16 @@ const MAP_POLL_MS = 8_000
 const CABINET_POLL_MS = 30_000
 const HEARTBEAT_MS = 15_000
 const LOCATION_INTERVAL_MS = 6_000
+const LEGEND_BAR_HEIGHT = 40
+
+function bearingDegrees(from: LatLng, to: LatLng): number {
+  const φ1 = (from.lat * Math.PI) / 180
+  const φ2 = (to.lat * Math.PI) / 180
+  const Δλ = ((to.lng - from.lng) * Math.PI) / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return (Math.atan2(y, x) * 180) / Math.PI
+}
 
 // ─── Action label helpers (same mapping as sheet) ────────────────────────────
 
@@ -336,6 +349,9 @@ export default function DriverCabinet() {
   const [geoBannerDismissed, setGeoBannerDismissed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
+  const [driverHeading, setDriverHeading] = useState<number | null>(null)
+  const [availableSeats, setAvailableSeats] = useState<number | null>(null)
+  const [openOffersMenu, setOpenOffersMenu] = useState(false)
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string; passengerId: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
   const [ratingPassengerBlocked, setRatingPassengerBlocked] = useState(false)
@@ -451,9 +467,12 @@ export default function DriverCabinet() {
     }
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
+        const { latitude: lat, longitude: lng, heading } = pos.coords
         setGeoBlocked(false)
         setDriverLocation({ lat, lng })
+        if (heading != null && Number.isFinite(heading) && heading >= 0) {
+          setDriverHeading(heading)
+        }
         const now = Date.now()
         if (now - lastSentRef.current >= LOCATION_INTERVAL_MS) {
           lastSentRef.current = now
@@ -469,6 +488,27 @@ export default function DriverCabinet() {
       { enableHighAccuracy: true, maximumAge: 3_000, timeout: 15_000 },
     )
     return () => navigator.geolocation.clearWatch(watchId)
+  }, [session?.driverId])
+
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const loadSeats = async () => {
+      try {
+        const page = await listDriverOffers({ status: 'open', limit: 20, offset: 0 })
+        if (cancelled) return
+        const total = page.items.reduce((sum, offer) => sum + offer.seatsAvailable, 0)
+        setAvailableSeats(total)
+      } catch {
+        if (!cancelled) setAvailableSeats(null)
+      }
+    }
+    void loadSeats()
+    const timer = setInterval(() => void loadSeats(), CABINET_POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
   }, [session?.driverId])
 
   // ── Derived state ─────────────────────────────────────────────────────────
@@ -493,6 +533,12 @@ export default function DriverCabinet() {
   )
 
   const mapDisplayPoints = cabinetMode === 'available' ? visibleAvailablePoints : visiblePoints
+
+  const displayDriverLocation = driverLocation ?? mapData?.driverLocation ?? null
+  const passengerLocations = useMemo<PassengerLiveLocation[]>(
+    () => mapData?.passengerLocations ?? [],
+    [mapData?.passengerLocations],
+  )
 
   const availableRideCount = useMemo(() => {
     return new Set(visibleAvailablePoints.map((p) => p.rideId)).size
@@ -533,7 +579,29 @@ export default function DriverCabinet() {
     ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 112}px)`
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
-  const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT + (canSelfAssign ? 48 : 0) + (filterExpanded ? 188 : 116)
+  const legendTopOffset = `calc(${filterTopOffset} + ${filterExpanded ? 188 : 48}px + 6px)`
+
+  const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
+    + (canSelfAssign ? 48 : 0)
+    + (filterExpanded ? 188 : 48)
+    + LEGEND_BAR_HEIGHT
+    + 18
+
+  const resolvedDriverHeading = useMemo(() => {
+    if (driverHeading != null && Number.isFinite(driverHeading)) return driverHeading
+    if (!displayDriverLocation) return null
+    const target = nextPoint ?? selectedPoint ?? selectedAvailablePickup
+      ?? mapDisplayPoints.find((p) => p.pointStatus !== 'done')
+    if (!target) return null
+    return bearingDegrees(displayDriverLocation, target.latLng)
+  }, [
+    driverHeading,
+    displayDriverLocation,
+    nextPoint,
+    selectedPoint,
+    selectedAvailablePickup,
+    mapDisplayPoints,
+  ])
 
   useEffect(() => {
     if (!selectedPointId) return
@@ -665,6 +733,11 @@ export default function DriverCabinet() {
         rideId,
         pointType === 'pickup' ? { fromPoint: point } : { toPoint: point },
       )
+      if (pointType === 'pickup') {
+        try {
+          await notifyPickupChange(rideId)
+        } catch { /* route saved even if notify fails */ }
+      }
       hapticImpact('light')
       await loadMapData()
     } catch (err) {
@@ -718,7 +791,10 @@ export default function DriverCabinet() {
           points={mapDisplayPoints}
           selectedPointId={selectedPointId}
           nextPointId={cabinetMode === 'my' ? (nextPoint?.id ?? null) : null}
-          driverLocation={driverLocation}
+          driverLocation={displayDriverLocation}
+          passengerLocations={passengerLocations}
+          driverHeading={resolvedDriverHeading}
+          driverLabel={session.name}
           mapInsetTop={mapInsetTop}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
           onPointDragEnd={(rideId, pointType, latlng) => void handlePointDragEnd(rideId, pointType, latlng)}
@@ -761,6 +837,24 @@ export default function DriverCabinet() {
                       ? t('driver.rideFew', { defaultValue: 'rides' })
                       : t('driver.rideMany', { defaultValue: 'rides' })}
                 </span>
+              </>
+            )}
+            {availableSeats != null && (
+              <>
+                <span className="w-px h-3 bg-border flex-shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenOffersMenu(true)
+                    setSideMenuOpen(true)
+                  }}
+                  className="pointer-events-auto text-xs font-semibold text-muted flex-shrink-0 active:opacity-70"
+                >
+                  {t('driver.seatsAvailableShort', {
+                    count: availableSeats,
+                    defaultValue: '{{count}} seats free',
+                  })}
+                </button>
               </>
             )}
           </div>
@@ -817,6 +911,10 @@ export default function DriverCabinet() {
         />
       )}
 
+      {!isMapMarkViewMode && (
+        <DriverMapLegend topOffset={legendTopOffset} />
+      )}
+
       {/* ── Geolocation disabled banner ─────────────────────────────────── */}
       {!isMapMarkViewMode && geoBlocked && !geoBannerDismissed && (
         <div
@@ -837,47 +935,6 @@ export default function DriverCabinet() {
           >
             <X size={15} weight="bold" />
           </button>
-        </div>
-      )}
-
-      {/* ── Empty state ─────────────────────────────────────────────────── */}
-      {!isMapMarkViewMode && mapData && mapDisplayPoints.length === 0 && (
-        <div
-          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
-          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
-        >
-          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[260px]">
-            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
-              <Car size={22} className="text-muted" weight="fill" />
-            </div>
-            <p className="text-sm font-bold">
-              {cabinetMode === 'available'
-                ? t('driver.noAvailableInPeriod', { defaultValue: 'No available rides in this period' })
-                : t('driver.noPointsInPeriod', { defaultValue: 'No rides in this period' })}
-            </p>
-            <p className="text-xs text-muted mt-1 leading-snug">
-              {cabinetMode === 'available'
-                ? t('driver.noAvailableInPeriodHint', { defaultValue: 'Try another day or wait for new requests.' })
-                : t('driver.noPointsInPeriodHint', { defaultValue: 'Change the day or time filter to see other trips.' })}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {!isMapMarkViewMode && cabinetMode === 'my' && mapData && visiblePoints.length > 0 && activePoints.length === 0 && (
-        <div
-          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
-          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
-        >
-          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[230px]">
-            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
-              <Car size={22} className="text-muted" weight="fill" />
-            </div>
-            <p className="text-sm font-bold">{t('driver.noActiveRides', { defaultValue: 'No active rides' })}</p>
-            <p className="text-xs text-muted mt-1 leading-snug">
-              {t('driver.noActiveRidesHint', { defaultValue: 'As soon as a ride is assigned, points will appear here' })}
-            </p>
-          </div>
         </div>
       )}
 
@@ -1025,6 +1082,8 @@ export default function DriverCabinet() {
         session={session}
         onClose={() => setSideMenuOpen(false)}
         onLogout={() => void handleLogout()}
+        requestOffersScreen={openOffersMenu}
+        onRequestOffersHandled={() => setOpenOffersMenu(false)}
       />
 
       {/* ── Error toast ──────────────────────────────────────────────────── */}

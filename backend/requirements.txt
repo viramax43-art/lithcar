@@ -2,6 +2,10 @@ fastapi
 uvicorn[standard]
 alembic
 sqlalchemy
+# Явно: SQLAlchemy asyncio (create_async_engine/async_sessionmaker) падает с
+# ImportError без greenlet. Локально и в проде он приезжал транзитивно, а в чистом
+# окружении CI — нет, из-за чего весь workflow падал до запуска тестов.
+greenlet
 asyncpg
 httpx
 redis

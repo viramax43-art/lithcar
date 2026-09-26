@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import RatingBadge from '../../../components/RatingBadge'
+import InlineConfirm from './InlineConfirm'
 
 import type { Driver, LatLng, MapMark, MapMarkVisibility, RideRequest, ServiceZone } from '../../../types'
 import { reverseGeocode, searchPlaces, type NominatimSearchResult } from '../../../lib/geocode'
@@ -50,6 +51,8 @@ interface AdminMapProps {
   onSelectZone: (zoneId: string) => void
   onOpenAssignModal: (requestIds: string[]) => void
   onOpenEditRoute: (requestId: string) => void
+  onUnassignDriver: (requestId: string) => Promise<void>
+  unassigningRequestId: string | null
   routeEditDraft: RideDraft | null
   onRouteEditDraftChange: (draft: RideDraft) => void
   onCancelRouteEdit: () => void
@@ -57,6 +60,9 @@ interface AdminMapProps {
   onResetRouteEdit: () => void
   isSavingRoute: boolean
   onDrawPoint: (latlng: LatLng) => void
+  onUndoZonePoint: () => void
+  onCancelZoneDrawing: () => void
+  onSaveZone: () => void
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   filterDate: string
@@ -224,6 +230,8 @@ export default function AdminMap({
   onSelectZone,
   onOpenAssignModal,
   onOpenEditRoute,
+  onUnassignDriver,
+  unassigningRequestId,
   routeEditDraft,
   onRouteEditDraftChange,
   onCancelRouteEdit,
@@ -231,6 +239,9 @@ export default function AdminMap({
   onResetRouteEdit,
   isSavingRoute,
   onDrawPoint,
+  onUndoZonePoint,
+  onCancelZoneDrawing,
+  onSaveZone,
   sidebarCollapsed,
   onToggleSidebar,
   filterDate,
@@ -723,12 +734,14 @@ export default function AdminMap({
 
   const hasAnyFilter = Boolean(filterDate || filterDateEnd || filterTime || filterTimeEnd)
 
-  const dayOptions = useMemo(() => getAppLocalDayOptions(), [])
+  const dayOptions = getAppLocalDayOptions()
 
   const applySingleDay = useCallback((dayValue: string) => {
     onFilterDateChange(dayValue)
     onFilterDateEndChange(dayValue)
-  }, [onFilterDateChange, onFilterDateEndChange])
+    onFilterTimeChange('00:00')
+    onFilterTimeEndChange('23:59')
+  }, [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange])
 
   const showAllTrips = useCallback(() => {
     onFilterDateChange('')
@@ -754,7 +767,7 @@ export default function AdminMap({
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
             <span className="text-[11px] font-semibold text-muted whitespace-nowrap">{t('common.periodFilter')}</span>
-            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
+            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: filteredRequests.length })}</span>
           </div>
           <div className="flex items-center gap-2">
             {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
@@ -1507,6 +1520,40 @@ export default function AdminMap({
           {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
         </div>
       )}
+      {!isMapMarkViewMode && isDrawing && (
+        <div
+          className="absolute right-4 z-[1000] flex items-center gap-2"
+          style={{ top: 'calc(var(--app-safe-area-top-total) + 88px)' }}
+        >
+          <button
+            type="button"
+            onClick={onUndoZonePoint}
+            disabled={drawingPoints.length === 0}
+            className="inline-flex items-center gap-2 rounded-pill bg-white/95 shadow-card border border-border px-3 py-2 text-xs font-bold text-black hover:bg-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={t('admin.zones.undoPoint')}
+          >
+            <ArrowCounterClockwise size={14} weight="bold" />
+            {t('admin.zones.undoPoint')}
+          </button>
+          <button
+            type="button"
+            onClick={onCancelZoneDrawing}
+            className="inline-flex items-center gap-2 rounded-pill bg-white/95 shadow-card border border-border px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors"
+            title={t('common.cancel')}
+          >
+            <X size={14} weight="bold" />
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onSaveZone}
+            className="inline-flex items-center gap-2 rounded-pill bg-black shadow-card px-3 py-2 text-xs font-bold text-white hover:bg-zinc-800 transition-colors"
+          >
+            <FloppyDisk size={14} weight="bold" />
+            {t('common.save')}
+          </button>
+        </div>
+      )}
       {!isMapMarkViewMode && isMarkModeEnabled && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           {t('admin.map.markerPlacementHint')}
@@ -1788,6 +1835,20 @@ export default function AdminMap({
               >
                 {t('admin.requests.assignDriver')}
               </button>
+            )}
+            {selectedReq.driverId && selectedReq.status === 'assigned' && (
+              unassigningRequestId === selectedReq.id ? (
+                <div className="w-full py-2.5 text-center text-xs font-semibold text-muted">
+                  {t('common.updating')}
+                </div>
+              ) : (
+                <InlineConfirm
+                  label={t('admin.requests.unassignDriver')}
+                  confirmLabel={t('admin.requests.confirmUnassignDriver')}
+                  onConfirm={() => void onUnassignDriver(selectedReq.id)}
+                  className="w-full min-h-[42px] rounded-xl"
+                />
+              )
             )}
           </div>
         </div>

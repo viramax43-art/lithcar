@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones } from '../../../lib/backend'
+import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones, parseApiErrorCode } from '../../../lib/backend'
 import { ensurePassengerAccessToken } from '../../../infrastructure/auth/passengerAuthSession'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import {
@@ -93,6 +93,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showPayViaDriver, setShowPayViaDriver] = useState(false)
   const [zoneWarning, setZoneWarning] = useState<string | null>(null)
   const [isLocating, setIsLocating] = useState(false)
 
@@ -460,17 +461,19 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     )
   }, [panMapToTarget, showZoneWarning, t])
 
-  const handleSubmit = useCallback(async () => {
+  const submitRequest = useCallback(async (paymentMethod?: 'points' | 'driver_cash' | 'driver_card') => {
     const [datePart, timePart] = dateTime.split('T')
     if (!fromPoint || !toPoint || !datePart || !timePart) return
     setSubmitting(true)
     setErrorMessage(null)
+    setShowPayViaDriver(false)
     try {
       await createRequest({
         passengerName,
         from: { address: fromAddress, latlng: fromPoint },
         to: { address: toAddress, latlng: toPoint },
         dateTime,
+        paymentMethod,
       })
       hapticNotification('success')
       setSubmitted(true)
@@ -478,11 +481,26 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       setTimeout(() => navigate('/requests'), 1200)
     } catch (error) {
       hapticNotification('error')
-      setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
+      if (parseApiErrorCode(error) === 'insufficient_points') {
+        setShowPayViaDriver(true)
+        setErrorMessage(t('passenger.insufficientPointsOffer', {
+          defaultValue: 'Not enough points on balance.',
+        }))
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
+      }
     } finally {
       setSubmitting(false)
     }
   }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint, t])
+
+  const handleSubmit = useCallback(async () => {
+    await submitRequest('points')
+  }, [submitRequest])
+
+  const handleSubmitViaDriver = useCallback(async () => {
+    await submitRequest('driver_cash')
+  }, [submitRequest])
 
   useEffect(() => {
     if (!fromPoint || !toPoint) {
@@ -618,6 +636,8 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     handleSelectSearchResult,
     handleLocateMe,
     handleSubmit,
+    handleSubmitViaDriver,
+    showPayViaDriver,
     canSubmit,
     hasValidDateTime,
     activeIsFrom,

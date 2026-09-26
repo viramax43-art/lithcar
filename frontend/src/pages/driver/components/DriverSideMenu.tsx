@@ -26,6 +26,8 @@ interface DriverSideMenuProps {
   session: DriverSessionUser
   onClose: () => void
   onLogout: () => void
+  requestOffersScreen?: boolean
+  onRequestOffersHandled?: () => void
 }
 
 export default function DriverSideMenu({
@@ -33,6 +35,8 @@ export default function DriverSideMenu({
   session,
   onClose,
   onLogout,
+  requestOffersScreen = false,
+  onRequestOffersHandled,
 }: DriverSideMenuProps) {
   const { t } = useTranslation()
   const [scanMessage, setScanMessage] = useState<string | null>(null)
@@ -51,6 +55,13 @@ export default function DriverSideMenu({
       if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen || !requestOffersScreen) return
+    setShowOffers(true)
+    onClose()
+    onRequestOffersHandled?.()
+  }, [isOpen, requestOffersScreen, onClose, onRequestOffersHandled])
 
   useEscapeClose(isOpen, onClose)
 

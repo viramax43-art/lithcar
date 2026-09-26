@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/appStore'
 import i18n from '../../i18n'
 
 const SESSION_HARD_TIMEOUT_MS = 20000
-const BUILD_ID = '20260916v4'
+const BUILD_ID = '20260924v1'
 
 export function useEnsurePassengerSession() {
   const { auth } = useAppDependencies()

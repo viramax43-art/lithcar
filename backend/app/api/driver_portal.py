@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_timezone import to_app_local_iso
+from app.core.auth_cookies import session_cookie_samesite, session_cookie_secure
 from app.core.config import settings
 from app.core.dependencies import get_db_session, get_redis_client
 from app.models.user import User
@@ -238,10 +239,20 @@ class DriverMapPointOut(BaseModel):
     pointKind: str = "mine"
 
 
+class PassengerLiveLocationOut(BaseModel):
+    rideId: str
+    passengerName: str
+    latLng: LatLngOut
+    updatedAt: datetime
+    updatedAtLocal: str
+
+
 class DriverMapOut(BaseModel):
     session: DriverSessionOut
     points: list[DriverMapPointOut]
     availablePoints: list[DriverMapPointOut] = []
+    driverLocation: LatLngOut | None = None
+    passengerLocations: list[PassengerLiveLocationOut] = []
     activeRides: int
     totalRides: int
 
@@ -668,8 +679,8 @@ async def driver_logout(
     response.delete_cookie(
         key=settings.driver_session_cookie_name,
         httponly=True,
-        secure=settings.admin_session_cookie_secure,
-        samesite="lax",
+        secure=session_cookie_secure(),
+        samesite=session_cookie_samesite(),
         path="/",
     )
     return {"success": True}
@@ -863,6 +874,31 @@ async def driver_ride_history(
     return DriverRideHistoryPage(items=items, total=total, limit=limit, offset=offset)
 
 
+def _build_passenger_live_locations(rides: list) -> list[PassengerLiveLocationOut]:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    locations: list[PassengerLiveLocationOut] = []
+    for ride in rides:
+        if ride.status == "completed":
+            continue
+        if ride.passenger_live_lat is None or ride.passenger_live_lng is None or ride.passenger_live_at is None:
+            continue
+        updated_at = ride.passenger_live_at
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        if updated_at < cutoff:
+            continue
+        locations.append(
+            PassengerLiveLocationOut(
+                rideId=ride.id,
+                passengerName=ride.passenger_name,
+                latLng=LatLngOut(lat=ride.passenger_live_lat, lng=ride.passenger_live_lng),
+                updatedAt=updated_at,
+                updatedAtLocal=to_app_local_iso(updated_at),
+            )
+        )
+    return locations
+
+
 @router.get("/cabinet/map", response_model=DriverMapOut)
 async def driver_cabinet_map(
     session: DriverSession = Depends(get_driver_session),
@@ -912,6 +948,10 @@ async def driver_cabinet_map(
             passenger_rating_by_user_id=passenger_rating_by_user_id,
             point_kind="available",
         )
+    driver_location = None
+    if driver and driver_lat is not None and driver_lng is not None:
+        driver_location = LatLngOut(lat=driver_lat, lng=driver_lng)
+
     return DriverMapOut(
         session=session_out,
         points=_build_driver_map_points(
@@ -923,6 +963,8 @@ async def driver_cabinet_map(
             point_kind="mine",
         ),
         availablePoints=available_points,
+        driverLocation=driver_location,
+        passengerLocations=_build_passenger_live_locations(rides),
         activeRides=len(active_rides),
         totalRides=total,
     )

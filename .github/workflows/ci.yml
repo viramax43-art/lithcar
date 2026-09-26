@@ -48,8 +48,18 @@ jobs:
 
       - name: Run migrations
         working-directory: backend
+        # alembic/env.py imports app.core.config, and Settings declares
+        # `secret_key: str` without a default, so the migration step needs the
+        # same env vars as the test step below (otherwise the import raises
+        # ValidationError: secret_key Field required).
         env:
           DATABASE_URL: postgresql+asyncpg://lithcar:lithcar_test@localhost:5432/lithcar_test
+          # Значения BOT_TOKEN/SECRET_KEY должны совпадать с .env.test и conftest.py:
+          # тесты подписывают Telegram initData токеном "test-bot-token", и при другом
+          # BOT_TOKEN подпись не сходится -> /api/auth отвечает 400.
+          SECRET_KEY: test-secret
+          BOT_TOKEN: test-bot-token
+          CHIEF_ADMIN_KEY: ride_chief_admin_test_bootstrap_key
         run: alembic upgrade head
 
       - name: Run backend tests
@@ -57,8 +67,8 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://lithcar:lithcar_test@localhost:5432/lithcar_test
           REDIS_URL: redis://localhost:6379/0
-          SECRET_KEY: test-secret-not-for-prod
-          BOT_TOKEN: test-token
+          SECRET_KEY: test-secret
+          BOT_TOKEN: test-bot-token
           ALLOW_TEST_TELEGRAM_INIT_DATA: "true"
           FRONTEND_CORS_ORIGINS: http://localhost:5173
           S3_REQUIRED_ON_STARTUP: "false"

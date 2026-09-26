@@ -1,0 +1,169 @@
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: lithcar_postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env.docker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: lithcar_redis
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: lithcar_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: lithcar_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb -p local/driver-photos || true;
+      exit 0;
+      "
+    restart: "no"
+
+  frontend-build:
+    image: node:20-alpine
+    container_name: lithcar_frontend_build
+    working_dir: /app
+    env_file:
+      - ./frontend/.env
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_dist:/dist
+    command: >
+      sh -c "
+        npm cache clean --force &&
+        npm ci &&
+        npm run build &&
+        mkdir -p /dist &&
+        rm -rf /dist/* &&
+        cp -a dist/. /dist/
+      "
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lithcar_api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/lithcar
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_BUCKET_NAME: driver-photos
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      S3_REQUIRED_ON_STARTUP: "false"
+      TELEGRAM_BOT_POLLING_ENABLED: "true"
+      TRUSTED_HOSTS: "*"
+      ENVIRONMENT: production
+      DEBUG: "false"
+      ALLOW_TEST_TELEGRAM_INIT_DATA: "false"
+      ADMIN_SESSION_COOKIE_SECURE: "true"
+      FRONTEND_CORS_ORIGINS: "https://sfera5.world/ride,http://ride.sfera5.world,https://sfera5.world,http://sfera5.world"
+      FRONTEND_PUBLIC_URL: "https://sfera5.world/ride"
+      PUBLIC_BASE_URL: "https://sfera5.world/ride"
+      TELEGRAM_MINI_APP_URL: "https://sfera5.world/ride/"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      frontend-build:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ping')\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 20
+
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lithcar_bot
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/lithcar
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_POLLING_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "-m", "app.bot.main"]
+
+  web:
+    image: caddy:2-alpine
+    container_name: lithcar_web
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8088:80"
+    volumes:
+      - ./deploy/Caddyfile.internal:/etc/caddy/Caddyfile:ro
+      - frontend_dist:/srv:ro
+    depends_on:
+      api:
+        condition: service_started
+      frontend-build:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  redisdata:
+  minio_data:
+  frontend_dist:
+  frontend_node_modules:

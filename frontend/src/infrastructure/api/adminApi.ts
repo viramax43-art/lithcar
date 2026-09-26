@@ -51,6 +51,14 @@ export async function assignDriverBulk(
   return updated.map(mapRideRequest)
 }
 
+export async function unassignAdminDriver(requestId: string): Promise<RideRequest> {
+  const updated = await apiRequest<RideRequestApi>(
+    `/api/ride-requests/${encodeURIComponent(requestId)}/assignment`,
+    { method: 'DELETE', authMode: 'cookie' },
+  )
+  return mapRideRequest(updated)
+}
+
 export async function listDrivers(onlineOnly = false, params?: PaginationParams): Promise<PaginatedResult<Driver>> {
   const onlinePart = onlineOnly ? 'onlineOnly=true&' : ''
   return apiRequest<PaginatedResult<Driver>>(`/api/drivers?${onlinePart}${toPageQuery(params)}`, { authMode: 'cookie' })
@@ -262,4 +270,50 @@ export async function uploadMapMarkPhoto(file: File): Promise<{ photoKey: string
   const formData = new FormData()
   formData.append('file', file)
   return uploadMultipart('/api/v1/map-marks/photo', formData)
+}
+
+export interface AdminPassenger {
+  userId: string
+  username: string | null
+  displayName: string | null
+  language: string
+  pointsBalance: number
+  rating: number | null
+  ratingCount: number
+}
+
+export async function getPlatformSettings(): Promise<import('../../lib/platformSettingsDefaults').PlatformSettingsConfig> {
+  return apiRequest('/api/admin/platform-settings', { authMode: 'cookie' })
+}
+
+export async function updatePlatformSettings(
+  patch: Partial<import('../../lib/platformSettingsDefaults').PlatformSettingsConfig>,
+): Promise<import('../../lib/platformSettingsDefaults').PlatformSettingsConfig> {
+  return apiRequest('/api/admin/platform-settings', {
+    method: 'PATCH',
+    body: patch,
+    authMode: 'cookie',
+  })
+}
+
+export async function listAdminPassengers(
+  q = '',
+  params?: PaginationParams,
+): Promise<PaginatedResult<AdminPassenger>> {
+  const search = new URLSearchParams(toPageQuery(params))
+  if (q.trim()) search.set('q', q.trim())
+  return apiRequest<PaginatedResult<AdminPassenger>>(`/api/admin/passengers?${search.toString()}`, {
+    authMode: 'cookie',
+  })
+}
+
+export async function adjustPassengerPoints(
+  userId: string,
+  payload: { delta?: number; absolute?: number; reason?: string },
+): Promise<AdminPassenger> {
+  return apiRequest<AdminPassenger>(`/api/admin/passengers/${encodeURIComponent(userId)}/points`, {
+    method: 'PATCH',
+    body: payload,
+    authMode: 'cookie',
+  })
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { resolveApiBaseUrl } from '../../config/env'
 
 export default function DriverMagicLogin() {
   const { token } = useParams<{ token: string }>()
@@ -8,7 +9,8 @@ export default function DriverMagicLogin() {
 
   useEffect(() => {
     if (!token) return
-    window.location.replace(`/api/driver/session/enter/${encodeURIComponent(token)}`)
+    const apiBase = resolveApiBaseUrl().replace(/\/$/, '')
+    window.location.replace(`${apiBase}/api/driver/session/enter/${encodeURIComponent(token)}`)
   }, [token])
 
   return (

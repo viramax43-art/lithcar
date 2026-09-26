@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin_session import AdminSession, get_admin_session, require_admin_roles
+from app.core.auth_cookies import session_cookie_samesite, session_cookie_secure
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.core.limiter import limiter
@@ -106,8 +107,8 @@ async def admin_login_with_key(
         value=token,
         max_age=settings.admin_session_ttl_hours * 3600,
         httponly=True,
-        secure=settings.admin_session_cookie_secure,
-        samesite="lax",
+        secure=session_cookie_secure(),
+        samesite=session_cookie_samesite(),
         path="/",
     )
     await touch_admin_key_usage(db_session, admin_key=admin_key)
@@ -119,8 +120,8 @@ async def admin_logout(response: Response):
     response.delete_cookie(
         key=settings.admin_session_cookie_name,
         httponly=True,
-        secure=settings.admin_session_cookie_secure,
-        samesite="lax",
+        secure=session_cookie_secure(),
+        samesite=session_cookie_samesite(),
         path="/",
     )
     return {"success": True}

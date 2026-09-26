@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { Crosshair, X } from '@phosphor-icons/react'
@@ -9,17 +9,51 @@ import { formatRideTime } from '../../../i18n/dateTime'
 import { listPublicMapMarks } from '../../../lib/backend'
 import { makeMapMarkIcon } from '../../../lib/mapMarkIcons'
 import { getDefaultMapCenterTuple } from '../../../lib/mapRegion'
-import type { DriverMapPoint, LatLng, MapMark } from '../../../types'
+import type { DriverMapPoint, LatLng, MapMark, PassengerLiveLocation } from '../../../types'
 
 interface DriverMapProps {
   points: DriverMapPoint[]
   selectedPointId: string | null
   nextPointId: string | null
   driverLocation: LatLng | null
+  driverHeading?: number | null
+  driverLabel?: string
+  passengerLocations?: PassengerLiveLocation[]
   mapInsetTop?: number
   onSelectPoint: (point: DriverMapPoint) => void
   onPointDragEnd: (rideId: string, pointType: 'pickup' | 'dropoff', latlng: LatLng) => void
   onMapMarkViewModeChange?: (isViewing: boolean) => void
+}
+
+function makePassengerLiveIcon(name: string): L.DivIcon {
+  const initial = (name.trim()[0] ?? 'P').toUpperCase()
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:40px;height:48px;display:flex;flex-direction:column;align-items:center;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#111827;color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.28);font-family:Inter,system-ui,sans-serif;">${initial}</div>
+      <div style="margin-top:2px;width:10px;height:10px;border-radius:50%;background:#2563EB;border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,0.25);"></div>
+    </div>`,
+    iconSize: [40, 48],
+    iconAnchor: [20, 42],
+  })
+}
+
+function makeDriverIcon(label: string, heading: number | null | undefined): L.DivIcon {
+  const initial = (label.trim()[0] ?? '?').toUpperCase()
+  const rotation = heading != null && Number.isFinite(heading) ? heading : 0
+  const cone = heading != null && Number.isFinite(heading)
+    ? `<div style="position:absolute;left:50%;bottom:18px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:28px solid rgba(37,99,235,0.28);transform:translateX(-50%) rotate(${rotation}deg);transform-origin:50% 100%;"></div>`
+    : ''
+
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:48px;height:52px;display:flex;align-items:flex-end;justify-content:center;">
+      ${cone}
+      <div style="position:relative;width:40px;height:40px;border-radius:50%;background:#2563EB;color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.28);font-family:Inter,system-ui,sans-serif;">${initial}</div>
+    </div>`,
+    iconSize: [48, 52],
+    iconAnchor: [24, 26],
+  })
 }
 
 function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: boolean }): L.DivIcon {
@@ -75,30 +109,22 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
   })
 }
 
-function FitBoundsOnce({
-  points,
+function CenterOnDriver({
   driverLocation,
   mapInsetTop = 108,
 }: {
-  points: DriverMapPoint[]
   driverLocation: LatLng | null
   mapInsetTop?: number
 }) {
   const map = useMap()
-  const fitted = useRef(false)
+  const centered = useRef(false)
 
   useEffect(() => {
-    if (fitted.current) return
-    const latlngs: [number, number][] = points.map((p) => [p.latLng.lat, p.latLng.lng])
-    if (driverLocation) latlngs.push([driverLocation.lat, driverLocation.lng])
-    if (latlngs.length === 0) return
-    map.fitBounds(L.latLngBounds(latlngs), {
-      paddingTopLeft: [24, mapInsetTop],
-      paddingBottomRight: [24, 70],
-      maxZoom: 15,
-    })
-    fitted.current = true
-  }, [map, points, driverLocation, mapInsetTop])
+    if (centered.current || !driverLocation) return
+    map.setView([driverLocation.lat, driverLocation.lng], 15, { animate: false })
+    map.panBy([0, mapInsetTop / 4])
+    centered.current = true
+  }, [map, driverLocation, mapInsetTop])
 
   return null
 }
@@ -144,6 +170,9 @@ export default function DriverMap({
   selectedPointId,
   nextPointId,
   driverLocation,
+  driverHeading,
+  driverLabel = '',
+  passengerLocations = [],
   mapInsetTop,
   onSelectPoint,
   onPointDragEnd,
@@ -190,6 +219,35 @@ export default function DriverMap({
     return [...byRide.values()]
   }, [points])
 
+  const directionLines = useMemo(() => {
+    if (!driverLocation) return []
+    return rideLines
+      .map(({ pickup, dropoff }) => {
+        if (!pickup || pickup.pointStatus === 'done') return null
+        const target = pickup.pointKind === 'available'
+          ? (dropoff ?? pickup)
+          : pickup
+        if (!target || target.pointStatus === 'done') return null
+        const isAvailable = pickup.pointKind === 'available'
+        const isHighlighted = selectedPointId === pickup.id || selectedPointId === dropoff?.id
+        return {
+          key: `dir-${pickup.rideId}`,
+          positions: [
+            [driverLocation.lat, driverLocation.lng],
+            [target.latLng.lat, target.latLng.lng],
+          ] as [number, number][],
+          color: isAvailable ? '#F59E0B' : '#EF4444',
+          opacity: isHighlighted ? 0.75 : 0.35,
+        }
+      })
+      .filter(Boolean) as Array<{
+        key: string
+        positions: [number, number][]
+        color: string
+        opacity: number
+      }>
+  }, [driverLocation, rideLines, selectedPointId])
+
   const defaultCenter: [number, number] = useMemo(() => {
     if (driverLocation) return [driverLocation.lat, driverLocation.lng]
     const first = points.find((p) => p.pointStatus !== 'done')
@@ -208,18 +266,42 @@ export default function DriverMap({
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
       <LocalizedTileLayer />
-      <FitBoundsOnce points={points} driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
+      <CenterOnDriver driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
       {!isMapMarkViewMode && <LocateButton />}
 
-      {/* Driver location */}
+      {/* Lines from driver to nearby orders — helps compare direction vs proximity */}
+      {directionLines.map((line) => (
+        <Polyline
+          key={line.key}
+          positions={line.positions}
+          pathOptions={{
+            color: line.color,
+            weight: 1.5,
+            dashArray: '4, 8',
+            opacity: line.opacity,
+          }}
+        />
+      ))}
+
+      {/* Driver location with heading cone */}
       {driverLocation && (
-        <CircleMarker
-          center={[driverLocation.lat, driverLocation.lng]}
-          radius={8}
-          pathOptions={{ color: '#fff', fillColor: '#2563EB', fillOpacity: 1, weight: 3 }}
+        <Marker
+          position={[driverLocation.lat, driverLocation.lng]}
+          icon={makeDriverIcon(driverLabel, driverHeading)}
+          zIndexOffset={1000}
         />
       )}
+
+      {/* Passenger live GPS from server JSON */}
+      {passengerLocations.map((item) => (
+        <Marker
+          key={`passenger-live-${item.rideId}`}
+          position={[item.latLng.lat, item.latLng.lng]}
+          icon={makePassengerLiveIcon(item.passengerName)}
+          zIndexOffset={900}
+        />
+      ))}
 
       {/* Dashed A→B lines per ride */}
       {rideLines.map(({ pickup, dropoff }) => {

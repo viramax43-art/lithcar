@@ -3,6 +3,7 @@ import i18n from '../../i18n'
 import { getRequiredTelegramInitData } from './telegramInitDataProvider'
 import {
   clearAccessToken as clearStoredAccessToken,
+  clearCachedInitData,
   getAccessToken as readStoredAccessToken,
   saveAccessToken,
 } from './tokenStorage'
@@ -63,6 +64,7 @@ async function loginWithTelegramInitData(initData: string): Promise<void> {
     } catch {
       // ignore
     }
+    clearCachedInitData()
     throw new Error(
       detail ||
         i18n.t('errors.telegramAuthFailed', {
@@ -95,6 +97,9 @@ async function hasActiveSession(): Promise<boolean> {
       credentials: 'include',
       headers: authHeaders(),
     })
+    if (!response.ok && response.status === 401) {
+      clearStoredAccessToken()
+    }
     return response.ok
   } catch {
     return false
@@ -108,6 +113,10 @@ async function ensurePassengerSession(forceReauth = false): Promise<void> {
   }
 
   const run = (async () => {
+    if (forceReauth) {
+      clearStoredAccessToken()
+      clearCachedInitData()
+    }
     if (!forceReauth && (await hasActiveSession())) return
     if (!forceReauth && (await refreshSessionCookies()) && (await hasActiveSession())) return
     const initData = await getRequiredTelegramInitData()

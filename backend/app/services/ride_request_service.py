@@ -332,6 +332,37 @@ async def assign_driver(
     return requests
 
 
+async def unassign_driver(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+) -> RideRequest | None:
+    result = await db_session.execute(
+        select(RideRequest)
+        .where(RideRequest.id == request_id)
+        .with_for_update()
+    )
+    request = result.scalar_one_or_none()
+    if request is None:
+        return None
+    if request.status != RideRequestStatus.ASSIGNED or request.driver_id is None:
+        raise ValueError("Водителя можно снять только с назначенной поездки до её начала.")
+
+    request.driver_id = None
+    request.passenger_number = None
+    request.status = (
+        RideRequestStatus.GROUPED
+        if request.group_id
+        else RideRequestStatus.PENDING
+    )
+    request.pickup_changed_by_driver = False
+    request.pickup_notified_at = None
+    request.pickup_confirmed_at = None
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request
+
+
 class ClaimRideError(Exception):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
@@ -648,6 +679,36 @@ async def confirm_pickup_point(
     await db_session.commit()
     await db_session.refresh(request)
     return request, None
+
+
+_PASSENGER_LIVE_STATUSES = frozenset(
+    {
+        RideRequestStatus.ASSIGNED,
+        RideRequestStatus.EN_ROUTE_TO_PICKUP,
+        RideRequestStatus.AWAITING_PASSENGER,
+    }
+)
+
+
+async def update_passenger_live_location(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    passenger_id: str,
+    lat: float,
+    lng: float,
+) -> RideRequest | None:
+    request = await get_request(db_session, request_id=request_id)
+    if request is None or request.passenger_id != passenger_id:
+        return None
+    if request.status not in _PASSENGER_LIVE_STATUSES:
+        return None
+    request.passenger_live_lat = lat
+    request.passenger_live_lng = lng
+    request.passenger_live_at = func.now()
+    await db_session.commit()
+    await db_session.refresh(request)
+    return request
 
 
 async def delete_ride_request(db_session: AsyncSession, *, request_id: str) -> bool:

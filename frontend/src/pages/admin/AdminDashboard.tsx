@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import i18n from '../../i18n'
+
 import { DEFAULT_DRIVER_REGISTRATION_FORM } from '../../lib/driverRegistrationDefaults'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import type { AppNotification, Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
@@ -34,6 +36,7 @@ import {
   updateDriverRegistrationSettings,
   updatePricing,
   updateServiceZone,
+  unassignAdminDriver,
   type AdminKeyInfo,
   type AdminSessionUser,
 } from '../../lib/backend'
@@ -44,6 +47,8 @@ import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
 import { getInitialDashboardUi, getInitialDriverRegistrationUi } from '../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../lib/useAdminUiPersistence'
+import { DEFAULT_PLATFORM_SETTINGS, mapPlatformSettings, type PlatformSettingsConfig } from '../../lib/platformSettingsDefaults'
+import { getPlatformSettings, updatePlatformSettings } from '../../infrastructure/api/adminApi'
 import { GROUP_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
@@ -51,12 +56,18 @@ const INITIAL_DASHBOARD_UI = getInitialDashboardUi()
 
 export default function AdminDashboard() {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    void i18n.changeLanguage('ru')
+  }, [])
+
   const [activeTab, setActiveTab] = useState<AdminTab>(INITIAL_DASHBOARD_UI.activeTab)
   const [requests, setRequests] = useState<RideRequest[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([])
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettingsConfig>(DEFAULT_PLATFORM_SETTINGS)
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
   const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -101,6 +112,7 @@ export default function AdminDashboard() {
   const [isSavingRoute, setIsSavingRoute] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState<string>(INITIAL_DASHBOARD_UI.assignDriverId)
   const [isAssigning, setIsAssigning] = useState(false)
+  const [unassigningRequestId, setUnassigningRequestId] = useState<string | null>(null)
 
   const [isDrawing, setIsDrawing] = useState(INITIAL_DASHBOARD_UI.isDrawing)
   const [drawingPoints, setDrawingPoints] = useState<LatLng[]>(INITIAL_DASHBOARD_UI.drawingPoints)
@@ -227,7 +239,8 @@ export default function AdminDashboard() {
     if (!adminSession) return
     setErrorMessage(null)
     try {
-      const [req, drv, zones, price, qrSalesPage, applicationsPage, registrationForm] = await Promise.all([
+      const [req, drv, zones, price, qrSalesPage, applicationsPage, registrationForm, platformResult] =
+        await Promise.all([
         listAdminRequests('all', { limit: ADMIN_PAGE_SIZE, offset: 0 }),
         listDrivers(false, { limit: 200, offset: 0 }),
         listServiceZones('cookie', { limit: 500, offset: 0 }),
@@ -235,6 +248,7 @@ export default function AdminDashboard() {
         listAdminQrSales({ limit: 100, offset: 0, redeemedOnly: true }),
         listDriverApplications({ limit: 100, offset: 0 }),
         getDriverRegistrationSettings(),
+        getPlatformSettings(),
       ])
       setRequests(req.items)
       setRequestsTotal(req.total)
@@ -247,6 +261,10 @@ export default function AdminDashboard() {
       setDriverApplications(applicationsPage.items)
       setDriverApplicationsPendingCount(applicationsPage.pendingCount)
       setDriverRegistrationFormSchema(registrationForm)
+      const mappedPlatform = mapPlatformSettings(platformResult)
+      setPlatformSettings(mappedPlatform)
+      setNewDriverCanSellPoints(mappedPlatform.driver.defaultCanSellPoints)
+      setNewDriverCanSelfAssign(mappedPlatform.driver.defaultCanSelfAssign)
       if (adminSession.role === 'chief_admin') {
         await loadManagedKeys()
       }
@@ -373,6 +391,19 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleUnassignDriver = async (requestId: string) => {
+    if (unassigningRequestId) return
+    setUnassigningRequestId(requestId)
+    try {
+      await unassignAdminDriver(requestId)
+      await loadAll()
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.unassignDriverFailed'))
+    } finally {
+      setUnassigningRequestId(null)
+    }
+  }
+
   const resetZoneDrawing = () => {
     setIsDrawing(false)
     setEditingZoneId(null)
@@ -425,6 +456,17 @@ export default function AdminDashboard() {
       setSelectedZoneId(null)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.deleteZoneFailed'))
+    }
+  }
+
+  const handlePlatformChange = async (patch: Partial<PlatformSettingsConfig>) => {
+    try {
+      const updated = await updatePlatformSettings(patch)
+      setPlatformSettings(mapPlatformSettings(updated))
+      return true
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updatePlatformFailed', { defaultValue: 'Не удалось сохранить настройки' }))
+      return false
     }
   }
 
@@ -673,6 +715,8 @@ export default function AdminDashboard() {
           setSelectedReqId={setSelectedReqId}
           setAssignModalReqIds={setAssignModalReqIds}
           suggestions={suggestions}
+          handleUnassignDriver={handleUnassignDriver}
+          unassigningRequestId={unassigningRequestId}
           selectedGroupId={selectedGroupId}
           setSelectedGroupId={setSelectedGroupId}
           groupColorMap={groupColorMap}
@@ -699,6 +743,8 @@ export default function AdminDashboard() {
           qrSales={qrSales}
           hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
           handlePricingChange={handlePricingChange}
+          platformSettings={platformSettings}
+          handlePlatformChange={handlePlatformChange}
           adminSession={adminSession}
           newManagedKeyName={newManagedKeyName}
           setNewManagedKeyName={setNewManagedKeyName}
@@ -767,6 +813,8 @@ export default function AdminDashboard() {
           }}
           onSelectZone={handleSelectZoneFromMap}
           onOpenAssignModal={setAssignModalReqIds}
+          onUnassignDriver={handleUnassignDriver}
+          unassigningRequestId={unassigningRequestId}
           onOpenEditRoute={(requestId) => {
             const request = requests.find((item) => item.id === requestId)
             if (request) startRouteEdit(request)
@@ -781,6 +829,9 @@ export default function AdminDashboard() {
             if (!isDrawing) return
             setDrawingPoints((prev) => [...prev, point])
           }}
+          onUndoZonePoint={() => setDrawingPoints((prev) => prev.slice(0, -1))}
+          onCancelZoneDrawing={resetZoneDrawing}
+          onSaveZone={() => void handleSaveZone()}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
           filterDate={filterDate}

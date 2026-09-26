@@ -99,6 +99,32 @@ async def test_passenger_create_list_and_get_own_requests(client, db_session):
     assert tx.transaction_type == PointsTransactionType.RIDE_BOOKING_DEBIT
 
 
+async def test_create_request_with_driver_cash_skips_balance_check(client, db_session):
+    passenger = await _create_user(
+        db_session,
+        user_id="p-driver-cash",
+        role=UserRole.PASSENGER,
+        points_balance=0,
+    )
+    await _create_zone(client)
+
+    response = await client.post(
+        "/api/ride-requests",
+        json={
+            "passengerName": "Pay Driver",
+            "fromPoint": {"address": "A", "latlng": {"lat": 54.69, "lng": 25.27}},
+            "toPoint": {"address": "B", "latlng": {"lat": 54.70, "lng": 25.28}},
+            "dateTime": future_ride_datetime_iso(hours_ahead=2),
+            "paymentMethod": "driver_cash",
+        },
+        headers=_headers_for(passenger.user_id, passenger.role),
+    )
+    assert response.status_code == 201
+
+    await db_session.refresh(passenger)
+    assert passenger.points_balance == 0
+
+
 async def test_create_request_with_insufficient_points_returns_400(client, db_session):
     passenger = await _create_user(
         db_session,

@@ -99,6 +99,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
             flyKey={mapFlyKey}
             zoom={getDefaultMapZoom()}
             enabled={allowMapAutoFly}
+            pinAnchorYFracRef={pinAnchorYFracRef}
           />
           <MapBinder
             registerMap={(map) => {
