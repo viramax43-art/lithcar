@@ -56,3 +56,7 @@ export function cacheInitData(initData: string): void {
   if (!initData) return
   safeSet(INIT_DATA_KEY, initData)
 }
+
+export function clearCachedInitData(): void {
+  safeRemove(INIT_DATA_KEY)
+}

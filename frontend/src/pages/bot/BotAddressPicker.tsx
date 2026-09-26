@@ -68,6 +68,7 @@ export default function BotAddressPicker() {
             flyKey={mapFlyKey}
             zoom={getDefaultMapZoom()}
             enabled
+            pinAnchorYFracRef={model.pinAnchorYFracRef}
           />
           <MapBinder
             registerMap={model.registerMap}

@@ -45,4 +45,32 @@ export const STATUS_CONFIG: Record<string, { labelKey: string; color: string; bg
   completed: { labelKey: 'status.completed', color: '#858585', bg: 'rgba(133,133,133,0.1)' },
 }
 
-export type AdminTab = 'requests' | 'drivers' | 'zones' | 'settings' | 'qrSales' | 'staff'
+export type AdminSection = 'functionality' | 'drivers' | 'passengers'
+
+export type AdminTab =
+  | 'requests'
+  | 'zones'
+  | 'settings'
+  | 'system'
+  | 'staff'
+  | 'drivers'
+  | 'driverApps'
+  | 'qrSales'
+  | 'passengers'
+
+export const ADMIN_SECTION_TABS: Record<AdminSection, AdminTab[]> = {
+  functionality: ['requests', 'zones', 'settings', 'system', 'staff'],
+  drivers: ['drivers', 'driverApps', 'qrSales'],
+  passengers: ['passengers'],
+}
+
+export function adminSectionForTab(tab: AdminTab): AdminSection {
+  for (const [section, tabs] of Object.entries(ADMIN_SECTION_TABS) as Array<[AdminSection, AdminTab[]]>) {
+    if (tabs.includes(tab)) return section
+  }
+  return 'functionality'
+}
+
+export function defaultTabForSection(section: AdminSection): AdminTab {
+  return ADMIN_SECTION_TABS[section][0]
+}

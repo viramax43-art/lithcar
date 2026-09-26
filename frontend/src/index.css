@@ -515,6 +515,11 @@ body {
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.admin-sidebar-tab-bar {
+  mask-image: linear-gradient(to right, transparent 0, black 8px, black calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 8px, black calc(100% - 16px), transparent 100%);
+}
+
 /* === Mobile Admin Drawer === */
 @media (max-width: 768px) {
   .admin-sidebar-wrap {
@@ -808,9 +813,6 @@ body {
   .admin-sidebar-wrap .admin-sidebar-icon-rail button {
     min-width: 56px;
     min-height: 52px;
-  }
-  .admin-sidebar-wrap .admin-sidebar-icon-rail span {
-    font-size: 10px !important;
   }
 }
 

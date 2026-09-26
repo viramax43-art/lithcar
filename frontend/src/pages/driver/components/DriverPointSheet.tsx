@@ -171,6 +171,12 @@ function SheetBody({
         </button>
       </div>
 
+      {point.canEdit && !isDone && (
+        <p className="mx-4 mb-3 text-[11px] text-muted leading-snug">
+          {t('driver.dragToEditPoint', { defaultValue: 'Drag the marker on the map to change pickup or dropoff. The passenger will be notified.' })}
+        </p>
+      )}
+
       {/* ── Address + time ───────────────────────────────────────────────── */}
       <div className="mx-4 mb-4 rounded-2xl bg-surface px-4 py-3.5 space-y-1">
         <div className="flex items-start gap-2">

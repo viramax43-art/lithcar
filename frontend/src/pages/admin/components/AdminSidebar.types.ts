@@ -1,5 +1,6 @@
 import type { AdminKeyInfo, AdminQrSaleAudit, AdminSessionUser } from '../../../lib/backend'
 import type { Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../../types'
+import type { PlatformSettingsConfig } from '../../../lib/platformSettingsDefaults'
 import type { AdminTab, MapColorGroupKey } from '../constants'
 
 export interface AdminSidebarProps {
@@ -65,6 +66,8 @@ export interface AdminSidebarProps {
       >
     >,
   ) => Promise<boolean>
+  platformSettings: PlatformSettingsConfig
+  handlePlatformChange: (patch: Partial<PlatformSettingsConfig>) => Promise<boolean>
   adminSession: AdminSessionUser
   newManagedKeyName: string
   setNewManagedKeyName: (value: string) => void

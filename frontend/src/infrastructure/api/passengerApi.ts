@@ -44,11 +44,19 @@ export async function getRequestById(requestId: string): Promise<RideRequest> {
   return mapRideRequest(item)
 }
 
+export async function sendPassengerLocation(requestId: string, lat: number, lng: number): Promise<void> {
+  await apiRequest<{ success: boolean; lat: number; lng: number }>(`/api/ride-requests/${requestId}/location`, {
+    method: 'POST',
+    body: { lat, lng },
+  })
+}
+
 export async function createRequest(payload: {
   passengerName: string
   from: { address: string; latlng: { lat: number; lng: number } }
   to: { address: string; latlng: { lat: number; lng: number } }
   dateTime: string
+  paymentMethod?: 'points' | 'driver_cash' | 'driver_card'
 }): Promise<RideRequest> {
   const created = await apiRequest<RideRequestApi>('/api/v1/ride-requests', {
     method: 'POST',
@@ -57,6 +65,7 @@ export async function createRequest(payload: {
       fromPoint: payload.from,
       toPoint: payload.to,
       dateTime: payload.dateTime,
+      ...(payload.paymentMethod ? { paymentMethod: payload.paymentMethod } : {}),
     },
   })
   return mapRideRequest(created)

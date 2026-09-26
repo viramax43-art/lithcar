@@ -193,7 +193,7 @@ async def test_user_cabinet_returns_balance_and_ride_history(client, db_session)
     cabinet = await client.get("/api/users/me/cabinet", headers=headers)
     assert cabinet.status_code == 200
     body = cabinet.json()
-    assert body["pointsBalance"] == 0
+    assert body["pointsBalance"] == 100
     assert len(body["rideHistory"]) == 1
     assert body["rideHistory"][0]["status"] == RideRequestStatus.COMPLETED
 

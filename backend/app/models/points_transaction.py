@@ -13,6 +13,7 @@ class PointsTransactionType:
     CARD_PURCHASE = "card_purchase"
     USER_TRANSFER_OUT = "user_transfer_out"
     USER_TRANSFER_IN = "user_transfer_in"
+    ADMIN_ADJUSTMENT = "admin_adjustment"
 
 
 class PointsTransaction(Base):

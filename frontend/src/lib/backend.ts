@@ -98,6 +98,7 @@ export {
   purchasePointsByCard,
   transferPoints,
   issuePassengerQrSale,
+  sendPassengerLocation,
   updateCurrentUserLanguage,
   updateRequest,
 } from '../infrastructure/api/passengerApi'

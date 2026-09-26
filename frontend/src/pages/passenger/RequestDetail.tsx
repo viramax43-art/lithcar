@@ -10,7 +10,7 @@ import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import StarRatingInput from '../../components/StarRatingInput'
 import RatingBadge from '../../components/RatingBadge'
-import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, updateRequest, blockUser } from '../../lib/backend'
+import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, sendPassengerLocation, updateRequest, blockUser } from '../../lib/backend'
 import InlineConfirm from '../admin/components/InlineConfirm'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
@@ -30,6 +30,13 @@ const STATUS_COLOR_MAP: Record<string, { color: string; bg: string }> = {
 }
 
 const REQUEST_POLL_MS = 10_000
+const PASSENGER_LOCATION_INTERVAL_MS = 6_000
+
+const PASSENGER_LIVE_STATUSES = new Set([
+  'assigned',
+  'en_route_to_pickup',
+  'awaiting_passenger',
+])
 
 const iconA = L.divIcon({ className: '', html: '<div class="marker-a">A</div>', iconSize: [36, 36], iconAnchor: [18, 18] })
 const iconB = L.divIcon({ className: '', html: '<div class="marker-b">B</div>', iconSize: [36, 36], iconAnchor: [18, 18] })
@@ -93,6 +100,23 @@ export default function RequestDetail() {
       })()
     }, REQUEST_POLL_MS)
     return () => window.clearInterval(timer)
+  }, [id, request?.status])
+
+  useEffect(() => {
+    if (!id || !request || !PASSENGER_LIVE_STATUSES.has(request.status)) return
+    if (!navigator.geolocation) return
+    let lastSent = 0
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const now = Date.now()
+        if (now - lastSent < PASSENGER_LOCATION_INTERVAL_MS) return
+        lastSent = now
+        void sendPassengerLocation(id, pos.coords.latitude, pos.coords.longitude).catch(() => undefined)
+      },
+      () => undefined,
+      { enableHighAccuracy: true, maximumAge: 3_000, timeout: 15_000 },
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
   }, [id, request?.status])
 
   if (loading) {

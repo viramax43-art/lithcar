@@ -113,7 +113,7 @@ export function AdminSidebarDriverRegistrationSection({
     ? i18n.language.slice(0, 2)
     : 'en') as 'lt' | 'pl' | 'en' | 'ru'
 
-  if (activeTab !== 'drivers') return null
+  if (activeTab !== 'driverApps') return null
 
   const updateField = (fieldId: string, patch: Partial<DriverRegistrationFormField>) => {
     setDraft((prev) => ({

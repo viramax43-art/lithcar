@@ -71,4 +71,7 @@ class RideRequest(Base):
     quote_tier_label = Column(String, nullable=True)
     quote_breakdown_json = Column(JSONB, nullable=True)
     payment_method = Column(String, nullable=False, server_default="points")
+    passenger_live_lat = Column(Float, nullable=True)
+    passenger_live_lng = Column(Float, nullable=True)
+    passenger_live_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

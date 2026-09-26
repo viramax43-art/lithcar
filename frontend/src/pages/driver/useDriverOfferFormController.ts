@@ -21,6 +21,7 @@ import {
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
+import { getUserGeolocation, panMapToLatLngUnderPin, waitForMapMoveEnd } from '../../lib/mapGeolocation'
 
 export function useDriverOfferFormController(
   onSuccess: () => void,
@@ -142,13 +143,7 @@ export function useDriverOfferFormController(
     const map = mapRef.current
     if (!map) return
     skipPinCommitCountRef.current += 1
-    const z = Math.max(map.getZoom(), zoom)
-    const targetPx = map.project([target.lat, target.lng], z)
-    const size = map.getSize()
-    const dy = size.y * (0.5 - anchorRef.current)
-    const desiredCenterPx = targetPx.add(L.point(0, dy))
-    const newCenter = map.unproject(desiredCenterPx, z)
-    map.flyTo(newCenter, z, { duration: 0.5 })
+    panMapToLatLngUnderPin(map, target, anchorRef.current, zoom)
   }, [anchorRef])
 
   const commitPin = useCallback(
@@ -314,17 +309,23 @@ export function useDriverOfferFormController(
   )
 
   const handleLocateMe = useCallback(() => {
-    if (!navigator.geolocation) return
+    const map = mapRef.current
+    if (!map || typeof navigator === 'undefined' || !navigator.geolocation) return
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    void (async () => {
+      try {
+        const pos = await getUserGeolocation()
+        skipPinCommitCountRef.current += 1
+        panMapToLatLngUnderPin(map, { lat: pos.lat, lng: pos.lng }, anchorRef.current, 16)
+        await waitForMapMoveEnd(map)
+        armPinFromMapCenterRef.current()
+      } catch {
+        /* ignore — user can pan manually */
+      } finally {
         setIsLocating(false)
-        panMapToTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude }, 16)
-      },
-      () => setIsLocating(false),
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
-  }, [panMapToTarget])
+      }
+    })()
+  }, [anchorRef])
 
   const handleSeatsInputChange = useCallback((raw: string) => {
     setTotalSeatsInput(raw.replace(/\D/g, ''))

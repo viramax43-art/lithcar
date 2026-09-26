@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.user import DEFAULT_USER_LANGUAGE, SUPPORTED_USER_LANGUAGES, User, UserRole
+from app.services.platform_settings_service import default_passenger_points, get_platform_config
 
 
 class UsernameConflictError(ValueError):
@@ -60,18 +61,22 @@ async def get_or_create_user(
 
     if user:
         did_change = False
-        if username and (user.username or "").lower() != username.lower():
-            owner = await find_user_by_username_insensitive(
-                db_session,
-                username,
-                exclude_user_id=user.user_id,
-            )
-            if owner is not None:
-                raise UsernameConflictError(
-                    f"Telegram username @{username} is already linked to another account."
+        if username and user.username != username:
+            if (user.username or "").lower() == username.lower():
+                user.username = username
+                did_change = True
+            else:
+                owner = await find_user_by_username_insensitive(
+                    db_session,
+                    username,
+                    exclude_user_id=user.user_id,
                 )
-            user.username = username
-            did_change = True
+                if owner is not None:
+                    raise UsernameConflictError(
+                        f"Telegram username @{username} is already linked to another account."
+                    )
+                user.username = username
+                did_change = True
         if not user.language and normalized_language:
             user.language = normalized_language
             did_change = True
@@ -93,11 +98,13 @@ async def get_or_create_user(
                 f"Telegram username @{username} is already linked to another account."
             )
 
+    platform_cfg = await get_platform_config(db_session)
     new_user = User(
         user_id=str(user_id),
         username=username,
         role=UserRole.PASSENGER,
         language=normalized_language or DEFAULT_USER_LANGUAGE,
+        points_balance=default_passenger_points(platform_cfg),
     )
     db_session.add(new_user)
 

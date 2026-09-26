@@ -9,6 +9,14 @@ def _cookie_secure() -> bool:
     return settings.is_production or settings.passenger_session_cookie_secure
 
 
+def session_cookie_secure() -> bool:
+    return settings.is_production or settings.admin_session_cookie_secure
+
+
+def session_cookie_samesite() -> str:
+    return "none" if session_cookie_secure() else "lax"
+
+
 def _cookie_path() -> str:
     # Must cover /ride/api/... when the app is served under a subpath.
     return "/"

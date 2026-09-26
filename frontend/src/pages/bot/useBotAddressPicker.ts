@@ -21,6 +21,7 @@ import { coordsNear } from '../../utils/geo'
 import { isPickupZoneCheckActive, resolvePickupLocation } from '../../utils/serviceZones'
 import { resolveGeocodeSearchScope } from '../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
+import { getUserGeolocation, panMapToLatLngUnderPin, waitForMapMoveEnd } from '../../lib/mapGeolocation'
 
 export type BotPickField = 'from' | 'to'
 
@@ -117,13 +118,7 @@ export function useBotAddressPicker() {
     const map = mapRef.current
     if (!map) return
     skipPinCommitCountRef.current += 1
-    const z = Math.max(map.getZoom(), zoom)
-    const targetPx = map.project([target.lat, target.lng], z)
-    const size = map.getSize()
-    const dy = size.y * (0.5 - pinAnchorYFracRef.current)
-    const desiredCenterPx = targetPx.add(L.point(0, dy))
-    const newCenter = map.unproject(desiredCenterPx, z)
-    map.flyTo(newCenter, z, { duration: 0.5 })
+    panMapToLatLngUnderPin(map, target, pinAnchorYFracRef.current, zoom)
   }, [])
 
   const commitPin = useCallback(
@@ -342,19 +337,23 @@ export function useBotAddressPicker() {
   const [isLocating, setIsLocating] = useState(false)
 
   const handleLocateMe = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    const map = mapRef.current
+    if (!map || typeof navigator === 'undefined' || !navigator.geolocation) return
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const target = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-        panMapToTarget(target, 16)
-        window.setTimeout(() => commitPin(target), 250)
+    void (async () => {
+      try {
+        const pos = await getUserGeolocation()
+        skipPinCommitCountRef.current += 1
+        panMapToLatLngUnderPin(map, { lat: pos.lat, lng: pos.lng }, pinAnchorYFracRef.current, 16)
+        await waitForMapMoveEnd(map)
+        armPinFromMapCenter()
+      } catch {
+        /* ignore */
+      } finally {
         setIsLocating(false)
-      },
-      () => setIsLocating(false),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    )
-  }, [commitPin, panMapToTarget])
+      }
+    })()
+  }, [armPinFromMapCenter])
 
   return {
     field,

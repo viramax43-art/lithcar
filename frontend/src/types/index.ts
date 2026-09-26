@@ -332,10 +332,20 @@ export interface DriverMapPoint {
   pointKind?: 'mine' | 'available'
 }
 
+export interface PassengerLiveLocation {
+  rideId: string
+  passengerName: string
+  latLng: LatLng
+  updatedAt: string
+  updatedAtLocal?: string
+}
+
 export interface DriverMapData {
   session: DriverSessionInfo
   points: DriverMapPoint[]
   availablePoints?: DriverMapPoint[]
+  driverLocation?: LatLng | null
+  passengerLocations?: PassengerLiveLocation[]
   activeRides: number
   totalRides: number
 }

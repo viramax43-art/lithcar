@@ -215,7 +215,11 @@ async def book_ride_with_points(
     to_lat: float,
     to_lng: float,
     date_time: datetime,
+    payment_method: str = RidePaymentMethod.POINTS,
 ) -> RideBookingResult:
+    # The legacy name is kept for API compatibility, but the chosen payment
+    # method is forwarded to `book_ride`, which normalizes it and debits
+    # points only for RidePaymentMethod.POINTS.
     return await book_ride(
         db_session,
         user=user,
@@ -227,5 +231,5 @@ async def book_ride_with_points(
         to_lat=to_lat,
         to_lng=to_lng,
         date_time=date_time,
-        payment_method=RidePaymentMethod.POINTS,
+        payment_method=payment_method,
     )

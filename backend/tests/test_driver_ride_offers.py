@@ -58,10 +58,16 @@ async def _create_driver(client, *, seats_count: int = 4, car_brand: str = "Toyo
     return payload["driver"]["id"], payload["key"]
 
 
-async def _create_passenger(db_session, *, user_id: str = "passenger-offers", points: int = 100):
+async def _create_passenger(
+    db_session,
+    *,
+    user_id: str = "passenger-offers",
+    username: str = "offers_passenger",
+    points: int = 100,
+):
     passenger = User(
         user_id=user_id,
-        username="offers_passenger",
+        username=username,
         role=UserRole.PASSENGER,
         points_balance=points,
     )
@@ -338,7 +344,12 @@ async def test_concurrent_book_last_seat(client, db_session):
     await _create_zone(client)
     offer, _, _ = await _create_offer(client, totalSeats=1)
     passenger_a = await _create_passenger(db_session, user_id="conc-a")
-    passenger_b = await _create_passenger(db_session, user_id="conc-b", points=100)
+    passenger_b = await _create_passenger(
+        db_session,
+        user_id="conc-b",
+        username="offers_passenger_b",
+        points=100,
+    )
 
     async def book_as(passenger: User):
         return await client.post(

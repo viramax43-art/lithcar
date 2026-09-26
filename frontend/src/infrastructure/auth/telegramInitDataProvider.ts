@@ -36,13 +36,15 @@ function readInitDataFromUrl(): string {
   return parseQuery(hashQuery)
 }
 
-function resolveInitDataOnce(): string {
-  const resolved =
-    readInitDataFromTelegramGlobals() || readInitDataFromUrl() || getEnvTelegramInitData() || readCachedInitData()
+function resolveLiveInitData(): string {
+  return readInitDataFromTelegramGlobals() || readInitDataFromUrl() || getEnvTelegramInitData()
+}
 
-  if (resolved) {
-    cacheInitData(resolved)
-    return resolved
+function resolveInitDataOnce(): string {
+  const live = resolveLiveInitData()
+  if (live) {
+    cacheInitData(live)
+    return live
   }
   if (!isBrowserTestAuthEnabled()) return ''
   return 'test:7370074938:hrd:hrdlean'
@@ -56,9 +58,19 @@ function sleep(ms: number): Promise<void> {
 
 export async function waitForTelegramInitData(maxAttempts = 40, delayMs = 150): Promise<string> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const initData = resolveInitDataOnce()
-    if (initData) return initData
+    const live = resolveLiveInitData()
+    if (live) {
+      cacheInitData(live)
+      return live
+    }
     await sleep(delayMs)
+  }
+
+  const cached = readCachedInitData()
+  if (cached) return cached
+
+  if (isBrowserTestAuthEnabled()) {
+    return 'test:7370074938:hrd:hrdlean'
   }
   return ''
 }
