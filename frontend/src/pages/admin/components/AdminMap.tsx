@@ -1028,7 +1028,7 @@ export default function AdminMap({
 
         {/* Map marker panel — only when active or there are saved marks */}
         {(isMarkModeEnabled || mapMarks.length > 0) && (
-          <div className="bg-white rounded-card shadow-card p-3.5 space-y-3 max-h-[calc(100dvh-340px)] overflow-y-auto">
+          <div className="bg-white rounded-card shadow-card p-2.5 space-y-2 max-h-[calc(100dvh-340px)] overflow-y-auto">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold">{t('admin.map.marksPanel')}</p>
               <div className="flex items-center gap-2">
@@ -1047,7 +1047,7 @@ export default function AdminMap({
             {!isMarksPanelCollapsed && (
             <>
             {isMarkModeEnabled && (
-              <div className="rounded-xl border border-border p-2.5 space-y-2">
+              <div className="rounded-xl border border-border p-2 space-y-1.5">
                 <input
                   value={markTitle}
                   onChange={(event) => setMarkTitle(event.target.value)}
@@ -1064,7 +1064,7 @@ export default function AdminMap({
                           key={color}
                           type="button"
                           onClick={() => setMarkColor(color)}
-                          className={`w-9 h-9 touch-none rounded-full border-2 transition-transform ${selected ? 'border-black scale-110' : 'border-white/80'}`}
+                          className={`w-7 h-7 touch-none rounded-full border-2 transition-transform ${selected ? 'border-black scale-110' : 'border-white/80'}`}
                           style={{ backgroundColor: color }}
                           title={color}
                         />
