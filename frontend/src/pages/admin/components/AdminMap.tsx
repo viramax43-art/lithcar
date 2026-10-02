@@ -1047,7 +1047,10 @@ export default function AdminMap({
             {!isMarksPanelCollapsed && (
             <>
             {isMarkModeEnabled && (
-              <div className="rounded-xl border border-border p-2 space-y-1.5">
+              <div
+                className="rounded-xl border border-border p-2 space-y-1.5"
+                title={draftMarkPosition ? t('admin.map.markPositionReady') : t('admin.map.markPositionMissing')}
+              >
                 <input
                   value={markTitle}
                   onChange={(event) => setMarkTitle(event.target.value)}
@@ -1106,11 +1109,6 @@ export default function AdminMap({
                     className="w-full h-28 object-cover rounded-lg border border-border"
                   />
                 )}
-                <div className="text-[10px] text-muted">
-                  {draftMarkPosition
-                    ? t('admin.map.markPositionReady')
-                    : t('admin.map.markPositionMissing')}
-                </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => {
