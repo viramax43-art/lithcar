@@ -1562,7 +1562,7 @@ export default function AdminMap({
           </div>
         </div>
       )}
-      {!isMapMarkViewMode && isMarkModeEnabled && (
+      {!isMapMarkViewMode && isMarkModeEnabled && !draftMarkPosition && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
           {t('admin.map.markerPlacementHint')}
         </div>
