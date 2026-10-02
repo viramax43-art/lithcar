@@ -501,6 +501,14 @@ body {
    Desktop: sidebar (440px) on the left, map fills the rest of the width.
    Mobile:  map pane on top, the very same sidebar panel below it.
    No drawer, no scrim, no peek strip: the layout never re-flows. */
+.admin-shell {
+  /* 100dvh where it is supported; 100vh keeps old WebViews (Android 5–7,
+     iOS ≤ 15.3) sized correctly — dvh is an invalid value there, which used to
+     leave the whole shell without a height. */
+  height: 100vh;
+  height: 100dvh;
+}
+
 .admin-sidebar-wrap {
   transition: none;
 }
@@ -529,6 +537,7 @@ body {
     border-bottom: 1px solid #E6E6E6;
     padding: 8px 4px !important;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     gap: 2px !important;
     /* Fade edge hints that the tab rail scrolls horizontally */
     mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 20px), transparent 100%);
@@ -544,8 +553,9 @@ body {
   /* Map pane keeps the top of the screen, the panel takes the rest */
   .admin-main-region {
     flex: 0 0 auto !important;
+    height: 50vh;
     height: 50dvh;
-    min-height: 260px;
+    min-height: 240px;
     border-bottom: 1px solid #E6E6E6;
   }
 }
@@ -567,6 +577,10 @@ body {
     padding: 10px 12px !important;
     gap: 6px !important;
     border-radius: 16px !important;
+    /* The expanded bar must never grow past the map pane, or it covers the panel */
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .admin-map-filter-bar input[type="date"] {
     width: 90px !important;
@@ -593,6 +607,9 @@ body {
     left: 8px !important;
     right: 8px !important;
     max-width: none !important;
+    /* Capped to the map pane: the old dvh-based inline max-height is invalid on
+       old WebViews and let this column spill over the header and the panel */
+    max-height: calc(100% - 16px) !important;
     flex-direction: row !important;
     flex-wrap: wrap !important;
     align-items: flex-end !important;
@@ -605,6 +622,8 @@ body {
     transform: none !important;
     width: auto !important;
     max-width: calc(100vw - 16px) !important;
+    max-height: none;
+    overflow: visible;
   }
   /* Compact status legend on mobile (was hidden entirely) */
   .admin-map-controls .admin-legend-bar {
@@ -638,6 +657,197 @@ body {
     bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     width: auto !important;
     max-height: 55%;
+  }
+  /* Marker panel lives inside the scrollable controls column: dvh is invalid on old
+     WebViews, so it gets a vh fallback as well */
+  .admin-map-controls .max-h-\[calc\(100dvh-340px\)\] {
+    max-height: calc(100vh - 340px);
+  }
+}
+
+/* === Small / short phones (320×480 … 375×667 — iPhone SE 1st gen, cheap Androids):
+   the fixed chrome (section rail + panel title + tab bar) is ~135px tall, so a 50%
+   map left the request list only a few pixels. The map yields room instead. === */
+@media (max-width: 768px) and (max-height: 700px) {
+  .admin-main-region {
+    height: 42vh;
+    height: 42dvh;
+    min-height: 180px;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail {
+    padding: 6px 4px !important;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail button {
+    min-width: 52px;
+    min-height: 46px;
+  }
+  /* Panel title row: keep the tap targets, cut the padding */
+  .admin-sidebar-panel > div:first-child {
+    padding: 10px 14px !important;
+  }
+  .admin-sidebar-panel > div:first-child h2 {
+    font-size: 15px;
+  }
+  .admin-sidebar-tab-bar {
+    padding: 8px 12px !important;
+  }
+  /* Scrollable tab content */
+  .admin-sidebar-panel > div:last-child {
+    padding: 12px !important;
+  }
+  .admin-map-filter-bar {
+    top: 8px !important;
+    padding: 8px 10px !important;
+    gap: 5px !important;
+  }
+  .admin-map-filter-bar input[type="date"],
+  .admin-map-filter-bar input[type="time"] {
+    height: 34px !important;
+  }
+  /* Bottom sheets may use more of the (small) map pane */
+  .admin-map-detail-card,
+  .admin-map-route-panel {
+    max-height: 70%;
+  }
+  .admin-map--panel-open .admin-map-controls {
+    bottom: calc(70% + var(--app-safe-area-bottom-total, 0px) + 16px) !important;
+  }
+}
+
+/* === Very small phones (320×480, first-gen Androids): the role strip is hidden
+   (the header already says "Admin panel") and every chrome row shrinks === */
+@media (max-width: 768px) and (max-height: 560px) {
+  .admin-main-region {
+    height: 38vh;
+    height: 38dvh;
+    min-height: 150px;
+  }
+  .admin-shell > div.flex-shrink-0 {
+    display: none !important;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail button {
+    min-width: 48px;
+    min-height: 44px;
+  }
+  .admin-sidebar-panel > div:first-child {
+    padding: 8px 12px !important;
+  }
+  .admin-sidebar-panel > div:first-child h2 {
+    font-size: 14px;
+  }
+  .admin-sidebar-panel > div:first-child p {
+    display: none;
+  }
+  .admin-sidebar-tab-bar {
+    padding: 6px 10px !important;
+  }
+  .admin-sidebar-panel > div:last-child {
+    padding: 10px !important;
+  }
+  .admin-map-detail-card,
+  .admin-map-route-panel {
+    max-height: 74%;
+  }
+  .admin-map--panel-open .admin-map-controls {
+    bottom: calc(74% + var(--app-safe-area-bottom-total, 0px) + 12px) !important;
+  }
+}
+
+/* === Landscape on small phones: header + role strip eat a third of the height === */
+@media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+  .admin-main-region {
+    height: 28vh;
+    height: 28dvh;
+    min-height: 84px;
+  }
+  .admin-dashboard-header {
+    height: auto !important;
+    min-height: calc(44px + var(--app-safe-area-top-total, 0px)) !important;
+    padding-bottom: 4px !important;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail {
+    padding: 4px !important;
+  }
+  .admin-sidebar-wrap .admin-sidebar-icon-rail button {
+    min-width: 44px;
+    min-height: 40px;
+  }
+  .admin-sidebar-panel > div:first-child {
+    padding: 6px 12px !important;
+  }
+  .admin-sidebar-panel > div:first-child p {
+    display: none;
+  }
+  .admin-sidebar-panel > div:first-child h2 {
+    font-size: 14px;
+  }
+  .admin-sidebar-tab-bar {
+    padding: 4px 10px !important;
+  }
+  .admin-sidebar-panel > div:last-child {
+    padding: 8px !important;
+  }
+  .admin-map-detail-card,
+  .admin-map-route-panel {
+    max-height: 80%;
+  }
+  .admin-map--panel-open .admin-map-controls {
+    bottom: calc(80% + var(--app-safe-area-bottom-total, 0px) + 12px) !important;
+  }
+}
+
+/* === Narrow admin header: drop the title repeated by the panel below and let the
+   actions wrap, so bell / language / sign-out are never clipped off-screen === */
+@media (max-width: 768px) {
+  .admin-dashboard-header {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    height: auto !important;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  /* Divider + "Admin panel" label */
+  .admin-dashboard-header > div:first-child > span {
+    display: none;
+  }
+  .admin-dashboard-header > div:last-child {
+    gap: 6px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    margin-left: auto;
+  }
+  /* Online drivers pill — the same number lives on the "Drivers" tab */
+  .admin-dashboard-header > div:last-child > div.px-2\.5 {
+    display: none;
+  }
+  .admin-dashboard-header select {
+    width: 92px !important;
+    padding-left: 30px !important;
+    padding-right: 16px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-dashboard-header {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .admin-dashboard-header > div:last-child {
+    gap: 4px;
+  }
+  .admin-dashboard-header select {
+    width: 80px !important;
+    padding-left: 28px !important;
+    padding-right: 12px !important;
+  }
+}
+
+/* Driver-application review sheet: h-[100dvh] is invalid on old WebViews, which left
+   the sheet unbounded and its footer actions unreachable */
+@media (max-width: 639px) {
+  .h-\[100dvh\].flex.flex-col.min-h-0.bg-white {
+    height: 100vh;
+    height: 100dvh;
   }
 }
 

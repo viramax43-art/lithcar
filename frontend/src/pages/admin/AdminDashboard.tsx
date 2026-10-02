@@ -776,7 +776,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
+    <div className="admin-shell h-[100dvh] flex flex-col bg-white overflow-hidden">
       <AdminHeader
         onlineDriversCount={onlineDrivers.length}
         adminSession={adminSession}
