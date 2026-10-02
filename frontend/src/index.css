@@ -890,6 +890,7 @@ body {
   position: fixed !important;
   inset: 0 !important;
   z-index: 2000 !important;
+  height: 100vh !important;
   height: 100dvh !important;
   width: 100vw !important;
   border-radius: 0 !important;
@@ -945,6 +946,7 @@ body {
   }
   .admin-modal-panel {
     max-width: 100% !important;
+    max-height: 92vh !important;
     max-height: 92dvh !important;
     border-radius: 20px 20px 0 0 !important;
   }
