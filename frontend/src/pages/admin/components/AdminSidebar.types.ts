@@ -4,8 +4,6 @@ import type { PlatformSettingsConfig } from '../../../lib/platformSettingsDefaul
 import type { AdminTab, MapColorGroupKey } from '../constants'
 
 export interface AdminSidebarProps {
-  collapsed: boolean
-  onToggleCollapse: () => void
   activeTab: AdminTab
   setActiveTab: (tab: AdminTab) => void
   filterStatus: string

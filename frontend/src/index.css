@@ -497,22 +497,12 @@ body {
   height: 100%;
 }
 
-/* === Sidebar collapse (desktop: fully hide; reopen via map expand button) === */
-@media (min-width: 769px) {
-  .admin-sidebar-collapsed {
-    width: 0 !important;
-    min-width: 0 !important;
-    border: none !important;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .admin-sidebar-collapsed .admin-sidebar-panel,
-  .admin-sidebar-collapsed .admin-sidebar-icon-rail {
-    display: none;
-  }
-}
+/* === Admin shell: fixed two-pane layout — the sidebar is never collapsible ===
+   Desktop: sidebar (440px) on the left, map fills the rest of the width.
+   Mobile:  map pane on top, the very same sidebar panel below it.
+   No drawer, no scrim, no peek strip: the layout never re-flows. */
 .admin-sidebar-wrap {
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: none;
 }
 
 .admin-sidebar-tab-bar {
@@ -520,31 +510,18 @@ body {
   -webkit-mask-image: linear-gradient(to right, transparent 0, black 8px, black calc(100% - 16px), transparent 100%);
 }
 
-/* === Mobile Admin Drawer === */
+/* === Mobile admin shell: static map + panel split === */
 @media (max-width: 768px) {
   .admin-sidebar-wrap {
-    position: fixed !important;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto !important;
     width: 100% !important;
-    max-height: 70dvh;
-    border-radius: 20px 20px 0 0;
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: none;
     border-right: none !important;
     border-top: 1px solid #E6E6E6;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
-    z-index: 2000;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
-    transform: translateY(0);
+    z-index: auto;
   }
-  .admin-sidebar-wrap.admin-sidebar-collapsed {
-    width: 100% !important;
-    transform: translateY(calc(100% - 56px));
-    overflow: visible;
-    border: none !important;
-    opacity: 1;
-  }
+  /* Section rail becomes a horizontal strip at the top of the panel */
   .admin-sidebar-wrap .admin-sidebar-icon-rail {
     flex-direction: row !important;
     width: 100% !important;
@@ -559,21 +536,19 @@ body {
     scroll-snap-type: x proximity;
   }
   .admin-sidebar-wrap .admin-sidebar-icon-rail button {
-    min-width: 52px;
+    min-width: 56px;
+    min-height: 52px;
     flex-shrink: 0;
     scroll-snap-align: start;
   }
-  .admin-drawer-handle {
-    display: block;
+  /* Map pane keeps the top of the screen, the panel takes the rest */
+  .admin-main-region {
+    flex: 0 0 auto !important;
+    height: 50dvh;
+    min-height: 260px;
+    border-bottom: 1px solid #E6E6E6;
   }
 }
-@media (min-width: 769px) {
-  .admin-drawer-handle {
-    display: none !important;
-  }
-}
-
-/* Drawer pull handle — overridden above with improved styles */
 
 /* === Mobile Admin Header === */
 @media (max-width: 768px) {
@@ -614,7 +589,7 @@ body {
   }
   .admin-map-controls {
     top: auto !important;
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     left: 8px !important;
     right: 8px !important;
     max-width: none !important;
@@ -624,7 +599,7 @@ body {
   }
   .admin-map-filter-bar--collapsed {
     top: auto !important;
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     left: 8px !important;
     right: auto !important;
     transform: none !important;
@@ -641,28 +616,28 @@ body {
   /* When a bottom panel (detail card / similar trips) is open it occupies the
      same bottom slot — lift the floating controls above it */
   .admin-map--panel-open .admin-map-controls {
-    bottom: calc(50vh + 56px + var(--app-safe-area-bottom-total, 0px) + 16px) !important;
+    bottom: calc(55% + var(--app-safe-area-bottom-total, 0px) + 24px) !important;
   }
-  /* Leaflet zoom controls: keep above the collapsed drawer peek strip */
+  /* Leaflet zoom controls stay inside the map pane */
   .leaflet-bottom.leaflet-right {
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
   }
   .admin-map-detail-card {
     top: auto !important;
     right: 8px !important;
     left: 8px !important;
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     width: auto !important;
-    max-height: 50vh;
+    max-height: 55%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
   .admin-map-route-panel {
     left: 8px !important;
     right: 8px !important;
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 8px) !important;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 8px) !important;
     width: auto !important;
-    max-height: 50vh;
+    max-height: 55%;
   }
 }
 
@@ -717,33 +692,6 @@ body {
 .scroll-fade-bottom {
   mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-}
-
-/* === Pull affordance for bottom drawer === */
-.admin-drawer-handle {
-  display: block;
-  width: 100%;
-  min-height: 26px;
-  padding: 10px 0;
-  margin: 0;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.admin-drawer-handle::after {
-  content: '';
-  display: block;
-  width: 48px;
-  height: 6px;
-  border-radius: 3px;
-  background: #d1d1d1;
-  margin: 0 auto;
-  transition: background 0.2s;
-}
-.admin-sidebar-wrap:active .admin-drawer-handle::after,
-.admin-drawer-handle:active::after {
-  background: #999;
 }
 
 /* === Mobile: larger map markers for touch === */
@@ -802,18 +750,12 @@ body {
     background: #d1d1d1;
     margin: 8px auto 6px;
   }
+  /* Map pane sits above the panel now, so overlays anchor to the map itself */
   .admin-route-edit-bar {
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px)) !important;
+    bottom: 0 !important;
   }
   .admin-error-toast {
-    bottom: calc(56px + var(--app-safe-area-bottom-total, 0px) + 12px) !important;
-  }
-  .admin-sidebar-wrap {
-    max-height: 85dvh;
-  }
-  .admin-sidebar-wrap .admin-sidebar-icon-rail button {
-    min-width: 56px;
-    min-height: 52px;
+    bottom: calc(var(--app-safe-area-bottom-total, 0px) + 12px) !important;
   }
 }
 

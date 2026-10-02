@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Car,
-  CaretLeft,
-  CaretRight,
   ClipboardText,
   CreditCard,
   Gear,
@@ -61,8 +59,6 @@ const TAB_DEFS: Record<AdminTab, { icon: typeof MapPin; labelKey: string }> = {
 export default function AdminSidebar(props: AdminSidebarProps) {
   const { t } = useTranslation()
   const {
-    collapsed,
-    onToggleCollapse,
     activeTab,
     setActiveTab,
     filterStatus,
@@ -238,43 +234,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
 
   return (
     <>
-      {!collapsed && (
-        <button
-          type="button"
-          aria-label={t('common.close')}
-          className="admin-drawer-scrim md:hidden fixed inset-0 z-[1999] bg-black/35"
-          onClick={onToggleCollapse}
-        />
-      )}
-      <aside
-        className={`admin-sidebar-wrap flex-shrink-0 border-r border-border flex flex-col md:flex-row bg-white relative ${collapsed ? 'admin-sidebar-collapsed' : 'w-[440px]'}`}
-        onClickCapture={(event) => {
-          // On mobile, any tap on the collapsed peek strip should expand the drawer.
-          if (!collapsed) return
-          if (typeof window === 'undefined') return
-          if (!window.matchMedia('(max-width: 768px)').matches) return
-          event.stopPropagation()
-          onToggleCollapse()
-        }}
-      >
-        {/* Drawer handle for mobile */}
-        <button
-          type="button"
-          className="admin-drawer-handle"
-          aria-label={collapsed ? t('admin.sidebar.expandPanel', { defaultValue: 'Expand panel' }) : t('admin.sidebar.collapsePanel')}
-          onClick={onToggleCollapse}
-        />
-        {/* Collapse toggle (desktop only, visible when panel is open) */}
-        {!collapsed && (
-          <button
-            onClick={onToggleCollapse}
-            className="hidden md:flex absolute top-1/2 -right-4 z-[1001] w-9 h-9 bg-white border border-border rounded-full shadow-card items-center justify-center hover:bg-surface transition-colors"
-            style={{ transform: 'translateY(-50%)' }}
-            title={t('admin.sidebar.collapsePanel')}
-          >
-            <CaretLeft size={14} weight="bold" />
-          </button>
-        )}
+      <aside className="admin-sidebar-wrap flex-shrink-0 flex flex-col md:flex-row bg-white border-border border-t md:border-t-0 md:border-r w-full md:w-[440px] min-h-0">
         <div className="admin-sidebar-icon-rail w-16 border-r border-border bg-surface flex flex-col items-center py-3 gap-1.5 flex-shrink-0">
           {SECTION_DEFS.map((section) => {
             const active = activeSection === section.id

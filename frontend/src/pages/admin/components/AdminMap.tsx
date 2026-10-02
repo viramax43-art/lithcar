@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretLeft, CaretRight, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import RatingBadge from '../../../components/RatingBadge'
@@ -63,8 +63,6 @@ interface AdminMapProps {
   onUndoZonePoint: () => void
   onCancelZoneDrawing: () => void
   onSaveZone: () => void
-  sidebarCollapsed: boolean
-  onToggleSidebar: () => void
   filterDate: string
   filterDateEnd: string
   filterTime: string
@@ -171,14 +169,14 @@ function FlyToHelper({ target }: { target: LatLng | null }) {
   return null
 }
 
-function MapInvalidator({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
+function MapInvalidator() {
   const map = useMap()
   useEffect(() => {
     const timeout = setTimeout(() => {
       map.invalidateSize({ animate: false })
     }, 300)
     return () => clearTimeout(timeout)
-  }, [sidebarCollapsed, map])
+  }, [map])
   return null
 }
 
@@ -242,8 +240,6 @@ export default function AdminMap({
   onUndoZonePoint,
   onCancelZoneDrawing,
   onSaveZone,
-  sidebarCollapsed,
-  onToggleSidebar,
   filterDate,
   filterDateEnd,
   filterTime,
@@ -1166,18 +1162,6 @@ export default function AdminMap({
       </div>
       )}
 
-      {/* Sidebar expand — only control when panel is fully hidden */}
-      {!isMapMarkViewMode && sidebarCollapsed && (
-        <button
-          onClick={onToggleSidebar}
-          className="absolute top-1/2 left-3 -translate-y-1/2 z-[1000] w-10 h-10 bg-white border border-border rounded-full shadow-card flex items-center justify-center hover:bg-surface transition-colors touch-none"
-          title={t('admin.sidebar.expandPanel')}
-          aria-label={t('admin.sidebar.expandPanel')}
-        >
-          <CaretRight size={16} weight="bold" />
-        </button>
-      )}
-
       <MapContainer
         center={[mapCenter.lat, mapCenter.lng]}
         zoom={mapZoom}
@@ -1188,7 +1172,7 @@ export default function AdminMap({
         <MapViewportPersistence onViewportChange={handleMapViewportChange} />
         <FlyToHelper target={flyTarget} />
         <FlyToZoneBounds zone={selectedZone} focusKey={zoneFocusKey} />
-        <MapInvalidator sidebarCollapsed={sidebarCollapsed} />
+        <MapInvalidator />
 
         {!isRoutePreviewMode && (
           <>

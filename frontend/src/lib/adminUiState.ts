@@ -22,7 +22,6 @@ export interface AdminDashboardUiSlice {
   selectedGroupId: string | null
   selectedZoneId: string | null
   expandedDriverId: string | null
-  sidebarCollapsed: boolean
   filterDate: string
   filterDateEnd: string
   filterTime: string
@@ -115,8 +114,6 @@ export const DEFAULT_ADMIN_DASHBOARD_UI: AdminDashboardUiSlice = {
   selectedGroupId: null,
   selectedZoneId: null,
   expandedDriverId: null,
-  // On mobile start with the drawer expanded so new admins see the content lists.
-  sidebarCollapsed: !isMobileViewport(),
   filterDate: DEFAULT_PERIOD.filterDate,
   filterDateEnd: DEFAULT_PERIOD.filterDateEnd,
   filterTime: DEFAULT_PERIOD.filterTime,

@@ -101,7 +101,6 @@ export default function AdminDashboard() {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(INITIAL_DASHBOARD_UI.selectedZoneId)
   const [zoneFocusKey, setZoneFocusKey] = useState(0)
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(INITIAL_DASHBOARD_UI.expandedDriverId)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(INITIAL_DASHBOARD_UI.sidebarCollapsed)
   const [filterDate, setFilterDate] = useState<string>(INITIAL_DASHBOARD_UI.filterDate)
   const [filterDateEnd, setFilterDateEnd] = useState<string>(INITIAL_DASHBOARD_UI.filterDateEnd)
   const [filterTime, setFilterTime] = useState<string>(INITIAL_DASHBOARD_UI.filterTime)
@@ -177,7 +176,6 @@ export default function AdminDashboard() {
       selectedGroupId,
       selectedZoneId,
       expandedDriverId,
-      sidebarCollapsed,
       filterDate,
       filterDateEnd,
       filterTime,
@@ -209,7 +207,6 @@ export default function AdminDashboard() {
       selectedGroupId,
       selectedZoneId,
       expandedDriverId,
-      sidebarCollapsed,
       filterDate,
       filterDateEnd,
       filterTime,
@@ -320,10 +317,6 @@ export default function AdminDashboard() {
     setSelectedReqId(request.id)
     // Правка маршрута идёт по карте, а карта живёт в разделе «Зоны».
     setActiveTab('zones')
-    // On mobile the bottom drawer (z-2000) covers the route edit bar — collapse it.
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
-      setSidebarCollapsed(true)
-    }
   }, [])
 
   const cancelRouteEdit = useCallback(() => {
@@ -489,7 +482,6 @@ export default function AdminDashboard() {
   const handleSelectZoneFromMap = (zoneId: string) => {
     setActiveTab('zones')
     setSelectedZoneId(zoneId)
-    setSidebarCollapsed(false)
   }
 
   const handleCreateZone = handleSaveZone
@@ -800,10 +792,8 @@ export default function AdminDashboard() {
         safeArea="none"
       />
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative flex-col-reverse md:flex-row">
         <AdminSidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           filterStatus={filterStatus}
@@ -905,6 +895,7 @@ export default function AdminDashboard() {
           onSelectedApplicationIdChange={setSelectedApplicationId}
         />
 
+        <div className={`admin-main-region min-w-0 flex-1 flex flex-col ${isMapVisible ? '' : 'hidden md:flex'}`}>
         {isMapVisible ? (
         <AdminMap
           requests={requests}
@@ -942,8 +933,6 @@ export default function AdminDashboard() {
           onUndoZonePoint={() => setDrawingPoints((prev) => prev.slice(0, -1))}
           onCancelZoneDrawing={resetZoneDrawing}
           onSaveZone={() => void handleSaveZone()}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
           filterDate={filterDate}
           filterDateEnd={filterDateEnd}
           filterTime={filterTime}
@@ -992,6 +981,7 @@ export default function AdminDashboard() {
             </div>
           </main>
         )}
+        </div>
       </div>
 
       {errorMessage && (
