@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Calendar, Car, CaretDown, CaretUp, Clock, ArrowSquareOut, Crosshair, FloppyDisk, FunnelSimple, Lightning, MagnifyingGlass, MapPin, Trash, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Pane, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import RatingBadge from '../../../components/RatingBadge'
@@ -759,33 +759,52 @@ export default function AdminMap({
   return (
     <main className={`flex-1 relative ${hasBottomPanel ? 'admin-map--panel-open' : ''}`}>
       {/* === Date/Time Filter Bar === */}
-      {!isMapMarkViewMode && (
-      <div
-        className={`admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100%-24px))] max-w-full bg-white rounded-card shadow-card px-3 py-3 space-y-2.5 ${
-          isFilterBarCollapsed ? 'admin-map-filter-bar--collapsed' : ''
-        }`}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Calendar size={16} className="text-muted flex-shrink-0" />
-            <span className="text-[11px] font-semibold text-muted whitespace-nowrap">{t('common.periodFilter')}</span>
-            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
+      {!isMapMarkViewMode &&
+        (isFilterBarCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setIsFilterBarCollapsed(false)}
+            className="admin-map-filter-bar admin-map-filter-bar--collapsed absolute top-4 left-1/2 -translate-x-1/2 z-[1020] inline-flex items-center gap-2 h-10 pl-3 pr-2.5 rounded-pill bg-white shadow-card border border-border transition hover:border-black/40"
+            title={t('common.open')}
+          >
+            <FunnelSimple size={16} className={hasAnyFilter ? 'text-black' : 'text-muted'} />
+            <span className={`text-sm font-semibold ${hasAnyFilter ? 'text-black' : 'text-muted'}`}>
+              {t('common.periodFilter')}
+            </span>
+            {hasAnyFilter ? (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center">
+                {visibleRequests.length}
+              </span>
+            ) : null}
+            <CaretDown size={14} className="text-muted" />
+          </button>
+        ) : (
+        <div className="admin-map-filter-bar absolute top-4 left-1/2 -translate-x-1/2 z-[1020] w-[min(860px,calc(100%-24px))] max-w-full bg-white rounded-card shadow-card px-3 py-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <FunnelSimple size={16} className="text-muted flex-shrink-0" />
+              <span className="text-sm font-bold whitespace-nowrap">{t('common.periodFilter')}</span>
+              <span className="text-[11px] text-muted whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={showAllTrips}
+                className="h-9 px-3 rounded-lg text-xs font-semibold text-muted hover:bg-surface transition-colors"
+              >
+                {t('common.reset', { defaultValue: 'Сбросить' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterBarCollapsed(true)}
+                className="w-9 h-9 rounded-lg border border-border bg-white hover:bg-surface transition-colors flex items-center justify-center"
+                title={t('common.close')}
+              >
+                <CaretUp size={14} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
-            <button
-              type="button"
-              onClick={() => setIsFilterBarCollapsed((prev) => !prev)}
-              className="w-9 h-9 rounded-lg border border-border bg-white hover:bg-surface transition-colors flex items-center justify-center"
-              title={isFilterBarCollapsed ? t('common.open') : t('common.close')}
-            >
-              {isFilterBarCollapsed ? <CaretDown size={14} /> : <CaretUp size={14} />}
-            </button>
-          </div>
-        </div>
 
-        {!isFilterBarCollapsed && (
-        <>
         <div className="grid grid-cols-1 gap-2">
           <div className="rounded-xl border border-border bg-surface/50 px-3 py-2">
             <div className="flex items-center gap-2 mb-1.5">
@@ -883,10 +902,8 @@ export default function AdminMap({
             )
           })}
         </div>
-        </>
-        )}
       </div>
-      )}
+      ))}
 
       {/* Search + Geolocation + Optimize controls + Drawing panel (single left column) */}
       {!isMapMarkViewMode && (

@@ -626,6 +626,8 @@ body {
     max-width: calc(100vw - 16px) !important;
     max-height: none;
     overflow: visible;
+    padding: 6px 10px !important;
+    border-radius: 999px !important;
   }
   /* Compact status legend on mobile (was hidden entirely) */
   .admin-map-controls .admin-legend-bar {
