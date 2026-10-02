@@ -1028,7 +1028,7 @@ export default function AdminMap({
 
         {/* Map marker panel — only when active or there are saved marks */}
         {(isMarkModeEnabled || mapMarks.length > 0) && (
-          <div className="bg-white rounded-card shadow-card p-2.5 space-y-2 max-h-[calc(100dvh-340px)] overflow-y-auto">
+          <div className="bg-white rounded-card shadow-card p-2.5 space-y-2 max-h-[calc(100dvh-340px)] overflow-y-auto w-[min(100%,300px)]">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold">{t('admin.map.marksPanel')}</p>
               <div className="flex items-center gap-2">
@@ -1056,7 +1056,7 @@ export default function AdminMap({
                 />
                 <div className="space-y-1">
                   <p className="text-[10px] text-muted">{t('admin.map.markColorLabel', { defaultValue: 'Color' })}</p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center flex-wrap gap-1">
                     {MAP_MARK_PALETTE.map((color) => {
                       const selected = normalizeMapMarkColor(markColor) === color
                       return (
@@ -1072,7 +1072,7 @@ export default function AdminMap({
                     })}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1">
                   <button
                     onClick={() => setMarkVisibility('admin_only')}
                     className={`h-8 rounded-lg border text-[11px] font-semibold ${
