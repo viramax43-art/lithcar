@@ -256,11 +256,13 @@ export function useBotAddressPicker() {
     let finalLatLng = pinLatLng
     if (isPickupZoneCheckActive(field, hasZones)) {
       const preview = resolvePickupLocation(pinLatLng, activeZones)
-      if (preview.snapped && preview.zone) {
-        blockAutoPinOnceRef.current = true
-        cancelPinResolution()
-        panMapToTarget(preview.latlng)
-        showPickupToast()
+      if (preview.outside) {
+        setErrorMessage(
+          t('passenger.pointAOutOfZone', {
+            defaultValue: 'Точка A вне зоны обслуживания. Передвиньте пин в зону и подтвердите снова.',
+          }),
+        )
+        hapticNotification('error')
         return
       }
       finalLatLng = preview.latlng
@@ -342,7 +344,11 @@ export function useBotAddressPicker() {
     setIsLocating(true)
     void (async () => {
       try {
-        const pos = await getUserGeolocation()
+        const pos = await getUserGeolocation({
+          highAccuracy: true,
+          timeoutMs: 18_000,
+          maxAcceptableAccuracyM: 150,
+        })
         skipPinCommitCountRef.current += 1
         panMapToLatLngUnderPin(map, { lat: pos.lat, lng: pos.lng }, pinAnchorYFracRef.current, 16)
         await waitForMapMoveEnd(map)

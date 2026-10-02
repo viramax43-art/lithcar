@@ -492,7 +492,7 @@ async def approve_application(
         license_number=driver_payload["license_number"],
         about=driver_payload["about"],
         can_sell_points=False,
-        can_self_assign=False,
+        can_self_assign=True,
     )
     raw_key = getattr(driver, "_raw_key", "")
 

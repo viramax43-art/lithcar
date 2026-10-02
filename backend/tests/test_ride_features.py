@@ -148,7 +148,8 @@ async def test_create_request_with_insufficient_points_returns_400(client, db_se
     assert response.json()["detail"]["code"] == "insufficient_points"
 
 
-async def test_create_request_outside_zone_snaps_pickup_into_zone(client, db_session):
+async def test_create_request_outside_zone_is_rejected(client, db_session):
+    """Outside-zone pickups are rejected — never teleported to a zone centroid."""
     passenger = await _create_user(db_session, user_id="p-2", role=UserRole.PASSENGER)
     await _create_zone(client)
 
@@ -158,17 +159,13 @@ async def test_create_request_outside_zone_snaps_pickup_into_zone(client, db_ses
             "passengerName": "Bob",
             "fromPoint": {"address": "Out A", "latlng": {"lat": 55.2, "lng": 26.0}},
             "toPoint": {"address": "Out B", "latlng": {"lat": 55.3, "lng": 26.1}},
-            "dateTime": future_ride_datetime_iso(hours_ahead=1),
+            "dateTime": future_ride_datetime_iso(hours_ahead=3),
         },
         headers=_headers_for(passenger.user_id, passenger.role),
     )
-    assert response.status_code == 201
-    body = response.json()
-    from_latlng = body["fromPoint"]["latlng"]
-    assert 54.65 <= from_latlng["lat"] <= 54.72
-    assert 25.22 <= from_latlng["lng"] <= 25.34
-    assert body["toPoint"]["latlng"]["lat"] == 55.3
-    assert body["toPoint"]["latlng"]["lng"] == 26.1
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "pickup_out_of_zone"
 
 
 async def test_create_request_to_outside_zone_allowed(client, db_session):

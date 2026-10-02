@@ -25,6 +25,7 @@ from app.services.ride_booking_service import (
     RideQuoteUnavailableError,
     book_ride_with_points,
 )
+from app.services.zone_service import PickupOutOfZoneError
 from app.services.rating_service import (
     RatingError,
     get_ride_rating_context_for_passenger,
@@ -47,6 +48,7 @@ from app.services.ride_route_update_service import (
     PointUpdate,
     RouteChangeActor,
     apply_route_update_with_notifications,
+    route_error_http_detail,
 )
 
 
@@ -328,6 +330,11 @@ async def create_request(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except InvalidRideDateTimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PickupOutOfZoneError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "pickup_out_of_zone", "message": exc.message},
+        ) from exc
     except InsufficientPointsError as exc:
         raise HTTPException(
             status_code=400,
@@ -628,7 +635,7 @@ async def patch_request(
             to_point=to_point,
         )
         if route_error is not None:
-            raise HTTPException(status_code=400, detail=route_error)
+            raise HTTPException(status_code=400, detail=route_error_http_detail(route_error))
         if updated is None:
             raise HTTPException(status_code=404, detail="Ride request not found.")
 
@@ -693,7 +700,7 @@ async def patch_request_route_admin(
         to_point=to_point,
     )
     if route_error is not None:
-        raise HTTPException(status_code=400, detail=route_error)
+        raise HTTPException(status_code=400, detail=route_error_http_detail(route_error))
     if updated is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
     return await _build_ride_request_out_with_driver(db_session, updated)

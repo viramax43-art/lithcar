@@ -9,10 +9,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.ride_request_service import get_request
-from app.services.zone_service import snap_pickup_coordinates
+from app.services.zone_service import assert_pickup_in_active_zone, PickupOutOfZoneError
 
 RoutePointKind = Literal["from", "to"]
 _COORD_EPSILON = 1e-6
+_PICKUP_OUT_OF_ZONE_PREFIX = "pickup_out_of_zone:"
+
+
+def route_error_http_detail(error: str) -> str | dict[str, str]:
+    """Map service route-update errors to FastAPI ``detail`` payloads."""
+    if error.startswith(_PICKUP_OUT_OF_ZONE_PREFIX):
+        return {
+            "code": "pickup_out_of_zone",
+            "message": error[len(_PICKUP_OUT_OF_ZONE_PREFIX) :],
+        }
+    return error
 
 
 class RouteChangeActor(str, Enum):
@@ -104,26 +115,29 @@ async def update_ride_route_points(
     if not from_changed and not to_changed:
         return request, RouteChangeResult(changed=frozenset()), None
 
+    if actor == RouteChangeActor.DRIVER and to_changed:
+        # Водитель отвечает только за точку посадки (A), и её подтверждает пассажир.
+        # Точка назначения (B) — часть заявки пассажира, водитель её не меняет.
+        return (
+            None,
+            None,
+            "Водитель может изменить только точку посадки — и только с подтверждением пассажира.",
+        )
+
     next_from_lat = from_point.lat if from_point is not None else request.from_lat
     next_from_lng = from_point.lng if from_point is not None else request.from_lng
     next_to_lat = to_point.lat if to_point is not None else request.to_lat
     next_to_lng = to_point.lng if to_point is not None else request.to_lng
 
     if from_changed:
-        next_from_lat, next_from_lng = await snap_pickup_coordinates(
-            db_session,
-            lat=next_from_lat,
-            lng=next_from_lng,
-        )
-        if from_point is not None and (
-            abs(next_from_lat - from_point.lat) > _COORD_EPSILON
-            or abs(next_from_lng - from_point.lng) > _COORD_EPSILON
-        ):
-            from_point = PointUpdate(
-                address=from_point.address,
+        try:
+            await assert_pickup_in_active_zone(
+                db_session,
                 lat=next_from_lat,
                 lng=next_from_lng,
             )
+        except PickupOutOfZoneError as exc:
+            return None, None, f"{_PICKUP_OUT_OF_ZONE_PREFIX}{exc.message}"
 
     if from_changed and from_point is not None:
         if actor == RouteChangeActor.DRIVER:

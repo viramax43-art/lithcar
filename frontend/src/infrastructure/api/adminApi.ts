@@ -3,6 +3,7 @@ import type { Driver, MapMark, PricingSettings, RideQuote, RideRequest, ServiceZ
 import { apiRequest, uploadMultipart } from '../http/httpClient'
 import type {
   AdminKeyInfo,
+  AdminPanelAccess,
   AdminQrSaleAudit,
   AdminSessionUser,
   PaginatedResult,
@@ -123,13 +124,15 @@ export async function createServiceZone(payload: {
   color: string
   polygon: { lat: number; lng: number }[]
   isActive: boolean
+  directionFrom?: string | null
+  directionTo?: string | null
 }): Promise<ServiceZone> {
   return apiRequest<ServiceZone>('/api/v1/service-zones', { method: 'POST', body: payload, authMode: 'cookie' })
 }
 
 export async function updateServiceZone(
   zoneId: string,
-  payload: Partial<Pick<ServiceZone, 'name' | 'color' | 'polygon' | 'isActive'>>
+  payload: Partial<Pick<ServiceZone, 'name' | 'color' | 'polygon' | 'isActive' | 'directionFrom' | 'directionTo'>>
 ): Promise<ServiceZone> {
   return apiRequest<ServiceZone>(`/api/service-zones/${zoneId}`, { method: 'PATCH', body: payload, authMode: 'cookie' })
 }
@@ -185,6 +188,23 @@ export async function getAdminSession(): Promise<AdminSessionUser> {
   return apiRequest<AdminSessionUser>('/api/v1/admin/session/me', { authMode: 'cookie' })
 }
 
+/**
+ * Passwordless staff sign-in from the Telegram Mini App.
+ * Identity comes from `initData` (when provided) or from the passenger session cookie.
+ */
+export async function bootstrapAdminSession(initData?: string): Promise<AdminSessionUser> {
+  return apiRequest<AdminSessionUser>('/api/v1/admin/session/bootstrap', {
+    method: 'POST',
+    body: initData ? { initData } : {},
+    authMode: 'cookie',
+  })
+}
+
+/** Mini App helper: is the current Telegram/passenger user a staff member? */
+export async function getAdminPanelAccess(): Promise<AdminPanelAccess> {
+  return apiRequest<AdminPanelAccess>('/api/v1/admin/session/access', { authMode: 'bearer' })
+}
+
 export async function logoutAdminSession(): Promise<void> {
   await apiRequest<{ success: boolean }>('/api/v1/admin/session/logout', { method: 'POST', authMode: 'cookie' })
 }
@@ -221,7 +241,7 @@ export async function deleteAdminKey(keyId: string): Promise<AdminKeyInfo> {
 
 export async function updateAdminKey(
   keyId: string,
-  payload: Partial<{ name: string; role: 'admin' | 'moderator' }>
+  payload: Partial<{ name: string; role: 'admin' | 'moderator'; telegramUsername: string }>
 ): Promise<AdminKeyInfo> {
   return apiRequest<AdminKeyInfo>(`/api/admin/keys/${keyId}`, { method: 'PATCH', body: payload, authMode: 'cookie' })
 }

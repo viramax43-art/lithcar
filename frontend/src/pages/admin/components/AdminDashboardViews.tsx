@@ -1,4 +1,4 @@
-import { SignOut, X } from '@phosphor-icons/react'
+import { ArrowLeft, CaretDown, Coins, Info, Key, SignOut, TelegramLogo, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import type { AdminSessionUser } from '../../../lib/backend'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
@@ -15,14 +15,26 @@ export function AdminLoginScreen({
   adminKeyInput,
   isAdminAuthorizing,
   errorMessage,
+  telegramLoginAvailable,
+  isTelegramLoginPending,
+  isKeyFormVisible,
+  onToggleKeyForm,
   onChangeKey,
   onLogin,
+  onTelegramLogin,
+  onBackToApp,
 }: {
   adminKeyInput: string
   isAdminAuthorizing: boolean
   errorMessage: string | null
+  telegramLoginAvailable: boolean
+  isTelegramLoginPending: boolean
+  isKeyFormVisible: boolean
+  onToggleKeyForm: () => void
   onChangeKey: (value: string) => void
   onLogin: () => void
+  onTelegramLogin: () => void
+  onBackToApp?: () => void
 }) {
   const { t } = useTranslation()
   return (
@@ -32,33 +44,125 @@ export function AdminLoginScreen({
           <h1 className="text-xl font-extrabold tracking-tight">RIDE</h1>
           <p className="text-sm text-muted mt-1">{t('admin.panel', { defaultValue: 'Admin panel' })}</p>
         </div>
-        <p className="text-sm text-muted">{t('admin.enterAccessKey', { defaultValue: 'Enter access key. Login/password is not required.' })}</p>
-        <form
-          className="space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (adminKeyInput.trim() && !isAdminAuthorizing) onLogin()
-          }}
-        >
-          <input
-            type="password"
-            value={adminKeyInput}
-            onChange={(event) => onChangeKey(event.target.value)}
-            placeholder="ride_admin_..."
-            autoComplete="current-password"
-            className="w-full px-4 py-3 rounded-xl border-[1.5px] border-border bg-surface outline-none focus:border-black focus:bg-white transition-colors"
-          />
+        <div className="space-y-2">
           <button
-            type="submit"
-            disabled={!adminKeyInput.trim() || isAdminAuthorizing}
-            className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${adminKeyInput.trim() && !isAdminAuthorizing ? 'bg-black text-white hover:bg-zinc-800 active:scale-[0.97]' : 'bg-surface text-muted'}`}
+            type="button"
+            onClick={onTelegramLogin}
+            disabled={!telegramLoginAvailable || isTelegramLoginPending}
+            className={`w-full py-3.5 rounded-xl font-bold text-sm inline-flex items-center justify-center gap-2 transition-all ${
+              telegramLoginAvailable && !isTelegramLoginPending
+                ? 'bg-black text-white hover:bg-zinc-800 active:scale-[0.97]'
+                : 'bg-surface text-muted cursor-not-allowed'
+            }`}
           >
-            {isAdminAuthorizing
-              ? t('admin.verifyingKey', { defaultValue: 'Verifying key...' })
-              : t('driver.login', { defaultValue: 'Sign in' })}
+            <TelegramLogo size={18} weight="fill" />
+            {isTelegramLoginPending
+              ? t('admin.login.telegramPending', { defaultValue: 'Signing in via Telegram...' })
+              : t('admin.login.telegramButton', { defaultValue: 'Sign in via Telegram' })}
           </button>
-        </form>
-        {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
+          <p className="text-xs text-muted">
+            {t('admin.login.telegramHint', {
+              defaultValue: 'No password needed: access is tied to your Telegram account.',
+            })}
+          </p>
+          {!telegramLoginAvailable && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <Info size={14} weight="fill" className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-900 leading-snug">
+                {t('admin.login.notAvailable', {
+                  defaultValue:
+                    'Telegram sign-in is unavailable: this page is not opened inside Telegram. Use the RIDE Mini App (Profile → Admin panel) or sign in with an access key.',
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex-1 h-px bg-border" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+            {t('admin.login.or', { defaultValue: 'or' })}
+          </span>
+          <span className="flex-1 h-px bg-border" />
+        </div>
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={onToggleKeyForm}
+            className="w-full inline-flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface text-xs font-semibold hover:bg-border/40 transition-colors"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Key size={13} weight="bold" />
+              {t('admin.login.keyToggle', { defaultValue: 'Sign in with an access key' })}
+            </span>
+            <CaretDown
+              size={12}
+              weight="bold"
+              className={isKeyFormVisible ? 'rotate-180 transition-transform' : 'transition-transform'}
+            />
+          </button>
+
+          {isKeyFormVisible && (
+            <form
+              className="space-y-3 rounded-xl border-[1.5px] border-border p-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (adminKeyInput.trim() && !isAdminAuthorizing) onLogin()
+              }}
+            >
+              <p className="text-[11px] text-muted">
+                {t('admin.login.keyHint', {
+                  defaultValue: 'Paste the one-time key from the chief admin (ride_admin_...).',
+                })}
+              </p>
+              <input
+                type="password"
+                value={adminKeyInput}
+                onChange={(event) => onChangeKey(event.target.value)}
+                placeholder="ride_admin_..."
+                autoComplete="current-password"
+                className="w-full px-4 py-3 rounded-xl border-[1.5px] border-border bg-surface outline-none focus:border-black focus:bg-white transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!adminKeyInput.trim() || isAdminAuthorizing}
+                className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${adminKeyInput.trim() && !isAdminAuthorizing ? 'bg-black text-white hover:bg-zinc-800 active:scale-[0.97]' : 'bg-surface text-muted'}`}
+              >
+                {isAdminAuthorizing
+                  ? t('admin.verifyingKey', { defaultValue: 'Verifying key...' })
+                  : t('driver.login', { defaultValue: 'Sign in' })}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-surface p-3 space-y-1.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted">
+            {t('admin.login.howToTitle', { defaultValue: 'How to get access' })}
+          </p>
+          <p className="text-[11px] text-muted leading-snug">
+            1. {t('admin.login.howTo1', { defaultValue: 'The chief admin opens Staff → Edit and sets your Telegram @username.' })}
+          </p>
+          <p className="text-[11px] text-muted leading-snug">
+            2. {t('admin.login.howTo2', { defaultValue: 'Open the RIDE Mini App in Telegram → Profile → "Admin panel".' })}
+          </p>
+          <p className="text-[11px] text-muted leading-snug">
+            3. {t('admin.login.howTo3', { defaultValue: 'The panel opens with no password; the session lasts 7 days.' })}
+          </p>
+        </div>
+
+        {errorMessage && <p className="text-xs font-medium text-red-600 break-words">{errorMessage}</p>}
+
+        {onBackToApp && (
+          <button
+            type="button"
+            onClick={onBackToApp}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-muted hover:text-black transition-colors"
+          >
+            <ArrowLeft size={13} weight="bold" />
+            {t('admin.login.backToApp', { defaultValue: 'Back to the app' })}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -69,11 +173,15 @@ export function AdminHeader({
   adminSession,
   onLogout,
   onNotificationSelect,
+  onBackToApp,
+  onOpenSendPoints,
 }: {
   onlineDriversCount: number
   adminSession: AdminSessionUser
   onLogout: () => void
   onNotificationSelect?: (notification: AppNotification) => void
+  onBackToApp?: () => void
+  onOpenSendPoints?: () => void
 }) {
   const { t } = useTranslation()
   return (
@@ -105,6 +213,25 @@ export function AdminHeader({
           <p className="text-xs font-semibold leading-tight">{adminSession.name}</p>
           <p className="text-[10px] text-white/50 leading-tight">{getAdminRoleLabel(adminSession.role, (key, defaultValue) => t(key, { defaultValue }))}</p>
         </div>
+        {onOpenSendPoints && (
+          <button
+            onClick={onOpenSendPoints}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-pill bg-white/10 hover:bg-white/20 transition-colors touch-none"
+            title={t('profile.transferTitle', { defaultValue: 'Send points' })}
+          >
+            <Coins size={14} weight="bold" />
+            <span className="hidden sm:inline">{t('profile.transferTitle', { defaultValue: 'Send points' })}</span>
+          </button>
+        )}
+        {onBackToApp && (
+          <button
+            onClick={onBackToApp}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-pill bg-white/10 hover:bg-white/20 transition-colors touch-none"
+          >
+            <ArrowLeft size={14} weight="bold" />
+            <span className="hidden sm:inline">{t('admin.login.backToApp', { defaultValue: 'Back to the app' })}</span>
+          </button>
+        )}
         <button
           onClick={onLogout}
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-pill bg-white/10 hover:bg-white/20 transition-colors touch-none"

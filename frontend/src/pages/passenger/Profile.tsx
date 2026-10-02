@@ -16,6 +16,7 @@ import {
   LockKey,
   QrCode,
   SealWarning,
+  ShieldCheck,
   UserCircle,
   X,
 } from '@phosphor-icons/react'
@@ -23,9 +24,14 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import NotificationBell from '../../components/notifications/NotificationBell'
-import { ApiError, getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, listBlockedUsers, parseApiErrorCode, purchasePointsByCard, transferPoints, unblockUser, updateCurrentUserLanguage } from '../../lib/backend'
+import CabinetRoleBanner from '../../components/CabinetRoleBanner'
+import TransferPointsSheet from '../../components/TransferPointsSheet'
+import { ApiError, getAdminPanelAccess, getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, listBlockedUsers, parseApiErrorCode, purchasePointsByCard, transferPoints, unblockUser, updateCurrentUserLanguage } from '../../lib/backend'
+import type { AdminPanelAccess } from '../../lib/backend'
 import { formatRideDateTime } from '../../i18n/dateTime'
 import { enterDriverCabinet } from '../../lib/driverPortal'
+import { enterAdminPanel } from '../../lib/adminPortal'
+import { getAdminRoleLabel } from '../admin/utils/adminRolePresentation'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import { resolveUserInfoText, hasUserInfoText } from '../../lib/userInfoText'
 import { hapticNotification, hapticSelection } from '../../lib/telegram'
@@ -67,6 +73,8 @@ export default function Profile() {
   const [lastTransferReceipt, setLastTransferReceipt] = useState<TransferReceipt | null>(null)
   const [driverApplication, setDriverApplication] = useState<DriverApplication | null | undefined>(undefined)
   const [isEnteringDriverCabinet, setIsEnteringDriverCabinet] = useState(false)
+  const [adminAccess, setAdminAccess] = useState<AdminPanelAccess | null>(null)
+  const [isEnteringAdminPanel, setIsEnteringAdminPanel] = useState(false)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
   const [isBlockedLoading, setIsBlockedLoading] = useState(false)
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
@@ -86,6 +94,21 @@ export default function Profile() {
       )
     } finally {
       setIsEnteringDriverCabinet(false)
+    }
+  }
+
+  const handleOpenAdminPanel = async () => {
+    setIsEnteringAdminPanel(true)
+    setErrorMessage(null)
+    try {
+      await enterAdminPanel()
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : t('profile.adminPanel.openFailed', { defaultValue: 'Failed to open the admin panel.' }),
+      )
+      setIsEnteringAdminPanel(false)
     }
   }
 
@@ -114,6 +137,9 @@ export default function Profile() {
     void getMyDriverApplication()
       .then((value) => setDriverApplication(value))
       .catch(() => setDriverApplication(null))
+    void getAdminPanelAccess()
+      .then((value) => setAdminAccess(value))
+      .catch(() => setAdminAccess(null))
     void (async () => {
       setIsBlockedLoading(true)
       try {
@@ -182,10 +208,8 @@ export default function Profile() {
 
   return (
     <div className="fixed inset-0 z-[200] bg-white flex flex-col overflow-x-hidden animate-slide-in-right">
-      <header
-        className="flex-shrink-0 bg-white border-b border-border/50"
-        style={{ paddingTop: 'var(--app-user-safe-top)' }}
-      >
+      <CabinetRoleBanner role="passenger" variant="strip" safeArea="user" />
+      <header className="flex-shrink-0 bg-white border-b border-border/50">
         <div className="flex items-center gap-3 px-3 h-14 w-full max-w-2xl mx-auto">
           <button
             onClick={() => navigate(-1)}
@@ -410,6 +434,38 @@ export default function Profile() {
             </div>
           )}
         </section>
+
+        {adminAccess?.isAdmin && (
+          <section className="bg-white border-[1.5px] border-black rounded-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={18} weight="duotone" className="text-black flex-shrink-0" />
+              <p className="text-sm font-bold">{t('profile.adminPanel.title', { defaultValue: 'Admin panel' })}</p>
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-pill bg-black text-white">
+                {getAdminRoleLabel(adminAccess.role ?? '', (key, defaultValue) => t(key, { defaultValue }))}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted leading-snug">
+              {adminAccess.telegramUsername
+                ? t('profile.adminPanel.linkedHint', {
+                    username: adminAccess.telegramUsername,
+                    defaultValue: `No key needed — the panel is linked to @${adminAccess.telegramUsername}.`,
+                  })
+                : t('profile.adminPanel.hint', {
+                    defaultValue: 'Orders, drivers, zones and settings in one place.',
+                  })}
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleOpenAdminPanel()}
+              disabled={isEnteringAdminPanel}
+              className="w-full h-11 rounded-pill bg-black text-white text-sm font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
+            >
+              {isEnteringAdminPanel
+                ? t('profile.adminPanel.opening', { defaultValue: 'Opening...' })
+                : t('profile.adminPanel.open', { defaultValue: 'Open admin panel' })}
+            </button>
+          </section>
+        )}
 
         <section className="bg-white border border-border rounded-card p-4 space-y-3">
           <p className="text-sm font-bold">{t('profile.rideHistory', { defaultValue: 'Ride history' })}</p>
@@ -1006,251 +1062,3 @@ function CardSuccessView({
   )
 }
 
-const TRANSFER_PRESETS = [10, 25, 50, 100]
-
-function TransferPointsSheet({
-  currentBalance,
-  currentUserId,
-  onClose,
-  onTransferred,
-}: {
-  currentBalance: number
-  currentUserId: string
-  onClose: () => void
-  onTransferred: (points: number, newBalance: number, recipientName: string) => void
-}) {
-  const { t } = useTranslation()
-  const [recipientUserId, setRecipientUserId] = useState('')
-  const [points, setPoints] = useState<number>(25)
-  const [stage, setStage] = useState<'form' | 'processing' | 'success'>('form')
-  const [transferError, setTransferError] = useState<string | null>(null)
-  const [successRecipientName, setSuccessRecipientName] = useState('')
-  useEscapeClose(stage !== 'processing', onClose)
-
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [])
-
-  const trimmedRecipientId = recipientUserId.trim()
-  const canSubmit =
-    stage === 'form' &&
-    points >= 1 &&
-    trimmedRecipientId.length > 0 &&
-    trimmedRecipientId !== currentUserId &&
-    points <= currentBalance
-
-  const resolveTransferError = (error: unknown): string => {
-    const code = parseApiErrorCode(error)
-    if (code === 'self_transfer') {
-      return t('profile.transferSelfError', { defaultValue: 'You cannot send points to yourself.' })
-    }
-    if (code === 'recipient_not_found') {
-      return t('profile.transferNotFound', { defaultValue: 'User with this ID was not found.' })
-    }
-    if (code === 'insufficient_points') {
-      return t('profile.transferInsufficient', { defaultValue: 'Not enough points on balance.' })
-    }
-    if (error instanceof ApiError) {
-      return error.message
-    }
-    if (error instanceof Error) {
-      return error.message
-    }
-    return t('profile.transferFailed', { defaultValue: 'Transfer failed.' })
-  }
-
-  const handleTransfer = async () => {
-    if (!canSubmit) return
-    hapticSelection()
-    setStage('processing')
-    setTransferError(null)
-    try {
-      const result = await transferPoints({
-        recipientUserId: trimmedRecipientId,
-        points,
-      })
-      hapticNotification('success')
-      const recipientName = result.recipientUsername
-        ? `@${result.recipientUsername}`
-        : result.recipientUserId
-      setSuccessRecipientName(recipientName)
-      setStage('success')
-      onTransferred(result.points, result.pointsBalance, recipientName)
-    } catch (error) {
-      hapticNotification('error')
-      setTransferError(resolveTransferError(error))
-      setStage('form')
-    }
-  }
-
-  const headerTitle =
-    stage === 'success'
-      ? t('profile.transferSuccess', { defaultValue: 'Transfer complete' })
-      : t('profile.transferTitle', { defaultValue: 'Send points' })
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
-      onClick={() => stage !== 'processing' && onClose()}
-    >
-      <div
-        className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-card shadow-card flex flex-col max-h-[92dvh]"
-        style={{ paddingBottom: 'var(--app-user-safe-bottom)' }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <div className="min-w-0">
-            <p className="text-base font-extrabold tracking-tight">{headerTitle}</p>
-            {stage === 'form' && (
-              <p className="text-[11px] text-muted">
-                {t('profile.transferPointsDesc', { defaultValue: 'Transfer to another user by ID' })}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            disabled={stage === 'processing'}
-            className="w-9 h-9 rounded-pill bg-surface flex items-center justify-center active:scale-[0.95] transition-transform disabled:opacity-40"
-            aria-label={t('common.close', { defaultValue: 'Close' })}
-          >
-            <X size={16} weight="bold" />
-          </button>
-        </div>
-
-        <div className="px-5 pb-5 pt-2 overflow-y-auto">
-          {stage === 'success' ? (
-            <div className="flex flex-col items-center text-center gap-3 py-2">
-              <div className="w-16 h-16 rounded-full bg-accent/15 flex items-center justify-center">
-                <CheckCircle size={40} weight="fill" className="text-accent-dark" />
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold tracking-tight">−{points} pts</p>
-                <p className="text-xs text-muted mt-1">
-                  {t('profile.transferSent', {
-                    name: successRecipientName,
-                    defaultValue: `Sent to ${successRecipientName}`,
-                  })}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-full mt-2 py-3 rounded-2xl bg-black text-white text-sm font-bold active:scale-[0.98] transition-transform"
-              >
-                {t('common.done', { defaultValue: 'Done' })}
-              </button>
-            </div>
-          ) : stage === 'processing' ? (
-            <div className="flex flex-col items-center text-center gap-4 py-6">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-2 border-border border-t-black animate-spin" />
-                <PaperPlaneTilt size={26} weight="bold" className="text-black" />
-              </div>
-              <p className="text-base font-bold">{t('common.loading', { defaultValue: 'Loading...' })}</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-2xl bg-black text-white p-4 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  {t('profile.balance', { defaultValue: 'Balance' })}
-                </p>
-                <p className="text-2xl font-extrabold">{currentBalance} pts</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[11px] font-semibold text-muted">
-                  {t('profile.transferRecipientId', { defaultValue: 'Recipient ID' })}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={recipientUserId}
-                  onChange={(event) => setRecipientUserId(event.target.value)}
-                  placeholder={t('profile.transferRecipientId', { defaultValue: 'Recipient ID' })}
-                  className="w-full h-12 px-4 rounded-2xl border-[1.5px] border-border bg-surface text-base font-bold font-mono outline-none focus:border-black focus:bg-white transition-colors"
-                />
-                <p className="text-[10px] text-muted">
-                  {t('profile.transferRecipientHint', { defaultValue: 'Telegram user ID from their profile' })}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[11px] font-semibold text-muted">
-                  {t('profile.transferAmount', { defaultValue: 'How many points' })}
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticSelection()
-                      setPoints((value) => Math.max(1, value - 10))
-                    }}
-                    className="w-11 h-11 rounded-xl bg-surface text-lg font-bold active:scale-[0.95] transition-transform flex-shrink-0"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={currentBalance}
-                    value={points || ''}
-                    onChange={(event) => setPoints(Number(event.target.value) || 0)}
-                    className="flex-1 min-w-0 h-11 px-3 rounded-xl border-[1.5px] border-border bg-surface text-center text-base font-bold outline-none focus:border-black focus:bg-white transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticSelection()
-                      setPoints((value) => Math.min(currentBalance, value + 10))
-                    }}
-                    className="w-11 h-11 rounded-xl bg-surface text-lg font-bold active:scale-[0.95] transition-transform flex-shrink-0"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {TRANSFER_PRESETS.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={value > currentBalance}
-                      onClick={() => {
-                        hapticSelection()
-                        setPoints(value)
-                      }}
-                      className={`px-3 py-1.5 rounded-pill text-xs font-bold transition-all disabled:opacity-40 ${
-                        points === value ? 'bg-black text-white' : 'bg-surface text-black active:scale-[0.95]'
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {transferError && (
-                <p className="text-xs font-medium text-red-600 break-words">{transferError}</p>
-              )}
-
-              <button
-                onClick={() => void handleTransfer()}
-                disabled={!canSubmit}
-                className={`w-full h-12 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                  canSubmit ? 'bg-black text-white active:scale-[0.98]' : 'bg-surface text-muted cursor-not-allowed'
-                }`}
-              >
-                <PaperPlaneTilt size={16} weight="bold" />
-                {t('profile.transferSubmit', { points, defaultValue: `Send ${points} pts` })}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}

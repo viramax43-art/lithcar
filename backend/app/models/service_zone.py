@@ -13,5 +13,7 @@ class ServiceZone(Base):
     name = Column(String, nullable=False)
     color = Column(String, nullable=False)
     polygon = Column(JSONB, nullable=False)
+    direction_from = Column(String, nullable=True)
+    direction_to = Column(String, nullable=True)
     is_active = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

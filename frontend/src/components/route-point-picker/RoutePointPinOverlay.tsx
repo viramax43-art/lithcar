@@ -8,6 +8,8 @@ interface RoutePointPinOverlayProps {
   isResolving: boolean
   pinAddress: string
   pinAnchorYFrac?: number
+  /** Shown above the pin when address is not resolved yet (role-specific instruction). */
+  emptyHint?: string | null
 }
 
 export function RoutePointPinMarkers({
@@ -39,10 +41,14 @@ export function RoutePointPinLabel({
   isResolving,
   pinAddress,
   pinAnchorYFrac = DEFAULT_PIN_ANCHOR_Y_FRAC,
-}: Pick<RoutePointPinOverlayProps, 'visible' | 'activeIsFrom' | 'isResolving' | 'pinAddress' | 'pinAnchorYFrac'>) {
+  emptyHint = null,
+}: Pick<
+  RoutePointPinOverlayProps,
+  'visible' | 'activeIsFrom' | 'isResolving' | 'pinAddress' | 'pinAnchorYFrac' | 'emptyHint'
+>) {
   const { t } = useTranslation()
   if (!visible) return null
-  if (!isResolving && !pinAddress) return null
+  if (!isResolving && !pinAddress && !emptyHint) return null
 
   return (
     <div
@@ -59,9 +65,13 @@ export function RoutePointPinLabel({
             <span className="dot-pulse" style={{ animationDelay: '300ms' }}>.</span>
           </span>
         </div>
-      ) : (
+      ) : pinAddress ? (
         <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card truncate max-w-[80vw] animate-fade-in ${activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
           {pinAddress}
+        </div>
+      ) : (
+        <div className={`px-3 py-1.5 rounded-pill text-white text-[11px] font-bold shadow-card text-center max-w-[80vw] animate-fade-in ${activeIsFrom ? 'bg-point-a' : 'bg-point-b'}`}>
+          {emptyHint}
         </div>
       )}
     </div>

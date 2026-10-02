@@ -10,7 +10,7 @@ export function useMapUserLocationHint(enabled = true): LatLng | null {
     if (!enabled || hint) return
 
     let cancelled = false
-    void getUserGeolocation({ highAccuracy: true, timeoutMs: 10_000, maxAcceptableAccuracyM: 120 })
+    void getUserGeolocation({ highAccuracy: true, timeoutMs: 14_000, maxAcceptableAccuracyM: 250 })
       .then((pos) => {
         if (!cancelled) setHint({ lat: pos.lat, lng: pos.lng })
       })

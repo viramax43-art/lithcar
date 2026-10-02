@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.admin_session import require_admin_roles, require_user_or_admin_session
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
-from app.services.zone_service import create_zone, delete_zone, list_zones, update_zone
+from app.services.zone_service import UNSET, create_zone, delete_zone, list_zones, update_zone
 
 
 router = APIRouter(prefix="/service-zones")
@@ -25,6 +25,8 @@ class ServiceZoneCreate(BaseModel):
     color: str = Field(min_length=1)
     polygon: list[LatLng] = Field(min_length=3)
     isActive: bool = True
+    directionFrom: str | None = None
+    directionTo: str | None = None
 
 
 class ServiceZoneUpdate(BaseModel):
@@ -32,6 +34,8 @@ class ServiceZoneUpdate(BaseModel):
     color: str | None = None
     polygon: list[LatLng] | None = None
     isActive: bool | None = None
+    directionFrom: str | None = None
+    directionTo: str | None = None
 
 
 class ServiceZoneOut(BaseModel):
@@ -40,6 +44,8 @@ class ServiceZoneOut(BaseModel):
     color: str
     polygon: list[LatLng]
     isActive: bool
+    directionFrom: str | None = None
+    directionTo: str | None = None
     createdAt: datetime
 
 
@@ -57,6 +63,8 @@ def _to_zone_out(zone) -> ServiceZoneOut:
         color=zone.color,
         polygon=[LatLng(**point) for point in (zone.polygon or [])],
         isActive=zone.is_active,
+        directionFrom=zone.direction_from,
+        directionTo=zone.direction_to,
         createdAt=zone.created_at,
     )
 
@@ -89,6 +97,8 @@ async def create_service_zone(
         color=payload.color,
         polygon=[point.model_dump() for point in payload.polygon],
         is_active=payload.isActive,
+        direction_from=payload.directionFrom,
+        direction_to=payload.directionTo,
     )
     return _to_zone_out(zone)
 
@@ -100,13 +110,18 @@ async def update_service_zone(
     _=Depends(require_admin_roles(AdminApiRole.CHIEF_ADMIN, AdminApiRole.ADMIN, AdminApiRole.MODERATOR)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    provided = payload.model_dump(exclude_unset=True)
+    # ``update_zone`` treats ``None``/missing as "leave untouched"; UNSET keeps that
+    # behaviour while still allowing an explicit ``null`` to clear the direction.
     zone = await update_zone(
         db_session,
         zone_id=zone_id,
-        name=payload.name,
-        color=payload.color,
-        polygon=None if payload.polygon is None else [point.model_dump() for point in payload.polygon],
-        is_active=payload.isActive,
+        name=provided.get("name"),
+        color=provided.get("color"),
+        polygon=None if provided.get("polygon") is None else provided["polygon"],
+        is_active=provided.get("isActive"),
+        direction_from=provided["directionFrom"] if "directionFrom" in provided else UNSET,
+        direction_to=provided["directionTo"] if "directionTo" in provided else UNSET,
     )
     if zone is None:
         raise HTTPException(status_code=404, detail="Service zone not found.")

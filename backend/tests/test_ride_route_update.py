@@ -192,6 +192,30 @@ async def test_completed_ride_route_update_blocked(client, db_session):
     assert response.status_code == 400
 
 
+async def test_driver_cannot_change_destination(client, db_session):
+    """Водитель правит только точку посадки: пункт назначения (B) — заявка пассажира."""
+    ctx = await _setup_assigned_ride(client, db_session)
+
+    response = await client.patch(
+        f"/api/driver/cabinet/rides/{ctx['request_id']}/route",
+        json={
+            "toPoint": {
+                "address": "Driver new B",
+                "lat": 54.702,
+                "lng": 25.282,
+            },
+        },
+    )
+    assert response.status_code == 400
+
+    details = await client.get(
+        f"/api/ride-requests/{ctx['request_id']}",
+        headers=ctx["passenger_headers"],
+    )
+    assert details.status_code == 200
+    assert details.json()["toPoint"]["address"] == "End B"
+
+
 async def test_route_update_noop_skips_notifications(client, db_session):
     ctx = await _setup_assigned_ride(client, db_session)
 

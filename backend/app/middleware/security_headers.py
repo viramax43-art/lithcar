@@ -9,8 +9,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Allow geolocation in Telegram Mini App / same-origin WebViews.
         response.headers["Permissions-Policy"] = (
-            "geolocation=(self), camera=(), microphone=(), payment=()"
+            "geolocation=(self *), camera=(), microphone=(), payment=()"
         )
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = (

@@ -49,6 +49,10 @@ export interface AdminSidebarProps {
   onShowZoneOnMap: (zoneId: string) => void
   handleToggleZone: (zone: ServiceZone) => Promise<void>
   handleDeleteZone: (zoneId: string) => Promise<void>
+  handleUpdateZone: (
+    zoneId: string,
+    patch: { name?: string; directionFrom?: string | null; directionTo?: string | null },
+  ) => Promise<void>
   pricing: PricingSettings
   qrSales: AdminQrSaleAudit[]
   hasLoadedQrSalesOnce: boolean
@@ -83,7 +87,7 @@ export interface AdminSidebarProps {
   handleRotateManagedKey: (keyId: string) => Promise<void>
   handleUpdateManagedKey: (
     keyId: string,
-    payload: Partial<{ name: string; role: 'admin' | 'moderator' }>
+    payload: Partial<{ name: string; role: 'admin' | 'moderator'; telegramUsername: string }>
   ) => Promise<void>
   newDriverName: string
   setNewDriverName: (value: string) => void

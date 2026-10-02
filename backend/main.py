@@ -65,7 +65,14 @@ fastapi_app.add_middleware(
     allow_origins=settings.frontend_cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "X-Idempotence-Key", "X-Content-HMAC-Signature"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Idempotence-Key",
+        "X-Content-HMAC-Signature",
+        # Live Mini App initData: identifies the Telegram account that is in use.
+        "X-Telegram-Init-Data",
+    ],
 )
 
 

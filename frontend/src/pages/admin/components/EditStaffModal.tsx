@@ -9,7 +9,7 @@ import { isCoarsePointer } from '../../../lib/pointer'
 interface EditStaffModalProps {
   staff: AdminKeyInfo
   onClose: () => void
-  onSubmit: (payload: { name: string; role: 'admin' | 'moderator' }) => Promise<void>
+  onSubmit: (payload: { name: string; role: 'admin' | 'moderator'; telegramUsername: string }) => Promise<void>
 }
 
 const inputCls =
@@ -18,6 +18,7 @@ const inputCls =
 export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffModalProps) {
   const { t } = useTranslation()
   const [name, setName] = useState(staff.name)
+  const [telegramUsername, setTelegramUsername] = useState(staff.telegramUsername ?? '')
   const [role, setRole] = useState<'admin' | 'moderator'>(
     staff.role === 'moderator' ? 'moderator' : 'admin'
   )
@@ -35,7 +36,11 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
     if (!name.trim()) return
     setSubmitting(true)
     try {
-      await onSubmit({ name: name.trim(), role })
+      await onSubmit({
+        name: name.trim(),
+        role,
+        telegramUsername: telegramUsername.trim(),
+      })
       onClose()
     } finally {
       setSubmitting(false)
@@ -71,6 +76,30 @@ export default function EditStaffModal({ staff, onClose, onSubmit }: EditStaffMo
                 </button>
               ))}
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted">
+              {t('admin.editStaff.telegramLabel', { defaultValue: 'Telegram username (Mini App sign-in)' })}
+            </label>
+            <input
+              value={telegramUsername}
+              onChange={(e) => setTelegramUsername(e.target.value)}
+              placeholder="@progerarm"
+              autoCapitalize="none"
+              spellCheck={false}
+              className={inputCls}
+            />
+            <p className="text-[11px] text-muted leading-snug">
+              {staff.telegramUserId
+                ? t('admin.editStaff.telegramBound', {
+                    defaultValue: 'Bound to Telegram ID {{id}}. Clear the field to unbind.',
+                    id: staff.telegramUserId,
+                  })
+                : t('admin.editStaff.telegramHint', {
+                    defaultValue:
+                      'The staff member opens the Mini App → Profile → "Admin panel" and signs in without a key.',
+                  })}
+            </p>
           </div>
         </div>
 

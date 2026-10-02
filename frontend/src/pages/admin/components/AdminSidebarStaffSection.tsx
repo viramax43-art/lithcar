@@ -1,4 +1,4 @@
-import { Key, PencilSimple } from '@phosphor-icons/react'
+import { Key, PencilSimple, TelegramLogo } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import InlineConfirm from './InlineConfirm'
@@ -82,6 +82,12 @@ export function AdminSidebarStaffSection({
               ))}
             </div>
           </div>
+          <p className="text-[11px] text-muted leading-snug">
+            {t('admin.staff.telegramAfterCreate', {
+              defaultValue:
+                'Then open "Edit" and set the Telegram @username — the staff member signs in from the Mini App (Profile → Admin panel) without a key.',
+            })}
+          </p>
           <button
             onClick={() => void handleCreateManagedKey()}
             disabled={!newManagedKeyName.trim()}
@@ -116,6 +122,26 @@ export function AdminSidebarStaffSection({
                 </span>
               </div>
               <p className="text-[10px] text-muted font-mono mt-0.5">{item.keyPrefix}…</p>
+              {item.telegramUsername ? (
+                <p className="text-[10px] text-emerald-700 font-semibold mt-1 inline-flex items-center gap-1">
+                  <TelegramLogo size={11} weight="fill" />@{item.telegramUsername}
+                  {item.telegramUserId ? (
+                    <span className="text-muted font-normal">
+                      · {t('admin.staff.telegramBoundShort', { defaultValue: 'Mini App sign-in ready' })}
+                    </span>
+                  ) : (
+                    <span className="text-muted font-normal">
+                      · {t('admin.staff.telegramPendingShort', { defaultValue: 'first Mini App sign-in pending' })}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted mt-1">
+                  {t('admin.staff.telegramMissing', {
+                    defaultValue: 'No Telegram binding — set @username in "Edit" for key-free Mini App sign-in.',
+                  })}
+                </p>
+              )}
             </div>
             {item.role === 'chief_admin' && (
               <span className="text-[10px] px-2 py-1 rounded-pill bg-slate-200 text-slate-700 flex-shrink-0">

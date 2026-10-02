@@ -1,12 +1,21 @@
-import { getDriverCabinetEnterUrl } from '../infrastructure/api/driverRegistrationApi'
-import { openExternalLink } from './telegram'
+import { bootstrapDriverAccess } from '../infrastructure/api/driverApi'
+import { setLastAppShell } from './driverShell'
 
 export function getDriverCabinetUrl(): string {
-  return `${window.location.origin}/driver`
+  const base = import.meta.env.BASE_URL.replace(/\/?$/, '/')
+  return `${window.location.origin}${base}driver`
 }
 
-/** Opens driver cabinet in the phone's system browser (outside Telegram Mini App). */
+/**
+ * Open driver cabinet inside the Mini App (same WebView).
+ * Avoids system-browser enter links that drop the driver cookie when returning to Telegram.
+ */
 export async function enterDriverCabinet(): Promise<void> {
-  const { enterUrl } = await getDriverCabinetEnterUrl()
-  openExternalLink(enterUrl)
+  setLastAppShell('driver')
+  try {
+    await bootstrapDriverAccess()
+  } catch {
+    // Cookie may already be valid; DriverCabinet will retry bootstrap / login.
+  }
+  window.location.assign(getDriverCabinetUrl())
 }

@@ -109,8 +109,8 @@ async def issue_qr_points(
     )
     await db_session.commit()
     await db_session.refresh(sale)
-    base = settings.public_base_url.rstrip("/")
-    qr_url = f"{base}/api/points/qr/{sale.token}"
+    base = settings.frontend_public_url.rstrip("/")
+    qr_url = f"{base}/qr/{sale.token}"
     return QrIssueResult(
         success=True,
         saleId=sale.id,

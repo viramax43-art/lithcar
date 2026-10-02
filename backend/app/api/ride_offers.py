@@ -106,6 +106,7 @@ class MatchedOfferPage(BaseModel):
 
 class BookOfferPayload(BaseModel):
     passengerName: str | None = Field(default=None, min_length=1)
+    paymentMethod: str | None = None
 
 
 def _to_passenger_offer_out(
@@ -325,12 +326,14 @@ async def book_offer(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     passenger_name = (payload.passengerName if payload else None) or user.username or user.user_id
+    payment_method = payload.paymentMethod if payload else None
     try:
         result = await book_offer_seat(
             db_session,
             offer_id=offer_id,
             user=user,
             passenger_name=passenger_name,
+            payment_method=payment_method,
         )
     except DriverOfferError as exc:
         if exc.code == "not_found":
@@ -348,7 +351,10 @@ async def book_offer(
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
         if exc.code == "out_of_zone":
-            raise HTTPException(status_code=400, detail=exc.message) from exc
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "pickup_out_of_zone", "message": exc.message},
+            ) from exc
         raise HTTPException(status_code=400, detail=exc.message) from exc
     except InsufficientPointsError as exc:
         raise HTTPException(

@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { MapTrifold, PenNib } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import i18n from '../../i18n'
 
 import { DEFAULT_DRIVER_REGISTRATION_FORM } from '../../lib/driverRegistrationDefaults'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
+import CabinetRoleBanner from '../../components/CabinetRoleBanner'
+import TransferPointsSheet from '../../components/TransferPointsSheet'
 import type { AppNotification, Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
 import {
+  ApiError,
   approveDriverApplication,
   assignDriverBulk,
+  bootstrapAdminSession,
   createAdminKey,
   createDriver,
   deleteDriver,
   deleteAdminKey,
   createServiceZone,
   deleteServiceZone,
-  getAdminSession,
   getDriverRegistrationSettings,
   getPricing,
   listAdminRequests,
@@ -26,6 +30,7 @@ import {
   listServiceZones,
   loginAdminByKey,
   logoutAdminSession,
+  parseApiErrorCode,
   patchAdminRideRoute,
   rejectDriverApplication,
   rotateAdminKey,
@@ -45,6 +50,12 @@ import { isOverridden, toRideDraft, type RideDraft } from './components/AssignDr
 import AdminMap from './components/AdminMap'
 import AdminSidebar from './components/AdminSidebar'
 import { AdminErrorToast, AdminHeader, AdminLoginScreen, AdminSessionChecking } from './components/AdminDashboardViews'
+import {
+  isInsideTelegramMiniApp,
+  leaveAdminPanel,
+  readTelegramInitData,
+  resolveInitialAdminSession,
+} from '../../lib/adminPortal'
 import { getInitialDashboardUi, getInitialDriverRegistrationUi } from '../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../lib/useAdminUiPersistence'
 import { DEFAULT_PLATFORM_SETTINGS, mapPlatformSettings, type PlatformSettingsConfig } from '../../lib/platformSettingsDefaults'
@@ -69,11 +80,14 @@ export default function AdminDashboard() {
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [platformSettings, setPlatformSettings] = useState<PlatformSettingsConfig>(DEFAULT_PLATFORM_SETTINGS)
   const [qrSales, setQrSales] = useState<Awaited<ReturnType<typeof listAdminQrSales>>['items']>([])
+  const [isSendPointsOpen, setIsSendPointsOpen] = useState(false)
   const [hasLoadedQrSalesOnce, setHasLoadedQrSalesOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [adminSession, setAdminSession] = useState<AdminSessionUser | null>(null)
   const [adminKeyInput, setAdminKeyInput] = useState('')
   const [isAdminAuthorizing, setIsAdminAuthorizing] = useState(false)
+  const [isTelegramAdminLoginPending, setIsTelegramAdminLoginPending] = useState(false)
+  const [isKeyFormVisible, setIsKeyFormVisible] = useState(false)
   const [isInitialAdminCheckDone, setIsInitialAdminCheckDone] = useState(false)
   const [managedAdminKeys, setManagedAdminKeys] = useState<AdminKeyInfo[]>([])
   const [newManagedKeyName, setNewManagedKeyName] = useState(INITIAL_DASHBOARD_UI.newManagedKeyName)
@@ -223,6 +237,20 @@ export default function AdminDashboard() {
   )
   usePersistAdminUiSlice('dashboard', dashboardUiPersistence)
 
+  /*
+    Карта — инструмент настройки зонирования, поэтому она рендерится только в разделе
+    «Зоны» (вкладка zones). В остальных разделах админка работает списками и Leaflet
+    не загружается вовсе.
+  */
+  const isMapVisible = activeTab === 'zones'
+
+  // Уход из «Зон» закрывает карту вместе с её режимами: рисование зоны и правка маршрута.
+  useEffect(() => {
+    if (activeTab === 'zones') return
+    setIsDrawing(false)
+    setRouteEditDraft(null)
+  }, [activeTab])
+
   const loadManagedKeys = useCallback(async () => {
     if (adminSession?.role !== 'chief_admin') return
     try {
@@ -290,6 +318,8 @@ export default function AdminDashboard() {
   const startRouteEdit = useCallback((request: RideRequest) => {
     setRouteEditDraft(toRideDraft(request))
     setSelectedReqId(request.id)
+    // Правка маршрута идёт по карте, а карта живёт в разделе «Зоны».
+    setActiveTab('zones')
     // On mobile the bottom drawer (z-2000) covers the route edit bar — collapse it.
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
       setSidebarCollapsed(true)
@@ -343,13 +373,14 @@ export default function AdminDashboard() {
     })
   }, [routeEditDraft])
 
+  const telegramLoginAvailable = useMemo(() => isInsideTelegramMiniApp() || Boolean(readTelegramInitData()), [])
+
   const ensureAdminSession = useCallback(async () => {
     try {
-      const session = await getAdminSession()
-      setAdminSession(session)
-    } catch {
-      setAdminSession(null)
+      setAdminSession(await resolveInitialAdminSession())
     } finally {
+      // Single exit point on purpose: a reused session must also clear the checking state,
+      // otherwise the panel stays on the "Checking admin session..." screen forever.
       setIsInitialAdminCheckDone(true)
     }
   }, [])
@@ -404,30 +435,53 @@ export default function AdminDashboard() {
     }
   }
 
+  const [zoneSaveOpen, setZoneSaveOpen] = useState(false)
+  const [zoneDirectionFrom, setZoneDirectionFrom] = useState('')
+  const [zoneDirectionTo, setZoneDirectionTo] = useState('')
+  const [isSavingZone, setIsSavingZone] = useState(false)
+
   const resetZoneDrawing = () => {
     setIsDrawing(false)
     setEditingZoneId(null)
     setDrawingPoints([])
     setNewZoneName('')
+    setZoneDirectionFrom('')
+    setZoneDirectionTo('')
+    setZoneSaveOpen(false)
   }
 
   const handleSaveZone = async () => {
-    if (drawingPoints.length < 3 || !newZoneName.trim()) return
+    if (drawingPoints.length < 3) return
+    setZoneSaveOpen(true)
+  }
+
+  const confirmSaveZone = async () => {
+    const name = newZoneName.trim()
+    const from = zoneDirectionFrom.trim()
+    const to = zoneDirectionTo.trim()
+    if (!name || !from || !to || drawingPoints.length < 3 || isSavingZone) return
+    setIsSavingZone(true)
     try {
       await createServiceZone({
-        name: newZoneName.trim(),
+        name,
         color: newZoneColor,
         polygon: drawingPoints,
         isActive: true,
+        directionFrom: from,
+        directionTo: to,
       })
       await loadAll()
       resetZoneDrawing()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.createZoneFailed'))
+    } finally {
+      setIsSavingZone(false)
     }
   }
 
   const handleShowZoneOnMap = (zoneId: string) => {
+    // Карта живёт в разделе «Зоны» — фокусируем зону там же.
+    setActiveTab('zones')
     setSelectedZoneId(zoneId)
     setZoneFocusKey((key) => key + 1)
   }
@@ -446,6 +500,18 @@ export default function AdminDashboard() {
       setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.toggleZoneFailed'))
+    }
+  }
+
+  const handleUpdateZone = async (
+    zoneId: string,
+    patch: { name?: string; directionFrom?: string | null; directionTo?: string | null },
+  ) => {
+    try {
+      const updated = await updateServiceZone(zoneId, patch)
+      setServiceZones((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updateZoneFailed'))
     }
   }
 
@@ -511,6 +577,31 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleTelegramAdminLogin = async () => {
+    setIsTelegramAdminLoginPending(true)
+    setErrorMessage(null)
+    try {
+      const session = await bootstrapAdminSession(readTelegramInitData() || undefined)
+      setAdminSession(session)
+      setIsKeyFormVisible(false)
+    } catch (error) {
+      const notLinked =
+        error instanceof ApiError && parseApiErrorCode(error) === 'admin_not_linked'
+      setErrorMessage(
+        notLinked
+          ? t('admin.login.notLinkedError', {
+              defaultValue:
+                'This Telegram account is not linked to the admin panel. Ask the chief admin to set your @username in Staff.',
+            })
+          : error instanceof Error
+            ? error.message
+            : t('admin.errors.loginFailed'),
+      )
+    } finally {
+      setIsTelegramAdminLoginPending(false)
+    }
+  }
+
   const handleAdminLogout = async () => {
     try {
       await logoutAdminSession()
@@ -560,7 +651,10 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleUpdateManagedKey = async (keyId: string, payload: Partial<{ name: string; role: 'admin' | 'moderator' }>) => {
+  const handleUpdateManagedKey = async (
+    keyId: string,
+    payload: Partial<{ name: string; role: 'admin' | 'moderator'; telegramUsername: string }>,
+  ) => {
     if (adminSession?.role !== 'chief_admin') return
     try {
       await updateAdminKey(keyId, payload)
@@ -677,8 +771,14 @@ export default function AdminDashboard() {
         adminKeyInput={adminKeyInput}
         isAdminAuthorizing={isAdminAuthorizing}
         errorMessage={errorMessage}
+        telegramLoginAvailable={telegramLoginAvailable}
+        isTelegramLoginPending={isTelegramAdminLoginPending}
+        isKeyFormVisible={isKeyFormVisible}
+        onToggleKeyForm={() => setIsKeyFormVisible((value) => !value)}
         onChangeKey={setAdminKeyInput}
         onLogin={() => void handleAdminLogin()}
+        onTelegramLogin={() => void handleTelegramAdminLogin()}
+        onBackToApp={telegramLoginAvailable ? leaveAdminPanel : undefined}
       />
     )
   }
@@ -690,6 +790,14 @@ export default function AdminDashboard() {
         adminSession={adminSession}
         onLogout={() => void handleAdminLogout()}
         onNotificationSelect={handleAdminNotificationSelect}
+        onBackToApp={telegramLoginAvailable ? leaveAdminPanel : undefined}
+        onOpenSendPoints={() => setIsSendPointsOpen(true)}
+      />
+
+      <CabinetRoleBanner
+        role={adminSession.role === 'moderator' ? 'moderator' : 'admin'}
+        variant="strip"
+        safeArea="none"
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -739,6 +847,7 @@ export default function AdminDashboard() {
           onShowZoneOnMap={handleShowZoneOnMap}
           handleToggleZone={handleToggleZone}
           handleDeleteZone={handleDeleteZone}
+          handleUpdateZone={handleUpdateZone}
           pricing={pricing}
           qrSales={qrSales}
           hasLoadedQrSalesOnce={hasLoadedQrSalesOnce}
@@ -796,6 +905,7 @@ export default function AdminDashboard() {
           onSelectedApplicationIdChange={setSelectedApplicationId}
         />
 
+        {isMapVisible ? (
         <AdminMap
           requests={requests}
           serviceZones={serviceZones}
@@ -846,6 +956,42 @@ export default function AdminDashboard() {
           enabledColors={enabledColors}
           onToggleColor={handleToggleColor}
         />
+        ) : (
+          /*
+            Карта — инструмент настройки зонирования: вне раздела «Зоны» показываем
+            подсказку, ведущую в настройку зон (карта открывается именно там).
+          */
+          <main className="admin-map-placeholder flex-1 relative flex items-center justify-center p-6 bg-surface/40 overflow-y-auto">
+            <div className="w-full max-w-md bg-white rounded-card shadow-card p-6 text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-surface flex items-center justify-center">
+                <MapTrifold size={22} weight="duotone" />
+              </div>
+              <p className="text-sm font-extrabold">
+                {t('admin.map.zonesOnlyTitle', { defaultValue: 'Карта — для настройки зонирования' })}
+              </p>
+              <p className="text-xs text-muted leading-relaxed">
+                {t('admin.map.zonesOnlyHint', {
+                  defaultValue:
+                    'Карта зон открывается в разделе «Зоны»: там задаются зоны обслуживания, их границы и направления поездок.',
+                })}
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('zones')}
+                className="w-full h-11 rounded-xl bg-black text-white text-sm font-bold inline-flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              >
+                <PenNib size={16} weight="bold" />
+                {t('admin.map.openZones', { defaultValue: 'Перейти к зонам' })}
+              </button>
+              <p className="text-[11px] text-muted">
+                {t('admin.map.zonesConfiguredCount', {
+                  count: serviceZones.length,
+                  defaultValue: '{{count}} зон настроено',
+                })}
+              </p>
+            </div>
+          </main>
+        )}
       </div>
 
       {errorMessage && (
@@ -862,6 +1008,80 @@ export default function AdminDashboard() {
         onClose={() => setAssignModalReqIds(null)}
         onSubmit={() => void handleAssign()}
       />
+
+      {zoneSaveOpen && (
+        <div className="fixed inset-0 z-[4000] bg-black/50 flex items-end sm:items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-card p-4 space-y-3">
+            <p className="text-sm font-bold">
+              {t('admin.zones.saveWithDirection', { defaultValue: 'Сохранить зону и направление' })}
+            </p>
+            <p className="text-[11px] text-muted">
+              {t('admin.zones.directionHint', {
+                defaultValue: 'После контура укажите long-route направление: откуда → куда.',
+              })}
+            </p>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-muted">{t('admin.zones.zoneNamePlaceholder')}</span>
+              <input
+                value={newZoneName}
+                onChange={(e) => setNewZoneName(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-border text-sm outline-none focus:border-black"
+                placeholder={t('admin.zones.zoneNamePlaceholder')}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block space-y-1">
+                <span className="text-[11px] text-muted">
+                  {t('admin.zones.directionFrom', { defaultValue: 'Откуда' })}
+                </span>
+                <input
+                  value={zoneDirectionFrom}
+                  onChange={(e) => setZoneDirectionFrom(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-border text-sm outline-none focus:border-black"
+                  placeholder={t('admin.zones.directionFromPlaceholder', { defaultValue: 'Вильнюс' })}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] text-muted">
+                  {t('admin.zones.directionTo', { defaultValue: 'Куда' })}
+                </span>
+                <input
+                  value={zoneDirectionTo}
+                  onChange={(e) => setZoneDirectionTo(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-border text-sm outline-none focus:border-black"
+                  placeholder={t('admin.zones.directionToPlaceholder', { defaultValue: 'Каунас' })}
+                />
+              </label>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setZoneSaveOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmSaveZone()}
+                disabled={
+                  !newZoneName.trim() ||
+                  !zoneDirectionFrom.trim() ||
+                  !zoneDirectionTo.trim() ||
+                  isSavingZone
+                }
+                className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-bold disabled:opacity-40"
+              >
+                {isSavingZone ? t('common.saving') : t('admin.zones.saveZone')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSendPointsOpen && (
+        <TransferPointsSheet onClose={() => setIsSendPointsOpen(false)} />
+      )}
 
     </div>
   )

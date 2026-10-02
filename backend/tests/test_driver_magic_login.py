@@ -62,7 +62,7 @@ async def test_approval_enter_url_uses_frontend_route(client):
     assert "/api/driver/session/enter/" not in enter_url
 
 
-async def test_approval_enter_link_is_single_use(client):
+async def test_approval_enter_link_is_reusable_until_expiry(client):
     await _admin_login(client)
     application_id = await _submit_application(client, user_id="304")
     enter_url = await _approve_and_capture_enter_url(client, application_id)
@@ -73,12 +73,14 @@ async def test_approval_enter_link_is_single_use(client):
     assert first.status_code == 302
     assert first.headers["location"].endswith("/driver")
 
+    # Same Telegram / Profile link must not kick the driver out on a second tap.
     second = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
     assert second.status_code == 302
-    assert "login=invalid" in second.headers["location"]
+    assert second.headers["location"].endswith("/driver")
+    assert "login=invalid" not in second.headers["location"]
 
 
-async def test_magic_login_sets_session_and_is_single_use(client):
+async def test_magic_login_sets_session_and_is_reusable(client):
     await _admin_login(client)
     application_id = await _submit_application(client, user_id="301")
     enter_url = await _approve_and_capture_enter_url(client, application_id)
@@ -95,7 +97,8 @@ async def test_magic_login_sets_session_and_is_single_use(client):
 
     second = await client.get(f"/api/driver/session/enter/{token}", follow_redirects=False)
     assert second.status_code == 302
-    assert "login=invalid" in second.headers["location"]
+    assert second.headers["location"].endswith("/driver")
+    assert "login=invalid" not in second.headers["location"]
 
 
 async def test_bootstrap_driver_access_from_passenger_session(client):

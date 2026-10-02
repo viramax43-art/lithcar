@@ -1,5 +1,6 @@
 import { resolveApiBaseUrl } from '../../config/env'
 import { clearAccessToken, ensurePassengerAccessToken, getAccessToken } from '../auth/passengerAuthSession'
+import { TELEGRAM_INIT_DATA_HEADER, readLiveTelegramInitData } from '../auth/telegramInitDataProvider'
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 export type AuthMode = 'bearer' | 'cookie' | 'none'
@@ -78,6 +79,7 @@ async function performRequest(
     const token = getAccessToken()
     if (token) headers.Authorization = `Bearer ${token}`
   }
+  applyTelegramIdentityHeader(headers)
 
   return fetch(`${resolveApiBaseUrl()}${path}`, {
     method,
@@ -85,6 +87,13 @@ async function performRequest(
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+}
+
+/** Tells the API which Telegram account is using the app right now (cookies are shared). */
+function applyTelegramIdentityHeader(headers: Record<string, string>): Record<string, string> {
+  const initData = readLiveTelegramInitData()
+  if (initData) headers[TELEGRAM_INIT_DATA_HEADER] = initData
+  return headers
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -114,6 +123,7 @@ export async function uploadMultipart<T>(path: string, formData: FormData): Prom
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: 'POST',
     credentials: 'include',
+    headers: applyTelegramIdentityHeader({}),
     body: formData,
   })
   if (!response.ok) {
@@ -129,7 +139,7 @@ export async function uploadMultipartBearer<T>(path: string, formData: FormData)
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: 'POST',
     credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: applyTelegramIdentityHeader(token ? { Authorization: `Bearer ${token}` } : {}),
     body: formData,
   })
   if (!response.ok) {

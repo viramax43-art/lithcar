@@ -1,47 +1,23 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
-import time
 from datetime import datetime, timezone
-from urllib.parse import urlencode
 
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.models.user import UserLanguage, UserRole
+from tests.telegram_init_data import make_signed_init_data
 
 def _make_tg_init_data(*, bot_token: str, user_id: str, username: str | None = None, extra: dict[str, str] | None = None) -> str:
     """
     Генерирует валидную строку initData для validate_tg_data().
     Формат/хеширование соответствует app.core.security.validate_tg_data.
     """
-    user_payload = {"id": int(user_id)}
-    if username is not None:
-        user_payload["username"] = username
-
-    data: dict[str, str] = {
-        "auth_date": str(int(time.time())),
-        "query_id": "test-query-id",
-        "user": json.dumps(user_payload, separators=(",", ":")),
-    }
-    if extra:
-        data.update(extra)
-
-    secret_key = hmac.new(
-        key=b"WebAppData",
-        msg=bot_token.encode(),
-        digestmod=hashlib.sha256,
-    ).digest()
-
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
-    data["hash"] = hmac.new(
-        key=secret_key,
-        msg=data_check_string.encode(),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-
-    # Важно: user содержит JSON, поэтому должен быть корректно url-encoded
-    return urlencode(data)
+    return make_signed_init_data(
+        user_id=user_id,
+        username=username,
+        bot_token=bot_token,
+        extra=extra,
+    )
 
 
 async def test_auth_login_valid_initdata_returns_token_and_users_me_works(client):

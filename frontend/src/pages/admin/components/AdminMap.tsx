@@ -682,17 +682,23 @@ export default function AdminMap({
   }, [])
 
   const handleLocateMe = useCallback(() => {
-    if (!navigator.geolocation) return
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsLocating(false)
-        setFlyTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    void (async () => {
+      try {
+        const { getUserGeolocation } = await import('../../../lib/mapGeolocation')
+        const pos = await getUserGeolocation({
+          highAccuracy: true,
+          timeoutMs: 18_000,
+          maxAcceptableAccuracyM: 150,
+        })
+        setFlyTarget({ lat: pos.lat, lng: pos.lng })
         setTimeout(() => setFlyTarget(null), 1000)
-      },
-      () => { setIsLocating(false) },
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
+      } catch {
+        /* user can pan manually */
+      } finally {
+        setIsLocating(false)
+      }
+    })()
   }, [])
 
   const handleFindSimilarTrips = useCallback(async () => {
@@ -767,7 +773,7 @@ export default function AdminMap({
           <div className="flex items-center gap-2 min-w-0">
             <Calendar size={16} className="text-muted flex-shrink-0" />
             <span className="text-[11px] font-semibold text-muted whitespace-nowrap">{t('common.periodFilter')}</span>
-            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: filteredRequests.length })}</span>
+            <span className="text-[11px] text-muted/70 whitespace-nowrap">{t('admin.map.periodFilterCount', { count: visibleRequests.length })}</span>
           </div>
           <div className="flex items-center gap-2">
             {hasAnyFilter ? <span className="text-[11px] text-muted">{t('common.filterActive')}</span> : <span className="text-[11px] text-muted">{t('common.showAll')}</span>}
@@ -1514,44 +1520,47 @@ export default function AdminMap({
           ))}
       </MapContainer>
 
-      {/* Drawing hint banner */}
-      {!isMapMarkViewMode && isDrawing && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold shadow-card animate-fade-in">
-          {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
-        </div>
-      )}
+      {/* Drawing: always-visible bottom toolbar (mobile ops — undo point without sidebar) */}
       {!isMapMarkViewMode && isDrawing && (
         <div
-          className="absolute right-4 z-[1000] flex items-center gap-2"
-          style={{ top: 'calc(var(--app-safe-area-top-total) + 88px)' }}
+          className="absolute left-3 right-3 z-[1100] animate-fade-in"
+          style={{ bottom: 'calc(12px + var(--app-safe-area-bottom-total, 0px))' }}
         >
-          <button
-            type="button"
-            onClick={onUndoZonePoint}
-            disabled={drawingPoints.length === 0}
-            className="inline-flex items-center gap-2 rounded-pill bg-white/95 shadow-card border border-border px-3 py-2 text-xs font-bold text-black hover:bg-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={t('admin.zones.undoPoint')}
-          >
-            <ArrowCounterClockwise size={14} weight="bold" />
-            {t('admin.zones.undoPoint')}
-          </button>
-          <button
-            type="button"
-            onClick={onCancelZoneDrawing}
-            className="inline-flex items-center gap-2 rounded-pill bg-white/95 shadow-card border border-border px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors"
-            title={t('common.cancel')}
-          >
-            <X size={14} weight="bold" />
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={onSaveZone}
-            className="inline-flex items-center gap-2 rounded-pill bg-black shadow-card px-3 py-2 text-xs font-bold text-white hover:bg-zinc-800 transition-colors"
-          >
-            <FloppyDisk size={14} weight="bold" />
-            {t('common.save')}
-          </button>
+          <div className="rounded-2xl bg-black text-white px-3 py-2.5 shadow-card space-y-2">
+            <p className="text-[11px] font-semibold text-center text-white/90">
+              {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={onUndoZonePoint}
+                disabled={drawingPoints.length === 0}
+                className="inline-flex flex-col items-center justify-center gap-0.5 rounded-xl bg-white text-black px-2 py-2.5 text-[11px] font-bold active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
+                title={t('admin.zones.undoPoint')}
+              >
+                <ArrowCounterClockwise size={16} weight="bold" />
+                {t('admin.zones.undoPoint')}
+              </button>
+              <button
+                type="button"
+                onClick={onCancelZoneDrawing}
+                className="inline-flex flex-col items-center justify-center gap-0.5 rounded-xl bg-white text-red-600 px-2 py-2.5 text-[11px] font-bold active:scale-[0.97] transition-transform"
+                title={t('common.cancel')}
+              >
+                <X size={16} weight="bold" />
+                {t('admin.zones.cancelZone', { defaultValue: t('common.cancel') })}
+              </button>
+              <button
+                type="button"
+                onClick={onSaveZone}
+                disabled={drawingPoints.length < 3}
+                className="inline-flex flex-col items-center justify-center gap-0.5 rounded-xl bg-accent text-black px-2 py-2.5 text-[11px] font-bold active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FloppyDisk size={16} weight="bold" />
+                {t('common.save')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {!isMapMarkViewMode && isMarkModeEnabled && (

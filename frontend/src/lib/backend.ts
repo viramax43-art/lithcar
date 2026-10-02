@@ -8,6 +8,7 @@ export { ApiError, parseApiErrorCode } from '../infrastructure/http/httpClient'
 
 export type {
   AdminKeyInfo,
+  AdminPanelAccess,
   AdminQrSaleAudit,
   AdminSessionUser,
   CurrentUser,
@@ -21,6 +22,7 @@ export type {
 } from '../infrastructure/api/contracts'
 
 export {
+  bootstrapAdminSession,
   createAdminKey,
   createDriver,
   createMapMark,
@@ -29,6 +31,7 @@ export {
   deleteDriver,
   deleteMapMark,
   deleteServiceZone,
+  getAdminPanelAccess,
   getAdminSession,
   listAdminKeys,
   listMapMarks,

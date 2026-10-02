@@ -248,7 +248,10 @@ export async function getRideOffer(id: string): Promise<PassengerRideOffer> {
   return mapPassengerRideOffer(item)
 }
 
-export async function bookRideOffer(id: string, payload?: { passengerName?: string }): Promise<RideRequest> {
+export async function bookRideOffer(
+  id: string,
+  payload?: { passengerName?: string; paymentMethod?: 'points' | 'driver_cash' | 'driver_card' },
+): Promise<RideRequest> {
   const created = await apiRequest<RideRequestApi>(`/api/ride-offers/${id}/book`, {
     method: 'POST',
     body: payload ?? {},

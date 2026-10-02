@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",
-    "html5-qrcode": "^2.3.8",
     "i18next": "^26.3.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",

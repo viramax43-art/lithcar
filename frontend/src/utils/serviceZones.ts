@@ -103,28 +103,29 @@ export function findNearestPickupZone(
 export type PickupLocationResolution = {
   latlng: LatLng
   zone: ServiceZone | null
+  /** @deprecated Always false — we never teleport the pin to a zone centroid. */
   snapped: boolean
+  /** True when point is outside all active service zones. */
+  outside: boolean
 }
 
-/** Pickup point inside a zone stays put; otherwise snap to the nearest active zone centroid. */
+/**
+ * Pickup stays exactly where the user placed it.
+ * Never snap/fly to a zone centroid (that was yanking A to the countryside).
+ * Callers should warn when `outside` is true, not move the map.
+ */
 export function resolvePickupLocation(point: LatLng, zones: ServiceZone[]): PickupLocationResolution {
   const active = zones.filter((zone) => zone.isActive && zone.polygon.length >= 3)
   if (active.length === 0) {
-    return { latlng: point, zone: null, snapped: false }
+    return { latlng: point, zone: null, snapped: false, outside: false }
   }
 
   if (isPointInAnyZone(point, active)) {
     const zone = active.find((entry) => isPointInPolygon(point, entry.polygon)) ?? null
-    return { latlng: point, zone, snapped: false }
+    return { latlng: point, zone, snapped: false, outside: false }
   }
 
-  const closest = findClosestPickupZone(point, active)
-  const centroid = closest ? zoneCentroid(closest) : null
-  if (!closest || !centroid) {
-    return { latlng: point, zone: null, snapped: false }
-  }
-
-  return { latlng: centroid, zone: closest, snapped: true }
+  return { latlng: point, zone: null, snapped: false, outside: true }
 }
 
 export function isSameZonePoint(a: LatLng, b: LatLng, maxMeters = 15): boolean {

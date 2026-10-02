@@ -22,6 +22,9 @@ class AdminApiKey(Base):
     key_hash = Column(String, nullable=False, unique=True, index=True)
     key_prefix = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, server_default="true")
+    # Telegram identity binding: staff signs in from the Mini App without a raw key.
+    telegram_username = Column(String, nullable=True, index=True)
+    telegram_user_id = Column(String, nullable=True, index=True)
     created_by_key_id = Column(String, ForeignKey("admin_api_keys.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_used_at = Column(DateTime(timezone=True), nullable=True)

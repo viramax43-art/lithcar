@@ -5,6 +5,7 @@ import RoutePointsEditor, { type RoutePointsValue } from '../../../components/Ro
 import { getPricing } from '../../../lib/backend'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import { addAppLocalDays, rideLocalDateInput, rideLocalTimeInput, toAppLocalDateInput } from '../../../i18n/dateTime'
+import RideTimeField from '../../../components/RideTimeField'
 import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import type { PricingSettings, RideRequest } from '../../../types'
@@ -138,24 +139,18 @@ export default function EditRequestSheet({
                     className="w-full rounded-xl border border-border bg-surface px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
                   />
                 </label>
-                <label className="block space-y-1.5">
+                <div className="block space-y-1.5">
                   <span className="text-xs font-semibold text-muted inline-flex items-center gap-1">
                     <Clock size={12} />
                     {t('passenger.timeLabel', { defaultValue: 'Time' })}
                   </span>
-                  <select
+                  <RideTimeField
                     value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-surface px-3 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10 appearance-none"
-                  >
-                    <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-                    {timeSlots.map((slot) => (
-                      <option key={slot} value={slot}>
-                        {slot}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    slots={timeSlots}
+                    onChange={setTime}
+                    className="rounded-xl border border-border py-3"
+                  />
+                </div>
               </div>
             </>
           )}

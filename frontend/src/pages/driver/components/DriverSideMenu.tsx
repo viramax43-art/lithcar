@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ClipboardText,
+  Coins,
   Megaphone,
   Prohibit,
   QrCode,
   SignOut,
   Star,
   SteeringWheel,
+  UserSwitch,
   X,
 } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
@@ -14,8 +16,8 @@ import { useTranslation } from 'react-i18next'
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
 import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
-import QrScanner from '../../../components/QrScanner'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
+import TransferPointsSheet from '../../../components/TransferPointsSheet'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import DriverOffersList from './DriverOffersList'
 import DriverRideHistory from './DriverRideHistory'
@@ -26,6 +28,8 @@ interface DriverSideMenuProps {
   session: DriverSessionUser
   onClose: () => void
   onLogout: () => void
+  /** Explicit exit from the driver shell into the passenger cabinet (TZ D3). */
+  onOpenPassengerApp: () => void
   requestOffersScreen?: boolean
   onRequestOffersHandled?: () => void
 }
@@ -35,12 +39,15 @@ export default function DriverSideMenu({
   session,
   onClose,
   onLogout,
+  onOpenPassengerApp,
   requestOffersScreen = false,
   onRequestOffersHandled,
 }: DriverSideMenuProps) {
   const { t } = useTranslation()
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [isRedeeming, setIsRedeeming] = useState(false)
+  const [manualQrToken, setManualQrToken] = useState('')
+  const [showTransfer, setShowTransfer] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -115,7 +122,7 @@ export default function DriverSideMenu({
             <LanguageSwitcher />
           </section>
 
-          <section className="px-4 py-3 border-t border-border">
+          <section className="px-4 py-3 border-t border-border space-y-1">
             <button
               onClick={() => openScreen(setShowOffers)}
               className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
@@ -125,36 +132,98 @@ export default function DriverSideMenu({
               </div>
               <div>
                 <p className="text-sm font-bold">{t('driver.offers.myOffers', { defaultValue: 'My offers' })}</p>
-                <p className="text-[11px] text-muted">{t('driver.offers.title', { defaultValue: 'Ride offers' })}</p>
+                <p className="text-[11px] text-muted">
+                  {t('driver.setDirectionCta', { defaultValue: 'Поставить направление' })}
+                </p>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                hapticSelection()
+                setShowTransfer(true)
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                <Coins size={18} weight="duotone" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">{t('profile.transferPoints', { defaultValue: 'Отправить поинты' })}</p>
+                <p className="text-[11px] text-muted">
+                  {t('profile.transferRecipientHint', {
+                    defaultValue: 'ID любого: пассажир, водитель, админ, модератор',
+                  })}
+                </p>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                hapticSelection()
+                onOpenPassengerApp()
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+                <UserSwitch size={18} weight="duotone" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">
+                  {t('driver.openPassengerCabinet', { defaultValue: 'Кабинет пассажира' })}
+                </p>
+                <p className="text-[11px] text-muted">
+                  {t('driver.openPassengerCabinetHint', {
+                    defaultValue: 'Заказать поездку как пассажир — явный выход из кабинета водителя',
+                  })}
+                </p>
               </div>
             </button>
           </section>
 
           <section className="px-4 py-4 border-t border-border">
-            <div className="flex items-center gap-2.5 mb-4">
+            <div className="flex items-center gap-2.5 mb-3">
               <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
                 <QrCode size={16} weight="bold" />
               </div>
               <div>
-                <p className="text-sm font-bold">{t('driver.scanPassengerQr', { defaultValue: 'Scan passenger QR' })}</p>
-                <p className="text-[11px] text-muted">{t('driver.scanPassengerQrHint', { defaultValue: 'After scan, points will be credited to passenger' })}</p>
+                <p className="text-sm font-bold">{t('driver.scanPassengerQr', { defaultValue: 'QR пассажира' })}</p>
+                <p className="text-[11px] text-muted">
+                  {t('driver.scanPassengerQrNativeHint', {
+                    defaultValue: 'Отсканируйте системной камерой — камера приложения не нужна.',
+                  })}
+                </p>
               </div>
             </div>
 
-            <QrScanner
-              autoStart={isOpen}
-              onTokenRead={(token) => {
+            <label className="block space-y-1.5">
+              <span className="text-[11px] text-muted">
+                {t('driver.qrManualCode', { defaultValue: 'Или введите код вручную' })}
+              </span>
+              <input
+                value={manualQrToken}
+                onChange={(e) => setManualQrToken(e.target.value.trim())}
+                placeholder={t('driver.qrManualPlaceholder', { defaultValue: 'Код из QR / ссылки' })}
+                className="w-full h-10 px-3 rounded-xl border border-border text-sm outline-none focus:border-black"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!manualQrToken || isRedeeming}
+              onClick={() => {
                 void (async () => {
                   setIsRedeeming(true)
                   setScanMessage(null)
                   try {
+                    const token = manualQrToken.includes('/qr/')
+                      ? manualQrToken.split('/qr/').pop()!.split(/[?#]/)[0]
+                      : manualQrToken
                     const result = await redeemPassengerQrSale(token)
                     hapticNotification('success')
+                    setManualQrToken('')
                     setScanMessage(
                       t('driver.qrPointsCredited', {
                         points: result.pointsAdded,
                         passengerId: result.passengerId,
-                        defaultValue: `Credited ${result.pointsAdded} pts to passenger (${result.passengerId}).`,
+                        defaultValue: `Зачислено ${result.pointsAdded} поинтов пассажиру (${result.passengerId}).`,
                       }),
                     )
                   } catch (error) {
@@ -165,10 +234,12 @@ export default function DriverSideMenu({
                   }
                 })()
               }}
-            />
-            {isRedeeming && (
-              <p className="mt-3 text-xs text-muted">{t('driver.confirmingQr', { defaultValue: 'Confirming QR...' })}</p>
-            )}
+              className="mt-2 w-full py-2.5 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-40"
+            >
+              {isRedeeming
+                ? t('driver.confirmingQr', { defaultValue: 'Confirming QR...' })
+                : t('driver.qrConfirmCode', { defaultValue: 'Зачислить поинты' })}
+            </button>
             {scanMessage && (
               <div className="mt-3 rounded-xl bg-surface px-3 py-2.5 text-xs font-medium text-black">
                 {scanMessage}
@@ -232,6 +303,9 @@ export default function DriverSideMenu({
       {showOffers && <DriverOffersList onClose={() => setShowOffers(false)} />}
       {showHistory && <DriverRideHistory onClose={() => setShowHistory(false)} />}
       {showBlocked && <DriverBlockedList onClose={() => setShowBlocked(false)} />}
+      {showTransfer && (
+        <TransferPointsSheet onClose={() => setShowTransfer(false)} />
+      )}
     </>
   )
 }

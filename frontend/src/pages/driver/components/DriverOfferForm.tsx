@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react'
-import { CaretDown, Clock, Crosshair, X } from '@phosphor-icons/react'
+import { Crosshair, UsersThree, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
+import NotificationBell from '../../../components/notifications/NotificationBell'
 import RoutePointConfirmButton from '../../../components/route-point-picker/RoutePointConfirmButton'
 import RoutePointFields from '../../../components/route-point-picker/RoutePointFields'
 import { RoutePointPinLabel, RoutePointPinMarkers } from '../../../components/route-point-picker/RoutePointPinOverlay'
@@ -11,14 +12,14 @@ import RoutePointZoneBanner from '../../../components/route-point-picker/RoutePo
 import RoutePointToast from '../../../components/route-point-picker/RoutePointToast'
 import OfferDayFilter from '../../passenger/components/OfferDayFilter'
 import CabinetRoleBanner from '../../../components/CabinetRoleBanner'
+import RideTimeField from '../../../components/RideTimeField'
 import { useOfferDaySelection } from '../../../hooks/useOfferDaySelection'
 import { useMapPinAnchor } from '../../../hooks/useMapPinAnchor'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
 import { iconA, iconB, MapBinder } from '../../passenger/new-request/NewRequestMapBinder'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
+import { hapticSelection } from '../../../lib/telegram'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
-
-import { useMapUserLocationHint } from '../../../hooks/useMapUserLocationHint'
 import { getDefaultMapCenterTuple, getDefaultMapZoom, resolveMapCenter } from '../../../lib/mapRegion'
 import { MapFlyToResolvedCenter } from '../../../components/MapFlyToResolvedCenter'
 
@@ -57,19 +58,21 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
   useEscapeClose(true, onClose)
 
-  const userLocationHint = useMapUserLocationHint(!model.fromPoint && !model.toPoint)
+  // Like passenger: no auto-GPS. Map starts on zones; crosshair sets location on tap.
   const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
-    () => resolveMapCenter(model.activeZones, userLocationHint),
-    [model.activeZones, userLocationHint],
+    () => resolveMapCenter(model.activeZones, null),
+    [model.activeZones],
   )
   const mapFlyKey = allowMapAutoFly
-    ? userLocationHint
-      ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
-      : model.activeZones.length > 0
-        ? `zones:${model.activeZones.length}`
-        : 'region-default'
+    ? model.activeZones.length > 0
+      ? `zones:${model.activeZones.length}`
+      : 'region-default'
     : 'user-picking'
+
+  const pinEmptyHint = model.activeIsFrom
+    ? t('driver.pinHintPickup', { defaultValue: 'Откуда выезжаете?' })
+    : t('driver.pinHintDestination', { defaultValue: 'Куда едете?' })
 
   return (
     <div className="fixed inset-0 z-[210] bg-white flex flex-col">
@@ -86,8 +89,10 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
             <X size={20} weight="bold" />
           </button>
           <h1 className="text-base font-extrabold tracking-tight flex-1">
-            {t('driver.offers.create', { defaultValue: 'New offer' })}
+            {t('driver.setDirectionCta', { defaultValue: 'Поставить направление' })}
           </h1>
+          {/* Driver pool — own instruction/info notifications, separate from passenger */}
+          <NotificationBell pool="driver" />
         </div>
       </header>
 
@@ -137,6 +142,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
           pinAnchorYFrac={pinAnchorYFrac}
+          emptyHint={pinEmptyHint}
         />
         <RoutePointZoneBanner
           message={model.zoneWarning}
@@ -149,11 +155,17 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
           topOffset="var(--app-safe-area-top-total)"
         />
 
+        {/* Same as passenger: location only when driver taps the crosshair */}
         <button
-          onClick={model.handleLocateMe}
+          type="button"
+          onClick={() => {
+            hapticSelection()
+            model.handleLocateMe()
+          }}
           disabled={model.isLocating}
           className="absolute right-3 z-10 w-10 h-10 rounded-pill bg-white shadow-card flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
           style={{ bottom: `calc(${obstructionPx}px + 12px + var(--app-safe-area-bottom-total))` }}
+          title={t('common.myLocation', { defaultValue: 'Моё местоположение' })}
         >
           {model.isLocating ? (
             <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" />
@@ -183,29 +195,20 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
             disabledOffsets={disabledOfferDayOffsets}
             onChange={setOfferDayOffset}
           />
+          <RideTimeField
+            value={model.dateTime.split('T')[1] || ''}
+            slots={rideTimeSlots}
+            onChange={(time) => {
+              model.setDateTime(time ? `${offerMapDate}T${time}` : `${offerMapDate}T`)
+            }}
+          />
 
-          <RoutePointFields model={model} />
-
-          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
-            <Clock size={14} className="text-muted flex-shrink-0" />
-            <select
-              value={model.dateTime.split('T')[1] || ''}
-              onChange={(e) => {
-                model.setDateTime(`${offerMapDate}T${e.target.value}`)
-              }}
-              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
-            >
-              <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-              {rideTimeSlots.map((slot) => (
-                <option key={slot} value={slot}>{slot}</option>
-              ))}
-            </select>
-            <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
-          </div>
+          <RoutePointFields model={model} audience="driver" />
 
           <div className="flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
-            <span className="text-xs font-semibold text-muted">
-              {t('driver.offers.seats', { defaultValue: 'Available seats' })}
+            <span className="text-xs font-semibold text-muted inline-flex items-center gap-1.5">
+              <UsersThree size={14} weight="bold" />
+              {t('driver.offers.seats', { defaultValue: 'Свободные места' })}
             </span>
             <input
               type="text"
@@ -214,14 +217,14 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
               value={model.totalSeatsInput}
               onChange={(e) => model.handleSeatsInputChange(e.target.value)}
               onBlur={model.normalizeSeatsInput}
-              placeholder="1"
-              className="w-16 text-right text-sm font-bold bg-transparent outline-none"
+              placeholder={t('driver.offers.seatsPlaceholder', { defaultValue: 'Сколько' })}
+              className="w-20 text-right text-sm font-bold bg-transparent outline-none"
             />
           </div>
 
           {model.isPinLive ? (
             <div className="space-y-2">
-              <RoutePointConfirmButton model={model} showCaret={false} />
+              <RoutePointConfirmButton model={model} showCaret={false} audience="driver" />
             </div>
           ) : (
             <button
@@ -234,7 +237,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
             >
               {model.submitting
                 ? t('common.loading', { defaultValue: 'Loading...' })
-                : t('driver.offers.create', { defaultValue: 'Create offer' })}
+                : t('driver.offers.publishDirection', { defaultValue: 'Опубликовать направление' })}
             </button>
           )}
         </div>

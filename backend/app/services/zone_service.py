@@ -4,7 +4,26 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.service_zone import ServiceZone
-from app.services.geo_service import point_in_polygon, haversine_km
+
+
+class _Unset:
+    """Sentinel type marking an "argument not provided" state.
+
+    Used so that ``update_zone`` can tell "leave the field untouched" apart from
+    "clear the field" (``None`` / empty string) when patch payloads send
+    ``directionFrom: null`` / ``directionTo: null`` explicitly.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return "UNSET"
+
+    def __bool__(self) -> bool:  # pragma: no cover - guard against truthiness checks
+        return False
+
+
+UNSET = _Unset()
 
 
 class PickupOutOfZoneError(Exception):
@@ -22,8 +41,17 @@ async def create_zone(
     color: str,
     polygon: list[dict[str, float]],
     is_active: bool = True,
+    direction_from: str | None = None,
+    direction_to: str | None = None,
 ) -> ServiceZone:
-    zone = ServiceZone(name=name, color=color, polygon=polygon, is_active=is_active)
+    zone = ServiceZone(
+        name=name,
+        color=color,
+        polygon=polygon,
+        is_active=is_active,
+        direction_from=(direction_from or "").strip() or None,
+        direction_to=(direction_to or "").strip() or None,
+    )
     db_session.add(zone)
     await db_session.commit()
     await db_session.refresh(zone)
@@ -56,6 +84,8 @@ async def update_zone(
     color: str | None = None,
     polygon: list[dict[str, float]] | None = None,
     is_active: bool | None = None,
+    direction_from: str | None | _Unset = UNSET,
+    direction_to: str | None | _Unset = UNSET,
 ) -> ServiceZone | None:
     zone = await get_zone(db_session, zone_id=zone_id)
     if zone is None:
@@ -68,6 +98,10 @@ async def update_zone(
         zone.polygon = polygon
     if is_active is not None:
         zone.is_active = is_active
+    if not isinstance(direction_from, _Unset):
+        zone.direction_from = (direction_from or "").strip() or None
+    if not isinstance(direction_to, _Unset):
+        zone.direction_to = (direction_to or "").strip() or None
     await db_session.commit()
     await db_session.refresh(zone)
     return zone
@@ -85,6 +119,9 @@ async def delete_zone(db_session: AsyncSession, *, zone_id: str) -> bool:
 async def is_pickup_in_active_zone(
     db_session: AsyncSession, *, lat: float, lng: float
 ) -> bool:
+    """True if no active zones exist, or pickup is inside any one of them (OR)."""
+    from app.services.geo_service import point_in_polygon
+
     result = await db_session.execute(select(ServiceZone).where(ServiceZone.is_active.is_(True)))
     zones = list(result.scalars().all())
     if not zones:
@@ -102,33 +139,18 @@ async def is_point_in_any_active_zone(
 async def snap_pickup_coordinates(
     db_session: AsyncSession, *, lat: float, lng: float
 ) -> tuple[float, float]:
-    result = await db_session.execute(select(ServiceZone).where(ServiceZone.is_active.is_(True)))
-    zones = list(result.scalars().all())
-    if not zones:
-        return lat, lng
-    if any(point_in_polygon(lat, lng, zone.polygon or []) for zone in zones):
-        return lat, lng
+    """No-op. Zones must never attract / relocate pickup coordinates.
 
-    best_centroid: tuple[float, float] | None = None
-    best_distance_km = float("inf")
-    for zone in zones:
-        polygon = zone.polygon or []
-        if len(polygon) < 3:
-            continue
-        centroid_lat = sum(float(point["lat"]) for point in polygon) / len(polygon)
-        centroid_lng = sum(float(point["lng"]) for point in polygon) / len(polygon)
-        distance_km = haversine_km(lat, lng, centroid_lat, centroid_lng)
-        if distance_km < best_distance_km:
-            best_distance_km = distance_km
-            best_centroid = (centroid_lat, centroid_lng)
-
-    if best_centroid is None:
-        return lat, lng
-    return best_centroid
+    Kept for call-site compatibility. Use ``assert_pickup_in_active_zone`` to reject.
+    """
+    _ = db_session
+    return lat, lng
 
 
 async def assert_pickup_in_active_zone(
     db_session: AsyncSession, *, lat: float, lng: float
 ) -> None:
     if not await is_pickup_in_active_zone(db_session, lat=lat, lng=lng):
-        raise PickupOutOfZoneError()
+        raise PickupOutOfZoneError(
+            "Точка посадки вне зоны обслуживания. Выберите адрес внутри зоны — заказ иначе не принимается."
+        )

@@ -131,9 +131,19 @@ def generate_driver_key() -> str:
     return f"ride_driver_{secrets.token_urlsafe(24)}"
 
 
-def create_admin_session_token(*, admin_key_id: str, role: str) -> str:
+def create_admin_session_token(
+    *,
+    admin_key_id: str,
+    role: str,
+    telegram_user_id: str | None = None,
+) -> str:
     expire = datetime.utcnow() + timedelta(hours=settings.admin_session_ttl_hours)
-    payload = {"exp": expire, "admin_key_id": admin_key_id, "role": role}
+    payload: dict[str, Any] = {"exp": expire, "admin_key_id": admin_key_id, "role": role}
+    normalized_telegram_user_id = str(telegram_user_id).strip() if telegram_user_id else ""
+    if normalized_telegram_user_id:
+        # Binds the panel session to a single Telegram account: Telegram clients
+        # share cookies between the accounts of one device.
+        payload["tg"] = normalized_telegram_user_id
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
@@ -142,6 +152,11 @@ def decode_admin_session_token(token: str) -> dict[str, Any]:
     if "admin_key_id" not in payload or "role" not in payload:
         raise ValueError("Invalid admin session token payload.")
     return payload
+
+
+def admin_session_token_telegram_user_id(payload: dict[str, Any]) -> str | None:
+    """Telegram user id the admin session was issued for (None for key-only logins)."""
+    return str(payload.get("tg") or "").strip() or None
 
 
 def create_driver_session_token(*, driver_id: str) -> str:
@@ -162,7 +177,7 @@ DRIVER_ENTER_TOKEN_TTL_SECONDS = 86400
 
 
 def create_permanent_driver_enter_token(*, driver_id: str) -> str:
-    """Short-lived, single-use cabinet enter link for a driver."""
+    """TTL-bound cabinet enter link. Reusable until expiry (same door from Telegram or Profile)."""
     expire = datetime.utcnow() + timedelta(seconds=DRIVER_ENTER_TOKEN_TTL_SECONDS)
     payload = {
         "purpose": DRIVER_ENTER_TOKEN_PURPOSE,

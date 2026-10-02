@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import LocalizedTileLayer from '../../../components/LocalizedTileLayer'
 import L from 'leaflet'
-import { Crosshair, X } from '@phosphor-icons/react'
+import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import { formatRideTime } from '../../../i18n/dateTime'
@@ -20,6 +20,8 @@ interface DriverMapProps {
   driverLabel?: string
   passengerLocations?: PassengerLiveLocation[]
   mapInsetTop?: number
+  /** Increment to re-center the map on the driver (locate button). */
+  locateTick?: number
   onSelectPoint: (point: DriverMapPoint) => void
   onPointDragEnd: (rideId: string, pointType: 'pickup' | 'dropoff', latlng: LatLng) => void
   onMapMarkViewModeChange?: (isViewing: boolean) => void
@@ -62,15 +64,12 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
   const isPickup = pt.pointType === 'pickup'
   const isAvailable = pt.pointKind === 'available'
 
-  // Driver flow color semantics:
-  // - Amber: available unassigned ride
-  // - Red: pickup
-  // - Blue: dropoff
-  // - Green: completed point
-  const bg = isAvailable
-    ? '#F59E0B'
-    : isDone
-      ? '#16A34A'
+  // Like passenger: start + destination both visible.
+  // Free: amber A (with time) / blue B (no time). Yours: red pickup / blue dropoff.
+  const bg = isDone
+    ? '#16A34A'
+    : isAvailable
+      ? (isPickup ? '#F59E0B' : '#3B82F6')
       : isPickup
         ? '#EF4444'
         : '#3B82F6'
@@ -92,17 +91,21 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
     : ''
 
   const markerOpacity = isDone ? 0.95 : 1
-  const timeLabel = formatRideTime(pt)
+  // Departure time only on pickup — same clock on B confuses free futures.
+  const timeLabel = isPickup ? formatRideTime(pt) : ''
   const timeFont = isDone ? 9 : isNext ? 11 : 10
   const totalW = Math.max(sz, 42)
-  const totalH = sz + 18
+  const totalH = timeLabel ? sz + 18 : sz
+  const timeHtml = timeLabel
+    ? `<div style="margin-top:3px;padding:2px 6px;border-radius:6px;background:#fff;color:#111827;font-size:${timeFont}px;font-weight:800;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,0.22);border:1px solid rgba(0,0,0,0.08);font-family:Inter,system-ui,sans-serif;">${timeLabel}</div>`
+    : ''
 
   return L.divIcon({
     className: '',
     html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;width:${totalW}px;">
       ${pulse}
       <div style="position:relative;width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:white;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:800;box-shadow:${shadow};opacity:${markerOpacity};transition:transform 0.15s,box-shadow 0.15s;transform:${isSelected ? 'scale(1.1)' : 'scale(1)'};">${label}</div>
-      <div style="margin-top:3px;padding:2px 6px;border-radius:6px;background:#fff;color:#111827;font-size:${timeFont}px;font-weight:800;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,0.22);border:1px solid rgba(0,0,0,0.08);font-family:Inter,system-ui,sans-serif;">${timeLabel}</div>
+      ${timeHtml}
     </div>`,
     iconSize: [totalW, totalH],
     iconAnchor: [totalW / 2, sz / 2],
@@ -112,12 +115,15 @@ function makePointIcon(pt: DriverMapPoint, opts: { isSelected: boolean; isNext: 
 function CenterOnDriver({
   driverLocation,
   mapInsetTop = 108,
+  locateTick = 0,
 }: {
   driverLocation: LatLng | null
   mapInsetTop?: number
+  locateTick?: number
 }) {
   const map = useMap()
   const centered = useRef(false)
+  const lastLocateTick = useRef(0)
 
   useEffect(() => {
     if (centered.current || !driverLocation) return
@@ -125,6 +131,12 @@ function CenterOnDriver({
     map.panBy([0, mapInsetTop / 4])
     centered.current = true
   }, [map, driverLocation, mapInsetTop])
+
+  useEffect(() => {
+    if (!driverLocation || locateTick <= 0 || locateTick === lastLocateTick.current) return
+    lastLocateTick.current = locateTick
+    map.flyTo([driverLocation.lat, driverLocation.lng], Math.max(map.getZoom(), 15), { duration: 0.45 })
+  }, [map, driverLocation, locateTick])
 
   return null
 }
@@ -144,27 +156,6 @@ function FlyToSelected({ points, selectedPointId }: { points: DriverMapPoint[]; 
   return null
 }
 
-function LocateButton() {
-  const { t } = useTranslation()
-  const map = useMap()
-  return (
-    <button
-      onClick={() => {
-        if (!navigator.geolocation) return
-        navigator.geolocation.getCurrentPosition(
-          (pos) => map.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 0.5 }),
-          () => {},
-          { enableHighAccuracy: true, timeout: 8000 },
-        )
-      }}
-      className="absolute bottom-6 right-4 z-[1000] w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform touch-none"
-      title={t('common.myLocation', { defaultValue: 'My location' })}
-    >
-      <Crosshair size={22} weight="bold" />
-    </button>
-  )
-}
-
 export default function DriverMap({
   points,
   selectedPointId,
@@ -174,6 +165,7 @@ export default function DriverMap({
   driverLabel = '',
   passengerLocations = [],
   mapInsetTop,
+  locateTick = 0,
   onSelectPoint,
   onPointDragEnd,
   onMapMarkViewModeChange,
@@ -224,10 +216,10 @@ export default function DriverMap({
     return rideLines
       .map(({ pickup, dropoff }) => {
         if (!pickup || pickup.pointStatus === 'done') return null
-        const target = pickup.pointKind === 'available'
-          ? (dropoff ?? pickup)
-          : pickup
-        if (!target || target.pointStatus === 'done') return null
+        // Driver → pickup leg. The A→B leg itself is drawn by `rideLines` below,
+        // including for free futures (available points ship both pickup and dropoff).
+        const target = pickup
+        if (target.pointStatus === 'done') return null
         const isAvailable = pickup.pointKind === 'available'
         const isHighlighted = selectedPointId === pickup.id || selectedPointId === dropoff?.id
         return {
@@ -266,9 +258,12 @@ export default function DriverMap({
     >
       <style>{`@keyframes ping{75%,100%{transform:scale(2);opacity:0}}`}</style>
       <LocalizedTileLayer />
-      <CenterOnDriver driverLocation={driverLocation} mapInsetTop={mapInsetTop} />
+      <CenterOnDriver
+        driverLocation={driverLocation}
+        mapInsetTop={mapInsetTop}
+        locateTick={locateTick}
+      />
       <FlyToSelected points={points} selectedPointId={selectedPointId} />
-      {!isMapMarkViewMode && <LocateButton />}
 
       {/* Lines from driver to nearby orders — helps compare direction vs proximity */}
       {directionLines.map((line) => (
@@ -303,7 +298,7 @@ export default function DriverMap({
         />
       ))}
 
-      {/* Dashed A→B lines per ride */}
+      {/* Dashed A→B — free futures and assigned rides (same idea as passenger map) */}
       {rideLines.map(({ pickup, dropoff }) => {
         if (!pickup || !dropoff) return null
         const isAvailable = pickup.pointKind === 'available'
@@ -328,7 +323,13 @@ export default function DriverMap({
               color: lineColor,
               weight: isHighlighted ? 2.5 : 1.5,
               dashArray: '7, 7',
-              opacity: isAvailable ? (isHighlighted ? 0.85 : 0.55) : isDone ? 0.2 : isHighlighted ? 0.7 : 0.4,
+              opacity: isAvailable
+                ? (isHighlighted ? 0.85 : 0.55)
+                : isDone
+                  ? 0.2
+                  : isHighlighted
+                    ? 0.7
+                    : 0.4,
             }}
           />
         )
@@ -370,6 +371,11 @@ export default function DriverMap({
       {points.map((pt) => {
         const preview = dragPreview?.pointId === pt.id ? dragPreview : null
         return (
+          /*
+            Driver may only move the pickup point (A) — the backend asks the passenger
+            to confirm that change. The destination (B) belongs to the passenger request
+            and is never draggable in the driver shell.
+          */
           <Marker
             key={pt.id}
             position={preview ? [preview.latlng.lat, preview.latlng.lng] : [pt.latLng.lat, pt.latLng.lng]}
@@ -377,7 +383,7 @@ export default function DriverMap({
               isSelected: pt.id === selectedPointId,
               isNext: pt.id === nextPointId && pt.pointStatus !== 'done',
             })}
-            draggable={pt.canEdit && pt.pointKind !== 'available'}
+            draggable={pt.canEdit && pt.pointKind !== 'available' && pt.pointType === 'pickup'}
             eventHandlers={{
               click: () => {
                 if (dragPreview) return

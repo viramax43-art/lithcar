@@ -15,6 +15,7 @@ from app.core.app_timezone import to_app_local_iso
 from app.core.auth_cookies import session_cookie_samesite, session_cookie_secure
 from app.core.config import settings
 from app.core.dependencies import get_db_session, get_redis_client
+from app.models.ride_request import RideRequestStatus
 from app.models.user import User
 from app.core.security import decode_driver_session_token
 from app.services.driver_login_token_service import redeem_driver_login_token
@@ -545,7 +546,9 @@ def _build_driver_map_points(
             else:
                 point_status = _point_status_for(ride_status=ride.status, point_type=point_type)
                 recommended_order = order_base - 1 if is_pickup else order_base
-                can_edit = ride.status in {
+                # Водитель может двигать только точку посадки (A) — и её подтверждает
+                # пассажир. Точка назначения (B) принадлежит заявке пассажира.
+                can_edit = is_pickup and ride.status in {
                     "assigned",
                     "en_route_to_pickup",
                     "awaiting_passenger",
@@ -899,19 +902,49 @@ def _build_passenger_live_locations(rides: list) -> list[PassengerLiveLocationOu
     return locations
 
 
+def _ride_visible_on_driver_map(ride, *, now: datetime) -> bool:
+    """Hide stale pending/assigned futures; keep in-progress trips on the map."""
+    if ride.status in {
+        RideRequestStatus.EN_ROUTE_TO_PICKUP,
+        RideRequestStatus.AWAITING_PASSENGER,
+        RideRequestStatus.IN_PROGRESS,
+    }:
+        return True
+    if ride.status == RideRequestStatus.COMPLETED:
+        return False
+    ride_dt = ride.date_time
+    if ride_dt is None:
+        return False
+    if ride_dt.tzinfo is None:
+        ride_dt = ride_dt.replace(tzinfo=timezone.utc)
+    return ride_dt >= now
+
+
 @router.get("/cabinet/map", response_model=DriverMapOut)
 async def driver_cabinet_map(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    now = datetime.now(timezone.utc)
     rides, total = await list_driver_requests(
         db_session,
         driver_id=session.driver_id,
         limit=200,
         offset=0,
     )
-    active_rides = [item for item in rides if item.status != "completed"]
-    passenger_ids = list({item.passenger_id for item in rides})
+    map_rides = [item for item in rides if _ride_visible_on_driver_map(item, now=now)]
+    active_rides = [
+        item
+        for item in map_rides
+        if item.status
+        in {
+            RideRequestStatus.ASSIGNED,
+            RideRequestStatus.EN_ROUTE_TO_PICKUP,
+            RideRequestStatus.AWAITING_PASSENGER,
+            RideRequestStatus.IN_PROGRESS,
+        }
+    ]
+    passenger_ids = list({item.passenger_id for item in map_rides})
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
 
@@ -923,7 +956,7 @@ async def driver_cabinet_map(
             offset=0,
             driver_user_id=driver.user_id if driver else None,
         )
-        passenger_ids = list({item.passenger_id for item in rides + available_rides})
+        passenger_ids = list({item.passenger_id for item in map_rides + available_rides})
 
     username_by_user_id, passenger_rating_by_user_id = await _load_passenger_context(
         db_session,
@@ -955,7 +988,7 @@ async def driver_cabinet_map(
     return DriverMapOut(
         session=session_out,
         points=_build_driver_map_points(
-            rides=rides,
+            rides=map_rides,
             username_by_user_id=username_by_user_id,
             passenger_rating_by_user_id=passenger_rating_by_user_id,
             driver_lat=driver_lat,
@@ -964,7 +997,7 @@ async def driver_cabinet_map(
         ),
         availablePoints=available_points,
         driverLocation=driver_location,
-        passengerLocations=_build_passenger_live_locations(rides),
+        passengerLocations=_build_passenger_live_locations(map_rides),
         activeRides=len(active_rides),
         totalRides=total,
     )
@@ -1007,6 +1040,11 @@ async def claim_cabinet_ride(
             ) from exc
         if exc.code == "invalid_offer":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+        if exc.code == "out_of_zone":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "pickup_out_of_zone", "message": exc.message},
+            ) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
@@ -1078,8 +1116,8 @@ async def issue_driver_qr_sale_endpoint(
     )
     await db_session.commit()
     await db_session.refresh(sale)
-    base = settings.public_base_url.rstrip("/")
-    qr_url = f"{base}/api/points/qr/{sale.token}"
+    base = settings.frontend_public_url.rstrip("/")
+    qr_url = f"{base}/qr/{sale.token}"
     return DriverQrSaleIssueOut(
         saleId=sale.id,
         token=sale.token,
@@ -1279,7 +1317,9 @@ async def update_cabinet_ride_pickup(
         ),
     )
     if error is not None:
-        raise HTTPException(status_code=400, detail=error)
+        from app.services.ride_route_update_service import route_error_http_detail
+
+        raise HTTPException(status_code=400, detail=route_error_http_detail(error))
     if ride is None:
         raise HTTPException(status_code=404, detail="Поездка не найдена.")
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
@@ -1292,7 +1332,12 @@ async def update_cabinet_ride_route(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    from app.services.ride_route_update_service import PointUpdate, RouteChangeActor, apply_route_update_with_notifications
+    from app.services.ride_route_update_service import (
+        PointUpdate,
+        RouteChangeActor,
+        apply_route_update_with_notifications,
+        route_error_http_detail,
+    )
 
     if payload.fromPoint is None and payload.toPoint is None:
         raise HTTPException(status_code=400, detail="At least one route point is required.")
@@ -1323,7 +1368,7 @@ async def update_cabinet_ride_route(
         to_point=to_point,
     )
     if error is not None:
-        raise HTTPException(status_code=400, detail=error)
+        raise HTTPException(status_code=400, detail=route_error_http_detail(error))
     if ride is None:
         raise HTTPException(status_code=404, detail="Поездка не найдена.")
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)

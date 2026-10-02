@@ -29,6 +29,8 @@ export interface RoutePointPickerModel {
   setZoneWarning?: (message: string | null) => void
   pickupZoneCheckActive?: boolean
   confirmPoint: () => void
+  /** Tap A/B row — switch field and fly map back (fixes stuck-on-B). */
+  focusRouteField?: (field: 'from' | 'to') => void
   setFromPoint: (point: LatLng | null) => void
   setFromAddress: (address: string) => void
   setToPoint: (point: LatLng | null) => void

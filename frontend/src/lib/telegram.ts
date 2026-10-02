@@ -14,6 +14,11 @@ type TelegramSafeAreaInset = {
   right?: number
 }
 
+type TelegramLocationManager = {
+  isInited?: boolean
+  init?: (callback?: () => void) => void
+}
+
 type TelegramWebApp = {
   platform?: string
   version?: string
@@ -30,6 +35,7 @@ type TelegramWebApp = {
   close?: () => void
   onEvent?: (eventType: string, callback: () => void) => void
   HapticFeedback?: TelegramHapticFeedback
+  LocationManager?: TelegramLocationManager
 }
 
 function getTelegramWebApp(): TelegramWebApp | null {
@@ -73,6 +79,14 @@ export function initTelegramWebAppUI(): void {
   syncViewportState()
   try {
     webApp.ready?.()
+  } catch {
+    // noop
+  }
+  try {
+    // Pre-init native geolocation bridge (Bot API 8+) so driver locate works later.
+    if (webApp.isVersionAtLeast?.('8.0') && webApp.LocationManager?.init) {
+      webApp.LocationManager.init()
+    }
   } catch {
     // noop
   }

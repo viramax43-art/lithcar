@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Calendar, CaretDown, CaretUp, Clock } from '@phosphor-icons/react'
+import { Calendar, CaretDown, CaretUp } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import { formatDate } from '../../../i18n/dateTime'
@@ -25,16 +25,6 @@ export interface DriverMapPeriodFilterProps extends PeriodFilterState {
   onExpandedChange?: (expanded: boolean) => void
 }
 
-function isDefaultTodayFilter(
-  filterDate: string,
-  filterDateEnd: string,
-  filterTime: string,
-  filterTimeEnd: string,
-  today: string,
-): boolean {
-  return filterDate === today && filterDateEnd === today && filterTime === '00:00' && filterTimeEnd === '23:59'
-}
-
 export default function DriverMapPeriodFilter({
   pointCount,
   hiddenCount = 0,
@@ -42,8 +32,6 @@ export default function DriverMapPeriodFilter({
   showAvailableLegend = false,
   filterDate,
   filterDateEnd,
-  filterTime,
-  filterTimeEnd,
   onFilterDateChange,
   onFilterDateEndChange,
   onFilterTimeChange,
@@ -67,8 +55,11 @@ export default function DriverMapPeriodFilter({
     (dayValue: string) => {
       onFilterDateChange(dayValue)
       onFilterDateEndChange(dayValue)
+      // Driver filter is day-based only — no from–to clock range.
+      onFilterTimeChange('')
+      onFilterTimeEndChange('')
     },
-    [onFilterDateChange, onFilterDateEndChange],
+    [onFilterDateChange, onFilterDateEndChange, onFilterTimeChange, onFilterTimeEndChange],
   )
 
   const showAllTrips = useCallback(() => {
@@ -105,13 +96,7 @@ export default function DriverMapPeriodFilter({
     return filterDate
   }, [filterDate, filterDateEnd])
 
-  const hasCustomFilter = !isDefaultTodayFilter(
-    filterDate,
-    filterDateEnd,
-    filterTime,
-    filterTimeEnd,
-    dayOptions.today,
-  )
+  const isAllTrips = !filterDate && !filterDateEnd
 
   return (
     <div
@@ -136,7 +121,7 @@ export default function DriverMapPeriodFilter({
             {t('driver.map.hiddenByFilter', { count: hiddenCount, defaultValue: '+{{count}} hidden' })}
           </span>
         )}
-        {hasCustomFilter && hiddenCount === 0 && (
+        {!isAllTrips && hiddenCount === 0 && (
           <span className="text-[10px] text-muted flex-shrink-0">{t('common.filterActive')}</span>
         )}
         <span className="w-8 h-8 rounded-lg border border-border flex items-center justify-center flex-shrink-0">
@@ -146,38 +131,19 @@ export default function DriverMapPeriodFilter({
 
       {expanded && (
         <div className="px-3 pb-3 space-y-2.5 border-t border-border/40">
-          <div className="rounded-xl border border-border bg-surface/50 px-3 py-2">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Clock size={15} className="text-muted flex-shrink-0" />
-              <span className="text-[11px] text-muted whitespace-nowrap">
-                {t('common.timeRangeFromTo', { defaultValue: 'Time from-to' })}
-              </span>
-            </div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <label className="min-w-0">
-                <span className="text-[10px] text-muted">{t('common.from')}</span>
-                <input
-                  type="time"
-                  value={filterTime}
-                  onChange={(event) => onFilterTimeChange(event.target.value)}
-                  className="w-full mt-1 h-10 px-2 rounded-lg border border-border bg-white text-xs outline-none focus:border-black"
-                />
-              </label>
-              <span className="text-muted text-sm mt-5">-</span>
-              <label className="min-w-0">
-                <span className="text-[10px] text-muted">{t('common.to')}</span>
-                <input
-                  type="time"
-                  value={filterTimeEnd}
-                  onChange={(event) => onFilterTimeEndChange(event.target.value)}
-                  className="w-full mt-1 h-10 px-2 rounded-lg border border-border bg-white text-xs outline-none focus:border-black"
-                />
-              </label>
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-0.5">
+              <button
+                type="button"
+                onClick={showAllTrips}
+                className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
+                  isAllTrips
+                    ? 'border-black bg-black text-white'
+                    : 'border-border hover:bg-surface'
+                }`}
+              >
+                {t('common.allTrips')}
+              </button>
               <button
                 type="button"
                 onClick={() => applySingleDay(dayOptions.today)}
@@ -204,19 +170,13 @@ export default function DriverMapPeriodFilter({
                 type="button"
                 onClick={() => applySingleDay(dayOptions.dayAfterTomorrow)}
                 className={`flex-shrink-0 min-h-10 px-3 rounded-lg border text-xs font-semibold transition-colors touch-none ${
-                  filterDate === dayOptions.dayAfterTomorrow && filterDateEnd === dayOptions.dayAfterTomorrow
+                  filterDate === dayOptions.dayAfterTomorrow &&
+                  filterDateEnd === dayOptions.dayAfterTomorrow
                     ? 'border-black bg-black text-white'
                     : 'border-border hover:bg-surface'
                 }`}
               >
                 {t('common.dayAfterTomorrow')}
-              </button>
-              <button
-                type="button"
-                onClick={showAllTrips}
-                className="flex-shrink-0 min-h-10 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-surface transition-colors touch-none"
-              >
-                {t('common.allTrips')}
               </button>
             </div>
             {selectedSingleDay && (
@@ -227,7 +187,11 @@ export default function DriverMapPeriodFilter({
           </div>
 
           <p className="text-[10px] text-muted leading-snug px-0.5">
-            {showAvailableLegend ? t('driver.map.legendAvailable') : t('driver.map.legendShort')}
+            {showAvailableLegend
+              ? t('driver.map.legendAvailable', {
+                  defaultValue: 'Янтарные точки — свободные заказы пассажиров (откуда → куда).',
+                })
+              : t('driver.map.legendShort')}
           </p>
         </div>
       )}

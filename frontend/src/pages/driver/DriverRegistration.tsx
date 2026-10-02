@@ -6,6 +6,7 @@ import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import { resolveDriverFormText } from '../../lib/driverFormText'
 import { enterDriverCabinet } from '../../lib/driverPortal'
+import { isDriverShellActive } from '../../lib/driverShell'
 import {
   getDriverRegistrationForm,
   getMyDriverApplication,
@@ -170,10 +171,12 @@ export default function DriverRegistration() {
     )
   }
 
+  const closeTarget = isDriverShellActive() ? '/driver' : '/profile'
+
   if (application?.status === 'pending') {
     return (
       <div className="min-h-[100dvh] bg-white user-safe-top user-safe-bottom px-5 py-4">
-        <button type="button" onClick={() => navigate('/profile')} className="touch-compact inline-flex items-center gap-2 text-sm font-semibold text-black">
+        <button type="button" onClick={() => navigate(closeTarget)} className="touch-compact inline-flex items-center gap-2 text-sm font-semibold text-black">
           <ArrowLeft size={18} />
           {t('common.close')}
         </button>
@@ -191,7 +194,7 @@ export default function DriverRegistration() {
   if (application?.status === 'approved') {
     return (
       <div className="min-h-[100dvh] bg-white user-safe-top user-safe-bottom px-5 py-4">
-        <button type="button" onClick={() => navigate('/profile')} className="touch-compact inline-flex items-center gap-2 text-sm font-semibold text-black">
+        <button type="button" onClick={() => navigate('/driver')} className="touch-compact inline-flex items-center gap-2 text-sm font-semibold text-black">
           <ArrowLeft size={18} />
           {t('common.close')}
         </button>

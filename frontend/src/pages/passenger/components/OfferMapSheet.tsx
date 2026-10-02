@@ -16,10 +16,12 @@ interface OfferMapSheetProps {
   isConfirming: boolean
   isBooking: boolean
   errorMessage: string | null
+  showPayViaDriver?: boolean
   onClose: () => void
   onBookClick: () => void
   onConfirmBook: () => void
   onCancelConfirm: () => void
+  onPayViaDriver?: () => void
 }
 
 export default function OfferMapSheet({
@@ -28,10 +30,12 @@ export default function OfferMapSheet({
   isConfirming,
   isBooking,
   errorMessage,
+  showPayViaDriver = false,
   onClose,
   onBookClick,
   onConfirmBook,
   onCancelConfirm,
+  onPayViaDriver,
 }: OfferMapSheetProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -152,7 +156,23 @@ export default function OfferMapSheet({
               </div>
             </div>
 
-            {errorMessage && <p className="text-xs font-medium text-red-600">{errorMessage}</p>}
+            {errorMessage && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-red-600">{errorMessage}</p>
+                {showPayViaDriver && onPayViaDriver && (
+                  <button
+                    type="button"
+                    onClick={onPayViaDriver}
+                    disabled={isBooking}
+                    className="w-full py-2.5 rounded-xl border border-black bg-white text-black text-xs font-bold active:scale-[0.97] transition-all disabled:opacity-50"
+                  >
+                    {isBooking
+                      ? t('common.sending', { defaultValue: 'Sending...' })
+                      : t('passenger.payViaDriver', { defaultValue: 'Оплатить через водителя' })}
+                  </button>
+                )}
+              </div>
+            )}
 
             {isBooked && offer.myRequestId ? (
               <button

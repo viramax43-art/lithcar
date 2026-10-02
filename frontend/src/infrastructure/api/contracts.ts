@@ -43,6 +43,17 @@ export interface AdminKeyInfo {
   isActive: boolean
   createdAt: string
   lastUsedAt: string | null
+  /** Telegram @username the staff member signs in with from the Mini App. */
+  telegramUsername?: string | null
+  /** Bound Telegram user id (set automatically on the first Mini App sign-in). */
+  telegramUserId?: string | null
+}
+
+export interface AdminPanelAccess {
+  isAdmin: boolean
+  role: string | null
+  name: string | null
+  telegramUsername: string | null
 }
 
 export interface DriverSessionUser {

@@ -5,14 +5,21 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.telegram_identity import request_identity_conflicts
 from app.core.app_timezone import to_app_local_iso
-from app.core.auth_cookies import clear_passenger_auth_cookies, set_passenger_auth_cookies
+from app.core.auth_cookies import (
+    clear_admin_session_cookie,
+    clear_passenger_auth_cookies,
+    set_passenger_auth_cookies,
+)
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.core.limiter import limiter
+from app.core.security import decode_admin_session_token, decode_token
 from app.models.ride_request import RideRequest
 from app.models.user import DEFAULT_USER_LANGUAGE, User, UserRole
 from app.services.auth_service import AuthService
@@ -147,10 +154,13 @@ async def resolve_access_token(
 
 
 async def get_current_user(
+    request: Request,
     token: str = Depends(resolve_access_token),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
-    return await auth_service.get_user_from_token(token)
+    user = await auth_service.get_user_from_token(token)
+    _reject_foreign_identity(request, user_id=user.user_id)
+    return user
 
 
 async def get_current_user_optional(
@@ -162,9 +172,41 @@ async def get_current_user_optional(
     if not token:
         return None
     try:
-        return await auth_service.get_user_from_token(token)
+        user = await auth_service.get_user_from_token(token)
     except HTTPException:
         return None
+    if request_identity_conflicts(request, user_id=user.user_id):
+        return None
+    return user
+
+
+def _reject_foreign_identity(request: Request, *, user_id: str) -> None:
+    """Telegram clients share cookies between accounts on one device.
+
+    When the request carries the live initData of another account, the cookie or
+    bearer session belongs to the previous account and must not be reused.
+    """
+    if request_identity_conflicts(request, user_id=user_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session belongs to another Telegram account.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def _drop_foreign_admin_session(request: Request, response: Response, *, telegram_user_id: str) -> None:
+    """Switching the Telegram account also drops the admin panel session."""
+    token = request.cookies.get(settings.admin_session_cookie_name)
+    if not token:
+        return
+    try:
+        payload = decode_admin_session_token(token)
+    except (JWTError, ValueError):
+        clear_admin_session_cookie(response)
+        return
+    bound_telegram_user_id = str(payload.get("tg") or "").strip()
+    if bound_telegram_user_id and bound_telegram_user_id != str(telegram_user_id):
+        clear_admin_session_cookie(response)
 
 
 def require_roles(*allowed_roles: str) -> Callable[[User], User]:
@@ -193,6 +235,10 @@ async def login_for_access_token(
     Авторизация через Telegram InitData.
     """
     access_token, refresh_token = await auth_service.issue_token_pair(data.initData)
+    logged_in_user_id = str(decode_token(access_token).get("sub") or "")
+    if logged_in_user_id:
+        # Another Telegram account just signed in: drop the panel session of the previous one.
+        _drop_foreign_admin_session(request, response, telegram_user_id=logged_in_user_id)
     set_passenger_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
     return {"access_token": access_token}
 
@@ -207,6 +253,13 @@ async def refresh_access_token(
     refresh_token = request.cookies.get(settings.passenger_refresh_cookie_name)
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
+    try:
+        refreshed_user_id = str(decode_token(refresh_token).get("sub") or "")
+    except JWTError:
+        refreshed_user_id = ""
+    if refreshed_user_id:
+        # Checked before the token rotation so that a foreign account cannot burn it.
+        _reject_foreign_identity(request, user_id=refreshed_user_id)
     access_token, new_refresh = await auth_service.refresh_access_token(refresh_token)
     set_passenger_auth_cookies(response, access_token=access_token, refresh_token=new_refresh)
     return RefreshResult()
@@ -215,6 +268,7 @@ async def refresh_access_token(
 @router.post("/auth/logout", response_model=RefreshResult)
 async def logout_passenger(response: Response):
     clear_passenger_auth_cookies(response)
+    clear_admin_session_cookie(response)
     return RefreshResult()
 
 

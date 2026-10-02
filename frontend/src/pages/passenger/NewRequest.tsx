@@ -1,4 +1,5 @@
-import { CaretDown, CaretRight, Car, ClipboardText, Clock, Coins, Crosshair, Info, List, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
+import { CaretRight, Car, ClipboardText, Coins, Crosshair, Info, List, Star, UserCircle, Warning, X } from '@phosphor-icons/react'
+import RideTimeField from '../../components/RideTimeField'
 import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
@@ -35,7 +36,6 @@ import { hasRideDateTime } from '../../lib/rideDraft'
 import { isOfferVisibleToPassenger } from '../../lib/offerSeats'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 
-import { useMapUserLocationHint } from '../../hooks/useMapUserLocationHint'
 import { getDefaultMapCenterTuple, getDefaultMapZoom, resolveMapCenter } from '../../lib/mapRegion'
 import { MapFlyToResolvedCenter } from '../../components/MapFlyToResolvedCenter'
 
@@ -52,7 +52,6 @@ export default function NewRequest() {
   const [openedPublicMarkId, setOpenedPublicMarkId] = useState<string | null>(null)
   const [fullscreenPhoto, setFullscreenPhoto] = useState<{ src: string; title: string } | null>(null)
   const [isSignalMode, setIsSignalMode] = useState(false)
-  const [dayOffersModalOpen, setDayOffersModalOpen] = useState(false)
   const [routeOffersModalOpen, setRouteOffersModalOpen] = useState(false)
   const routeModalDismissedRef = useRef(false)
   const {
@@ -127,8 +126,15 @@ export default function NewRequest() {
     return `${model.fromPoint.lat.toFixed(5)},${model.fromPoint.lng.toFixed(5)}-${model.toPoint.lat.toFixed(5)},${model.toPoint.lng.toFixed(5)}`
   }, [model.fromPoint, model.toPoint])
 
-  const showDayOffersButton =
-    !offersPaused && !offersMap.isLoading && visibleMapOffers.length > 0
+  // Кнопка «с машинкой» показывает только поездки, подходящие под маршрут пассажира,
+  // а не вообще все заявки/поездки дня.
+  const carOffers = useMemo(
+    () => (model.fromPoint && model.toPoint ? visibleMatchingOffers : []),
+    [model.fromPoint, model.toPoint, visibleMatchingOffers],
+  )
+
+  const showCarOffersButton =
+    !offersPaused && !offersMap.isLoading && carOffers.length > 0
 
   useEscapeClose(Boolean(fullscreenPhoto), () => setFullscreenPhoto(null))
   useEscapeClose(!fullscreenPhoto && model.showSearch, () => {
@@ -136,7 +142,6 @@ export default function NewRequest() {
     model.setSearchResults([])
   })
   useEscapeClose(menuOpen, () => setMenuOpen(false))
-  useEscapeClose(dayOffersModalOpen, () => setDayOffersModalOpen(false))
   useEscapeClose(routeOffersModalOpen, () => {
     routeModalDismissedRef.current = true
     setRouteOffersModalOpen(false)
@@ -148,7 +153,6 @@ export default function NewRequest() {
 
   useEffect(() => {
     if (highlightedOffer) {
-      setDayOffersModalOpen(false)
       setRouteOffersModalOpen(false)
     }
   }, [highlightedOffer])
@@ -173,10 +177,6 @@ export default function NewRequest() {
   ])
 
   useEffect(() => {
-    if (visibleMapOffers.length === 0) setDayOffersModalOpen(false)
-  }, [visibleMapOffers.length])
-
-  useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
@@ -191,18 +191,17 @@ export default function NewRequest() {
     }
   }, [])
 
-  const userLocationHint = useMapUserLocationHint(!model.fromPoint && !model.toPoint)
+  // No auto-GPS fly — locate only via crosshair (same as driver). Auto geo was
+  // re-flying to the service-zone centroid and sliding the pin toward the school.
   const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
-    () => resolveMapCenter(model.activeZones, userLocationHint),
-    [model.activeZones, userLocationHint],
+    () => resolveMapCenter(model.activeZones, null),
+    [model.activeZones],
   )
   const mapFlyKey = allowMapAutoFly
-    ? userLocationHint
-      ? `geo:${userLocationHint.lat.toFixed(2)},${userLocationHint.lng.toFixed(2)}`
-      : model.activeZones.length > 0
-        ? `zones:${model.activeZones.length}`
-        : 'region-default'
+    ? model.activeZones.length > 0
+      ? `zones:${model.activeZones.length}`
+      : 'region-default'
     : 'user-picking'
 
   return (
@@ -215,6 +214,7 @@ export default function NewRequest() {
             flyKey={mapFlyKey}
             zoom={getDefaultMapZoom()}
             enabled={allowMapAutoFly}
+            pinAnchorYFracRef={pinAnchorYFracRef}
           />
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
@@ -384,22 +384,23 @@ export default function NewRequest() {
         >
           <List size={20} weight="bold" />
         </button>
-        {showDayOffersButton && (
+        {showCarOffersButton && (
           <button
             type="button"
             onClick={() => {
               hapticSelection()
-              setDayOffersModalOpen(true)
+              routeModalDismissedRef.current = false
+              setRouteOffersModalOpen(true)
             }}
             className="relative w-10 h-10 rounded-full bg-black text-white shadow-card flex items-center justify-center active:scale-95 transition-transform"
-            title={t('passenger.offers.dayMapButton', {
-              count: visibleMapOffers.length,
-              defaultValue: `Driver rides today (${visibleMapOffers.length})`,
+            title={t('passenger.offers.routeModalButton', {
+              count: carOffers.length,
+              defaultValue: `Rides for your route (${carOffers.length})`,
             })}
           >
             <Car size={18} weight="fill" />
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-point-a text-[10px] font-extrabold leading-[18px] text-center">
-              {visibleMapOffers.length}
+              {carOffers.length}
             </span>
           </button>
         )}
@@ -503,6 +504,11 @@ export default function NewRequest() {
           isResolving={model.isResolving}
           pinAddress={model.pinAddress}
           pinAnchorYFrac={pinAnchorYFrac}
+          emptyHint={
+            model.activeIsFrom
+              ? t('passenger.pinHintPickup', { defaultValue: 'Куда должен подъехать автомобиль?' })
+              : t('passenger.pinHintDestination', { defaultValue: 'Куда вы едете?' })
+          }
         />
       )}
 
@@ -541,6 +547,7 @@ export default function NewRequest() {
           className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 max-h-[75dvh] overflow-y-auto overscroll-contain md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
+          {/* When: day + one clock only (not under A/B — that looked like a second time control). */}
           <OfferDayFilter
             value={offerDayOffset}
             disabledOffsets={disabledOfferDayOffsets}
@@ -549,25 +556,23 @@ export default function NewRequest() {
               offersMap.clearSelection()
             }}
           />
+          <div className="space-y-1">
+            <RideTimeField
+              value={model.dateTime.split('T')[1] || ''}
+              slots={rideTimeSlots}
+              onChange={(time) => {
+                model.setDateTime(time ? `${offerMapDate}T${time}` : `${offerMapDate}T`)
+              }}
+            />
+            <p className="text-[10px] text-muted px-1 leading-snug">
+              {t('passenger.minLeadHoursHint', {
+                hours: 2,
+                defaultValue: 'Поездку можно запланировать не ранее чем через {{hours}} ч.',
+              })}
+            </p>
+          </div>
 
           <RoutePointFields model={model} />
-
-          <div className="flex items-center gap-1.5 w-full px-2 py-2 rounded-lg bg-surface border-t border-surface pt-2.5">
-            <Clock size={14} className="text-muted flex-shrink-0" />
-            <select
-              value={model.dateTime.split('T')[1] || ''}
-              onChange={(e) => {
-                model.setDateTime(`${offerMapDate}T${e.target.value}`)
-              }}
-              className="flex-1 text-xs font-semibold bg-transparent outline-none min-w-0 appearance-none"
-            >
-              <option value="">{t('passenger.selectTime', { defaultValue: 'Select time' })}</option>
-              {rideTimeSlots.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <CaretDown size={12} weight="bold" className="text-muted flex-shrink-0 pointer-events-none" />
-          </div>
 
           {model.fromPoint && model.toPoint && (
             <div className="flex items-center justify-between rounded-xl bg-surface/80 px-3 py-2 text-[11px] text-muted">
@@ -661,20 +666,6 @@ export default function NewRequest() {
       )}
 
       <DriverOffersListModal
-        offers={visibleMapOffers}
-        open={dayOffersModalOpen}
-        title={t('passenger.offers.dayModalTitle', { defaultValue: 'Driver rides this day' })}
-        hint={t('passenger.offers.dayModalHint', {
-          defaultValue: 'Drivers offer a seat on their route. Tap to view on the map.',
-        })}
-        onClose={() => setDayOffersModalOpen(false)}
-        onSelect={(offer) => {
-          setDayOffersModalOpen(false)
-          offersMap.selectOffer(offer.id)
-        }}
-      />
-
-      <DriverOffersListModal
         offers={routeModalOffers}
         open={routeOffersModalOpen}
         title={t('passenger.offers.routeModalTitle', { defaultValue: 'Rides for your route' })}
@@ -698,12 +689,14 @@ export default function NewRequest() {
         isConfirming={offersMap.confirmOfferId === offersMap.selectedOfferId}
         isBooking={Boolean(offersMap.bookingOfferId)}
         errorMessage={offersMap.bookError}
+        showPayViaDriver={offersMap.showPayViaDriver}
         onClose={offersMap.clearSelection}
         onBookClick={() => {
           if (offersMap.selectedOfferId) offersMap.startBookConfirm(offersMap.selectedOfferId)
         }}
         onConfirmBook={() => void offersMap.bookSelectedOffer()}
         onCancelConfirm={offersMap.cancelBookConfirm}
+        onPayViaDriver={() => void offersMap.bookSelectedOfferViaDriver()}
       />
 
       {isSignalMode && (

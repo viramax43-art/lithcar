@@ -38,6 +38,7 @@ type ZonesSettingsQrSectionProps = Pick<
   | 'onShowZoneOnMap'
   | 'handleToggleZone'
   | 'handleDeleteZone'
+  | 'handleUpdateZone'
   | 'pricing'
   | 'handlePricingChange'
   | 'qrSales'
@@ -63,6 +64,7 @@ export function AdminSidebarZonesSettingsQrSection({
   onShowZoneOnMap,
   handleToggleZone,
   handleDeleteZone,
+  handleUpdateZone,
   pricing,
   handlePricingChange,
   qrSales,
@@ -227,7 +229,14 @@ export function AdminSidebarZonesSettingsQrSection({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: zone.color }} />
-                  <span className="text-sm font-bold flex-1 truncate">{zone.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-bold block truncate">{zone.name}</span>
+                    {zone.directionFrom && zone.directionTo && (
+                      <span className="text-[11px] text-muted block truncate mt-0.5">
+                        {zone.directionFrom} → {zone.directionTo}
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-pill flex-shrink-0 ${
                       zone.isActive ? 'bg-accent/15 text-accent-dark' : 'bg-surface text-muted'
@@ -243,6 +252,7 @@ export function AdminSidebarZonesSettingsQrSection({
                   onShowOnMap={() => onShowZoneOnMap(zone.id)}
                   onToggle={() => void handleToggleZone(zone)}
                   onDelete={() => void handleDeleteZone(zone.id)}
+                  onUpdate={(patch) => handleUpdateZone(zone.id, patch)}
                 />
               )}
             </div>
@@ -591,13 +601,43 @@ function ZoneActionsPanel({
   onShowOnMap,
   onToggle,
   onDelete,
+  onUpdate,
 }: {
   zone: ServiceZone
   onShowOnMap: () => void
   onToggle: () => void
   onDelete: () => void
+  onUpdate: (patch: { name?: string; directionFrom?: string | null; directionTo?: string | null }) => Promise<void>
 }) {
   const { t } = useTranslation()
+  const [isEditing, setIsEditing] = useState(false)
+  const [draftName, setDraftName] = useState(zone.name)
+  const [draftFrom, setDraftFrom] = useState(zone.directionFrom ?? '')
+  const [draftTo, setDraftTo] = useState(zone.directionTo ?? '')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const openEditor = () => {
+    setDraftName(zone.name)
+    setDraftFrom(zone.directionFrom ?? '')
+    setDraftTo(zone.directionTo ?? '')
+    setIsEditing(true)
+  }
+
+  const handleSave = async () => {
+    const name = draftName.trim()
+    if (!name || isSaving) return
+    setIsSaving(true)
+    try {
+      await onUpdate({
+        name,
+        directionFrom: draftFrom.trim() ? draftFrom.trim() : null,
+        directionTo: draftTo.trim() ? draftTo.trim() : null,
+      })
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="px-3.5 pb-3.5 border-t border-border pt-3 space-y-2">
@@ -608,6 +648,66 @@ function ZoneActionsPanel({
       >
         {t('common.showOnMap')}
       </button>
+
+      {isEditing ? (
+        <div className="space-y-2 rounded-xl border border-border p-2.5">
+          <label className="block space-y-1">
+            <span className="text-[11px] text-muted">{t('admin.zones.zoneNamePlaceholder')}</span>
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              className={inputCls}
+              placeholder={t('admin.zones.zoneNamePlaceholder')}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block space-y-1">
+              <span className="text-[11px] text-muted">{t('admin.zones.directionFrom', { defaultValue: 'Откуда' })}</span>
+              <input
+                value={draftFrom}
+                onChange={(event) => setDraftFrom(event.target.value)}
+                className={inputCls}
+                placeholder={t('admin.zones.directionFromPlaceholder', { defaultValue: 'Вильнюс' })}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-muted">{t('admin.zones.directionTo', { defaultValue: 'Куда' })}</span>
+              <input
+                value={draftTo}
+                onChange={(event) => setDraftTo(event.target.value)}
+                className={inputCls}
+                placeholder={t('admin.zones.directionToPlaceholder', { defaultValue: 'Каунас' })}
+              />
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="flex-1 py-2 rounded-xl border border-border text-xs font-semibold"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!draftName.trim() || isSaving}
+              className="flex-1 py-2 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-40"
+            >
+              {isSaving ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openEditor}
+          className="w-full py-2 rounded-xl bg-surface text-xs font-semibold hover:bg-border transition-colors"
+        >
+          {t('admin.zones.editDirection', { defaultValue: 'Название и направление' })}
+        </button>
+      )}
+
       <div className="flex gap-2">
         <button
           type="button"

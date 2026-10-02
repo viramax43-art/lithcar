@@ -160,7 +160,10 @@ async def create_offer(
         )
     except DriverOfferError as exc:
         if exc.code == "out_of_zone":
-            raise HTTPException(status_code=400, detail=exc.message) from exc
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "pickup_out_of_zone", "message": exc.message},
+            ) from exc
         raise HTTPException(status_code=400, detail=exc.message) from exc
     driver = await get_driver(db_session, driver_id=session.driver_id)
     car_brand = driver.car_brand if driver else "Unknown"

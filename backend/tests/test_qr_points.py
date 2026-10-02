@@ -46,7 +46,7 @@ async def test_driver_issue_and_user_redeem_qr_points(client, db_session):
     issue_body = issue.json()
     assert issue_body["points"] == 20
     assert issue_body["eurAmount"] == 10.0
-    assert "/api/points/qr/" in issue_body["qrUrl"]
+    assert "/qr/" in issue_body["qrUrl"]
 
     driver_login = await client.post("/api/driver/session/login", json={"key": driver_key})
     assert driver_login.status_code == 200

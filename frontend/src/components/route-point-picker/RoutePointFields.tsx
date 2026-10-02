@@ -4,13 +4,19 @@ import type { RoutePointPickerModel } from './types'
 
 interface RoutePointFieldsProps {
   model: RoutePointPickerModel
+  /** Driver offer form uses its own instruction copy. */
+  audience?: 'passenger' | 'driver'
 }
 
-export default function RoutePointFields({ model }: RoutePointFieldsProps) {
+export default function RoutePointFields({ model, audience = 'passenger' }: RoutePointFieldsProps) {
   const { t } = useTranslation()
 
-  const pointASetupHint = t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
-  const pointBSetupHint = t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
+  const pointASetupHint = audience === 'driver'
+    ? t('driver.pointASetupHint', { defaultValue: 'Укажите место отправки и подтвердите' })
+    : t('passenger.pointASetupHint', { defaultValue: 'Enter, adjust and confirm the address' })
+  const pointBSetupHint = audience === 'driver'
+    ? t('driver.pointBSetupHint', { defaultValue: 'Укажите назначение и подтвердите' })
+    : t('passenger.pointBSetupHint', { defaultValue: 'Enter, adjust and confirm the destination' })
 
   const openSearch = (field: 'from' | 'to') => {
     model.setActiveField(field)
@@ -29,7 +35,10 @@ export default function RoutePointFields({ model }: RoutePointFieldsProps) {
           ? t('passenger.addressPlaceholder', { defaultValue: 'Move map or tap to search' })
           : pointASetupHint}
         active={model.activeIsFrom}
-        onClick={() => model.setActiveField('from')}
+        onClick={() => {
+          if (model.focusRouteField) model.focusRouteField('from')
+          else model.setActiveField('from')
+        }}
         onClear={model.fromPoint ? () => {
           model.setFromPoint(null)
           model.setFromAddress('')
@@ -49,7 +58,11 @@ export default function RoutePointFields({ model }: RoutePointFieldsProps) {
             : pointBSetupHint)
           : t('passenger.pickPointAFirst', { defaultValue: 'Pick point A first' })}
         active={!model.activeIsFrom}
-        onClick={() => model.setActiveField('to')}
+        onClick={() => {
+          if (!model.fromPoint) return
+          if (model.focusRouteField) model.focusRouteField('to')
+          else model.setActiveField('to')
+        }}
         onClear={model.toPoint ? () => {
           model.setToPoint(null)
           model.setToAddress('')

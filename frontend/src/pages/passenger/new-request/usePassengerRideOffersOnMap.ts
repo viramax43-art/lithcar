@@ -44,6 +44,7 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
   const [confirmOfferId, setConfirmOfferId] = useState<string | null>(null)
   const [bookingOfferId, setBookingOfferId] = useState<string | null>(null)
   const [bookError, setBookError] = useState<string | null>(null)
+  const [showPayViaDriver, setShowPayViaDriver] = useState(false)
 
   const pausedRef = useRef(paused)
   pausedRef.current = paused
@@ -156,27 +157,33 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     setSelectedOfferId(null)
     setConfirmOfferId(null)
     setBookError(null)
+    setShowPayViaDriver(false)
   }, [])
 
   const startBookConfirm = useCallback((id: string) => {
     setConfirmOfferId(id)
     setBookError(null)
+    setShowPayViaDriver(false)
   }, [])
 
   const cancelBookConfirm = useCallback(() => {
     setConfirmOfferId(null)
   }, [])
 
-  const bookSelectedOffer = useCallback(async () => {
+  const bookSelectedOffer = useCallback(async (paymentMethod?: 'points' | 'driver_cash') => {
     const offerId = selectedOfferId
     if (!offerId || bookingOfferId) return
 
     setBookingOfferId(offerId)
     setBookError(null)
+    if (paymentMethod !== 'driver_cash') setShowPayViaDriver(false)
     try {
-      const request = await bookRideOffer(offerId)
+      const request = await bookRideOffer(offerId, {
+        paymentMethod: paymentMethod ?? 'points',
+      })
       hapticNotification('success')
       setConfirmOfferId(null)
+      setShowPayViaDriver(false)
       await refresh()
       navigate(`/requests/${request.id}`)
     } catch (error) {
@@ -196,17 +203,16 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
         void refresh()
       } else if (parseApiErrorCode(error) === 'blocked') {
         setBookError(t('errors.blocked', { defaultValue: 'This action is not available because of a block' }))
-      } else if (error instanceof ApiError && error.status === 400) {
-        try {
-          const parsed = JSON.parse(error.body) as { detail?: { code?: string } }
-          if (parsed.detail && typeof parsed.detail === 'object' && parsed.detail.code === 'insufficient_points') {
-            setBookError(t('passenger.insufficientPoints', { defaultValue: 'Not enough points. Top up in Profile.' }))
-          } else {
-            setBookError(error.message)
-          }
-        } catch {
-          setBookError(error.message)
-        }
+      } else if (parseApiErrorCode(error) === 'insufficient_points') {
+        setShowPayViaDriver(true)
+        setBookError(t('passenger.insufficientPointsOffer', {
+          defaultValue: 'Недостаточно поинтов на балансе.',
+        }))
+      } else if (error instanceof ApiError && error.message === 'insufficient_points') {
+        setShowPayViaDriver(true)
+        setBookError(t('passenger.insufficientPointsOffer', {
+          defaultValue: 'Недостаточно поинтов на балансе.',
+        }))
       } else {
         setBookError(error instanceof Error ? error.message : t('common.error', { defaultValue: 'Error' }))
       }
@@ -214,6 +220,10 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
       setBookingOfferId(null)
     }
   }, [bookingOfferId, navigate, refresh, selectedOfferId, t])
+
+  const bookSelectedOfferViaDriver = useCallback(async () => {
+    await bookSelectedOffer('driver_cash')
+  }, [bookSelectedOffer])
 
   return {
     offers,
@@ -224,12 +234,14 @@ export function usePassengerRideOffersOnMap(options: UsePassengerRideOffersOnMap
     confirmOfferId,
     bookingOfferId,
     bookError,
+    showPayViaDriver,
     selectedOffer,
     selectOffer,
     clearSelection,
     startBookConfirm,
     cancelBookConfirm,
     bookSelectedOffer,
+    bookSelectedOfferViaDriver,
     refresh,
   }
 }

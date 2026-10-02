@@ -1,6 +1,11 @@
 import { resolveApiBaseUrl } from '../../config/env'
 import i18n from '../../i18n'
-import { getRequiredTelegramInitData } from './telegramInitDataProvider'
+import {
+  TELEGRAM_INIT_DATA_HEADER,
+  getRequiredTelegramInitData,
+  readLiveTelegramInitData,
+  readTelegramUserIdFromInitData,
+} from './telegramInitDataProvider'
 import {
   clearAccessToken as clearStoredAccessToken,
   clearCachedInitData,
@@ -16,6 +21,17 @@ let sessionRefreshPromise: Promise<void> | null = null
 function authHeaders(): Record<string, string> {
   const token = readStoredAccessToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+/** Telegram user id of the account that is using the app right now ('' when unknown). */
+function liveTelegramUserId(): string {
+  return readTelegramUserIdFromInitData(readLiveTelegramInitData())
+}
+
+/** Adds the live account identity: cookies are shared by all accounts of a device. */
+function withTelegramIdentity(headers: Record<string, string> = {}): Record<string, string> {
+  const initData = readLiveTelegramInitData()
+  return initData ? { ...headers, [TELEGRAM_INIT_DATA_HEADER]: initData } : headers
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
@@ -42,6 +58,7 @@ async function refreshSessionCookies(): Promise<boolean> {
     const response = await fetchWithTimeout(`${resolveApiBaseUrl()}${API_V1}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      headers: withTelegramIdentity(),
     })
     return response.ok
   } catch {
@@ -53,7 +70,7 @@ async function loginWithTelegramInitData(initData: string): Promise<void> {
   const response = await fetchWithTimeout(`${resolveApiBaseUrl()}${API_V1}/auth`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: withTelegramIdentity({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ initData }),
   })
   if (!response.ok) {
@@ -91,19 +108,42 @@ async function loginWithTelegramInitData(initData: string): Promise<void> {
   }
 }
 
-async function hasActiveSession(): Promise<boolean> {
+async function readActiveSessionUserId(): Promise<string | null> {
   try {
     const response = await fetchWithTimeout(`${resolveApiBaseUrl()}${API_V1}/users/me`, {
       credentials: 'include',
-      headers: authHeaders(),
+      headers: withTelegramIdentity(authHeaders()),
     })
-    if (!response.ok && response.status === 401) {
-      clearStoredAccessToken()
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearStoredAccessToken()
+      }
+      return null
     }
-    return response.ok
+    const payload = (await response.json()) as { user_id?: unknown }
+    return typeof payload.user_id === 'string' && payload.user_id ? payload.user_id : null
   } catch {
+    return null
+  }
+}
+
+/**
+ * Cookies and the stored token are shared between the Telegram accounts of one
+ * device, so an active session may belong to the previously used account.
+ */
+function isSessionOfOtherAccount(activeUserId: string): boolean {
+  const telegramUserId = liveTelegramUserId()
+  return Boolean(telegramUserId) && activeUserId !== telegramUserId
+}
+
+async function hasActiveSession(): Promise<boolean> {
+  const activeUserId = await readActiveSessionUserId()
+  if (activeUserId === null) return false
+  if (isSessionOfOtherAccount(activeUserId)) {
+    clearStoredAccessToken()
     return false
   }
+  return true
 }
 
 async function ensurePassengerSession(forceReauth = false): Promise<void> {
@@ -143,6 +183,7 @@ export function clearAccessToken(): void {
   void fetch(`${resolveApiBaseUrl()}${API_V1}/auth/logout`, {
     method: 'POST',
     credentials: 'include',
+    headers: withTelegramIdentity(),
   }).catch(() => undefined)
 }
 

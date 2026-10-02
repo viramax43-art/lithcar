@@ -25,12 +25,24 @@ def normalize_admin_role(role: str) -> str:
     return normalized
 
 
+def normalize_telegram_username(raw: str | None) -> str | None:
+    """`@ProgerArm` -> `progerarm`; empty/blank input means "no binding"."""
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    if value.startswith("@"):
+        value = value[1:]
+    value = value.strip().lower()
+    return value or None
+
+
 async def create_admin_key(
     db_session: AsyncSession,
     *,
     name: str,
     role: str,
     created_by_key_id: str | None,
+    telegram_username: str | None = None,
 ) -> tuple[AdminApiKey, str]:
     normalized_role = normalize_admin_role(role)
     plaintext = generate_admin_key(normalized_role)
@@ -39,6 +51,7 @@ async def create_admin_key(
         role=normalized_role,
         key_hash=hash_admin_key(plaintext),
         key_prefix=plaintext[:16],
+        telegram_username=normalize_telegram_username(telegram_username),
         created_by_key_id=created_by_key_id,
     )
     db_session.add(entity)
@@ -76,6 +89,88 @@ async def get_admin_key_by_id(db_session: AsyncSession, *, admin_key_id: str) ->
     return key
 
 
+def admin_key_matches_telegram_identity(
+    admin_key: AdminApiKey,
+    *,
+    telegram_user_id: str | None,
+    telegram_username: str | None = None,
+) -> bool:
+    """Can this Telegram account use the staff record?
+
+    The immutable Telegram user id wins; the username is only compared while the
+    record has no id yet. Records without any Telegram binding (key-only staff)
+    stay usable from any account.
+    """
+    normalized_user_id = (str(telegram_user_id).strip() if telegram_user_id else "") or None
+    if admin_key.telegram_user_id:
+        return normalized_user_id == admin_key.telegram_user_id
+    if admin_key.telegram_username:
+        return normalize_telegram_username(telegram_username) == admin_key.telegram_username
+    return True
+
+
+async def get_admin_key_by_telegram_identity(
+    db_session: AsyncSession,
+    *,
+    telegram_user_id: str | None,
+    telegram_username: str | None = None,
+) -> AdminApiKey | None:
+    """Find the active staff record linked to a Telegram account.
+
+    Telegram user id wins (immutable). A username matches only records that are
+    not bound to another Telegram id yet, so a freed/renamed username cannot
+    hijack an already bound staff account.
+    """
+    normalized_user_id = str(telegram_user_id).strip() if telegram_user_id else ""
+    if normalized_user_id:
+        result = await db_session.execute(
+            select(AdminApiKey).where(
+                AdminApiKey.telegram_user_id == normalized_user_id,
+                AdminApiKey.is_active.is_(True),
+            )
+        )
+        bound = result.scalars().first()
+        if bound is not None:
+            return bound
+
+    normalized_username = normalize_telegram_username(telegram_username)
+    if not normalized_username:
+        return None
+    result = await db_session.execute(
+        select(AdminApiKey)
+        .where(
+            func.lower(AdminApiKey.telegram_username) == normalized_username,
+            AdminApiKey.telegram_user_id.is_(None),
+            AdminApiKey.is_active.is_(True),
+        )
+        .order_by(AdminApiKey.created_at.asc())
+    )
+    return result.scalars().first()
+
+
+async def bind_admin_key_telegram_identity(
+    db_session: AsyncSession,
+    *,
+    admin_key: AdminApiKey,
+    telegram_user_id: str | None,
+    telegram_username: str | None = None,
+) -> AdminApiKey:
+    """Remember the Telegram identity on first successful Mini App login."""
+    changed = False
+    normalized_user_id = str(telegram_user_id).strip() if telegram_user_id else ""
+    if normalized_user_id and admin_key.telegram_user_id != normalized_user_id:
+        admin_key.telegram_user_id = normalized_user_id
+        changed = True
+    normalized_username = normalize_telegram_username(telegram_username)
+    if normalized_username and admin_key.telegram_username != normalized_username:
+        admin_key.telegram_username = normalized_username
+        changed = True
+    if changed:
+        await db_session.commit()
+        await db_session.refresh(admin_key)
+    return admin_key
+
+
 async def touch_admin_key_usage(db_session: AsyncSession, *, admin_key: AdminApiKey) -> None:
     admin_key.last_used_at = datetime.now(timezone.utc)
     await db_session.commit()
@@ -109,6 +204,7 @@ async def update_admin_key(
     key_id: str,
     name: str | None = None,
     role: str | None = None,
+    telegram_username: str | None = None,
 ) -> AdminApiKey | None:
     key = await db_session.get(AdminApiKey, key_id)
     if key is None:
@@ -117,6 +213,12 @@ async def update_admin_key(
         key.name = name.strip() or key.name
     if role is not None:
         key.role = normalize_admin_role(role)
+    if telegram_username is not None:
+        normalized_username = normalize_telegram_username(telegram_username)
+        if normalized_username != key.telegram_username:
+            # Re-binding to another Telegram account invalidates the stored user id.
+            key.telegram_user_id = None
+        key.telegram_username = normalized_username
     await db_session.commit()
     await db_session.refresh(key)
     return key

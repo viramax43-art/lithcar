@@ -11,6 +11,8 @@ import NotificationBell from '../../components/notifications/NotificationBell'
 import StarRatingInput from '../../components/StarRatingInput'
 import RatingBadge from '../../components/RatingBadge'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, sendPassengerLocation, updateRequest, blockUser } from '../../lib/backend'
+import { MIN_BOOKING_LEAD_HOURS } from '../../lib/rideTimeSlots'
+import { isRideLeadTimeError } from '../../lib/rideLeadTimeError'
 import InlineConfirm from '../admin/components/InlineConfirm'
 import LithuanianPlate from '../../components/LithuanianPlate'
 import { showOnMapHref } from '../../lib/navigation'
@@ -638,9 +640,18 @@ export default function RequestDetail() {
             setRequest(updated)
             setShowEditSheet(false)
           } catch (error) {
-            setErrorMessage(
-              error instanceof Error ? error.message : t('errors.updateRequestFailed', { defaultValue: 'Failed to update request.' }),
-            )
+            if (isRideLeadTimeError(error)) {
+              setErrorMessage(
+                t('passenger.minLeadHoursHint', {
+                  hours: MIN_BOOKING_LEAD_HOURS,
+                  defaultValue: `Ride must be scheduled at least ${MIN_BOOKING_LEAD_HOURS} hours from now.`,
+                }),
+              )
+            } else {
+              setErrorMessage(
+                error instanceof Error ? error.message : t('errors.updateRequestFailed', { defaultValue: 'Failed to update request.' }),
+              )
+            }
           } finally {
             setIsSaving(false)
           }

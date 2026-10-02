@@ -11,10 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as redis
 
-from app.core.security import (
-    DRIVER_ENTER_TOKEN_TTL_SECONDS,
-    decode_permanent_driver_enter_token,
-)
+from app.core.security import decode_permanent_driver_enter_token
 from app.models.driver_login_token import DriverLoginToken, DriverLoginTokenPurpose
 
 
@@ -63,29 +60,18 @@ def _is_likely_jwt(raw_token: str) -> bool:
     return raw_token.count(".") == 2
 
 
-async def _mark_jti_used(redis_client: redis.Redis | None, jti: str) -> None:
-    if not redis_client or not jti:
-        return
-    key = f"revoked:{jti}"
-    if await redis_client.get(key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired login link.",
-        )
-    await redis_client.setex(key, DRIVER_ENTER_TOKEN_TTL_SECONDS, "1")
-
-
 async def redeem_driver_login_token(
     db_session: AsyncSession,
     *,
     raw_token: str,
     redis_client: redis.Redis | None = None,
 ) -> DriverEnterRedemption:
+    # redis_client kept for callers / future revocation; JWT enter links are
+    # reusable until JWT exp so Telegram approval + Profile links don't clash.
+    _ = redis_client
     if _is_likely_jwt(raw_token):
         try:
             payload = decode_permanent_driver_enter_token(raw_token)
-            jti = str(payload.get("jti", "")).strip()
-            await _mark_jti_used(redis_client, jti)
             return DriverEnterRedemption(driver_id=str(payload["driver_id"]))
         except (JWTError, ValueError):
             pass

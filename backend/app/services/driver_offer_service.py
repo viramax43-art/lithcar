@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.driver import Driver
 from app.models.driver_ride_offer import DriverRideOffer, DriverRideOfferStatus
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
+from app.models.ride_payment_method import RidePaymentMethod
 from app.models.ride_request import RideRequest, RideRequestStatus
 from app.models.user import User
 from app.services.block_service import are_users_blocked, get_blocked_user_ids_for_viewer
@@ -29,7 +30,11 @@ from app.services.ride_request_service import (
     create_ride_request_record,
 )
 from app.services.geo_service import haversine_km
-from app.services.zone_service import is_pickup_in_active_zone, snap_pickup_coordinates
+from app.services.zone_service import (
+    PickupOutOfZoneError,
+    assert_pickup_in_active_zone,
+    is_pickup_in_active_zone,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -151,7 +156,10 @@ async def create_driver_offer(
     except InvalidRideDateTimeError as exc:
         raise DriverOfferError("invalid_status", str(exc)) from exc
 
-    from_lat, from_lng = await snap_pickup_coordinates(db_session, lat=from_lat, lng=from_lng)
+    try:
+        await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
+    except PickupOutOfZoneError as exc:
+        raise DriverOfferError("out_of_zone", str(exc)) from exc
 
     now = datetime.now(timezone.utc)
     offer = DriverRideOffer(
@@ -449,6 +457,7 @@ async def book_offer_seat(
     offer_id: str,
     user: User,
     passenger_name: str,
+    payment_method: str | None = None,
 ) -> BookOfferSeatResult:
     try:
         result = await db_session.execute(
@@ -515,7 +524,11 @@ async def book_offer_seat(
 
         points_per_ride = int(quote.points)
         current_balance = int(user.points_balance or 0)
-        if current_balance < points_per_ride:
+        normalized_payment = RidePaymentMethod.normalize(payment_method)
+        if (
+            normalized_payment == RidePaymentMethod.POINTS
+            and current_balance < points_per_ride
+        ):
             raise InsufficientPointsError(
                 required_points=points_per_ride,
                 current_balance=current_balance,
@@ -546,20 +559,24 @@ async def book_offer_seat(
             quote_duration_min=metrics.duration_min if metrics else None,
             quote_tier_label=metrics.tier_label if metrics else None,
             quote_breakdown_json=_quote_breakdown_to_json(quote),
+            payment_method=normalized_payment,
             driver_id=offer.driver_id,
             offer_id=offer.id,
             status=RideRequestStatus.ASSIGNED,
         )
 
-        user.points_balance = current_balance - points_per_ride
-        transaction = PointsTransaction(
-            user_id=user.user_id,
-            amount=-points_per_ride,
-            transaction_type=PointsTransactionType.RIDE_BOOKING_DEBIT,
-            reference_id=request.id,
-            eur_amount_cents=int(quote.price_cents),
-        )
-        db_session.add(transaction)
+        points_debited = 0
+        if normalized_payment == RidePaymentMethod.POINTS:
+            user.points_balance = current_balance - points_per_ride
+            points_debited = points_per_ride
+            transaction = PointsTransaction(
+                user_id=user.user_id,
+                amount=-points_per_ride,
+                transaction_type=PointsTransactionType.RIDE_BOOKING_DEBIT,
+                reference_id=request.id,
+                eur_amount_cents=int(quote.price_cents),
+            )
+            db_session.add(transaction)
         await db_session.flush()
         await db_session.commit()
     except Exception:
@@ -572,7 +589,7 @@ async def book_offer_seat(
     return BookOfferSeatResult(
         request=request,
         offer=offer,
-        points_debited=points_per_ride,
+        points_debited=points_debited,
         points_balance_after=int(user.points_balance or 0),
     )
 

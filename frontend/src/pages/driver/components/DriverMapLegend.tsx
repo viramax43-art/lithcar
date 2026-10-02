@@ -8,9 +8,9 @@ export default function DriverMapLegend({ topOffset }: DriverMapLegendProps) {
   const { t } = useTranslation()
 
   const items = [
-    { color: '#F59E0B', label: t('driver.map.legendFreeOrder', { defaultValue: 'Free order' }) },
-    { color: '#3B82F6', label: t('driver.map.legendDestination', { defaultValue: 'Destination' }) },
-    { color: '#EF4444', label: t('driver.map.legendYourOrder', { defaultValue: 'Your order' }) },
+    { color: '#F59E0B', label: t('driver.map.legendFreeOrder', { defaultValue: 'Свободный старт' }) },
+    { color: '#3B82F6', label: t('driver.map.legendDestination', { defaultValue: 'Назначение' }) },
+    { color: '#EF4444', label: t('driver.map.legendYourOrder', { defaultValue: 'Ваш заказ' }) },
   ]
 
   return (

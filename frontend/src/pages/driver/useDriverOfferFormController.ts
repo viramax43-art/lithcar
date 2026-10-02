@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
-import { createDriverOffer, getPricing, listServiceZones } from '../../lib/backend'
+import { createDriverOffer, getPricing, listServiceZones, parseApiErrorCode } from '../../lib/backend'
+import { MIN_BOOKING_LEAD_HOURS } from '../../lib/rideTimeSlots'
+import { isRideLeadTimeError } from '../../lib/rideLeadTimeError'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
 import {
   RateLimitedError,
@@ -21,7 +23,13 @@ import {
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
-import { getUserGeolocation, panMapToLatLngUnderPin, waitForMapMoveEnd } from '../../lib/mapGeolocation'
+import {
+  GeolocationRequestError,
+  getUserGeolocation,
+  openTelegramLocationSettings,
+  panMapToLatLngUnderPin,
+  waitForMapMoveEnd,
+} from '../../lib/mapGeolocation'
 
 export function useDriverOfferFormController(
   onSuccess: () => void,
@@ -30,13 +38,14 @@ export function useDriverOfferFormController(
   const { t } = useTranslation()
   const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS)
   const [serviceZones, setServiceZones] = useState<ServiceZone[]>([])
-  const [totalSeatsInput, setTotalSeatsInput] = useState('1')
+  // Empty until driver enters seats — one of 4 required inputs.
+  const [totalSeatsInput, setTotalSeatsInput] = useState('')
 
   const parsedTotalSeats = useMemo(() => {
     const trimmed = totalSeatsInput.trim()
     if (!trimmed) return null
     const value = Number.parseInt(trimmed, 10)
-    if (!Number.isFinite(value)) return null
+    if (!Number.isFinite(value) || value < 1) return null
     return value
   }, [totalSeatsInput])
   const activeZones = useMemo(
@@ -136,7 +145,13 @@ export function useDriverOfferFormController(
     setIsResolving(false)
   }, [])
 
-  const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+  const effectiveField: 'from' | 'to' = !fromPoint
+    ? 'from'
+    : activeField === 'from'
+      ? 'from'
+      : !toPoint
+        ? 'to'
+        : activeField
   const pickupZoneCheckActive = isPickupZoneCheckActive(effectiveField, hasZones)
 
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
@@ -211,31 +226,72 @@ export function useDriverOfferFormController(
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
-    const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+    const fieldForZone: 'from' | 'to' =
+      activeField === 'from' || !fromPoint ? 'from' : !toPoint || activeField === 'to' ? 'to' : activeField
     if (isPickupZoneCheckActive(fieldForZone, hasZones)) {
       const preview = resolvePickupLocation(pinLatLng, activeZones)
-      if (preview.snapped && preview.zone) {
-        blockAutoPinOnceRef.current = true
-        cancelPinResolution()
-        panMapToTarget(preview.latlng)
-        showPickupToast()
+      if (preview.outside) {
+        showZoneWarning(
+          t('passenger.pointAOutOfZone', {
+            defaultValue: 'Точка A вне зоны обслуживания. Передвиньте пин в зону и подтвердите снова.',
+          }),
+        )
         return
       }
     }
     const resolved = pinAddress || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`
-    if (!fromPoint) {
+    if (!fromPoint || (activeField === 'from' && !toPoint)) {
       setFromPoint(pinLatLng)
       setFromAddress(resolved)
       setActiveField('to')
       hapticImpact('light')
       window.setTimeout(() => armPinFromMapCenter(), 200)
-    } else if (!toPoint) {
+    } else if (!toPoint || activeField === 'to') {
       setToPoint(pinLatLng)
       setToAddress(resolved)
       hapticImpact('medium')
     }
     cancelPinResolution()
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter, cancelPinResolution, panMapToTarget, showPickupToast])
+  }, [
+    pinLatLng,
+    pinAddress,
+    fromPoint,
+    toPoint,
+    activeField,
+    activeZones,
+    hasZones,
+    armPinFromMapCenter,
+    cancelPinResolution,
+    showZoneWarning,
+    t,
+  ])
+
+  const focusRouteField = useCallback(
+    (field: 'from' | 'to') => {
+      setActiveField(field)
+      setZoneWarning(null)
+      if (field === 'from' && fromPoint) {
+        panMapToTarget(fromPoint, 16)
+        window.setTimeout(() => {
+          skipPinCommitCountRef.current = 0
+          commitPin(fromPoint)
+        }, 520)
+        return
+      }
+      if (field === 'to' && toPoint) {
+        panMapToTarget(toPoint, 16)
+        window.setTimeout(() => {
+          skipPinCommitCountRef.current = 0
+          commitPin(toPoint)
+        }, 520)
+        return
+      }
+      if (field === 'to' && !toPoint && fromPoint) {
+        window.setTimeout(() => armPinFromMapCenter(), 80)
+      }
+    },
+    [armPinFromMapCenter, commitPin, fromPoint, panMapToTarget, toPoint],
+  )
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {
@@ -310,22 +366,42 @@ export function useDriverOfferFormController(
 
   const handleLocateMe = useCallback(() => {
     const map = mapRef.current
-    if (!map || typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (!map) return
     setIsLocating(true)
     void (async () => {
       try {
-        const pos = await getUserGeolocation()
+        const pos = await getUserGeolocation({
+          highAccuracy: true,
+          timeoutMs: 18_000,
+          maxAcceptableAccuracyM: 150,
+        })
+        // One-shot: center pin on GPS to set «откуда» — not live location sharing.
         skipPinCommitCountRef.current += 1
         panMapToLatLngUnderPin(map, { lat: pos.lat, lng: pos.lng }, anchorRef.current, 16)
         await waitForMapMoveEnd(map)
         armPinFromMapCenterRef.current()
-      } catch {
-        /* ignore — user can pan manually */
+      } catch (error) {
+        if (error instanceof GeolocationRequestError && error.code === 'unsupported') {
+          showZoneWarning(t('geo.geolocationUnsupported', { defaultValue: 'Geolocation is not supported.' }))
+        } else if (error instanceof GeolocationRequestError && error.code === 'permission_denied') {
+          openTelegramLocationSettings()
+          showZoneWarning(
+            t('geo.locationPermissionDenied', {
+              defaultValue: 'Нет доступа к геолокации. Разрешите её в настройках Telegram / системы.',
+            }),
+          )
+        } else {
+          showZoneWarning(
+            t('geo.locationFailed', {
+              defaultValue: 'Не удалось определить местоположение. Проверьте GPS и разрешения Telegram.',
+            }),
+          )
+        }
       } finally {
         setIsLocating(false)
       }
     })()
-  }, [anchorRef])
+  }, [anchorRef, showZoneWarning, t])
 
   const handleSeatsInputChange = useCallback((raw: string) => {
     setTotalSeatsInput(raw.replace(/\D/g, ''))
@@ -333,8 +409,10 @@ export function useDriverOfferFormController(
 
   const normalizeSeatsInput = useCallback(() => {
     setTotalSeatsInput((current) => {
-      const value = Number.parseInt(current, 10)
-      if (!Number.isFinite(value) || value < 1) return '1'
+      const trimmed = current.trim()
+      if (!trimmed) return ''
+      const value = Number.parseInt(trimmed, 10)
+      if (!Number.isFinite(value) || value < 1) return ''
       return String(value)
     })
   }, [])
@@ -356,7 +434,24 @@ export function useDriverOfferFormController(
       onSuccess()
     } catch (error) {
       hapticNotification('error')
-      setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit.' }))
+      const code = parseApiErrorCode(error)
+      if (code === 'pickup_out_of_zone') {
+        setErrorMessage(
+          t('passenger.pointAOutOfZone', {
+            defaultValue:
+              'Точка посадки вне зоны обслуживания. Выберите адрес внутри зоны — заказ иначе не принимается.',
+          }),
+        )
+      } else if (isRideLeadTimeError(error)) {
+        setErrorMessage(
+          t('passenger.minLeadHoursHint', {
+            hours: MIN_BOOKING_LEAD_HOURS,
+            defaultValue: `Ride must be scheduled at least ${MIN_BOOKING_LEAD_HOURS} hours from now.`,
+          }),
+        )
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit.' }))
+      }
     } finally {
       setSubmitting(false)
     }
@@ -403,6 +498,7 @@ export function useDriverOfferFormController(
     dateTime,
     setDateTime,
     totalSeatsInput,
+    parsedTotalSeats,
     handleSeatsInputChange,
     normalizeSeatsInput,
     pinLatLng,
@@ -427,6 +523,7 @@ export function useDriverOfferFormController(
     commitPin,
     commitPinFromMap,
     confirmPoint,
+    focusRouteField,
     armPinFromMapCenter,
     handleSelectSearchResult,
     handleLocateMe,

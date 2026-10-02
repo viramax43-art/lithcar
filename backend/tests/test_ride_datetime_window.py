@@ -11,9 +11,13 @@ from app.services.ride_booking_service import (
 from tests.ride_datetime import APP_TZ, future_ride_datetime
 
 
-def test_same_day_booking_without_lead_time():
-    """A ride later today is accepted; the old 5-hour lead time is gone."""
-    ride_time = future_ride_datetime(hours_ahead=1)
+def test_same_day_booking_requires_two_hour_lead():
+    """Long-route booking: not earlier than 2 hours from now."""
+    too_soon = future_ride_datetime(hours_ahead=1)
+    with pytest.raises(InvalidRideDateTimeError):
+        validate_ride_datetime(too_soon)
+
+    ride_time = future_ride_datetime(hours_ahead=3)
     assert validate_ride_datetime(ride_time) == ride_time
     assert ride_time > datetime.now(timezone.utc)
 

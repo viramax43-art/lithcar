@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.app_timezone import normalize_app_datetime, to_app_local
+from app.core.app_timezone import MIN_BOOKING_LEAD_HOURS, normalize_app_datetime, to_app_local
 from app.models.points_transaction import PointsTransaction, PointsTransactionType
 from app.models.pricing_settings import PricingSettings
 from app.models.ride_payment_method import RidePaymentMethod
@@ -70,19 +70,20 @@ def validate_ride_datetime(
     work_start: str = "06:00",
     work_end: str = "19:00",
     slot_interval_minutes: int = 30,
-    min_lead_hours: int = 0,
+    min_lead_hours: int | None = None,
 ) -> datetime:
     # work_start/work_end remain in the signature for backward compatibility
-    # with pricing records and callers. Rides are now available around the
-    # clock; only the configured slot interval limits the chosen time.
+    # with pricing records and callers. Rides are available around the clock;
+    # long-route booking requires a minimum lead time (not instant taxi).
     del work_start, work_end
+    lead_hours = MIN_BOOKING_LEAD_HOURS if min_lead_hours is None else min_lead_hours
     normalized = normalize_app_datetime(date_time)
     now = datetime.now(timezone.utc)
-    min_time = now + timedelta(hours=min_lead_hours)
+    min_time = now + timedelta(hours=lead_hours)
     if normalized < min_time:
-        if min_lead_hours > 0:
+        if lead_hours > 0:
             raise InvalidRideDateTimeError(
-                f"Ride must be scheduled at least {min_lead_hours} hours in advance."
+                f"Ride must be scheduled at least {lead_hours} hours in advance."
             )
         raise InvalidRideDateTimeError("Ride time must be in the future.")
     max_date = now + timedelta(days=2)

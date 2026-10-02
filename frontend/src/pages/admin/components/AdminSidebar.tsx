@@ -106,6 +106,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
     onShowZoneOnMap,
     handleToggleZone,
     handleDeleteZone,
+    handleUpdateZone,
     pricing,
     qrSales,
     hasLoadedQrSalesOnce,
@@ -481,6 +482,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               onShowZoneOnMap={onShowZoneOnMap}
               handleToggleZone={handleToggleZone}
               handleDeleteZone={handleDeleteZone}
+              handleUpdateZone={handleUpdateZone}
               pricing={pricing}
               handlePricingChange={handlePricingChange}
               qrSales={qrSales}

@@ -40,6 +40,35 @@ function resolveLiveInitData(): string {
   return readInitDataFromTelegramGlobals() || readInitDataFromUrl() || getEnvTelegramInitData()
 }
 
+/**
+ * Header that carries the live initData of the account using the app right now.
+ * Cookies are shared between the Telegram accounts of one device, so the backend
+ * needs this header to tell apart the account that is actually in use.
+ */
+export const TELEGRAM_INIT_DATA_HEADER = 'X-Telegram-Init-Data'
+
+/** initData of the currently active Telegram account (WebApp, URL or env). */
+export function readLiveTelegramInitData(): string {
+  if (typeof window === 'undefined') return ''
+  return resolveLiveInitData()
+}
+
+/** Telegram user id encoded inside `initData` ('' when it cannot be parsed). */
+export function readTelegramUserIdFromInitData(initData: string): string {
+  if (!initData) return ''
+  try {
+    const rawUser = new URLSearchParams(initData).get('user')
+    if (!rawUser) return ''
+    const parsed = JSON.parse(rawUser) as { id?: unknown }
+    if (typeof parsed?.id === 'number' || (typeof parsed?.id === 'string' && parsed.id)) {
+      return String(parsed.id)
+    }
+  } catch {
+    // Not a url-encoded initData (e.g. the local test stub): no identity available.
+  }
+  return ''
+}
+
 function resolveInitDataOnce(): string {
   const live = resolveLiveInitData()
   if (live) {

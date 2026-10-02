@@ -139,7 +139,7 @@ async def test_create_offer_validates_datetime(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_offer_outside_zone_snaps_pickup_into_zone(client, db_session):
+async def test_create_offer_outside_zone_is_rejected(client, db_session):
     await _create_zone(client)
     driver_id, driver_key = await _create_driver(client)
     login = await client.post("/api/driver/session/login", json={"key": driver_key})
@@ -152,12 +152,9 @@ async def test_create_offer_outside_zone_snaps_pickup_into_zone(client, db_sessi
             toPoint={"address": "Far B", "latlng": {"lat": 10.1, "lng": 10.1}},
         ),
     )
-    assert created.status_code == 201
-    body = created.json()
-    from_latlng = body["fromPoint"]["latlng"]
-    assert 54.65 <= from_latlng["lat"] <= 54.72
-    assert 25.22 <= from_latlng["lng"] <= 25.34
-    assert body["toPoint"]["latlng"]["lat"] == 10.1
+    assert created.status_code == 400
+    detail = created.json()["detail"]
+    assert detail["code"] == "pickup_out_of_zone"
 
 
 @pytest.mark.asyncio
@@ -532,11 +529,20 @@ async def test_book_duplicate_same_passenger(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_zone_snap_on_create(client, db_session):
+async def test_offer_pickup_outside_zone_is_not_snapped(client, db_session):
+    """Отказ по зоне не должен «телепортировать» точку A к центроиду зоны.
+
+    Покрывает контракт ``pickup_out_of_zone``: при отказе (HTTP 400) поездка
+    не создаётся вовсе, поэтому снизить/подвинуть координаты нечему.
+    """
     await _create_zone(client)
     _, driver_key = await _create_driver(client)
     login = await client.post("/api/driver/session/login", json={"key": driver_key})
     assert login.status_code == 200
+
+    from app.models.driver_ride_offer import DriverRideOffer
+    from sqlalchemy import func, select
+
     created = await client.post(
         "/api/driver/offers",
         json=_offer_payload(
@@ -544,10 +550,11 @@ async def test_zone_snap_on_create(client, db_session):
             toPoint={"address": "Outside B", "latlng": {"lat": 1.1, "lng": 1.1}},
         ),
     )
-    assert created.status_code == 201
-    from_latlng = created.json()["fromPoint"]["latlng"]
-    assert 54.65 <= from_latlng["lat"] <= 54.72
-    assert 25.22 <= from_latlng["lng"] <= 25.34
+    assert created.status_code == 400
+    assert created.json()["detail"]["code"] == "pickup_out_of_zone"
+
+    offers_count = await db_session.execute(select(func.count()).select_from(DriverRideOffer))
+    assert int(offers_count.scalar_one() or 0) == 0
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import { createRequest, getCurrentUser, getPricing, getRideQuote, listServiceZones, parseApiErrorCode } from '../../../lib/backend'
 import { ensurePassengerAccessToken } from '../../../infrastructure/auth/passengerAuthSession'
+import { MIN_BOOKING_LEAD_HOURS } from '../../../lib/rideTimeSlots'
+import { isRideLeadTimeError } from '../../../lib/rideLeadTimeError'
 import { DEFAULT_PRICING_SETTINGS } from '../../../lib/pricingDefaults'
 import {
   RateLimitedError,
@@ -23,6 +25,13 @@ import {
 import type { MutableRefObject } from 'react'
 import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
+import {
+  GeolocationRequestError,
+  getUserGeolocation,
+  openTelegramLocationSettings,
+  panMapToLatLngUnderPin,
+  waitForMapMoveEnd,
+} from '../../../lib/mapGeolocation'
 
 const STORAGE_KEY = 'ride_new_request_draft'
 
@@ -172,7 +181,14 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     setIsResolving(false)
   }, [])
 
-  const effectiveField: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+  // Honour activeField so user can tap A and go back while B is still empty.
+  const effectiveField: 'from' | 'to' = !fromPoint
+    ? 'from'
+    : activeField === 'from'
+      ? 'from'
+      : !toPoint
+        ? 'to'
+        : activeField
   const pickupZoneCheckActive = isPickupZoneCheckActive(effectiveField, hasZones)
 
   const panMapToTarget = useCallback((target: LatLng, zoom = 15) => {
@@ -269,25 +285,29 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
-    const fieldForZone: 'from' | 'to' = !fromPoint ? 'from' : !toPoint ? 'to' : activeField
+    const fieldForZone: 'from' | 'to' =
+      activeField === 'from' || !fromPoint ? 'from' : !toPoint || activeField === 'to' ? 'to' : activeField
     if (isPickupZoneCheckActive(fieldForZone, hasZones)) {
       const preview = resolvePickupLocation(pinLatLng, activeZones)
-      if (preview.snapped && preview.zone) {
-        blockAutoPinOnceRef.current = true
-        cancelPinResolution()
-        panMapToTarget(preview.latlng)
-        showPickupToast()
+      if (preview.outside) {
+        // Stay put — do not fly the map to a zone centroid.
+        showZoneWarning(
+          t('passenger.pointAOutOfZone', {
+            defaultValue: 'Точка A вне зоны обслуживания. Передвиньте пин в зону и подтвердите снова.',
+          }),
+        )
         return
       }
     }
     const resolved = pinAddress || `${pinLatLng.lat.toFixed(4)}, ${pinLatLng.lng.toFixed(4)}`
-    if (!fromPoint) {
+    // Re-confirm A when user went back to edit it.
+    if (!fromPoint || (activeField === 'from' && !toPoint)) {
       setFromPoint(pinLatLng)
       setFromAddress(resolved)
       setActiveField('to')
       hapticImpact('light')
       window.setTimeout(() => armPinFromMapCenter(), 200)
-    } else if (!toPoint) {
+    } else if (!toPoint || activeField === 'to') {
       setToPoint(pinLatLng)
       setToAddress(resolved)
       hapticImpact('medium')
@@ -295,7 +315,46 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     cancelPinResolution()
     setZoneWarning(null)
     setPickupToast(null)
-  }, [pinLatLng, pinAddress, fromPoint, toPoint, activeField, activeZones, hasZones, armPinFromMapCenter, cancelPinResolution, panMapToTarget, showPickupToast])
+  }, [
+    pinLatLng,
+    pinAddress,
+    fromPoint,
+    toPoint,
+    activeField,
+    activeZones,
+    hasZones,
+    armPinFromMapCenter,
+    cancelPinResolution,
+    showZoneWarning,
+    t,
+  ])
+
+  const focusRouteField = useCallback(
+    (field: 'from' | 'to') => {
+      setActiveField(field)
+      setZoneWarning(null)
+      if (field === 'from' && fromPoint) {
+        panMapToTarget(fromPoint, 16)
+        window.setTimeout(() => {
+          skipPinCommitCountRef.current = 0
+          commitPin(fromPoint)
+        }, 520)
+        return
+      }
+      if (field === 'to' && toPoint) {
+        panMapToTarget(toPoint, 16)
+        window.setTimeout(() => {
+          skipPinCommitCountRef.current = 0
+          commitPin(toPoint)
+        }, 520)
+        return
+      }
+      if (field === 'to' && !toPoint && fromPoint) {
+        window.setTimeout(() => armPinFromMapCenter(), 80)
+      }
+    },
+    [armPinFromMapCenter, commitPin, fromPoint, panMapToTarget, toPoint],
+  )
 
   const commitPinFromMap = useCallback(
     (latlng: LatLng) => {
@@ -443,23 +502,44 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   )
 
   const handleLocateMe = useCallback(() => {
-    if (!navigator.geolocation) {
-      showZoneWarning(t('geo.geolocationUnsupported', { defaultValue: 'Geolocation is not supported.' }))
-      return
-    }
+    const map = mapRef.current
+    if (!map) return
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    void (async () => {
+      try {
+        const pos = await getUserGeolocation({
+          highAccuracy: true,
+          timeoutMs: 18_000,
+          maxAcceptableAccuracyM: 80,
+        })
+        // Place GPS under the selection pin (not map center) — center fly was
+        // leaving the pin south of the real fix (toward the school).
+        skipPinCommitCountRef.current += 1
+        panMapToLatLngUnderPin(map, { lat: pos.lat, lng: pos.lng }, anchorRef.current, 16)
+        await waitForMapMoveEnd(map)
+        armPinFromMapCenterRef.current()
+      } catch (error) {
+        if (error instanceof GeolocationRequestError && error.code === 'unsupported') {
+          showZoneWarning(t('geo.geolocationUnsupported', { defaultValue: 'Geolocation is not supported.' }))
+        } else if (error instanceof GeolocationRequestError && error.code === 'permission_denied') {
+          openTelegramLocationSettings()
+          showZoneWarning(
+            t('geo.locationPermissionDenied', {
+              defaultValue: 'Нет доступа к геолокации. Разрешите её в настройках Telegram / системы.',
+            }),
+          )
+        } else {
+          showZoneWarning(
+            t('geo.locationFailed', {
+              defaultValue: 'Не удалось определить местоположение. Проверьте GPS и разрешения Telegram.',
+            }),
+          )
+        }
+      } finally {
         setIsLocating(false)
-        panMapToTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude }, 16)
-      },
-      () => {
-        setIsLocating(false)
-        showZoneWarning(t('geo.locationFailed', { defaultValue: 'Could not determine location.' }))
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
-  }, [panMapToTarget, showZoneWarning, t])
+      }
+    })()
+  }, [anchorRef, showZoneWarning, t])
 
   const submitRequest = useCallback(async (paymentMethod?: 'points' | 'driver_cash' | 'driver_card') => {
     const [datePart, timePart] = dateTime.split('T')
@@ -481,13 +561,29 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       setTimeout(() => navigate('/requests'), 1200)
     } catch (error) {
       hapticNotification('error')
-      if (parseApiErrorCode(error) === 'insufficient_points') {
+      const code = parseApiErrorCode(error)
+      const rawMessage = error instanceof Error ? error.message : ''
+      if (code === 'insufficient_points' || rawMessage === 'insufficient_points') {
         setShowPayViaDriver(true)
         setErrorMessage(t('passenger.insufficientPointsOffer', {
-          defaultValue: 'Not enough points on balance.',
+          defaultValue: 'Недостаточно поинтов на балансе.',
         }))
+      } else if (code === 'pickup_out_of_zone' || rawMessage === 'pickup_out_of_zone') {
+        setErrorMessage(
+          t('passenger.pointAOutOfZone', {
+            defaultValue:
+              'Точка посадки вне зоны обслуживания. Выберите адрес внутри зоны — заказ иначе не принимается.',
+          }),
+        )
+      } else if (isRideLeadTimeError(error)) {
+        setErrorMessage(
+          t('passenger.minLeadHoursHint', {
+            hours: MIN_BOOKING_LEAD_HOURS,
+            defaultValue: `Ride must be scheduled at least ${MIN_BOOKING_LEAD_HOURS} hours from now.`,
+          }),
+        )
       } else {
-        setErrorMessage(error instanceof Error ? error.message : t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
+        setErrorMessage(rawMessage || t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
       }
     } finally {
       setSubmitting(false)
@@ -631,6 +727,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     commitPin,
     commitPinFromMap,
     confirmPoint,
+    focusRouteField,
     armPinFromMapCenter,
     handleSearch,
     handleSelectSearchResult,

@@ -9,8 +9,8 @@
  *   [side menu: QR, history, logout]
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { CaretRight, Clock, Crosshair, List, MapPin, Megaphone, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
@@ -37,8 +37,9 @@ import {
 import { reverseGeocode } from '../../lib/geocode'
 import { formatRideTime } from '../../i18n/dateTime'
 import { ApiError } from '../../infrastructure/http/httpClient'
-import { getDefaultPeriodFilter, matchesPeriodFilter } from '../../lib/periodFilter'
-import { hapticImpact, hapticNotification } from '../../lib/telegram'
+import { setLastAppShell, exitToPassengerApp } from '../../lib/driverShell'
+import { matchesPeriodFilter } from '../../lib/periodFilter'
+import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
 
@@ -332,6 +333,7 @@ function NextStopBar({
 
 export default function DriverCabinet() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [session, setSession] = useState<DriverSessionUser | null>(null)
   const [magicLinkHint, setMagicLinkHint] = useState<string | null>(null)
@@ -345,6 +347,7 @@ export default function DriverCabinet() {
   useEscapeClose(Boolean(pendingCritical) && !isActioning, () => setPendingCritical(null))
   useEscapeClose(sideMenuOpen && !pendingCritical, () => setSideMenuOpen(false))
   const [nextBarHeight, setNextBarHeight] = useState(108)
+  // Banner only after user tries to enable live GPS (not on every open).
   const [geoBlocked, setGeoBlocked] = useState(false)
   const [geoBannerDismissed, setGeoBannerDismissed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -358,12 +361,13 @@ export default function DriverCabinet() {
   const [isBlockingPassenger, setIsBlockingPassenger] = useState(false)
   const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
   const [filterExpanded, setFilterExpanded] = useState(false)
-  const defaultPeriod = getDefaultPeriodFilter()
-  const [filterDate, setFilterDate] = useState(defaultPeriod.filterDate)
-  const [filterDateEnd, setFilterDateEnd] = useState(defaultPeriod.filterDateEnd)
-  const [filterTime, setFilterTime] = useState(defaultPeriod.filterTime)
-  const [filterTimeEnd, setFilterTimeEnd] = useState(defaultPeriod.filterTimeEnd)
-  const [cabinetMode, setCabinetMode] = useState<DriverCabinetMode>('my')
+  // Show all upcoming futures by default (not "today only") so passenger
+  // A→B points appear as soon as they book — drivers hunt like hawks.
+  const [filterDate, setFilterDate] = useState('')
+  const [filterDateEnd, setFilterDateEnd] = useState('')
+  const [filterTime, setFilterTime] = useState('')
+  const [filterTimeEnd, setFilterTimeEnd] = useState('')
+  const [cabinetMode, setCabinetMode] = useState<DriverCabinetMode>('available')
   const [isClaiming, setIsClaiming] = useState(false)
 
   const canSelfAssign = Boolean(session?.canSelfAssign ?? mapData?.session.canSelfAssign)
@@ -381,46 +385,68 @@ export default function DriverCabinet() {
     setCabinetData(data)
   }, [])
 
-  // Restore session on mount; retry via Telegram bootstrap after failed magic link
+  // Restore session on mount; always try Telegram bootstrap so return from chat keeps cabinet.
   useEffect(() => {
     let cancelled = false
     const loginParam = searchParams.get('login')
     void (async () => {
+      setLastAppShell('driver')
+      const clearLoginParam = () => {
+        if (!loginParam) return
+        searchParams.delete('login')
+        setSearchParams(searchParams, { replace: true })
+      }
       try {
-        await getDriverSession()
+        const current = await getDriverSession()
         if (cancelled) return
-        if (loginParam) {
-          searchParams.delete('login')
-          setSearchParams(searchParams, { replace: true })
-        }
+        setSession(current)
+        clearLoginParam()
+        setMagicLinkHint(null)
+        await Promise.all([loadMapData(), loadCabinetData()])
+        return
+      } catch {
+        // fall through to bootstrap
+      }
+      try {
+        const bootstrapped = await bootstrapDriverAccess()
+        if (cancelled) return
+        setSession(bootstrapped)
+        clearLoginParam()
         setMagicLinkHint(null)
         await Promise.all([loadMapData(), loadCabinetData()])
       } catch {
         if (cancelled) return
         if (loginParam === 'invalid') {
-          try {
-            const bootstrapped = await bootstrapDriverAccess()
-            if (cancelled) return
-            setSession(bootstrapped)
-            setMagicLinkHint(null)
-            searchParams.delete('login')
-            setSearchParams(searchParams, { replace: true })
-            await Promise.all([loadMapData(), loadCabinetData()])
-            return
-          } catch {
-            setMagicLinkHint(
-              t('driver.magicLogin.invalid', {
-                defaultValue:
-                  'Login link did not work. Open the Ride app in Telegram and use Profile → Driver cabinet, or enter your driver key below.',
-              }),
-            )
-          }
+          setMagicLinkHint(
+            t('driver.magicLogin.invalid', {
+              defaultValue:
+                'Login link did not work. Open the Ride app in Telegram and use Profile → Driver cabinet, or enter your driver key below.',
+            }),
+          )
         }
         setSession(null)
       }
     })()
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-bootstrap when Mini App becomes visible again (Telegram chat → back).
+  useEffect(() => {
+    if (!session) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      setLastAppShell('driver')
+      void getDriverSession()
+        .then((current) => setSession(current))
+        .catch(() => {
+          void bootstrapDriverAccess()
+            .then((bootstrapped) => setSession(bootstrapped))
+            .catch(() => undefined)
+        })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [session?.driverId])
 
   // Poll map data
   useEffect(() => {
@@ -456,39 +482,129 @@ export default function DriverCabinet() {
     }
   }, [session?.driverId])
 
-  // ── Geolocation ───────────────────────────────────────────────────────────
+  // ── Geolocation (continuous; Telegram needs retries + user gesture) ───────
 
   const lastSentRef = useRef(0)
-  useEffect(() => {
-    if (!session) return
-    if (!navigator.geolocation) {
-      setGeoBlocked(true)
-      return
+  const [geoActivating, setGeoActivating] = useState(false)
+  const geoFailCountRef = useRef(0)
+
+  const applyDriverPosition = useCallback((lat: number, lng: number, heading?: number | null) => {
+    geoFailCountRef.current = 0
+    setGeoBlocked(false)
+    setGeoBannerDismissed(false)
+    setDriverLocation({ lat, lng })
+    if (heading != null && Number.isFinite(heading) && heading >= 0) {
+      setDriverHeading(heading)
     }
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng, heading } = pos.coords
-        setGeoBlocked(false)
-        setDriverLocation({ lat, lng })
-        if (heading != null && Number.isFinite(heading) && heading >= 0) {
-          setDriverHeading(heading)
-        }
-        const now = Date.now()
-        if (now - lastSentRef.current >= LOCATION_INTERVAL_MS) {
-          lastSentRef.current = now
-          void sendDriverLocation(lat, lng).catch(() => undefined)
-        }
-      },
-      (err) => {
-        // Surface permission problems instead of failing silently.
-        if (err.code === err.PERMISSION_DENIED || err.code === err.POSITION_UNAVAILABLE) {
-          setGeoBlocked(true)
-        }
-      },
-      { enableHighAccuracy: true, maximumAge: 3_000, timeout: 15_000 },
-    )
-    return () => navigator.geolocation.clearWatch(watchId)
-  }, [session?.driverId])
+    const now = Date.now()
+    if (now - lastSentRef.current >= LOCATION_INTERVAL_MS) {
+      lastSentRef.current = now
+      void sendDriverLocation(lat, lng).catch(() => undefined)
+    }
+  }, [])
+
+  const requestDriverGeolocation = useCallback(async (forceSettings = false) => {
+    const { getUserGeolocation, openTelegramLocationSettings } = await import('../../lib/mapGeolocation')
+    if (forceSettings) openTelegramLocationSettings()
+    const pos = await getUserGeolocation({
+      highAccuracy: true,
+      timeoutMs: 20_000,
+      maxAcceptableAccuracyM: 500,
+    })
+    // Bypass throttle so activate/send hits the server immediately.
+    lastSentRef.current = 0
+    applyDriverPosition(pos.lat, pos.lng)
+    return pos
+  }, [applyDriverPosition])
+
+  const handleActivateGeolocation = useCallback(() => {
+    setGeoActivating(true)
+    setGeoBannerDismissed(false)
+    setLiveGeoEnabled(true)
+    void (async () => {
+      try {
+        await requestDriverGeolocation(true)
+        hapticImpact('medium')
+      } catch {
+        setGeoBlocked(true)
+        hapticNotification('error')
+      } finally {
+        setGeoActivating(false)
+      }
+    })()
+  }, [requestDriverGeolocation])
+
+  // Live GPS watch is opt-in only. One-shot on enter shows the driver pin
+  // without continuous tracking (evening futures must not drift the map).
+  const [liveGeoEnabled, setLiveGeoEnabled] = useState(false)
+  const oneShotGeoDoneRef = useRef(false)
+
+  useEffect(() => {
+    if (!session || oneShotGeoDoneRef.current) return
+    oneShotGeoDoneRef.current = true
+    void requestDriverGeolocation(false).catch(() => {
+      // Silent — pin stays hidden until driver taps «Включить геолокацию».
+    })
+  }, [session?.driverId, requestDriverGeolocation])
+
+  useEffect(() => {
+    if (!session || !liveGeoEnabled) return
+    let cancelled = false
+    let watchId: number | undefined
+    let pollTimer: number | undefined
+
+    const markFailure = () => {
+      geoFailCountRef.current += 1
+      if (!cancelled && geoFailCountRef.current >= 2) {
+        setGeoBlocked(true)
+      }
+    }
+
+    const startWatch = (highAccuracy: boolean) => {
+      if (!navigator.geolocation || cancelled) return
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          applyDriverPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.heading)
+        },
+        () => {
+          if (highAccuracy) {
+            startWatch(false)
+            return
+          }
+          markFailure()
+        },
+        {
+          enableHighAccuracy: highAccuracy,
+          maximumAge: highAccuracy ? 5_000 : 30_000,
+          timeout: highAccuracy ? 20_000 : 25_000,
+        },
+      )
+    }
+
+    const pollOnce = async () => {
+      try {
+        await requestDriverGeolocation(false)
+      } catch {
+        markFailure()
+      }
+    }
+
+    void pollOnce().finally(() => {
+      if (!cancelled) startWatch(true)
+    })
+
+    pollTimer = window.setInterval(() => {
+      if (cancelled) return
+      void pollOnce()
+    }, 20_000)
+
+    return () => {
+      cancelled = true
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
+      if (pollTimer !== undefined) window.clearInterval(pollTimer)
+    }
+  }, [session?.driverId, liveGeoEnabled, applyDriverPosition, requestDriverGeolocation])
 
   useEffect(() => {
     if (!session) return
@@ -498,7 +614,8 @@ export default function DriverCabinet() {
         const page = await listDriverOffers({ status: 'open', limit: 20, offset: 0 })
         if (cancelled) return
         const total = page.items.reduce((sum, offer) => sum + offer.seatsAvailable, 0)
-        setAvailableSeats(total)
+        // Нет открытых направлений — не показываем «0 мест свободно» по умолчанию.
+        setAvailableSeats(total > 0 ? total : null)
       } catch {
         if (!cancelled) setAvailableSeats(null)
       }
@@ -532,7 +649,10 @@ export default function DriverCabinet() {
     [availablePoints, filterDate, filterDateEnd, filterTime, filterTimeEnd],
   )
 
-  const mapDisplayPoints = cabinetMode === 'available' ? visibleAvailablePoints : visiblePoints
+  // Like passenger map: free A→B both stay visible. Time only on start (in icon).
+  const mapDisplayPoints = cabinetMode === 'available'
+    ? visibleAvailablePoints
+    : [...visibleAvailablePoints, ...visiblePoints]
 
   const displayDriverLocation = driverLocation ?? mapData?.driverLocation ?? null
   const passengerLocations = useMemo<PassengerLiveLocation[]>(
@@ -722,6 +842,8 @@ export default function DriverCabinet() {
 
   const handlePointDragEnd = async (rideId: string, pointType: 'pickup' | 'dropoff', latlng: LatLng) => {
     setErrorMessage(null)
+    // Только точка посадки (A) — точка назначения (B) принадлежит заявке пассажира.
+    if (pointType !== 'pickup') return
     let address = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`
     try {
       const resolved = await reverseGeocode(latlng)
@@ -729,15 +851,10 @@ export default function DriverCabinet() {
     } catch { /* fallback */ }
     try {
       const point = { address, lat: latlng.lat, lng: latlng.lng }
-      await updateDriverRideRoute(
-        rideId,
-        pointType === 'pickup' ? { fromPoint: point } : { toPoint: point },
-      )
-      if (pointType === 'pickup') {
-        try {
-          await notifyPickupChange(rideId)
-        } catch { /* route saved even if notify fails */ }
-      }
+      await updateDriverRideRoute(rideId, { fromPoint: point })
+      try {
+        await notifyPickupChange(rideId)
+      } catch { /* route saved even if notify fails */ }
       hapticImpact('light')
       await loadMapData()
     } catch (err) {
@@ -752,12 +869,46 @@ export default function DriverCabinet() {
 
   const handleLogout = async () => {
     setSideMenuOpen(false)
+    setLastAppShell('passenger')
     try { await setDriverOnlineStatus(false) } catch { /* ignore */ }
     try { await logoutDriverSession() } catch { /* ignore */ }
     setSession(null)
     setMapData(null)
     setCabinetData(null)
   }
+
+  /**
+   * Explicit exit from the driver shell into the passenger cabinet (TZ D3).
+   * Passenger routes are guarded by the driver-shell flag, so this is the only
+   * way a driver can reach the passenger UI (no accidental fall-through).
+   */
+  const handleOpenPassengerApp = () => {
+    hapticSelection()
+    setSideMenuOpen(false)
+    exitToPassengerApp()
+    navigate('/', { replace: true })
+  }
+
+  const [locateTick, setLocateTick] = useState(0)
+  const [isLocating, setIsLocating] = useState(false)
+
+  const handleLocateMe = useCallback(() => {
+    hapticSelection()
+    setIsLocating(true)
+    setLiveGeoEnabled(true)
+    void (async () => {
+      try {
+        await requestDriverGeolocation(false)
+        setLocateTick((n) => n + 1)
+        setGeoBlocked(false)
+      } catch {
+        setGeoBlocked(true)
+        hapticNotification('error')
+      } finally {
+        setIsLocating(false)
+      }
+    })()
+  }, [requestDriverGeolocation])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -766,6 +917,7 @@ export default function DriverCabinet() {
       <LoginScreen
         magicLinkHint={magicLinkHint}
         onLogin={async (s) => {
+          setLastAppShell('driver')
           setSession(s)
           setMagicLinkHint(null)
           await Promise.all([loadMapData(), loadCabinetData()])
@@ -796,6 +948,7 @@ export default function DriverCabinet() {
           driverHeading={resolvedDriverHeading}
           driverLabel={session.name}
           mapInsetTop={mapInsetTop}
+          locateTick={locateTick}
           onSelectPoint={(pt) => setSelectedPointId(pt.id)}
           onPointDragEnd={(rideId, pointType, latlng) => void handlePointDragEnd(rideId, pointType, latlng)}
           onMapMarkViewModeChange={setIsMapMarkViewMode}
@@ -860,23 +1013,38 @@ export default function DriverCabinet() {
           </div>
         )}
 
-        <NotificationBell
-          pool="driver"
-          enabled={!!session}
-          className="pointer-events-auto w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform relative touch-none"
-          onNotificationSelect={(notification) => {
-            // Deep link: focus the related ride on the map when the payload references one.
-            const rideId = (notification.payload as Record<string, unknown> | null)?.rideId
-            if (typeof rideId !== 'string') return
-            const target =
-              points.find((p) => p.rideId === rideId && p.pointStatus !== 'done')
-              ?? points.find((p) => p.rideId === rideId)
-            if (target) {
-              setCabinetMode('my')
-              setSelectedPointId(target.id)
-            }
-          }}
-        />
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleLocateMe}
+            disabled={isLocating}
+            className="w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform touch-none disabled:opacity-60"
+            title={t('common.myLocation', { defaultValue: 'My location' })}
+          >
+            {isLocating ? (
+              <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" />
+            ) : (
+              <Crosshair size={22} weight="bold" />
+            )}
+          </button>
+          <NotificationBell
+            pool="driver"
+            enabled={!!session}
+            className="w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform relative touch-none"
+            onNotificationSelect={(notification) => {
+              // Deep link: focus the related ride on the map when the payload references one.
+              const rideId = (notification.payload as Record<string, unknown> | null)?.rideId
+              if (typeof rideId !== 'string') return
+              const target =
+                points.find((p) => p.rideId === rideId && p.pointStatus !== 'done')
+                ?? points.find((p) => p.rideId === rideId)
+              if (target) {
+                setCabinetMode('my')
+                setSelectedPointId(target.id)
+              }
+            }}
+          />
+        </div>
       </div>
       )}
 
@@ -915,25 +1083,65 @@ export default function DriverCabinet() {
         <DriverMapLegend topOffset={legendTopOffset} />
       )}
 
-      {/* ── Geolocation disabled banner ─────────────────────────────────── */}
-      {!isMapMarkViewMode && geoBlocked && !geoBannerDismissed && (
+      {/* Primary long-route CTA — direction / future offer */}
+      {!isMapMarkViewMode && !selectedPointId && (
         <div
-          className="absolute left-4 right-4 z-[12] bg-amber-50 border-[1.5px] border-amber-200 rounded-card shadow-card p-3.5 flex items-start gap-2.5 md:max-w-md md:mx-auto"
-          style={{ top: mapInsetTop }}
+          className="absolute left-4 right-4 z-[13] flex justify-center pointer-events-none"
+          style={{
+            bottom: NEXT_BAR_H > 0
+              ? `calc(${NEXT_BAR_H}px + 12px)`
+              : 'calc(16px + var(--app-safe-area-bottom-total, 0px))',
+          }}
         >
-          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Crosshair size={15} className="text-amber-700" weight="bold" />
-          </div>
-          <p className="flex-1 min-w-0 text-xs text-amber-900 font-semibold leading-snug pt-1">
-            {t('driver.geoDisabledBanner', { defaultValue: 'Enable geolocation so passengers can see you on the map' })}
-          </p>
           <button
             type="button"
-            onClick={() => setGeoBannerDismissed(true)}
-            className="w-9 h-9 -mt-0.5 -mr-1 rounded-full flex items-center justify-center flex-shrink-0 text-amber-700 active:bg-amber-100 transition-colors"
-            aria-label={t('common.close', { defaultValue: 'Close' })}
+            onClick={() => {
+              setOpenOffersMenu(true)
+              setSideMenuOpen(true)
+            }}
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl bg-black text-white px-4 py-3 text-sm font-bold shadow-card active:scale-[0.97] transition-transform"
           >
-            <X size={15} weight="bold" />
+            <Megaphone size={18} weight="fill" />
+            {t('driver.setDirectionCta', {
+              defaultValue: 'Поставить направление',
+            })}
+          </button>
+        </div>
+      )}
+
+      {/* ── Geolocation disabled / activate banner ─────────────────────── */}
+      {!isMapMarkViewMode && geoBlocked && !geoBannerDismissed && (
+        <div
+          className="absolute left-4 right-4 z-[14] bg-amber-50 border-[1.5px] border-amber-200 rounded-card shadow-card p-3.5 space-y-2.5 md:max-w-md md:mx-auto"
+          style={{ top: mapInsetTop }}
+        >
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <Crosshair size={15} className="text-amber-700" weight="bold" />
+            </div>
+            <p className="flex-1 min-w-0 text-xs text-amber-900 font-semibold leading-snug pt-1">
+              {t('driver.geoDisabledBanner', {
+                defaultValue: 'Геолокация выключена. Включите её — пассажиры и диспетчер должны видеть вас на карте.',
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setGeoBannerDismissed(true)}
+              className="w-9 h-9 -mt-0.5 -mr-1 rounded-full flex items-center justify-center flex-shrink-0 text-amber-700 active:bg-amber-100 transition-colors"
+              aria-label={t('common.close', { defaultValue: 'Close' })}
+            >
+              <X size={15} weight="bold" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleActivateGeolocation}
+            disabled={geoActivating}
+            className="w-full min-h-11 rounded-xl bg-black text-white text-xs font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+          >
+            {geoActivating
+              ? t('driver.geoActivating', { defaultValue: 'Определяем местоположение…' })
+              : t('driver.geoActivate', { defaultValue: 'Включить геолокацию' })}
           </button>
         </div>
       )}
@@ -1082,6 +1290,7 @@ export default function DriverCabinet() {
         session={session}
         onClose={() => setSideMenuOpen(false)}
         onLogout={() => void handleLogout()}
+        onOpenPassengerApp={handleOpenPassengerApp}
         requestOffersScreen={openOffersMenu}
         onRequestOffersHandled={() => setOpenOffersMenu(false)}
       />

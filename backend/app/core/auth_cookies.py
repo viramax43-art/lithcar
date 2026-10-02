@@ -72,3 +72,14 @@ def clear_passenger_auth_cookies(response: Response) -> None:
         samesite=samesite,
         path="/api",
     )
+
+
+def clear_admin_session_cookie(response: Response) -> None:
+    """Drops the admin panel session (used on logout and on Telegram account switch)."""
+    response.delete_cookie(
+        key=settings.admin_session_cookie_name,
+        httponly=True,
+        secure=session_cookie_secure(),
+        samesite=session_cookie_samesite(),
+        path="/",
+    )

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.driver import Driver
 from app.models.ride_request import RideRequest, RideRequestStatus
-from app.services.zone_service import is_pickup_in_active_zone, snap_pickup_coordinates
+from app.services.zone_service import assert_pickup_in_active_zone, is_pickup_in_active_zone
 
 
 async def create_ride_request_record(
@@ -35,7 +35,8 @@ async def create_ride_request_record(
     offer_id: str | None = None,
     status: str = RideRequestStatus.PENDING,
 ) -> RideRequest:
-    from_lat, from_lng = await snap_pickup_coordinates(db_session, lat=from_lat, lng=from_lng)
+    # Reject outside-zone pickup — never relocate the address to a zone centroid.
+    await assert_pickup_in_active_zone(db_session, lat=from_lat, lng=from_lng)
 
     request = RideRequest(
         passenger_id=passenger_id,
@@ -154,21 +155,26 @@ async def list_unassigned_rides(
     offset: int,
     driver_user_id: str | None = None,
 ) -> tuple[list[RideRequest], int]:
+    now = datetime.now(timezone.utc)
     status_filter = RideRequest.status.in_(
         (RideRequestStatus.PENDING, RideRequestStatus.GROUPED)
     )
     unassigned_filter = RideRequest.driver_id.is_(None)
+    # Past departure times must not clutter the driver map after midnight.
+    upcoming_filter = RideRequest.date_time >= now
     total_query = await db_session.execute(
         select(func.count())
         .select_from(RideRequest)
         .where(status_filter)
         .where(unassigned_filter)
+        .where(upcoming_filter)
     )
     total = int(total_query.scalar_one() or 0)
     result = await db_session.execute(
         select(RideRequest)
         .where(status_filter)
         .where(unassigned_filter)
+        .where(upcoming_filter)
         .order_by(RideRequest.date_time.asc())
         .limit(limit)
         .offset(offset)

@@ -144,10 +144,13 @@ export function getDefaultMapZoom(): number {
 }
 
 /**
- * Map center from service zones. With zones in both countries, prefers the cluster
- * nearest to hint (e.g. user geolocation or current map center).
+ * Map operating center.
+ * User geolocation / locate hint always wins — never yank the pin to a zone
+ * centroid when GPS arrives later (that was sliding A to the school / Nemencine).
  */
 export function resolveMapCenter(zones: ZoneLike[], hint?: LatLng | null): LatLng {
+  if (hint) return hint
+
   const compactCenter = getZonesCenter(zones)
   const compactViewbox = getCompactZonesViewbox(zones)
   if (compactCenter && compactViewbox) return compactCenter
@@ -159,17 +162,7 @@ export function resolveMapCenter(zones: ZoneLike[], hint?: LatLng | null): LatLn
 
   if (ltCenter && !azCenter) return ltCenter
   if (azCenter && !ltCenter) return azCenter
-
-  if (ltCenter && azCenter) {
-    if (hint) {
-      const ltDistance = haversineKm(hint, ltCenter)
-      const azDistance = haversineKm(hint, azCenter)
-      return ltDistance <= azDistance ? ltCenter : azCenter
-    }
-    return getDefaultMapCenter()
-  }
-
-  if (hint) return hint
+  if (ltCenter && azCenter) return getDefaultMapCenter()
   return getDefaultMapCenter()
 }
 

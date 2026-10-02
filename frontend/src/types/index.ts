@@ -147,6 +147,8 @@ export interface ServiceZone {
   color: string
   polygon: LatLng[]
   isActive: boolean
+  directionFrom?: string | null
+  directionTo?: string | null
   createdAt: string
 }
 
