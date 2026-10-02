@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { purgeHistory } from '../../../infrastructure/api/adminApi'
 import type { PlatformSettingsConfig } from '../../../lib/platformSettingsDefaults'
 import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
 import { inputCls } from './AdminSidebarShared'
@@ -57,6 +58,8 @@ function Section({
 export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: Props) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
+  const [purging, setPurging] = useState(false)
+  const [purgeResult, setPurgeResult] = useState<number | null>(null)
 
   if (activeTab !== 'system') return null
 
@@ -66,6 +69,24 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
       await onChange(patch)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePurgeHistory = async () => {
+    if (
+      !window.confirm(
+        t('admin.platform.purgeHistoryConfirm', { defaultValue: 'Удалить завершённые поездки старше срока хранения?' }),
+      )
+    ) {
+      return
+    }
+    setPurging(true)
+    setPurgeResult(null)
+    try {
+      const res = await purgeHistory()
+      setPurgeResult(res.deleted)
+    } finally {
+      setPurging(false)
     }
   }
 
@@ -216,6 +237,33 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
             />
           </label>
         </div>
+        <label className="block text-sm">
+          <span className="font-semibold">
+            {t('admin.platform.historyRetention', { defaultValue: 'Срок хранения истории поездок (дней, 0 = без ограничения)' })}
+          </span>
+          <input
+            type="number"
+            min={0}
+            className={inputCls + ' mt-1'}
+            value={platform.system.historyRetentionDays}
+            onChange={(e) =>
+              save({ system: { ...platform.system, historyRetentionDays: Number(e.target.value) } })
+            }
+          />
+        </label>
+        <button
+          type="button"
+          disabled={purging}
+          onClick={() => void handlePurgeHistory()}
+          className="text-xs font-bold px-3 py-2 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+        >
+          {t('admin.platform.purgeHistoryNow', { defaultValue: 'Очистить историю сейчас' })}
+        </button>
+        {purgeResult !== null ? (
+          <p className="text-xs text-muted">
+            {t('admin.platform.purgeHistoryResult', { defaultValue: 'Удалено записей: {{count}}', count: purgeResult })}
+          </p>
+        ) : null}
         <Toggle
           label={t('admin.platform.autoDeleteStale', { defaultValue: 'Автоудаление невостребованных заявок' })}
           checked={platform.system.autoDeleteStaleRequests}

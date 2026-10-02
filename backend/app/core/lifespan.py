@@ -13,6 +13,24 @@ from app.services.storage_service import ensure_bucket_exists
 logger = logging.getLogger(__name__)
 
 
+async def _history_retention_loop(session_factory) -> None:
+    from app.services.platform_settings_service import get_platform_config
+    from app.services.ride_request_service import purge_completed_history
+
+    while True:
+        try:
+            await asyncio.sleep(24 * 3600)
+            async with session_factory() as session:
+                cfg = await get_platform_config(session)
+                days = int(cfg.get("system", {}).get("historyRetentionDays", 0) or 0)
+                if days > 0:
+                    deleted = await purge_completed_history(session, days=days)
+                    if deleted:
+                        logger.info("History retention: purged %s completed rides", deleted)
+        except Exception:  # noqa: BLE001
+            logger.exception("History retention purge failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Запуск контекстного менеджера")
@@ -49,7 +67,13 @@ async def lifespan(app: FastAPI):
             raise
         logger.warning("S3 startup check skipped due to error: %s", exc)
 
+    retention_task = asyncio.create_task(_history_retention_loop(db_session_factory))
+
     yield
+
+    retention_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await retention_task
 
     print("Приложение останавливается...")
 

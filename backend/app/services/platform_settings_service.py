@@ -38,6 +38,7 @@ DEFAULT_PLATFORM_CONFIG: dict[str, Any] = {
         "passengerNotificationWindowStart": "06:00",
         "passengerNotificationWindowEnd": "22:00",
         "sidebarCompactOnMap": True,
+        "historyRetentionDays": 0,
     },
     "promotions": {
         "enabled": False,

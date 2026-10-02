@@ -29,6 +29,7 @@ export interface PlatformSettingsConfig {
     passengerNotificationWindowStart: string
     passengerNotificationWindowEnd: string
     sidebarCompactOnMap: boolean
+    historyRetentionDays: number
   }
   promotions: {
     enabled: boolean
@@ -67,6 +68,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsConfig = {
     passengerNotificationWindowStart: '06:00',
     passengerNotificationWindowEnd: '22:00',
     sidebarCompactOnMap: true,
+    historyRetentionDays: 0,
   },
   promotions: {
     enabled: false,

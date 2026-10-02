@@ -317,6 +317,14 @@ export async function updatePlatformSettings(
   })
 }
 
+export async function purgeHistory(days?: number): Promise<{ deleted: number }> {
+  return apiRequest<{ deleted: number }>('/api/admin/system/purge-history', {
+    method: 'POST',
+    body: days !== undefined ? { days } : {},
+    authMode: 'cookie',
+  })
+}
+
 export async function listAdminPassengers(
   q = '',
   params?: PaginationParams,

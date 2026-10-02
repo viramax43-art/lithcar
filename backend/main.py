@@ -90,6 +90,7 @@ def _register_api_routes(api_router: APIRouter) -> None:
     api_router.include_router(admin_keys.router, tags=["Admin Keys & Sessions"])
     api_router.include_router(admin_audit.router, tags=["Admin Audit"])
     api_router.include_router(admin_platform.router, tags=["Admin Platform Settings"])
+    api_router.include_router(admin_platform.system_router, tags=["Admin System"])
     api_router.include_router(admin_passengers.router, tags=["Admin Passengers"])
     api_router.include_router(ride_requests.router, tags=["Ride Requests"])
     api_router.include_router(drivers.router, tags=["Drivers"])

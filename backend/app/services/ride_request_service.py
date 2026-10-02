@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.driver import Driver
@@ -724,3 +724,22 @@ async def delete_ride_request(db_session: AsyncSession, *, request_id: str) -> b
     await db_session.delete(request)
     await db_session.commit()
     return True
+
+
+async def purge_completed_history(db_session: AsyncSession, *, days: int) -> int:
+    """Delete completed rides older than ``days`` (their ratings cascade).
+
+    ``days <= 0`` means "keep forever" and deletes nothing. Returns the number of
+    deleted ride requests.
+    """
+    if days <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await db_session.execute(
+        delete(RideRequest).where(
+            RideRequest.status == RideRequestStatus.COMPLETED,
+            RideRequest.date_time < cutoff,
+        )
+    )
+    await db_session.commit()
+    return int(result.rowcount or 0)
