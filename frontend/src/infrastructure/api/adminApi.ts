@@ -296,6 +296,7 @@ export interface AdminPassenger {
   userId: string
   username: string | null
   displayName: string | null
+  role: string
   language: string
   pointsBalance: number
   rating: number | null
@@ -334,6 +335,64 @@ export async function adjustPassengerPoints(
   return apiRequest<AdminPassenger>(`/api/admin/passengers/${encodeURIComponent(userId)}/points`, {
     method: 'PATCH',
     body: payload,
+    authMode: 'cookie',
+  })
+}
+
+export interface RideBrief {
+  id: string
+  rideNumber: number
+  fromAddress: string
+  toAddress: string
+  dateTime: string
+  status: string
+  driverId: string | null
+  quotedPoints: number | null
+  quotedPriceCents: number | null
+}
+
+export interface PointsTxnBrief {
+  id: string
+  amount: number
+  transactionType: string
+  createdAt: string
+}
+
+export interface DossierDriverProfile {
+  id: string
+  name: string
+  carBrand: string
+  carModel: string
+  carPlate: string
+  vehicleColor: string
+  seatsCount: number
+  about: string
+  rating: number
+  isOnline: boolean
+  canSellPoints: boolean
+  canSelfAssign: boolean
+}
+
+export interface UserDossier {
+  userId: string
+  username: string | null
+  role: string
+  language: string
+  pointsBalance: number
+  rating: number | null
+  ratingCount: number
+  createdAt: string
+  onboardingCompleted: boolean
+  blockedByCount: number
+  blockingCount: number
+  driver: DossierDriverProfile | null
+  ridesAsPassenger: RideBrief[]
+  ridesAsDriver: RideBrief[]
+  pointsTransactions: PointsTxnBrief[]
+}
+
+export async function getUserDossier(userId: string): Promise<UserDossier> {
+  return apiRequest<UserDossier>(`/api/admin/passengers/${encodeURIComponent(userId)}/dossier`, {
     authMode: 'cookie',
   })
 }

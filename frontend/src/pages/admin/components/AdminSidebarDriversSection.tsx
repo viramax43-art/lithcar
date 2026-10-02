@@ -1,6 +1,6 @@
-import { Calendar, Car, CaretDown, CaretRight, Key, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
+import { Calendar, Car, CaretDown, CaretRight, Key, MagnifyingGlass, MapPin, PencilSimple, User, Users } from '@phosphor-icons/react'
 import type { MutableRefObject } from 'react'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { showOnMapHref } from '../../../lib/navigation'
 import { formatDate } from '../../../i18n/dateTime'
@@ -9,6 +9,8 @@ import RatingBadge from '../../../components/RatingBadge'
 import InlineConfirm from './InlineConfirm'
 import { ColorSwatch, inputCls, KeyReveal, Section, type CopyState, Stat } from './AdminSidebarShared'
 import type { AdminSidebarProps } from './AdminSidebar.types'
+import { listAdminPassengers, type AdminPassenger } from '../../../infrastructure/api/adminApi'
+import { AdminUserDossierModal } from './AdminUserDossierModal'
 
 type DriversSectionProps = Pick<
   AdminSidebarProps,
@@ -91,6 +93,30 @@ export function AdminSidebarDriversSection({
 }: DriversSectionProps) {
   const { t } = useTranslation()
   const [isCreatingDriver, setIsCreatingDriver] = useState(false)
+  const [idQuery, setIdQuery] = useState('')
+  const [idResults, setIdResults] = useState<AdminPassenger[]>([])
+  const [idLoading, setIdLoading] = useState(false)
+  const [dossierId, setDossierId] = useState<string | null>(null)
+
+  const loadIdResults = useCallback(async () => {
+    if (!idQuery.trim()) {
+      setIdResults([])
+      return
+    }
+    setIdLoading(true)
+    try {
+      const res = await listAdminPassengers(idQuery, { limit: 20, offset: 0 })
+      setIdResults(res.items)
+    } finally {
+      setIdLoading(false)
+    }
+  }, [idQuery])
+
+  useEffect(() => {
+    if (activeTab !== 'drivers') return
+    const timer = setTimeout(loadIdResults, 300)
+    return () => clearTimeout(timer)
+  }, [activeTab, loadIdResults])
 
   if (activeTab !== 'drivers') {
     return null
@@ -98,6 +124,39 @@ export function AdminSidebarDriversSection({
 
   return (
     <div className="space-y-3">
+      <div className="relative">
+        <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <input
+          className={inputCls + ' pl-9'}
+          placeholder={t('admin.drivers.searchById', { defaultValue: 'Поиск по Telegram ID / @username' })}
+          value={idQuery}
+          onChange={(e) => setIdQuery(e.target.value)}
+        />
+      </div>
+
+      {idQuery.trim() ? (
+        <>
+          {idLoading ? (
+            <p className="text-xs text-muted text-center py-8">{t('common.loading', { defaultValue: 'Загрузка…' })}</p>
+          ) : null}
+          {!idLoading && idResults.length === 0 ? (
+            <p className="text-xs text-muted text-center py-8">{t('admin.drivers.notFound', { defaultValue: 'Не найдено' })}</p>
+          ) : null}
+          {idResults.map((p) => (
+            <button
+              key={p.userId}
+              type="button"
+              onClick={() => setDossierId(p.userId)}
+              className="w-full flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-left transition hover:border-black/30"
+            >
+              <span className="text-sm font-bold font-mono truncate">{p.userId}</span>
+              {p.username ? <span className="text-xs text-muted">@{p.username}</span> : null}
+              <span className="text-[10px] uppercase font-semibold text-muted flex-shrink-0">{p.role}</span>
+            </button>
+          ))}
+        </>
+      ) : (
+        <>
       {showDriverForm && (
         <div className="rounded-card border-[1.5px] border-black p-4 space-y-2.5 bg-surface/50">
           <p className="text-sm font-bold">{t('admin.drivers.newDriver')}</p>
@@ -465,6 +524,10 @@ export function AdminSidebarDriversSection({
       {drivers.length === 0 && !showDriverForm && (
         <p className="text-xs text-muted text-center py-12">{t('admin.drivers.empty')}</p>
       )}
+        </>
+      )}
+
+      {dossierId ? <AdminUserDossierModal userId={dossierId} onClose={() => setDossierId(null)} /> : null}
     </div>
   )
 }
