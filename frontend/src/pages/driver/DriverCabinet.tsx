@@ -8,9 +8,9 @@
  *   [point sheet: slides up on marker / bar tap]
  *   [side menu: QR, history, logout]
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { CaretRight, Clock, Crosshair, List, MapPin, Megaphone, SteeringWheel, X } from '@phosphor-icons/react'
+import { Car, CaretRight, Clock, Crosshair, List, MapPin, Megaphone, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
@@ -22,7 +22,6 @@ import {
   getDriverMapData,
   bootstrapDriverAccess,
   getDriverSession,
-  listDriverOffers,
   loginDriverByKey,
   logoutDriverSession,
   notifyPickupChange,
@@ -38,7 +37,6 @@ import { reverseGeocode } from '../../lib/geocode'
 import { formatRideTime } from '../../i18n/dateTime'
 import { ApiError } from '../../infrastructure/http/httpClient'
 import { setLastAppShell, exitToPassengerApp } from '../../lib/driverShell'
-import { matchesPeriodFilter } from '../../lib/periodFilter'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
 import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
@@ -47,7 +45,6 @@ import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
 import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/DriverCabinetModeSwitch'
 import DriverMap from './components/DriverMap'
 import DriverMapLegend from './components/DriverMapLegend'
-import DriverMapPeriodFilter from './components/DriverMapPeriodFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import DriverSideMenu from './components/DriverSideMenu'
 import NotificationBell from '../../components/notifications/NotificationBell'
@@ -353,20 +350,12 @@ export default function DriverCabinet() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
   const [driverHeading, setDriverHeading] = useState<number | null>(null)
-  const [availableSeats, setAvailableSeats] = useState<number | null>(null)
   const [openOffersMenu, setOpenOffersMenu] = useState(false)
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string; passengerId: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
   const [ratingPassengerBlocked, setRatingPassengerBlocked] = useState(false)
   const [isBlockingPassenger, setIsBlockingPassenger] = useState(false)
   const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
-  const [filterExpanded, setFilterExpanded] = useState(false)
-  // Show all upcoming futures by default (not "today only") so passenger
-  // A→B points appear as soon as they book — drivers hunt like hawks.
-  const [filterDate, setFilterDate] = useState('')
-  const [filterDateEnd, setFilterDateEnd] = useState('')
-  const [filterTime, setFilterTime] = useState('')
-  const [filterTimeEnd, setFilterTimeEnd] = useState('')
   const [cabinetMode, setCabinetMode] = useState<DriverCabinetMode>('available')
   const [isClaiming, setIsClaiming] = useState(false)
 
@@ -606,53 +595,24 @@ export default function DriverCabinet() {
     }
   }, [session?.driverId, liveGeoEnabled, applyDriverPosition, requestDriverGeolocation])
 
-  useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    const loadSeats = async () => {
-      try {
-        const page = await listDriverOffers({ status: 'open', limit: 20, offset: 0 })
-        if (cancelled) return
-        const total = page.items.reduce((sum, offer) => sum + offer.seatsAvailable, 0)
-        // Нет открытых направлений — не показываем «0 мест свободно» по умолчанию.
-        setAvailableSeats(total > 0 ? total : null)
-      } catch {
-        if (!cancelled) setAvailableSeats(null)
-      }
-    }
-    void loadSeats()
-    const timer = setInterval(() => void loadSeats(), CABINET_POLL_MS)
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [session?.driverId])
-
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const points = mapData?.points ?? []
   const availablePoints = mapData?.availablePoints ?? []
 
-  const visiblePoints = useMemo(
-    () => points.filter((p) => matchesPeriodFilter(
-      { dateTime: p.dateTime, dateTimeLocal: p.dateTimeLocal },
-      { filterDate, filterDateEnd, filterTime, filterTimeEnd },
-    )),
-    [points, filterDate, filterDateEnd, filterTime, filterTimeEnd],
-  )
+  // The driver map shows every upcoming trip — the day/period filter was removed
+  // from the cabinet, so both pools are used as-is.
+  const visiblePoints = points
+  const visibleAvailablePoints = availablePoints
 
-  const visibleAvailablePoints = useMemo(
-    () => availablePoints.filter((p) => matchesPeriodFilter(
-      { dateTime: p.dateTime, dateTimeLocal: p.dateTimeLocal },
-      { filterDate, filterDateEnd, filterTime, filterTimeEnd },
-    )),
-    [availablePoints, filterDate, filterDateEnd, filterTime, filterTimeEnd],
-  )
-
-  // Like passenger map: free A→B both stay visible. Time only on start (in icon).
+  // "My rides" paints ONLY the driver's own assigned trips (red pickup / blue
+  // dropoff / green done); "available" paints ONLY the free (yellow) pool. The
+  // two pools must stay separate — if they are unioned, switching to "Мои
+  // поездки" leaves the yellow free markers on screen and the map looks
+  // unchanged, so the header toggle appears to do nothing.
   const mapDisplayPoints = cabinetMode === 'available'
     ? visibleAvailablePoints
-    : [...visibleAvailablePoints, ...visiblePoints]
+    : visiblePoints
 
   const displayDriverLocation = driverLocation ?? mapData?.driverLocation ?? null
   const passengerLocations = useMemo<PassengerLiveLocation[]>(
@@ -695,15 +655,15 @@ export default function DriverCabinet() {
     ? visibleAvailablePoints.find((p) => p.rideId === selectedAvailableRideId && p.pointType === 'dropoff') ?? null
     : null
 
-  const filterTopOffset = canSelfAssign
-    ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 112}px)`
+  // The add-trip / available-passengers row sits at banner + 64 and is ~56px
+  // tall; the colour legend docks right under it. Without self-assign the row is
+  // hidden, so the legend moves up to the header's baseline.
+  const legendTopOffset = canSelfAssign
+    ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 128}px)`
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
-  const legendTopOffset = `calc(${filterTopOffset} + ${filterExpanded ? 188 : 48}px + 6px)`
-
   const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
-    + (canSelfAssign ? 48 : 0)
-    + (filterExpanded ? 188 : 48)
+    + (canSelfAssign ? 56 : 0)
     + LEGEND_BAR_HEIGHT
     + 18
 
@@ -731,11 +691,18 @@ export default function DriverCabinet() {
     }
   }, [visiblePoints, visibleAvailablePoints, selectedPointId, cabinetMode])
 
-  useEffect(() => {
+  // Only force "my" once we actually know the driver cannot self-assign. Running
+  // before the session loads (session/mapData still null → canSelfAssign=false)
+  // would wrongly flip self-assign drivers off the "Доступные" default straight
+  // away, so "Мои поездки" then looks like a no-op when tapped. useLayoutEffect
+  // flips non-self-assign drivers before paint so they never flash free markers.
+  useLayoutEffect(() => {
+    const dataKnown = Boolean(session) || Boolean(mapData)
+    if (!dataKnown) return
     if (!canSelfAssign && cabinetMode === 'available') {
       setCabinetMode('my')
     }
-  }, [canSelfAssign, cabinetMode])
+  }, [canSelfAssign, cabinetMode, session, mapData])
 
   useEffect(() => {
     if (!isMapMarkViewMode) return
@@ -992,21 +959,20 @@ export default function DriverCabinet() {
                 </span>
               </>
             )}
-            {availableSeats != null && (
+            {canSelfAssign && (
               <>
                 <span className="w-px h-3 bg-border flex-shrink-0" />
                 <button
                   type="button"
                   onClick={() => {
-                    setOpenOffersMenu(true)
-                    setSideMenuOpen(true)
+                    setCabinetMode('my')
+                    setSelectedPointId(null)
                   }}
-                  className="pointer-events-auto text-xs font-semibold text-muted flex-shrink-0 active:opacity-70"
+                  className={`pointer-events-auto text-xs flex-shrink-0 active:opacity-70 ${
+                    cabinetMode === 'my' ? 'font-bold text-primary' : 'font-semibold text-muted'
+                  }`}
                 >
-                  {t('driver.seatsAvailableShort', {
-                    count: availableSeats,
-                    defaultValue: '{{count}} seats free',
-                  })}
+                  {t('driver.cabinetMode.myTrips', { defaultValue: 'Мои поездки' })}
                 </button>
               </>
             )}
@@ -1056,26 +1022,10 @@ export default function DriverCabinet() {
             setCabinetMode(mode)
             setSelectedPointId(null)
           }}
-        />
-      )}
-
-      {!isMapMarkViewMode && (
-        <DriverMapPeriodFilter
-          pointCount={mapDisplayPoints.length}
-          hiddenCount={
-            (cabinetMode === 'available' ? availablePoints.length : points.length) - mapDisplayPoints.length
-          }
-          topOffset={filterTopOffset}
-          showAvailableLegend={cabinetMode === 'available'}
-          filterDate={filterDate}
-          filterDateEnd={filterDateEnd}
-          filterTime={filterTime}
-          filterTimeEnd={filterTimeEnd}
-          onFilterDateChange={setFilterDate}
-          onFilterDateEndChange={setFilterDateEnd}
-          onFilterTimeChange={setFilterTime}
-          onFilterTimeEndChange={setFilterTimeEnd}
-          onExpandedChange={setFilterExpanded}
+          onAddTrip={() => {
+            setOpenOffersMenu(true)
+            setSideMenuOpen(true)
+          }}
         />
       )}
 
@@ -1143,6 +1093,49 @@ export default function DriverCabinet() {
               ? t('driver.geoActivating', { defaultValue: 'Определяем местоположение…' })
               : t('driver.geoActivate', { defaultValue: 'Включить геолокацию' })}
           </button>
+        </div>
+      )}
+
+      {/* ── Empty states ─────────────────────────────────────────────────── */}
+      {/* Makes the "Мои поездки" / "Доступные" toggle always visibly distinct:
+          when a pool is empty the map would otherwise look identical. */}
+      {!isMapMarkViewMode && mapData && mapDisplayPoints.length === 0 && (
+        <div
+          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
+          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
+        >
+          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[260px]">
+            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
+              <Car size={22} className="text-muted" weight="fill" />
+            </div>
+            <p className="text-sm font-bold">
+              {cabinetMode === 'available'
+                ? t('driver.noAvailableRides', { defaultValue: 'Нет доступных поездок' })
+                : t('driver.noAssignedRides', { defaultValue: 'Нет назначенных поездок' })}
+            </p>
+            <p className="text-xs text-muted mt-1 leading-snug">
+              {cabinetMode === 'available'
+                ? t('driver.noAvailableRidesHint', { defaultValue: 'Новые заявки появятся здесь автоматически.' })
+                : t('driver.noAssignedRidesHint', { defaultValue: 'Как только вас назначат на поездку, точки появятся здесь.' })}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isMapMarkViewMode && cabinetMode === 'my' && mapData && visiblePoints.length > 0 && activePoints.length === 0 && (
+        <div
+          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
+          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
+        >
+          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[230px]">
+            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
+              <Car size={22} className="text-muted" weight="fill" />
+            </div>
+            <p className="text-sm font-bold">{t('driver.noActiveRides', { defaultValue: 'Нет активных поездок' })}</p>
+            <p className="text-xs text-muted mt-1 leading-snug">
+              {t('driver.noAssignedRidesHint', { defaultValue: 'Как только вас назначат на поездку, точки появятся здесь.' })}
+            </p>
+          </div>
         </div>
       )}
 

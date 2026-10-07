@@ -297,6 +297,7 @@ export interface DriverSessionInfo {
   canSelfAssign: boolean
   rating: number
   ratingCount: number
+  pointsBalance: number
 }
 
 export interface DriverMapLinks {

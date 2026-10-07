@@ -40,18 +40,29 @@ function makePassengerLiveIcon(name: string): L.DivIcon {
   })
 }
 
+/**
+ * Driver's own position marker ("you are here").
+ * Deliberately NOT blue: the destination point (`makePointIcon`) already uses
+ * blue (#3B82F6), so a blue driver marker read as a second destination and was
+ * easy to confuse with the dropoff pin. Violet keeps "me" distinct from every
+ * point colour (amber free / blue destination / red your order / green done).
+ */
+const DRIVER_SELF_COLOR = '#7C3AED'
+/** Soft heading cone behind the driver marker, tinted to match DRIVER_SELF_COLOR. */
+const DRIVER_SELF_CONE = 'rgba(124,58,237,0.28)'
+
 function makeDriverIcon(label: string, heading: number | null | undefined): L.DivIcon {
   const initial = (label.trim()[0] ?? '?').toUpperCase()
   const rotation = heading != null && Number.isFinite(heading) ? heading : 0
   const cone = heading != null && Number.isFinite(heading)
-    ? `<div style="position:absolute;left:50%;bottom:18px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:28px solid rgba(37,99,235,0.28);transform:translateX(-50%) rotate(${rotation}deg);transform-origin:50% 100%;"></div>`
+    ? `<div style="position:absolute;left:50%;bottom:18px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:28px solid ${DRIVER_SELF_CONE};transform:translateX(-50%) rotate(${rotation}deg);transform-origin:50% 100%;"></div>`
     : ''
 
   return L.divIcon({
     className: '',
     html: `<div style="position:relative;width:48px;height:52px;display:flex;align-items:flex-end;justify-content:center;">
       ${cone}
-      <div style="position:relative;width:40px;height:40px;border-radius:50%;background:#2563EB;color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.28);font-family:Inter,system-ui,sans-serif;">${initial}</div>
+      <div style="position:relative;width:40px;height:40px;border-radius:50%;background:${DRIVER_SELF_COLOR};color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.28);font-family:Inter,system-ui,sans-serif;">${initial}</div>
     </div>`,
     iconSize: [48, 52],
     iconAnchor: [24, 26],

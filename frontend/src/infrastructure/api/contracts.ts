@@ -63,6 +63,8 @@ export interface DriverSessionUser {
   canSelfAssign: boolean
   rating: number
   ratingCount: number
+  /** Points held by the driver's own user wallet (users.points_balance). */
+  pointsBalance: number
 }
 
 export interface DriverQrIssueResult {

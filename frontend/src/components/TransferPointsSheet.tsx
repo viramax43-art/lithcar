@@ -194,9 +194,6 @@ export default function TransferPointsSheet({
                   placeholder={t('profile.transferRecipientId', { defaultValue: 'Recipient ID' })}
                   className="w-full h-12 px-4 rounded-2xl border-[1.5px] border-border bg-surface text-base font-bold font-mono outline-none focus:border-black focus:bg-white transition-colors"
                 />
-                <p className="text-[10px] text-muted">
-                  {t('profile.transferRecipientHint', { defaultValue: 'Telegram user ID from their profile' })}
-                </p>
               </div>
 
               <div className="space-y-2">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  CaretRight,
   ClipboardText,
   Coins,
   Megaphone,
@@ -17,7 +18,7 @@ import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
 import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
-import TransferPointsSheet from '../../../components/TransferPointsSheet'
+import QrScanner from '../../../components/QrScanner'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
 import DriverOffersList from './DriverOffersList'
 import DriverRideHistory from './DriverRideHistory'
@@ -47,7 +48,7 @@ export default function DriverSideMenu({
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [manualQrToken, setManualQrToken] = useState('')
-  const [showTransfer, setShowTransfer] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const [logoutArmed, setLogoutArmed] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -78,6 +79,39 @@ export default function DriverSideMenu({
     onClose()
   }
 
+  /**
+   * Redeem a passenger QR token (from the in-app camera or the manual field).
+   * Shared by both entry points so result handling stays identical.
+   */
+  const redeemToken = async (rawToken: string) => {
+    setIsRedeeming(true)
+    setScanMessage(null)
+    try {
+      const token = rawToken.includes('/qr/')
+        ? rawToken.split('/qr/').pop()!.split(/[?#]/)[0]
+        : rawToken
+      const result = await redeemPassengerQrSale(token)
+      hapticNotification('success')
+      setManualQrToken('')
+      setScanMessage(
+        t('driver.qrPointsCredited', {
+          points: result.pointsAdded,
+          passengerId: result.passengerId,
+          defaultValue: `Зачислено ${result.pointsAdded} поинтов пассажиру (${result.passengerId}).`,
+        }),
+      )
+    } catch (error) {
+      hapticNotification('error')
+      setScanMessage(
+        error instanceof Error
+          ? error.message
+          : t('errors.processQrFailed', { defaultValue: 'Failed to process QR.' }),
+      )
+    } finally {
+      setIsRedeeming(false)
+    }
+  }
+
   return (
     <>
       {isOpen && (
@@ -106,6 +140,13 @@ export default function DriverSideMenu({
                 <Star size={11} weight="fill" className="text-amber-400" />
                 {t('driver.yourRating', { rating: session.rating.toFixed(1), defaultValue: `Your rating ${session.rating.toFixed(1)}` })}
                 {session.ratingCount > 0 && <span>({session.ratingCount})</span>}
+              </p>
+              <p className="text-[11px] font-semibold mt-1 flex items-center gap-1">
+                <Coins size={11} weight="fill" className="text-amber-500" />
+                {t('driver.pointsBalance', {
+                  points: session.pointsBalance ?? 0,
+                  defaultValue: `Поинтов: ${session.pointsBalance ?? 0}`,
+                })}
               </p>
             </div>
           </div>
@@ -140,25 +181,6 @@ export default function DriverSideMenu({
             <button
               onClick={() => {
                 hapticSelection()
-                setShowTransfer(true)
-              }}
-              className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
-            >
-              <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
-                <Coins size={18} weight="duotone" />
-              </div>
-              <div>
-                <p className="text-sm font-bold">{t('profile.transferPoints', { defaultValue: 'Отправить поинты' })}</p>
-                <p className="text-[11px] text-muted">
-                  {t('profile.transferRecipientHint', {
-                    defaultValue: 'ID любого: пассажир, водитель, админ, модератор',
-                  })}
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                hapticSelection()
                 onOpenPassengerApp()
               }}
               className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-surface active:bg-surface transition-colors text-left"
@@ -180,19 +202,27 @@ export default function DriverSideMenu({
           </section>
 
           <section className="px-4 py-4 border-t border-border">
-            <div className="flex items-center gap-2.5 mb-3">
+            <button
+              type="button"
+              onClick={() => {
+                hapticSelection()
+                setShowScanner(true)
+              }}
+              className="w-full flex items-center gap-2.5 mb-3 text-left active:opacity-70 transition-opacity"
+            >
               <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center flex-shrink-0">
                 <QrCode size={16} weight="bold" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold">{t('driver.scanPassengerQr', { defaultValue: 'QR пассажира' })}</p>
                 <p className="text-[11px] text-muted">
-                  {t('driver.scanPassengerQrNativeHint', {
-                    defaultValue: 'Отсканируйте системной камерой — камера приложения не нужна.',
+                  {t('driver.scanPassengerQrOpenHint', {
+                    defaultValue: 'Нажмите, чтобы открыть камеру и отсканировать код.',
                   })}
                 </p>
               </div>
-            </div>
+              <CaretRight size={16} weight="bold" className="text-muted flex-shrink-0" />
+            </button>
 
             <label className="block space-y-1.5">
               <span className="text-[11px] text-muted">
@@ -208,32 +238,7 @@ export default function DriverSideMenu({
             <button
               type="button"
               disabled={!manualQrToken || isRedeeming}
-              onClick={() => {
-                void (async () => {
-                  setIsRedeeming(true)
-                  setScanMessage(null)
-                  try {
-                    const token = manualQrToken.includes('/qr/')
-                      ? manualQrToken.split('/qr/').pop()!.split(/[?#]/)[0]
-                      : manualQrToken
-                    const result = await redeemPassengerQrSale(token)
-                    hapticNotification('success')
-                    setManualQrToken('')
-                    setScanMessage(
-                      t('driver.qrPointsCredited', {
-                        points: result.pointsAdded,
-                        passengerId: result.passengerId,
-                        defaultValue: `Зачислено ${result.pointsAdded} поинтов пассажиру (${result.passengerId}).`,
-                      }),
-                    )
-                  } catch (error) {
-                    hapticNotification('error')
-                    setScanMessage(error instanceof Error ? error.message : t('errors.processQrFailed', { defaultValue: 'Failed to process QR.' }))
-                  } finally {
-                    setIsRedeeming(false)
-                  }
-                })()
-              }}
+              onClick={() => void redeemToken(manualQrToken)}
               className="mt-2 w-full py-2.5 rounded-xl bg-black text-white text-xs font-bold disabled:opacity-40"
             >
               {isRedeeming
@@ -303,8 +308,35 @@ export default function DriverSideMenu({
       {showOffers && <DriverOffersList onClose={() => setShowOffers(false)} />}
       {showHistory && <DriverRideHistory onClose={() => setShowHistory(false)} />}
       {showBlocked && <DriverBlockedList onClose={() => setShowBlocked(false)} />}
-      {showTransfer && (
-        <TransferPointsSheet onClose={() => setShowTransfer(false)} />
+      {showScanner && (
+        <div className="fixed inset-0 z-[60] bg-black/85 flex flex-col">
+          <div
+            className="flex items-center justify-between gap-3 px-4 py-3 text-white"
+            style={{ paddingTop: 'var(--app-safe-area-top-total)' }}
+          >
+            <p className="text-sm font-bold">
+              {t('driver.scanPassengerQr', { defaultValue: 'QR пассажира' })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowScanner(false)}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center active:scale-95 transition-transform"
+            >
+              <X size={16} weight="bold" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto flex items-center justify-center px-4 pb-6">
+            <div className="w-full max-w-sm">
+              <QrScanner
+                active
+                onTokenRead={(token) => {
+                  setShowScanner(false)
+                  void redeemToken(token)
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

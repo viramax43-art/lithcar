@@ -61,6 +61,7 @@ from app.services.rating_service import (
 )
 from app.services.block_service import BlockError, block_user, list_blocked_users, unblock_user
 from app.services.driver_offer_service import claim_request_with_offer
+from app.services.user_service import get_user_by_id
 from app.services.ride_request_service import (
     ClaimRideError,
     apply_driver_point_action,
@@ -88,6 +89,7 @@ class DriverSessionOut(BaseModel):
     canSelfAssign: bool = False
     rating: float = 5.0
     ratingCount: int = 0
+    pointsBalance: int = 0
 
 
 class DriverRideRatingSubmitPayload(BaseModel):
@@ -356,6 +358,17 @@ async def get_driver_session(
     return session
 
 
+async def _driver_points_balance(db_session: AsyncSession, *, driver_id: str) -> int:
+    """Points held by the driver's own user wallet (users.points_balance)."""
+    driver = await get_driver(db_session, driver_id=driver_id)
+    if driver is None or not driver.user_id:
+        return 0
+    user = await get_user_by_id(db_session, user_id=driver.user_id)
+    if user is None:
+        return 0
+    return int(user.points_balance or 0)
+
+
 async def _to_driver_session_out(
     db_session: AsyncSession,
     *,
@@ -365,6 +378,7 @@ async def _to_driver_session_out(
     can_self_assign: bool,
 ) -> DriverSessionOut:
     aggregate = await get_driver_rating_aggregate(db_session, driver_id)
+    points_balance = await _driver_points_balance(db_session, driver_id=driver_id)
     return DriverSessionOut(
         driverId=driver_id,
         name=name,
@@ -372,6 +386,7 @@ async def _to_driver_session_out(
         canSelfAssign=can_self_assign,
         rating=aggregate.rating,
         ratingCount=aggregate.rating_count,
+        pointsBalance=points_balance,
     )
 
 
