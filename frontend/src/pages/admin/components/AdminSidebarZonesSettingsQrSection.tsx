@@ -18,6 +18,7 @@ import type { ServiceZone } from '../../../types'
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { AdminNotificationsSection } from './AdminNotificationsSection'
 import { useAutoTranslatedText } from '../../../lib/useAutoTranslatedText'
+import { buildSimpleZoneBoundary } from '../../../lib/zoneGeometry'
 
 type ZonesSettingsQrSectionProps = Pick<
   AdminSidebarProps,
@@ -136,6 +137,8 @@ export function AdminSidebarZonesSettingsQrSection({
     return selected ? [selected, ...matched] : matched
   }, [serviceZones, zonesSearchQuery, selectedZoneId])
 
+  const zoneBoundaryCount = useMemo(() => buildSimpleZoneBoundary(drawingPoints).length, [drawingPoints])
+
   useEffect(() => {
     if (activeTab !== 'zones' || !selectedZoneId) return
     const element = zoneCardRefs.current[selectedZoneId]
@@ -182,7 +185,7 @@ export function AdminSidebarZonesSettingsQrSection({
                 setIsCreatingZone(true)
                 void handleCreateZone().finally(() => setIsCreatingZone(false))
               }}
-              disabled={drawingPoints.length < 3 || !newZoneName.trim() || isCreatingZone}
+              disabled={zoneBoundaryCount < 3 || !newZoneName.trim() || isCreatingZone}
               className="w-full py-2.5 bg-black text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all hover:bg-zinc-800 active:scale-[0.97]"
             >
               {isCreatingZone ? t('common.saving') : t('admin.zones.saveZone')}

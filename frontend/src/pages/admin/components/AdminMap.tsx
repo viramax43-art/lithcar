@@ -13,6 +13,7 @@ import { resolveGeocodeSearchScope } from '../../../lib/mapRegion'
 import { getRoadRoutePolyline } from '../../../lib/osrm'
 import { MAP_MARK_PALETTE, makeMapMarkIcon, normalizeMapMarkColor } from '../../../lib/mapMarkIcons'
 import { zoneLabelPosition } from '../../../utils/serviceZones'
+import { buildSimpleZoneBoundary } from '../../../lib/zoneGeometry'
 import { formatRideDate, formatRideTime, formatTime } from '../../../i18n/dateTime'
 import { getInitialMapUi } from '../../../lib/adminUiState'
 import { usePersistAdminUiSlice } from '../../../lib/useAdminUiPersistence'
@@ -283,6 +284,8 @@ export default function AdminMap({
     () => completedRequests.filter((r) => enabledStatuses.has(r.status)),
     [completedRequests, enabledStatuses],
   )
+
+  const zoneBoundaryPoints = useMemo(() => buildSimpleZoneBoundary(drawingPoints), [drawingPoints])
 
   const isRouteEditMode = routeEditDraft !== null
   const editingRequestId = routeEditDraft?.requestId ?? null
@@ -1351,32 +1354,32 @@ export default function AdminMap({
           )
         })}
 
-        {isDrawing && drawingPoints.map((point, index) => (
+        {isDrawing && zoneBoundaryPoints.map((point, index) => (
           <Marker
             key={`zone-draw-point-${index}`}
             position={[point.lat, point.lng]}
             icon={makeSolidPointIcon(newZoneColor, index === 0 ? 20 : 14, String(index + 1))}
           />
         ))}
-        {isDrawing && drawingPoints.length >= 2 && (
+        {isDrawing && zoneBoundaryPoints.length === 2 && (
           <Polyline
-            positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
+            positions={zoneBoundaryPoints.map((point) => [point.lat, point.lng] as [number, number])}
             pathOptions={{
               color: newZoneColor,
-              weight: 2,
-              opacity: 0.9,
-              dashArray: '6, 4',
+              weight: 3,
+              opacity: 1,
             }}
           />
         )}
-        {isDrawing && drawingPoints.length >= 2 && (
+        {isDrawing && zoneBoundaryPoints.length >= 3 && (
           <Polygon
-            positions={drawingPoints.map((point) => [point.lat, point.lng] as [number, number])}
+            positions={zoneBoundaryPoints.map((point) => [point.lat, point.lng] as [number, number])}
             pathOptions={{
               color: newZoneColor,
               fillColor: newZoneColor,
-              fillOpacity: 0.15,
-              dashArray: '8, 4',
+              fillOpacity: 0.28,
+              weight: 3,
+              opacity: 1,
             }}
           />
         )}
@@ -1527,7 +1530,7 @@ export default function AdminMap({
         >
           <div className="rounded-2xl bg-black text-white px-3 py-2.5 shadow-card space-y-2">
             <p className="text-[11px] font-semibold text-center text-white/90">
-              {t('admin.map.zoneDrawingHint', { count: drawingPoints.length })}
+              {t('admin.map.zoneDrawingHint', { count: zoneBoundaryPoints.length })}
             </p>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -1552,7 +1555,7 @@ export default function AdminMap({
               <button
                 type="button"
                 onClick={onSaveZone}
-                disabled={drawingPoints.length < 3}
+                disabled={zoneBoundaryPoints.length < 3}
                 className="inline-flex flex-col items-center justify-center gap-0.5 rounded-xl bg-accent text-black px-2 py-2.5 text-[11px] font-bold active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <FloppyDisk size={16} weight="bold" />

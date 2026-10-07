@@ -3191,7 +3191,7 @@ const ru: Dict = {
   'admin.map.loadingMapMarks': "Загрузка меток…",
   'admin.map.noMapMarks': "Пока нет сохраненных меток.",
   'admin.map.deleteMapMark': "Удалить метку",
-  'admin.map.zoneDrawingHint': "Кликайте по карте, чтобы добавить вершины зоны ({{count}})",
+  'admin.map.zoneDrawingHint': "Кликайте по карте, чтобы добавить точки границы (минимум 3). Поставлено: {{count}}",
   'admin.map.markerPlacementHint': "Кликните по карте, чтобы выбрать позицию метки",
   'admin.map.findingSimilar': "Подбираем похожие поездки по дорогам…",
   'admin.map.noSimilarGroups': "Похожих групп не найдено.",

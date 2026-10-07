@@ -6,6 +6,7 @@ import i18n from '../../i18n'
 
 import { DEFAULT_DRIVER_REGISTRATION_FORM } from '../../lib/driverRegistrationDefaults'
 import { DEFAULT_PRICING_SETTINGS } from '../../lib/pricingDefaults'
+import { buildSimpleZoneBoundary } from '../../lib/zoneGeometry'
 import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import TransferPointsSheet from '../../components/TransferPointsSheet'
 import type { AppNotification, Driver, DriverApplication, DriverRegistrationFormSchema, GroupSuggestion, LatLng, PricingSettings, RideRequest, ServiceZone } from '../../types'
@@ -132,6 +133,9 @@ export default function AdminDashboard() {
   const [newZoneName, setNewZoneName] = useState(INITIAL_DASHBOARD_UI.newZoneName)
   const [newZoneColor, setNewZoneColor] = useState(INITIAL_DASHBOARD_UI.newZoneColor)
   const [editingZoneId, setEditingZoneId] = useState<string | null>(INITIAL_DASHBOARD_UI.editingZoneId)
+  // Zone polygon is drawn from taps in any order — collapse it to a convex boundary
+  // so the saved shape never self-intersects ("bow-tie").
+  const zoneBoundaryPoints = useMemo(() => buildSimpleZoneBoundary(drawingPoints), [drawingPoints])
   const [newDriverName, setNewDriverName] = useState(INITIAL_DASHBOARD_UI.newDriverName)
   const [newDriverPhotoFile, setNewDriverPhotoFile] = useState<File | null>(null)
   const [newDriverPhotoPreview, setNewDriverPhotoPreview] = useState<string | null>(null)
@@ -444,7 +448,7 @@ export default function AdminDashboard() {
   }
 
   const handleSaveZone = async () => {
-    if (drawingPoints.length < 3) return
+    if (zoneBoundaryPoints.length < 3) return
     setZoneSaveOpen(true)
   }
 
@@ -452,13 +456,13 @@ export default function AdminDashboard() {
     const name = newZoneName.trim()
     const from = zoneDirectionFrom.trim()
     const to = zoneDirectionTo.trim()
-    if (!name || !from || !to || drawingPoints.length < 3 || isSavingZone) return
+    if (!name || !from || !to || zoneBoundaryPoints.length < 3 || isSavingZone) return
     setIsSavingZone(true)
     try {
       await createServiceZone({
         name,
         color: newZoneColor,
-        polygon: drawingPoints,
+        polygon: zoneBoundaryPoints,
         isActive: true,
         directionFrom: from,
         directionTo: to,
@@ -518,11 +522,15 @@ export default function AdminDashboard() {
   }
 
   const handlePlatformChange = async (patch: Partial<PlatformSettingsConfig>) => {
+    // Apply immediately so switches react on tap, then reconcile with the server.
+    const snapshot = platformSettings
+    setPlatformSettings((prev) => mapPlatformSettings({ ...prev, ...patch }))
     try {
       const updated = await updatePlatformSettings(patch)
       setPlatformSettings(mapPlatformSettings(updated))
       return true
     } catch (error) {
+      setPlatformSettings(snapshot)
       setErrorMessage(error instanceof Error ? error.message : t('admin.errors.updatePlatformFailed', { defaultValue: 'Не удалось сохранить настройки' }))
       return false
     }

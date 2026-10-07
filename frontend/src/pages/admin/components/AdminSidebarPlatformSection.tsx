@@ -5,6 +5,7 @@ import { purgeHistory } from '../../../infrastructure/api/adminApi'
 import type { PlatformSettingsConfig } from '../../../lib/platformSettingsDefaults'
 import { SUPPORTED_LANGUAGES } from '../../../i18n/languages'
 import { inputCls } from './AdminSidebarShared'
+import { AdminToggle } from './AdminToggle'
 import type { AdminTab } from '../constants'
 
 type Props = {
@@ -22,12 +23,8 @@ function Toggle({
   onChange: (v: boolean) => void
   label: string
 }) {
-  return (
-    <label className="flex items-center justify-between gap-3 py-2 text-sm">
-      <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-    </label>
-  )
+  // Real switch instead of a tiny native checkbox: tappable inside a Telegram WebView.
+  return <AdminToggle checked={checked} onChange={onChange} label={label} />
 }
 
 function Section({

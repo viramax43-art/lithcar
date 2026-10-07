@@ -11,6 +11,7 @@ import { ColorSwatch, inputCls, KeyReveal, Section, type CopyState, Stat } from 
 import type { AdminSidebarProps } from './AdminSidebar.types'
 import { listAdminPassengers, type AdminPassenger } from '../../../infrastructure/api/adminApi'
 import { AdminUserDossierModal } from './AdminUserDossierModal'
+import { AdminToggle } from './AdminToggle'
 
 type DriversSectionProps = Pick<
   AdminSidebarProps,
@@ -212,22 +213,18 @@ export function AdminSidebarDriversSection({
             placeholder={t('admin.drivers.aboutOptional')}
             className={`${inputCls} min-h-16 resize-none`}
           />
-          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
-            <input
-              type="checkbox"
+          <div className="rounded-xl border border-border bg-white px-3 py-1.5">
+            <AdminToggle
               checked={newDriverCanSellPoints}
-              onChange={(event) => setNewDriverCanSellPoints(event.target.checked)}
+              onChange={setNewDriverCanSellPoints}
+              label={<span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>}
             />
-            <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
-          </label>
-          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
-            <input
-              type="checkbox"
+            <AdminToggle
               checked={newDriverCanSelfAssign}
-              onChange={(event) => setNewDriverCanSelfAssign(event.target.checked)}
+              onChange={setNewDriverCanSelfAssign}
+              label={<span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>}
             />
-            <span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>
-          </label>
+          </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted">{t('admin.drivers.driverPhoto')}</label>
             <input

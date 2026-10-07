@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { Driver } from '../../../types'
 import AdminModalShell from './AdminModalShell'
+import { AdminToggle } from './AdminToggle'
 
 interface EditDriverModalProps {
   driver: Driver
@@ -126,22 +127,18 @@ export default function EditDriverModal({ driver, onClose, onSubmit }: EditDrive
               className={`${inputCls} min-h-24 resize-none`}
             />
           </div>
-          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
-            <input
-              type="checkbox"
+          <div className="rounded-xl border border-border bg-white px-3 py-1.5">
+            <AdminToggle
               checked={canSellPoints}
-              onChange={(e) => setCanSellPoints(e.target.checked)}
+              onChange={setCanSellPoints}
+              label={<span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>}
             />
-            <span className="text-xs font-semibold">{t('admin.drivers.allowQrSales')}</span>
-          </label>
-          <label className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5">
-            <input
-              type="checkbox"
+            <AdminToggle
               checked={canSelfAssign}
-              onChange={(e) => setCanSelfAssign(e.target.checked)}
+              onChange={setCanSelfAssign}
+              label={<span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>}
             />
-            <span className="text-xs font-semibold">{t('admin.drivers.allowSelfAssign')}</span>
-          </label>
+          </div>
         </div>
 
         <div
