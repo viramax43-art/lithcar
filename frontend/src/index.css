@@ -51,6 +51,24 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* The entire request sheet scrolls, including service notices above the form.
+   Capping only the form allowed long notices to push the sheet off-screen. */
+.passenger-request-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+.passenger-request-sheet {
+  max-height: calc(100% - var(--app-user-safe-top) - 56px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.passenger-request-sheet > * {
+  flex-shrink: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Shared safe-area helpers for passenger screens */
 .user-safe-top {
   padding-top: var(--app-user-safe-top);
@@ -950,8 +968,9 @@ body {
   }
   .admin-modal-panel {
     max-width: 100% !important;
-    max-height: 92vh !important;
-    max-height: 92dvh !important;
+    max-height: calc(100vh - var(--app-safe-area-top-total) - 16px) !important;
+    max-height: calc(100dvh - var(--app-safe-area-top-total) - 16px) !important;
+    padding-bottom: var(--app-safe-area-bottom-total);
     border-radius: 20px 20px 0 0 !important;
   }
   .admin-modal-header {

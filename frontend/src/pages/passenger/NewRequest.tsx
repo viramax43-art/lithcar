@@ -205,7 +205,7 @@ export default function NewRequest() {
     : 'user-picking'
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-white">
+    <div className="passenger-request-screen relative overflow-hidden bg-white">
       <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
         <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false} attributionControl={true}>
           <LocalizedTileLayer />
@@ -529,7 +529,7 @@ export default function NewRequest() {
       {!isMapMarkViewMode && (
       <div
         ref={bottomSheetRef}
-        className="absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
+        className="passenger-request-sheet absolute left-0 right-0 z-20 flex flex-col gap-0 transition-transform duration-[250ms] ease-in-out md:max-w-xl md:mx-auto"
         style={{
           bottom: 0,
           transform: model.isPanning || highlightedOffer ? 'translateY(100%)' : 'translateY(0)',
@@ -544,7 +544,7 @@ export default function NewRequest() {
         )}
 
         <div
-          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 max-h-[75dvh] overflow-y-auto overscroll-contain md:rounded-2xl md:mb-4 md:shadow-card"
+          className="bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] px-3 pt-4 space-y-3 md:rounded-2xl md:mb-4 md:shadow-card"
           style={{ paddingBottom: 'calc(var(--app-user-safe-bottom) + 12px)' }}
         >
           {/* When: day + one clock only (not under A/B — that looked like a second time control). */}

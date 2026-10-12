@@ -101,6 +101,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   const [isSearching, setIsSearching] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const submitLock = useRef(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showPayViaDriver, setShowPayViaDriver] = useState(false)
   const [zoneWarning, setZoneWarning] = useState<string | null>(null)
@@ -543,7 +544,9 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
   const submitRequest = useCallback(async (paymentMethod?: 'points' | 'driver_cash' | 'driver_card') => {
     const [datePart, timePart] = dateTime.split('T')
-    if (!fromPoint || !toPoint || !datePart || !timePart) return
+    if (submitLock.current || !fromPoint || !toPoint || !datePart || !timePart) return
+    submitLock.current = true
+    let created = false
     setSubmitting(true)
     setErrorMessage(null)
     setShowPayViaDriver(false)
@@ -555,6 +558,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         dateTime,
         paymentMethod,
       })
+      created = true
       hapticNotification('success')
       setSubmitted(true)
       clearDraft()
@@ -586,6 +590,9 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         setErrorMessage(rawMessage || t('errors.submitRequestFailed', { defaultValue: 'Failed to submit request.' }))
       }
     } finally {
+      // Keep successful submissions locked during the delayed navigation.
+      // React state alone cannot block two calls before the next render.
+      submitLock.current = created
       setSubmitting(false)
     }
   }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint, t])
@@ -670,7 +677,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
   // Both date and time parts must be set ("2026-06-10T" with an empty time is invalid).
   const [draftDatePart, draftTimePart] = dateTime.split('T')
   const hasValidDateTime = Boolean(draftDatePart && draftTimePart)
-  const canSubmit = Boolean(fromPoint && toPoint && hasValidDateTime && !submitting)
+  const canSubmit = Boolean(fromPoint && toPoint && hasValidDateTime && !submitting && !submitted)
   const activeIsFrom = effectiveField === 'from'
   const isPinLive = !(fromPoint && toPoint)
   const isPickingPointA = !fromPoint

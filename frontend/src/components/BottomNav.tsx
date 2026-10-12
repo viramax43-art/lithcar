@@ -18,10 +18,13 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border flex items-center justify-around z-50"
       style={{ minHeight: 64, paddingBottom: 'var(--app-safe-area-bottom-total)' }}>
       {tabs.map((tab) => {
-        const active = location.pathname === tab.path
+        const active = location.pathname === tab.path ||
+          (tab.path !== '/' && location.pathname.startsWith(`${tab.path}/`))
         return (
           <button
             key={tab.path}
+            type="button"
+            aria-current={active ? 'page' : undefined}
             onClick={() => {
               hapticSelection()
               navigate(tab.path)
