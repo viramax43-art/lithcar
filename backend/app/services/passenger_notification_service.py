@@ -114,6 +114,14 @@ def _build_message(status: str, *, request: RideRequest, driver: Driver | None, 
     if status == "in_progress":
         return html.escape(t("notif.in_progress", lang))
 
+    if status == "cancelled":
+        reason_code = request.cancel_reason or "passenger_cancelled"
+        reason_text = t(f"notif.ride.cancel_reason.{reason_code}", lang)
+        return (
+            f"{html.escape(t('notif.ride.passenger.cancelled.title', lang))}\n\n"
+            f"{html.escape(reason_text)}"
+        )
+
     if status == "completed":
         route = html.escape(f"{request.from_address} → {request.to_address}")
         return (
@@ -190,3 +198,71 @@ async def notify_passenger_status_changed(
         await _send_to_passenger(passenger_id=request.passenger_id, text=text)
     if request.status == "assigned":
         await _send_pickup_point(passenger_id=request.passenger_id, request=request)
+
+
+def _esc(value: object) -> str:
+    return html.escape("" if value is None else str(value))
+
+
+def _event_text(pool: str, event: str, lang: str, values: dict) -> str:
+    """Заголовок+текст события из bot/i18n — те же ключи, что и у in-app уведомления."""
+    title = t(f"notif.ride.{pool}.{event}.title", lang)
+    body = t(f"notif.ride.{pool}.{event}.body", lang)
+    for name, value in values.items():
+        body = body.replace("{" + name + "}", _esc(value))
+    return f"<b>{html.escape(title)}</b>\n\n{body}"
+
+
+async def notify_passenger_ride_event(
+    *,
+    request: RideRequest,
+    event: str,
+    driver: Driver | None = None,
+    extra: dict | None = None,
+) -> None:
+    """Событие поездки в Telegram (дублирует in-app уведомление — требование клиента)."""
+    if not _notifications_enabled():
+        return
+    from app.bot.datetime_format import format_bot_date, format_bot_time
+
+    lang = await _resolve_lang(request.passenger_id)
+    values: dict = {
+        "ride_number": request.ride_number,
+        "passenger_name": request.passenger_name,
+        "from_address": request.from_address,
+        "to_address": request.to_address,
+        "date": format_bot_date(request.date_time) if request.date_time else "",
+        "time": format_bot_time(request.date_time) if request.date_time else "",
+        "driver_name": getattr(driver, "name", "") or "",
+        "driver_car": " ".join(
+            part
+            for part in [
+                getattr(driver, "car_brand", "") or "",
+                getattr(driver, "car_model", "") or "",
+            ]
+            if part and part != "Unknown"
+        ),
+    }
+    if extra:
+        values.update(extra)
+    text = _event_text("passenger", event, lang, values)
+    await _send_to_passenger(passenger_id=request.passenger_id, text=text)
+
+
+async def notify_passenger_chat_message(
+    *,
+    request: RideRequest,
+    sender_name: str,
+    text: str,
+) -> None:
+    """Пересылает сообщение чата пассажиру в Telegram (чтобы не пропустил)."""
+    if not _notifications_enabled():
+        return
+    lang = await _resolve_lang(request.passenger_id)
+    title = html.escape(t("notif.ride.chat.title", lang)).replace("{sender_name}", _esc(sender_name))
+    body = t("notif.ride.chat.body", lang)
+    body = body.replace("{sender_name}", _esc(sender_name)).replace("{text}", _esc(text))
+    await _send_to_passenger(
+        passenger_id=request.passenger_id,
+        text=f"<b>{title}</b>\n\n{body}",
+    )

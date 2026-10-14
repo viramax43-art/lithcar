@@ -14,15 +14,28 @@ import type { LatLng } from '../../../types'
 import { directionsHref, showOnMapHref } from '../../../lib/navigation'
 import { formatRideDate, formatRideTime } from '../../../i18n/dateTime'
 import { ctaLabelKey, DRIVER_STATUS_COLOR, DRIVER_STATUS_LABEL_KEY, nextStatus } from '../constants'
+import DriverRideFlowActions, { type DriverFlowAction } from '../../../components/ride-flow/DriverRideFlowActions'
+import type { RideFlowState } from '../../../types'
 import RideStepper from './RideStepper'
 
 interface ActiveRideCardProps {
   ride: DriverCabinetRide
   isAdvancing: boolean
   onAdvance: () => void
+  /** Состояние жизненного цикла с сервера: если передано, показываем новый набор кнопок. */
+  flow?: RideFlowState | null
+  onFlowAction?: (action: DriverFlowAction, comment?: string) => void | Promise<void>
+  isFlowBusy?: boolean
 }
 
-export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveRideCardProps) {
+export default function ActiveRideCard({
+  ride,
+  isAdvancing,
+  onAdvance,
+  flow = null,
+  onFlowAction,
+  isFlowBusy = false,
+}: ActiveRideCardProps) {
   const { t } = useTranslation()
   const nextSt = nextStatus(ride.status)
   const ctaKey = ctaLabelKey(ride.status)
@@ -136,8 +149,18 @@ export default function ActiveRideCard({ ride, isAdvancing, onAdvance }: ActiveR
         <RideStepper status={ride.status} />
       </div>
 
-      {/* CTA */}
-      {ctaKey && nextSt && (
+      {/* CTA: новый жизненный цикл (Еду / Прибыл / Начать / Завершить + откат, неявка) */}
+      {flow && onFlowAction && (
+        <DriverRideFlowActions
+          rideId={ride.id}
+          flow={flow}
+          isBusy={isFlowBusy}
+          onAction={onFlowAction}
+        />
+      )}
+
+      {/* Легаси-CTA: остаётся для случаев, когда состояние флоу ещё не загружено */}
+      {!flow && ctaKey && nextSt && (
         <div className="px-4 pb-4 pt-1">
           <button
             onClick={onAdvance}

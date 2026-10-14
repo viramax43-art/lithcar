@@ -25,6 +25,10 @@ import InlineConfirm from '../../admin/components/InlineConfirm'
 
 // ─── Action mapping ───────────────────────────────────────────────────────────
 
+import type { RideFlowState } from '../../../types'
+import DriverRideActionsRow from '../../../components/ride-flow/DriverRideActionsRow'
+import type { DriverFlowAction } from '../../../components/ride-flow/DriverRideFlowActions'
+
 interface ActionDef {
   labelKey: string
   sublabelKey?: string
@@ -65,6 +69,10 @@ interface DriverPointSheetProps {
   isActioning: boolean
   onClose: () => void
   onAction: (action: string) => void
+  /** Состояние жизненного цикла: кнопки чата, отката, неявки и отмены. */
+  rideFlow?: RideFlowState | null
+  onFlowAction?: (action: DriverFlowAction, comment?: string) => void | Promise<void>
+  isFlowBusy?: boolean
 }
 
 export default function DriverPointSheet({
@@ -109,6 +117,9 @@ function SheetBody({
   isActioning,
   onClose,
   onAction,
+  rideFlow = null,
+  onFlowAction,
+  isFlowBusy = false,
 }: Omit<DriverPointSheetProps, 'point'> & { point: DriverMapPoint }) {
   const { t } = useTranslation()
   const [isBlocking, setIsBlocking] = useState(false)
@@ -260,6 +271,16 @@ function SheetBody({
             )}
           </button>
         </div>
+      )}
+
+      {/* Жизненный цикл: чат поездки, откат ошибочной отметки, неявка, отмена */}
+      {onFlowAction && (
+        <DriverRideActionsRow
+          rideId={point.rideId}
+          flow={rideFlow}
+          isBusy={isFlowBusy}
+          onAction={onFlowAction}
+        />
       )}
 
       {point.rideStatus === 'completed' && point.pointType === 'dropoff' && !passengerBlocked && (

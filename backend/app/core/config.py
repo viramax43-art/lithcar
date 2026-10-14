@@ -49,6 +49,33 @@ class Settings(BaseSettings):
 
     osrm_base_url: str = Field(default="https://router.project-osrm.org")
 
+    # --- Жизненный цикл поездки: «Еду на точку» / «Прибыл» / ожидание / неявка ---
+    # Насколько заранее водитель может нажать «Еду на точку» (защита от ложного «уже едет»).
+    # 6 часов: отсекаем «еду» за сутки до подачи, но не мешаем плановым поездкам на день.
+    ride_en_route_max_early_minutes: int = Field(default=360)
+    # Окно, в котором водитель может откатить ошибочно нажатый статус.
+    ride_status_undo_window_minutes: int = Field(default=5)
+    # Радиус (м), считающийся «прибыл на точку» — используется для подсказок и разбора споров.
+    ride_arrival_radius_meters: int = Field(default=400)
+    # Через сколько минут ожидания пассажиру напомнить, что водитель ждёт.
+    ride_wait_reminder_minutes: int = Field(default=7)
+    # Минимальное ожидание на точке, после которого водитель может оформить неявку.
+    ride_no_show_min_wait_minutes: int = Field(default=5)
+    # Насколько позже назначенного времени напомнить водителю о старте поездки.
+    ride_driver_late_reminder_minutes: int = Field(default=15)
+    # Если водитель «едет на точку» дольше этого времени — поездка уходит админу на контроль.
+    ride_en_route_timeout_minutes: int = Field(default=90)
+    # Если поездка длится дольше этого времени — поездка уходит админу на контроль.
+    ride_max_duration_minutes: int = Field(default=360)
+    # Чат поездки: ограничения, антиспам и кулдаун кнопки «Где вы?».
+    ride_chat_max_length: int = Field(default=1000)
+    ride_chat_rate_limit_messages: int = Field(default=20)
+    ride_chat_rate_limit_window_seconds: int = Field(default=60)
+    ride_nudge_cooldown_seconds: int = Field(default=180)
+    # Как часто фоновый сторож проверяет «зависшие» поездки и напоминания.
+    ride_watchdog_interval_seconds: int = Field(default=60)
+    ride_watchdog_enabled: bool = Field(default=True)
+
     payment_provider: str = Field(default="")
     yookassa_shop_id: str = Field(default="")
     yookassa_secret_key: str = Field(default="")

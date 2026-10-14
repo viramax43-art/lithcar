@@ -37,9 +37,14 @@ from app.services.info_block_service import (
 )
 from app.services.notification_service import (
     NotificationRecipient,
+    count_feed_unread,
     count_unread,
+    feed_item_to_out,
+    list_feed,
     list_notifications,
+    mark_all_feed_read,
     mark_all_read,
+    mark_feed_item_read,
     mark_read,
     normalize_notification_language,
 )
@@ -55,6 +60,15 @@ def _passenger_recipient(user: User, *, lang: str | None = None) -> InfoBlockRec
         recipient_type=InfoBlockReadRecipientType.USER,
         recipient_id=user.user_id,
         language=normalize_notification_language(lang) if lang else user.language,
+    )
+
+
+def _passenger_notification_recipient(user: User) -> NotificationRecipient:
+    """Адресат личных уведомлений пассажира (события поездок и т.п.)."""
+    return NotificationRecipient(
+        pool=NotificationPool.PASSENGER,
+        recipient_type=NotificationRecipientType.USER,
+        recipient_id=user.user_id,
     )
 
 
@@ -75,15 +89,17 @@ async def list_passenger_notifications(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    items, total = await list_info_blocks_for_recipient(
+    items, total = await list_feed(
         db_session,
-        recipient=_passenger_recipient(current_user, lang=lang),
+        recipient=_passenger_notification_recipient(current_user),
+        info_recipient=_passenger_recipient(current_user, lang=lang),
         limit=limit,
         offset=offset,
         unread_only=unreadOnly,
+        language=normalize_notification_language(lang) if lang else current_user.language,
     )
     return NotificationPage(
-        items=[info_block_to_notification_out(item) for item in items],
+        items=[feed_item_to_out(item) for item in items],
         total=total,
         limit=limit,
         offset=offset,
@@ -95,7 +111,11 @@ async def passenger_unread_count(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    count = await count_unread_info_blocks(db_session, recipient=_passenger_recipient(current_user))
+    count = await count_feed_unread(
+        db_session,
+        recipient=_passenger_notification_recipient(current_user),
+        info_recipient=_passenger_recipient(current_user),
+    )
     return UnreadCountOut(count=count)
 
 
@@ -106,14 +126,16 @@ async def mark_passenger_notification_read(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    view = await mark_info_block_read(
+    item = await mark_feed_item_read(
         db_session,
-        info_block_id=notification_id,
-        recipient=_passenger_recipient(current_user, lang=lang),
+        item_id=notification_id,
+        recipient=_passenger_notification_recipient(current_user),
+        info_recipient=_passenger_recipient(current_user, lang=lang),
+        language=normalize_notification_language(lang) if lang else current_user.language,
     )
-    if view is None:
+    if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
-    return info_block_to_notification_out(view)
+    return feed_item_to_out(item)
 
 
 @passenger_router.post("/read-all", response_model=UnreadCountOut)
@@ -121,7 +143,11 @@ async def mark_all_passenger_notifications_read(
     current_user: User = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    await mark_all_info_blocks_read(db_session, recipient=_passenger_recipient(current_user))
+    await mark_all_feed_read(
+        db_session,
+        recipient=_passenger_notification_recipient(current_user),
+        info_recipient=_passenger_recipient(current_user),
+    )
     return UnreadCountOut(count=0)
 
 

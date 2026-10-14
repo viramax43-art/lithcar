@@ -29,6 +29,7 @@ from app.services.offer_matching_service import (
 from app.services.driver_notification_service import notify_driver_offer_booked
 from app.services.driver_service import get_driver
 from app.services.passenger_notification_service import notify_passenger_driver_assigned
+from app.services.ride_notification_service import notify_ride_assigned
 from app.services.ride_booking_service import InsufficientPointsError, RideQuoteUnavailableError
 
 
@@ -376,6 +377,8 @@ async def book_offer(
         request=result.request,
         passenger_name=passenger_name,
     )
+    # Бронирование места: дублируем событие в ленту уведомлений пассажира и водителя.
+    await notify_ride_assigned(db_session, ride=result.request, driver=driver)
     return await _build_ride_request_out_for_passenger(
         db_session,
         result.request,

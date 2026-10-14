@@ -16,6 +16,7 @@ from app.api import (
     driver_portal,
     driver_offers,
     driver_registration,
+    driver_ride_flow,
     drivers,
     group_suggestions,
     health,
@@ -27,6 +28,7 @@ from app.api import (
     points_transfer,
     pricing,
     push,
+    ride_chat,
     ride_quote,
     ride_offers,
     ride_requests,
@@ -93,9 +95,11 @@ def _register_api_routes(api_router: APIRouter) -> None:
     api_router.include_router(admin_platform.system_router, tags=["Admin System"])
     api_router.include_router(admin_passengers.router, tags=["Admin Passengers"])
     api_router.include_router(ride_requests.router, tags=["Ride Requests"])
+    api_router.include_router(ride_chat.router, tags=["Ride Chat & Flow"])
     api_router.include_router(drivers.router, tags=["Drivers"])
     api_router.include_router(driver_registration.router, tags=["Driver Registration"])
     api_router.include_router(driver_portal.router, tags=["Driver Portal"])
+    api_router.include_router(driver_ride_flow.router, tags=["Driver Ride Flow"])
     api_router.include_router(driver_offers.router, tags=["Driver Offers"])
     api_router.include_router(points_card.router, tags=["Points Card"])
     api_router.include_router(points_qr.router, tags=["Points QR"])

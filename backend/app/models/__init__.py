@@ -24,6 +24,8 @@ from app.models.driver_application import DriverApplication
 from app.models.driver_login_token import DriverLoginToken
 from app.models.notification import Notification
 from app.models.info_block import InfoBlock, InfoBlockRead
+from app.models.ride_message import RideChatMessage, RideChatReadState
+from app.models.ride_status_event import RideStatusEvent
 
 
 __all__ = [
@@ -48,4 +50,7 @@ __all__ = [
     "Notification",
     "InfoBlock",
     "InfoBlockRead",
+    "RideChatMessage",
+    "RideChatReadState",
+    "RideStatusEvent",
 ]

@@ -25,6 +25,45 @@ class NotificationType:
     DRIVER_APPLICATION_NEW = "driver_application_new"
     INFO_BLOCK = "info_block"
 
+    # --- События поездки (in-app дубль того, что уходит в Telegram) ---
+    RIDE_ASSIGNED = "ride_assigned"
+    RIDE_EN_ROUTE = "ride_en_route"
+    RIDE_ARRIVED = "ride_arrived"
+    RIDE_STARTED = "ride_started"
+    RIDE_COMPLETED = "ride_completed"
+    RIDE_CANCELLED = "ride_cancelled"
+    RIDE_NO_SHOW = "ride_no_show"
+    RIDE_STATUS_UNDO = "ride_status_undo"
+    RIDE_PASSENGER_READY = "ride_passenger_ready"
+    RIDE_PASSENGER_NUDGE = "ride_passenger_nudge"
+    RIDE_CHAT_MESSAGE = "ride_chat_message"
+    RIDE_WAIT_REMINDER = "ride_wait_reminder"
+    RIDE_NO_SHOW_AVAILABLE = "ride_no_show_available"
+    RIDE_DRIVER_LATE = "ride_driver_late"
+    RIDE_EN_ROUTE_STUCK = "ride_en_route_stuck"
+    RIDE_RIDE_STUCK = "ride_ride_stuck"
+    RIDE_ADMIN_ATTENTION = "ride_admin_attention"
+
+    RIDE_EVENTS: tuple[str, ...] = (
+        RIDE_ASSIGNED,
+        RIDE_EN_ROUTE,
+        RIDE_ARRIVED,
+        RIDE_STARTED,
+        RIDE_COMPLETED,
+        RIDE_CANCELLED,
+        RIDE_NO_SHOW,
+        RIDE_STATUS_UNDO,
+        RIDE_PASSENGER_READY,
+        RIDE_PASSENGER_NUDGE,
+        RIDE_CHAT_MESSAGE,
+        RIDE_WAIT_REMINDER,
+        RIDE_NO_SHOW_AVAILABLE,
+        RIDE_DRIVER_LATE,
+        RIDE_EN_ROUTE_STUCK,
+        RIDE_RIDE_STUCK,
+        RIDE_ADMIN_ATTENTION,
+    )
+
 
 class Notification(Base):
     __tablename__ = "notifications"

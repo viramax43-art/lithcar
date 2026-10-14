@@ -8,6 +8,7 @@ export const DRIVER_STATUS_LABEL_KEY: Record<RideStatus, string> = {
   awaiting_passenger: 'status.awaiting_passenger',
   in_progress: 'status.in_progress',
   completed: 'status.completed',
+  cancelled: 'status.cancelled',
 }
 
 export const OFFER_STATUS_COLOR: Record<'open' | 'full' | 'cancelled' | 'completed', { color: string; bg: string }> = {
@@ -25,6 +26,7 @@ export const DRIVER_STATUS_COLOR: Record<RideStatus, { color: string; bg: string
   awaiting_passenger: { color: '#F97316', bg: 'rgba(249,115,22,0.10)' },
   in_progress: { color: '#3B82F6', bg: 'rgba(59,130,246,0.10)' },
   completed: { color: '#858585', bg: 'rgba(133,133,133,0.10)' },
+  cancelled: { color: '#EF4444', bg: 'rgba(239,68,68,0.10)' },
 }
 
 export const ACTIVE_RIDE_STATUSES: RideStatus[] = [

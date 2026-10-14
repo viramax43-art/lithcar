@@ -15,6 +15,7 @@ from app.models.admin_api_key import AdminApiRole
 from app.models.user import User, UserRole
 from app.services.driver_service import get_driver, is_driver_online
 from app.services.driver_notification_service import notify_driver_ride_assigned
+from app.services.ride_notification_service import notify_ride_assigned
 from app.services.passenger_notification_service import (
     notify_passenger_driver_assigned,
     notify_passenger_status_changed,
@@ -491,6 +492,8 @@ async def assign_driver_single(
     driver = await get_driver(db_session, driver_id=payload.driverId)
     await notify_passenger_driver_assigned(request=updated[0], driver=driver)
     await notify_driver_ride_assigned(request=updated[0], driver=driver)
+    # Дублируем назначение в приложение: раньше событие видел только Telegram.
+    await notify_ride_assigned(db_session, ride=updated[0], driver=driver)
     return await _build_ride_request_out_with_driver(db_session, updated[0])
 
 
@@ -545,6 +548,7 @@ async def assign_driver_bulk(
     for request in updated:
         await notify_passenger_driver_assigned(request=request, driver=driver)
         await notify_driver_ride_assigned(request=request, driver=driver)
+        await notify_ride_assigned(db_session, ride=request, driver=driver)
     items = []
     for request in updated:
         items.append(await _build_ride_request_out_with_driver(db_session, request))

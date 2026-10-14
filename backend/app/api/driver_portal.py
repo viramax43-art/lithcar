@@ -38,11 +38,23 @@ from app.services.info_block_service import (
     mark_info_block_read,
     resolve_recipient_language,
 )
-from app.services.notification_service import normalize_notification_language
+from app.services.notification_service import (
+    NotificationRecipient,
+    count_feed_unread,
+    feed_item_to_out,
+    list_feed,
+    mark_all_feed_read,
+    mark_feed_item_read,
+    normalize_notification_language,
+)
+from app.models.notification import NotificationPool, NotificationRecipientType
 from app.services.passenger_notification_service import (
     notify_passenger_driver_assigned,
     notify_passenger_status_changed,
 )
+from app.services import ride_flow_side_effects, ride_status_service
+from app.services.ride_notification_service import notify_ride_assigned
+from app.services.ride_status_service import RideFlowError
 from app.models.admin_audit_event import AdminAuditAction
 from app.models.driver_qr_sale import DriverQrSaleSettlementStatus
 from app.services.admin_audit_service import add_audit_event
@@ -742,6 +754,15 @@ async def _driver_recipient(
     )
 
 
+def _driver_notification_recipient(session: DriverSession) -> NotificationRecipient:
+    """Адресат личных уведомлений водителя (назначения поездок, чат, напоминания)."""
+    return NotificationRecipient(
+        pool=NotificationPool.DRIVER,
+        recipient_type=NotificationRecipientType.DRIVER,
+        recipient_id=session.driver_id,
+    )
+
+
 @router.get("/notifications", response_model=NotificationPage)
 async def list_driver_notifications(
     limit: int = Query(default=50, ge=1, le=200),
@@ -752,15 +773,17 @@ async def list_driver_notifications(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     recipient = await _driver_recipient(db_session, session, lang=lang)
-    items, total = await list_info_blocks_for_recipient(
+    items, total = await list_feed(
         db_session,
-        recipient=recipient,
+        recipient=_driver_notification_recipient(session),
+        info_recipient=recipient,
         limit=limit,
         offset=offset,
         unread_only=unreadOnly,
+        language=recipient.language,
     )
     return NotificationPage(
-        items=[info_block_to_notification_out(item) for item in items],
+        items=[feed_item_to_out(item) for item in items],
         total=total,
         limit=limit,
         offset=offset,
@@ -773,7 +796,11 @@ async def driver_unread_count(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     recipient = await _driver_recipient(db_session, session)
-    count = await count_unread_info_blocks(db_session, recipient=recipient)
+    count = await count_feed_unread(
+        db_session,
+        recipient=_driver_notification_recipient(session),
+        info_recipient=recipient,
+    )
     return UnreadCountOut(count=count)
 
 
@@ -785,14 +812,16 @@ async def mark_driver_notification_read(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     recipient = await _driver_recipient(db_session, session, lang=lang)
-    view = await mark_info_block_read(
+    item = await mark_feed_item_read(
         db_session,
-        info_block_id=notification_id,
-        recipient=recipient,
+        item_id=notification_id,
+        recipient=_driver_notification_recipient(session),
+        info_recipient=recipient,
+        language=recipient.language,
     )
-    if view is None:
+    if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
-    return info_block_to_notification_out(view)
+    return feed_item_to_out(item)
 
 
 @router.post("/notifications/read-all", response_model=UnreadCountOut)
@@ -801,7 +830,11 @@ async def mark_all_driver_notifications_read(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     recipient = await _driver_recipient(db_session, session)
-    await mark_all_info_blocks_read(db_session, recipient=recipient)
+    await mark_all_feed_read(
+        db_session,
+        recipient=_driver_notification_recipient(session),
+        info_recipient=recipient,
+    )
     return UnreadCountOut(count=0)
 
 
@@ -1064,6 +1097,8 @@ async def claim_cabinet_ride(
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
     await notify_passenger_driver_assigned(request=ride, driver=driver)
+    # Водитель взял заявку сам — пассажиру и водителю это тоже видно в приложении.
+    await notify_ride_assigned(db_session, ride=ride, driver=driver)
     return await _to_driver_ride_out(db_session, ride, driver_id=session.driver_id)
 
 
@@ -1161,6 +1196,56 @@ async def update_cabinet_location(
     return {"success": True, "lat": updated.current_lat, "lng": updated.current_lng}
 
 
+def _ride_flow_error_to_http(exc: RideFlowError) -> HTTPException:
+    """Ошибки жизненного цикла поездки отдаём с кодом и подсказками для UI (таймеры)."""
+    detail: dict = {"code": exc.code, "message": exc.message}
+    detail.update(exc.extra)
+    return HTTPException(status_code=exc.status_code, detail=detail)
+
+
+async def _apply_driver_flow_status(
+    db_session: AsyncSession,
+    *,
+    request_id: str,
+    driver_id: str,
+    target_status: str,
+    lat: float | None = None,
+    lng: float | None = None,
+):
+    """Проводит статус через новый жизненный цикл. None — статус вне флоу (legacy-путь)."""
+    handlers = {
+        "en_route_to_pickup": ride_status_service.mark_en_route,
+        "awaiting_passenger": ride_status_service.mark_arrived,
+        "in_progress": ride_status_service.start_ride,
+        "completed": ride_status_service.complete_ride,
+    }
+    handler = handlers.get(target_status)
+    if handler is None:
+        return None
+    if target_status in ("en_route_to_pickup", "awaiting_passenger"):
+        return await handler(
+            db_session,
+            ride_id=request_id,
+            driver_id=driver_id,
+            lat=lat,
+            lng=lng,
+        )
+    return await handler(db_session, ride_id=request_id, driver_id=driver_id)
+
+
+def _point_action_target(point_type: str, action: str) -> str | None:
+    """Маппинг точек/действий старого UI на статусы жизненного цикла."""
+    mapping = {
+        ("pickup", "start"): "en_route_to_pickup",
+        ("pickup", "arrived"): "awaiting_passenger",
+        ("pickup", "complete"): "in_progress",
+        ("dropoff", "start"): "in_progress",
+        ("dropoff", "arrived"): "completed",
+        ("dropoff", "complete"): "completed",
+    }
+    return mapping.get((point_type, action))
+
+
 @router.patch("/cabinet/rides/{request_id}/status", response_model=DriverRideOut)
 async def update_cabinet_ride_status(
     request_id: str,
@@ -1168,6 +1253,25 @@ async def update_cabinet_ride_status(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    """Смена статуса поездки водителем.
+
+    Ведёт через новый жизненный цикл (идемпотентность, защита от «слишком рано», откат),
+    а нестандартные статусы (например назначение админом) остаются на прежнем пути.
+    """
+    try:
+        result = await _apply_driver_flow_status(
+            db_session,
+            request_id=request_id,
+            driver_id=session.driver_id,
+            target_status=payload.status,
+        )
+    except RideFlowError as exc:
+        raise _ride_flow_error_to_http(exc) from exc
+
+    if result is not None:
+        await ride_flow_side_effects.deliver_flow_side_effects(result)
+        return await _to_driver_ride_out(db_session, result.ride, driver_id=session.driver_id)
+
     current_ride = await get_request(db_session, request_id=request_id)
     previous_status = current_ride.status if current_ride is not None else payload.status
 
@@ -1284,6 +1388,22 @@ async def update_cabinet_point_action(
         raise HTTPException(status_code=400, detail="pointType должен быть pickup или dropoff.")
     if normalized_action not in {"start", "arrived", "complete"}:
         raise HTTPException(status_code=400, detail="action должен быть start, arrived или complete.")
+
+    # Сначала пробуем провести действие через новый жизненный цикл (таймеры, уведомления, антидубли).
+    target_status = _point_action_target(normalized_point_type, normalized_action)
+    if target_status is not None:
+        try:
+            result = await _apply_driver_flow_status(
+                db_session,
+                request_id=request_id,
+                driver_id=session.driver_id,
+                target_status=target_status,
+            )
+        except RideFlowError as exc:
+            raise _ride_flow_error_to_http(exc) from exc
+        if result is not None:
+            await ride_flow_side_effects.deliver_flow_side_effects(result)
+            return await _to_driver_ride_out(db_session, result.ride, driver_id=session.driver_id)
 
     ride, previous_status, error = await apply_driver_point_action(
         db_session,

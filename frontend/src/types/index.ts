@@ -11,6 +11,7 @@ export type RideStatus =
   | 'awaiting_passenger'
   | 'in_progress'
   | 'completed'
+  | 'cancelled'
 
 export interface RideRatingContext {
   canRate: boolean
@@ -454,6 +455,77 @@ export interface AppNotification {
   payload: NotificationPayload | null
   readAt: string | null
   createdAt: string
+}
+
+export type RideChatSenderType = 'driver' | 'passenger' | 'system'
+
+export interface RideChatMessage {
+  id: string
+  rideId: string
+  senderType: RideChatSenderType
+  senderName: string
+  kind: 'text' | 'quick_reply' | 'system'
+  body: string
+  payload: Record<string, unknown> | null
+  createdAt: string
+  mine: boolean
+  readByOthers: boolean
+}
+
+export interface RideChatParticipant {
+  type: 'driver' | 'passenger'
+  name: string
+  rideId: string
+  isMe: boolean
+}
+
+export interface RideChatPage {
+  rideId: string
+  threadKey: string
+  items: RideChatMessage[]
+  unreadCount: number
+  canSend: boolean
+  closedReason: string | null
+  participants: RideChatParticipant[]
+}
+
+/** Состояние жизненного цикла поездки: какие кнопки показывать и какие таймеры активны. */
+export interface RideFlowState {
+  status: RideStatus
+  canChat?: boolean
+  canSendMessage?: boolean
+  canMarkReady?: boolean
+  passengerReady?: boolean
+  canNudgeDriver?: boolean
+  nudgeSecondsLeft?: number
+  canCancel?: boolean
+  lateCancel?: boolean
+  canEnRoute?: boolean
+  canArrived?: boolean
+  canStart?: boolean
+  canComplete?: boolean
+  canReportNoShow?: boolean
+  canUndo?: boolean
+  undoSecondsLeft?: number
+  noShowSecondsLeft?: number
+  enRouteAt?: string | null
+  arrivedAt?: string | null
+  startedAt?: string | null
+  waitingSeconds?: number
+  driverWaitingMinutes?: number
+  cancelReason?: string | null
+  cancelComment?: string | null
+  requiresAdminAttention?: boolean
+  adminAttentionReason?: string | null
+  passengerReadyAt?: string | null
+  canEnRouteAt?: string | null
+}
+
+export interface DriverRideFlowPayload {
+  rideId: string
+  status: RideStatus
+  flow: RideFlowState
+  chatUnreadCount: number
 }
 
 export interface InfoBlock {

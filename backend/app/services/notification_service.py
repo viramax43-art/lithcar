@@ -214,3 +214,173 @@ async def mark_all_read(
         entity.read_at = now
     await db_session.commit()
     return len(entities)
+
+
+@dataclass(frozen=True)
+class FeedItem:
+    """Элемент общей ленты уведомлений пользователя/водителя.
+
+    Лента объединяет два источника: личные уведомления (события поездок, заявки водителей)
+    и информационные блоки от администрации. Раньше в приложении были видны только блоки —
+    поэтому события поездки приходили лишь в Telegram.
+    """
+
+    id: str
+    pool: str
+    type: str
+    title: str
+    body: str
+    payload: dict | None
+    read_at: datetime | None
+    created_at: datetime
+    source: str  # "notification" | "info_block"
+
+
+NOTIFICATION_SOURCE = "notification"
+INFO_BLOCK_SOURCE = "info_block"
+
+
+def _info_block_to_feed_item(view) -> FeedItem:
+    from app.models.notification import NotificationType
+
+    return FeedItem(
+        id=view.id,
+        pool=view.pool,
+        type=NotificationType.INFO_BLOCK,
+        title=view.title,
+        body=view.body,
+        payload=None,
+        read_at=view.read_at,
+        created_at=view.created_at,
+        source=INFO_BLOCK_SOURCE,
+    )
+
+
+def _notification_to_feed_item(entity: Notification, *, language: str | None) -> FeedItem:
+    title, body = resolve_notification_text(entity, language=language)
+    return FeedItem(
+        id=entity.id,
+        pool=entity.pool,
+        type=entity.type,
+        title=title,
+        body=body,
+        payload=entity.payload if isinstance(entity.payload, dict) else None,
+        read_at=entity.read_at,
+        created_at=entity.created_at,
+        source=NOTIFICATION_SOURCE,
+    )
+
+
+def _sorted_feed(items: list[FeedItem]) -> list[FeedItem]:
+    return sorted(items, key=lambda item: item.created_at, reverse=True)
+
+
+async def list_feed(
+    db_session: AsyncSession,
+    *,
+    recipient: NotificationRecipient,
+    info_recipient,
+    limit: int,
+    offset: int,
+    unread_only: bool = False,
+    language: str | None = None,
+) -> tuple[list[FeedItem], int]:
+    """Единая лента: события поездок + информационные блоки, отсортированные по времени.
+
+    Из каждого источника берём только первые `offset + limit` записей — этого достаточно,
+    чтобы корректно получить «страницу» объединённой ленты.
+    """
+    from app.services.info_block_service import (
+        count_unread_info_blocks,
+        list_info_blocks_for_recipient,
+    )
+
+    window = max(1, int(offset) + int(limit))
+
+    notifications, notifications_total = await list_notifications(
+        db_session,
+        recipient=recipient,
+        limit=window,
+        offset=0,
+        unread_only=unread_only,
+    )
+    blocks, blocks_total = await list_info_blocks_for_recipient(
+        db_session,
+        recipient=info_recipient,
+        limit=window,
+        offset=0,
+        unread_only=unread_only,
+    )
+
+    merged = _sorted_feed(
+        [_notification_to_feed_item(item, language=language) for item in notifications]
+        + [_info_block_to_feed_item(block) for block in blocks]
+    )
+    return merged[offset : offset + limit], notifications_total + blocks_total
+
+
+async def count_feed_unread(
+    db_session: AsyncSession,
+    *,
+    recipient: NotificationRecipient,
+    info_recipient,
+) -> int:
+    from app.services.info_block_service import count_unread_info_blocks
+
+    return await count_unread(db_session, recipient=recipient) + await count_unread_info_blocks(
+        db_session,
+        recipient=info_recipient,
+    )
+
+
+async def mark_feed_item_read(
+    db_session: AsyncSession,
+    *,
+    item_id: str,
+    recipient: NotificationRecipient,
+    info_recipient,
+    language: str | None = None,
+) -> FeedItem | None:
+    """Отметить элемент ленты прочитанным: сначала ищем личное уведомление, затем инфо-блок."""
+    from app.services.info_block_service import mark_info_block_read
+
+    entity = await mark_read(db_session, notification_id=item_id, recipient=recipient)
+    if entity is not None:
+        return _notification_to_feed_item(entity, language=language)
+
+    view = await mark_info_block_read(
+        db_session,
+        info_block_id=item_id,
+        recipient=info_recipient,
+    )
+    if view is None:
+        return None
+    return _info_block_to_feed_item(view)
+
+
+async def mark_all_feed_read(
+    db_session: AsyncSession,
+    *,
+    recipient: NotificationRecipient,
+    info_recipient,
+) -> int:
+    from app.services.info_block_service import mark_all_info_blocks_read
+
+    marked = await mark_all_read(db_session, recipient=recipient)
+    marked += await mark_all_info_blocks_read(db_session, recipient=info_recipient)
+    return marked
+
+
+def feed_item_to_out(item: FeedItem):
+    from app.schemas.notification import NotificationOut
+
+    return NotificationOut(
+        id=item.id,
+        pool=item.pool,
+        type=item.type,
+        title=item.title,
+        body=item.body,
+        payload=item.payload,
+        readAt=item.read_at,
+        createdAt=item.created_at,
+    )

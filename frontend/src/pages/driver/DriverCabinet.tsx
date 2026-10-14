@@ -46,6 +46,18 @@ import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/Dr
 import DriverMap from './components/DriverMap'
 import DriverMapLegend from './components/DriverMapLegend'
 import DriverPointSheet from './components/DriverPointSheet'
+import {
+  cancelDriverRide,
+  completeDriverRide,
+  getDriverRideFlow,
+  markDriverArrived,
+  markDriverEnRoute,
+  reportDriverNoShow,
+  startDriverRide,
+  undoDriverRideStatus,
+} from '../../infrastructure/api/driverApi'
+import type { DriverFlowAction } from '../../components/ride-flow/DriverRideFlowActions'
+import type { RideFlowState } from '../../types'
 import DriverSideMenu from './components/DriverSideMenu'
 import NotificationBell from '../../components/notifications/NotificationBell'
 import CabinetRoleBanner, { CABINET_ROLE_BANNER_BODY_HEIGHT } from '../../components/CabinetRoleBanner'
@@ -337,6 +349,9 @@ export default function DriverCabinet() {
   const [mapData, setMapData] = useState<DriverMapData | null>(null)
   const [cabinetData, setCabinetData] = useState<DriverCabinetData | null>(null)
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null)
+  /** Состояние жизненного цикла выбранной поездки: кнопки шага, откат, неявка, чат. */
+  const [rideFlow, setRideFlow] = useState<RideFlowState | null>(null)
+  const [isFlowBusy, setIsFlowBusy] = useState(false)
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [isActioning, setIsActioning] = useState(false)
   const [isResettingPickup, setIsResettingPickup] = useState(false)
@@ -647,6 +662,26 @@ export default function DriverCabinet() {
     ? visibleAvailablePoints.find((p) => p.id === selectedPointId) ?? null
     : null
 
+  // Подтягиваем состояние шага для выбранной точки: таймеры ожидания, откат, неявка.
+  useEffect(() => {
+    const rideId = selectedPoint?.rideId
+    if (!rideId) {
+      setRideFlow(null)
+      return
+    }
+    let cancelled = false
+    void getDriverRideFlow(rideId)
+      .then((payload) => {
+        if (!cancelled) setRideFlow(payload.flow)
+      })
+      .catch(() => {
+        if (!cancelled) setRideFlow(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPoint?.rideId, mapData])
+
   const selectedAvailableRideId = selectedAvailablePoint?.rideId ?? null
   const selectedAvailablePickup = selectedAvailableRideId
     ? visibleAvailablePoints.find((p) => p.rideId === selectedAvailableRideId && p.pointType === 'pickup') ?? null
@@ -734,6 +769,42 @@ export default function DriverCabinet() {
       setErrorMessage(err instanceof Error ? err.message : t('errors.driverActionFailed', { defaultValue: 'Failed to perform action.' }))
     } finally {
       setIsActioning(false)
+    }
+  }
+
+  /**
+   * Действия жизненного цикла из карточки точки: «Еду», «Прибыл», старт, финиш,
+   * откат ошибочной отметки, неявка и отмена. Ошибки показываем текстом сервера,
+   * чтобы водитель понимал причину (например «неявку можно оформить через 3:12»).
+   */
+  const handleFlowAction = async (action: DriverFlowAction, comment?: string) => {
+    const point = selectedPoint
+    if (!point) return
+    const rideId = point.rideId
+    setIsFlowBusy(true)
+    setErrorMessage(null)
+    try {
+      if (action === 'en_route') await markDriverEnRoute(rideId)
+      else if (action === 'arrived') await markDriverArrived(rideId)
+      else if (action === 'start') await startDriverRide(rideId)
+      else if (action === 'complete') await completeDriverRide(rideId)
+      else if (action === 'undo') await undoDriverRideStatus(rideId)
+      else if (action === 'no_show') await reportDriverNoShow(rideId, comment)
+      else if (action === 'cancel') await cancelDriverRide(rideId, 'driver_cancelled', comment)
+
+      hapticImpact('medium')
+      await loadMapData()
+      const refreshed = await getDriverRideFlow(rideId)
+      setRideFlow(refreshed.flow)
+    } catch (err) {
+      hapticNotification('error')
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : t('errors.driverActionFailed', { defaultValue: 'Failed to perform action.' }),
+      )
+    } finally {
+      setIsFlowBusy(false)
     }
   }
 
@@ -1146,6 +1217,9 @@ export default function DriverCabinet() {
           isActioning={isActioning}
           onClose={() => setSelectedPointId(null)}
           onAction={handleAction}
+          rideFlow={rideFlow}
+          onFlowAction={handleFlowAction}
+          isFlowBusy={isFlowBusy}
         />
       )}
 

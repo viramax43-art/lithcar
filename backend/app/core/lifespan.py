@@ -31,6 +31,27 @@ async def _history_retention_loop(session_factory) -> None:
             logger.exception("History retention purge failed")
 
 
+async def _ride_watchdog_loop(session_factory) -> None:
+    """Сторож поездок: напоминает участникам и подсвечивает админам «зависшие» ситуации.
+
+    Ровно этот цикл закрывает главную дыру старого флоу: водитель забыл нажать кнопку,
+    пассажир ждёт на улице, а статус «замер» — теперь система сама напомнит обеим сторонам.
+    """
+    from app.services.ride_status_service import run_watchdog
+
+    while True:
+        try:
+            await asyncio.sleep(max(15, int(settings.ride_watchdog_interval_seconds)))
+            if not settings.ride_watchdog_enabled:
+                continue
+            async with session_factory() as session:
+                counters = await run_watchdog(session)
+            if counters.get("admin_flags") or counters.get("wait_reminders"):
+                logger.info("Ride watchdog tick: %s", counters)
+        except Exception:  # noqa: BLE001
+            logger.exception("Ride watchdog tick failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Запуск контекстного менеджера")
@@ -68,12 +89,16 @@ async def lifespan(app: FastAPI):
         logger.warning("S3 startup check skipped due to error: %s", exc)
 
     retention_task = asyncio.create_task(_history_retention_loop(db_session_factory))
+    watchdog_task = asyncio.create_task(_ride_watchdog_loop(db_session_factory))
 
     yield
 
     retention_task.cancel()
+    watchdog_task.cancel()
     with suppress(asyncio.CancelledError):
         await retention_task
+    with suppress(asyncio.CancelledError):
+        await watchdog_task
 
     print("Приложение останавливается...")
 

@@ -8,6 +8,9 @@ import { useTranslation } from 'react-i18next'
 import type { RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import RideChatButton from '../../components/ride-chat/RideChatButton'
+import PassengerRideFlowActions from '../../components/ride-flow/PassengerRideFlowActions'
+import { useRideFlow } from '../../components/ride-flow/useRideFlow'
 import StarRatingInput from '../../components/StarRatingInput'
 import RatingBadge from '../../components/RatingBadge'
 import { confirmPickup, deleteRequest, getRequestById, rateRideAsPassenger, sendPassengerLocation, updateRequest, blockUser } from '../../lib/backend'
@@ -63,6 +66,27 @@ export default function RequestDetail() {
   const [driverBlocked, setDriverBlocked] = useState(false)
   const [isSignalMode, setIsSignalMode] = useState(false)
   const [showEditSheet, setShowEditSheet] = useState(false)
+
+  // Состояние шага поездки: «Я на месте», «Где вы?», отмена и таймеры ожидания.
+  const { flow: rideFlow, refresh: refreshRideFlow } = useRideFlow({
+    rideId: id ?? null,
+    role: 'passenger',
+    enabled: Boolean(id),
+  })
+
+  const reloadRequest = async () => {
+    if (!id) return
+    try {
+      setRequest(await getRequestById(id))
+    } catch {
+      // тихо: следующий поллинг/действие обновит данные
+    }
+  }
+
+  const handleRideFlowChanged = async () => {
+    await reloadRequest()
+    await refreshRideFlow()
+  }
 
   useEffect(() => {
     if (!id) return
@@ -207,6 +231,7 @@ export default function RequestDetail() {
             {t(`status.${request.status}`, { defaultValue: request.status })}
           </span>
           <NotificationBell pool="passenger" />
+          <RideChatButton rideId={id ?? null} role="passenger" />
         </div>
       </header>
 
@@ -716,6 +741,17 @@ export default function RequestDetail() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Действия по поездке: «Я на месте», «Где вы?», отмена с предупреждением */}
+      {id && request && !['completed', 'cancelled'].includes(request.status) && (
+        <div className="px-5 pb-5">
+          <PassengerRideFlowActions
+            rideId={id}
+            flow={rideFlow}
+            onChanged={handleRideFlowChanged}
+          />
         </div>
       )}
 

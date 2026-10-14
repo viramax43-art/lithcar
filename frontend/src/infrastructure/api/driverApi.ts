@@ -1,6 +1,7 @@
-import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideHistoryItem, DriverRideOffer, RideStatus, MatchedRideRequest } from '../../types'
+import type { DriverCabinetData, DriverCabinetRide, DriverMapData, DriverRideFlowPayload, DriverRideHistoryItem, DriverRideOffer, RideChatPage, RideStatus, MatchedRideRequest } from '../../types'
 import { apiRequest } from '../http/httpClient'
 import type { DriverQrRedeemResult, DriverQrIssueResult, DriverSessionUser, DriverRideOfferApi, PaginationParams, MatchedRideRequestApi } from './contracts'
+import { toRideFlowError } from './rideChatApi'
 import { mapDriverRideOffer, mapMatchedRideRequest, toPageQuery } from './sharedMappers'
 
 export async function bootstrapDriverAccess(): Promise<DriverSessionUser> {
@@ -201,4 +202,110 @@ export async function listOfferMatchingRequests(
     { authMode: 'cookie' },
   )
   return { items: page.items.map(mapMatchedRideRequest), total: page.total }
+}
+
+/* ------------------------------------------------------------------ *
+ * Жизненный цикл поездки: «Еду на точку» / «Прибыл» / старт / финиш,
+ * откат ошибочной отметки, неявка, отмена и чат с попутчиками.
+ * ------------------------------------------------------------------ */
+
+async function flowRequest<T>(path: string, init?: { method?: 'POST'; body?: unknown }): Promise<T> {
+  try {
+    return await apiRequest<T>(path, {
+      method: init?.method ?? 'POST',
+      body: init?.body ?? {},
+      authMode: 'cookie',
+    })
+  } catch (error) {
+    throw toRideFlowError(error)
+  }
+}
+
+export async function getDriverRideFlow(rideId: string): Promise<DriverRideFlowPayload> {
+  return apiRequest<DriverRideFlowPayload>(`/api/v1/driver/cabinet/rides/${rideId}/flow`, {
+    authMode: 'cookie',
+  })
+}
+
+export async function markDriverEnRoute(
+  rideId: string,
+  coords?: { lat: number; lng: number },
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(
+    `/api/driver/cabinet/rides/${rideId}/en-route`,
+    { body: coords ?? {} },
+  )
+}
+
+export async function markDriverArrived(
+  rideId: string,
+  coords?: { lat: number; lng: number },
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(
+    `/api/driver/cabinet/rides/${rideId}/arrived`,
+    { body: coords ?? {} },
+  )
+}
+
+export async function startDriverRide(rideId: string): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/start`)
+}
+
+export async function completeDriverRide(rideId: string): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/complete`)
+}
+
+export async function undoDriverRideStatus(rideId: string): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/undo`)
+}
+
+export async function reportDriverNoShow(
+  rideId: string,
+  comment?: string,
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/no-show`, {
+    body: comment ? { comment } : {},
+  })
+}
+
+export async function cancelDriverRide(
+  rideId: string,
+  reason: 'driver_cancelled' | 'driver_no_show' = 'driver_cancelled',
+  comment?: string,
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/cancel`, {
+    body: { reason, comment: comment ?? null },
+  })
+}
+
+export async function getDriverRideChat(rideId: string, limit = 100): Promise<RideChatPage> {
+  return apiRequest<RideChatPage>(`/api/v1/driver/cabinet/rides/${rideId}/chat?limit=${limit}`, {
+    authMode: 'cookie',
+  })
+}
+
+export async function sendDriverRideChatMessage(
+  rideId: string,
+  body: string,
+  quick?: string,
+): Promise<RideChatPage> {
+  return flowRequest<RideChatPage>(`/api/driver/cabinet/rides/${rideId}/chat`, {
+    body: quick ? { body, quick } : { body },
+  })
+}
+
+export async function markDriverRideChatRead(rideId: string): Promise<number> {
+  const result = await apiRequest<{ count: number }>(
+    `/api/v1/driver/cabinet/rides/${rideId}/chat/read`,
+    { method: 'POST', authMode: 'cookie' },
+  )
+  return result.count
+}
+
+export async function getDriverRideChatUnreadCount(rideId: string): Promise<number> {
+  const result = await apiRequest<{ count: number }>(
+    `/api/v1/driver/cabinet/rides/${rideId}/chat/unread-count`,
+    { authMode: 'cookie' },
+  )
+  return result.count
 }
