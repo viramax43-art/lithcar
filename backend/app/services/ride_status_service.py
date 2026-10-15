@@ -538,6 +538,9 @@ async def _mark_ride_completed(
     ride.completed_at = moment
     ride.status_updated_at = moment
     _clear_admin_attention(ride)
+    # Вопрос «Поездка состоялась?» больше не актуален — убираем кнопки [Да]/[Нет],
+    # иначе пассажир увидит «мёртвую» карточку после закрытия поездки.
+    await ride_notification_service.dismiss_completion_check(db_session, ride=ride)
 
     await _record_event(
         db_session,

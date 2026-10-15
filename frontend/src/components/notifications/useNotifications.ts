@@ -16,7 +16,7 @@ import {
   markDriverNotificationRead,
   markPassengerNotificationRead,
 } from '../../infrastructure/api/notificationsApi'
-import { confirmRideCompletion } from '../../infrastructure/api/rideChatApi'
+import { RideFlowError, confirmRideCompletion } from '../../infrastructure/api/rideChatApi'
 import type { AppNotification, NotificationPool } from '../../types'
 import { rideCompletionPrompt } from './rideCompletionPrompt'
 
@@ -130,25 +130,32 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
       setErrorMessage(null)
       try {
         await confirmRideCompletion(prompt.rideId, completed)
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === notification.id
-              ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
-              : item,
-          ),
-        )
-        setUnreadCount((prev) => Math.max(0, prev - (notification.readAt ? 0 : 1)))
-        await refresh()
       } catch (err) {
+        // Поездку могли закрыть другие участники: вопрос неактуален — просто убираем кнопки.
+        const code = err instanceof RideFlowError ? err.code : null
+        const alreadyClosed = code === 'ride_closed' || code === 'not_in_progress'
         if (!isMounted.current) return
-        setErrorMessage(
-          err instanceof Error
-            ? err.message
-            : t('rideCompletion.failed', { defaultValue: 'Не удалось отправить ответ.' }),
-        )
-      } finally {
-        if (isMounted.current) setAnsweringId(null)
+        if (!alreadyClosed) {
+          setErrorMessage(
+            err instanceof Error
+              ? err.message
+              : t('rideCompletion.failed', { defaultValue: 'Не удалось отправить ответ.' }),
+          )
+          setAnsweringId(null)
+          return
+        }
       }
+      if (!isMounted.current) return
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === notification.id
+            ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
+            : item,
+        ),
+      )
+      setUnreadCount((prev) => Math.max(0, prev - (notification.readAt ? 0 : 1)))
+      await refresh()
+      setAnsweringId(null)
     },
     [refresh, t],
   )
