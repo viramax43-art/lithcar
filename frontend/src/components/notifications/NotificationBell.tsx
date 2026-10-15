@@ -67,7 +67,7 @@ export default function NotificationBell({
   const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const { items, unreadCount, isLoading, errorMessage, markRead, markAllRead, refresh } = useNotifications({
+  const { items, unreadCount, isLoading, errorMessage, markRead, markAllRead, refresh, answerRideCompletion, answeringId } = useNotifications({
     pool,
     enabled,
   })
@@ -123,6 +123,12 @@ export default function NotificationBell({
     setOpen(false)
   }
 
+  /** Кнопки [Да]/[Нет] в самом уведомлении: ответ уходит сразу, панель остаётся открытой. */
+  const handleAnswer = async (notification: AppNotification, completed: boolean) => {
+    hapticSelection()
+    await answerRideCompletion(notification, completed)
+  }
+
   const panelPortal = open && panelPosition && typeof document !== 'undefined'
     ? createPortal(
         <>
@@ -133,6 +139,8 @@ export default function NotificationBell({
             isLoading={isLoading}
             errorMessage={errorMessage}
             onSelect={(notification) => void handleSelect(notification)}
+            onAnswer={(notification, completed) => void handleAnswer(notification, completed)}
+            answeringId={answeringId}
             onMarkAllRead={async () => {
               await markAllRead()
             }}

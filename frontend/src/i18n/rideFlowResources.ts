@@ -34,6 +34,16 @@ export const rideFlowResources: Record<AppLanguage, Dict> = {
     'rideFlow.readyFailed': 'Nepavyko issiusti pazymejimo.',
     'rideFlow.nudgeFailed': 'Nepavyko issiusti priminimo.',
     'rideFlow.cancelFailed': 'Nepavyko atsaukti keliones.',
+    // «Поездка состоялась?»: водитель начал поездку и не нажал «Завершил».
+    'rideCompletion.question': 'Ar kelione ivyko?',
+    'rideCompletion.hint':
+      'Vairuotojas nepazymejo keliones pabaigos (numatomas vaziavimo laikas ~{minutes} min). Atsakykite, prasome.',
+    'rideCompletion.yes': 'Taip, ivyko',
+    'rideCompletion.no': 'Ne, neivyko',
+    'rideCompletion.confirmed': 'Aciu! Kelione uzdaryta.',
+    'rideCompletion.declined':
+      'Aciu uz atsakyma. Situacija perduota administratoriui — su jumis susisieks.',
+    'rideCompletion.failed': 'Nepavyko issiusti atsakymo.',
     'driver.cta.onTheWay': 'Vaziuoju i paemimo vieta',
     'driver.cta.arrived': 'Atvykau',
     'driver.cta.startRide': 'Pradeti kelione',
@@ -80,6 +90,15 @@ export const rideFlowResources: Record<AppLanguage, Dict> = {
     'rideFlow.readyFailed': 'Nie udalo sie wyslac oznaczenia.',
     'rideFlow.nudgeFailed': 'Nie udalo sie wyslac przypomnienia.',
     'rideFlow.cancelFailed': 'Nie udalo sie anulowac przejazdu.',
+    'rideCompletion.question': 'Czy przejazd sie odbyl?',
+    'rideCompletion.hint':
+      'Kierowca nie zakonczyl przejazdu (szacowany czas jazdy ~{minutes} min). Odpowiedz, prosze.',
+    'rideCompletion.yes': 'Tak, odbyl sie',
+    'rideCompletion.no': 'Nie, nie odbyl sie',
+    'rideCompletion.confirmed': 'Dziekujemy! Przejazd zamkniety.',
+    'rideCompletion.declined':
+      'Dziekujemy za odpowiedz. Sprawa przekazana administratorowi — skontaktujemy sie.',
+    'rideCompletion.failed': 'Nie udalo sie wyslac odpowiedzi.',
     'driver.cta.onTheWay': 'Jade do punktu odbioru',
     'driver.cta.arrived': 'Przyjechalem',
     'driver.cta.startRide': 'Rozpocznij przejazd',
@@ -126,6 +145,15 @@ export const rideFlowResources: Record<AppLanguage, Dict> = {
     'rideFlow.readyFailed': 'Could not send the check-in.',
     'rideFlow.nudgeFailed': 'Could not send the reminder.',
     'rideFlow.cancelFailed': 'Could not cancel the ride.',
+    'rideCompletion.question': 'Did the ride happen?',
+    'rideCompletion.hint':
+      'The driver did not finish the ride (estimated travel time ~{minutes} min). Please answer.',
+    'rideCompletion.yes': 'Yes, it happened',
+    'rideCompletion.no': 'No, it did not happen',
+    'rideCompletion.confirmed': 'Thank you! The ride is closed.',
+    'rideCompletion.declined':
+      'Thanks for your answer. The case is with an administrator — we will contact you.',
+    'rideCompletion.failed': 'Could not send the answer.',
     'driver.cta.onTheWay': 'On my way to pickup',
     'driver.cta.arrived': 'I have arrived',
     'driver.cta.startRide': 'Start the ride',
@@ -172,6 +200,16 @@ export const rideFlowResources: Record<AppLanguage, Dict> = {
     'rideFlow.readyFailed': 'Не удалось отправить отметку.',
     'rideFlow.nudgeFailed': 'Не удалось отправить напоминание.',
     'rideFlow.cancelFailed': 'Не удалось отменить поездку.',
+    // «Поездка состоялась?»: водитель начал поездку и не нажал «Завершил».
+    'rideCompletion.question': 'Поездка состоялась?',
+    'rideCompletion.hint':
+      'Водитель не отметил завершение поездки (расчётное время в пути ≈{minutes} мин). Ответьте, пожалуйста.',
+    'rideCompletion.yes': 'Да, состоялась',
+    'rideCompletion.no': 'Нет, не состоялась',
+    'rideCompletion.confirmed': 'Спасибо! Поездка закрыта.',
+    'rideCompletion.declined':
+      'Спасибо за ответ. Ситуация передана администратору — с вами свяжутся.',
+    'rideCompletion.failed': 'Не удалось отправить ответ.',
     'driver.cta.onTheWay': 'Еду на точку',
     'driver.cta.arrived': 'Прибыл',
     'driver.cta.startRide': 'Начать поездку',

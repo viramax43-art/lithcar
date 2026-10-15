@@ -76,6 +76,21 @@ class Settings(BaseSettings):
     ride_watchdog_interval_seconds: int = Field(default=60)
     ride_watchdog_enabled: bool = Field(default=True)
 
+    # --- «Поездка состоялась?» ----------------------------------------------------
+    # Водитель начал поездку, но не нажал «Завершил». Через расчётное время в пути,
+    # умноженное на этот коэффициент, пассажиру уходит вопрос с кнопками «Да / Нет».
+    ride_completion_check_factor: float = Field(default=2.0)
+    # Нижняя граница ожидания: на коротких поездках не дёргаем пассажира раньше этого времени.
+    ride_completion_check_min_minutes: int = Field(default=20)
+    # Верхняя граница: дальше этого порога вопрос не откладываем (страховка от «маршрута на сутки»).
+    ride_completion_check_max_minutes: int = Field(default=360)
+    # Если маршрутной оценки нет — считаем время по прямой дистанции и этой средней скорости.
+    ride_completion_check_speed_kmh: float = Field(default=45.0)
+    # Совсем нет данных о маршруте — берём это время по умолчанию.
+    ride_completion_check_fallback_minutes: int = Field(default=60)
+    # Сколько ждём ответ пассажира, прежде чем подключить администратора.
+    ride_completion_check_escalate_minutes: int = Field(default=60)
+
     payment_provider: str = Field(default="")
     yookassa_shop_id: str = Field(default="")
     yookassa_secret_key: str = Field(default="")

@@ -69,6 +69,10 @@ class RideAdminAttentionReason:
     RIDE_TOO_LONG = "ride_too_long"
     NO_SHOW = "no_show"
     ARRIVAL_FAR_FROM_PICKUP = "arrival_far_from_pickup"
+    # Водитель не нажал «Завершил», а пассажир ответил «Нет» на вопрос «Поездка состоялась?».
+    PASSENGER_NOT_COMPLETED = "passenger_not_completed"
+    # Пассажир не ответил на вопрос «Поездка состоялась?» — статус поездки всё ещё «в пути».
+    COMPLETION_UNCONFIRMED = "completion_unconfirmed"
 
 
 class RideRequest(Base):
@@ -141,6 +145,14 @@ class RideRequest(Base):
     # Админ-контроль спорных поездок (водитель опаздывает, статус «завис» и т.п.).
     admin_attention_at = Column(DateTime(timezone=True), nullable=True)
     admin_attention_reason = Column(String, nullable=True)
+    # --- «Поездка состоялась?» ---------------------------------------------------
+    # Водитель нажал «Начал поездку», но не нажал «Завершил»: система оценивает время
+    # в пути, умножает его и спрашивает пассажира. Ответ попадает в эти поля.
+    completion_check_at = Column(DateTime(timezone=True), nullable=True)
+    completion_check_result = Column(String, nullable=True)  # confirmed | declined
+    completion_check_answered_at = Column(DateTime(timezone=True), nullable=True)
+    completion_check_reminded_at = Column(DateTime(timezone=True), nullable=True)
+    completion_check_escalated_at = Column(DateTime(timezone=True), nullable=True)
     # Отмена: кто, почему и (опционально) комментарий стороны.
     cancelled_by = Column(String, nullable=True)
     cancel_reason = Column(String, nullable=True)

@@ -444,6 +444,18 @@ export type NotificationPool = 'passenger' | 'driver' | 'admin'
 
 export type NotificationPayload =
   | { kind: 'driver_application'; applicationId: string; applicantName?: string }
+  | {
+      kind: 'ride'
+      event: string
+      rideId: string
+      status?: RideStatus
+      /** Вопрос «Поездка состоялась?»: в UI рисуются кнопки [Да]/[Нет]. */
+      requiresConfirmation?: boolean
+      confirmationKind?: 'ride_completed' | string
+      expectedMinutes?: number
+      elapsedMinutes?: number
+      dueAt?: string | null
+    }
   | Record<string, unknown>
 
 export interface AppNotification {
@@ -519,6 +531,16 @@ export interface RideFlowState {
   adminAttentionReason?: string | null
   passengerReadyAt?: string | null
   canEnRouteAt?: string | null
+  /** Вопрос «Поездка состоялась?»: водитель начал поездку и не нажал «Завершил». */
+  expectedRideMinutes?: number
+  estimationSource?: string | null
+  completionCheckDueAt?: string | null
+  completionCheckAt?: string | null
+  completionCheckSecondsLeft?: number
+  completionCheckAnswered?: boolean
+  completionCheckResult?: string | null
+  canConfirmCompletion?: boolean
+  completionEscalateAt?: string | null
 }
 
 export interface DriverRideFlowPayload {

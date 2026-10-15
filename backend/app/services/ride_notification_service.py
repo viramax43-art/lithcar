@@ -48,6 +48,10 @@ class RideEvent:
     DRIVER_LATE = "driver_late"
     EN_ROUTE_STUCK = "en_route_stuck"
     RIDE_STUCK = "ride_stuck"
+    # Водитель не завершил поездку: пассажиру уходит вопрос «Поездка состоялась?» с кнопками.
+    COMPLETION_CHECK = "completion_check"
+    # Пассажир ответил «нет»: водителю нужно знать, что поездка разбирается администратором.
+    COMPLETION_DECLINED = "completion_declined"
 
 
 NOTIFICATION_TYPE_BY_EVENT: dict[str, str] = {
@@ -68,6 +72,8 @@ NOTIFICATION_TYPE_BY_EVENT: dict[str, str] = {
     RideEvent.DRIVER_LATE: NotificationType.RIDE_DRIVER_LATE,
     RideEvent.EN_ROUTE_STUCK: NotificationType.RIDE_EN_ROUTE_STUCK,
     RideEvent.RIDE_STUCK: NotificationType.RIDE_RIDE_STUCK,
+    RideEvent.COMPLETION_CHECK: NotificationType.RIDE_COMPLETION_CHECK,
+    RideEvent.COMPLETION_DECLINED: NotificationType.RIDE_COMPLETION_DECLINED,
 }
 
 
@@ -129,6 +135,51 @@ def _ride_payload(ride: RideRequest, *, event: str, extra: dict | None = None) -
     if extra:
         payload.update(extra)
     return payload
+
+
+def _with_confirmation_flag(ride: RideRequest, *, event: str, payload_extra: dict | None) -> dict:
+    """Вопрос «Поездка состоялась?» всегда несёт признаки кнопок [Да]/[Нет].
+
+    Фронтенд и Telegram-клавиатура ориентируются на payload, а не на текст: так
+    формулировку можно менять без правок UI, а «мёртвые» кнопки не появляются
+    у обычных событий поездки.
+    """
+    extra = dict(payload_extra or {})
+    if event == RideEvent.COMPLETION_CHECK:
+        extra.setdefault("requiresConfirmation", True)
+        extra.setdefault("confirmationKind", "ride_completed")
+        extra.setdefault("rideId", ride.id)
+    return extra
+
+
+async def dismiss_completion_check(db_session: AsyncSession, *, ride: RideRequest) -> int:
+    """Убирает кнопки [Да]/[Нет] у вопроса, на который уже ответили.
+
+    Иначе в ленте остаётся «мёртвая» карточка: ответ отправлен, поездка уже
+    переведена в новый статус, а кнопки всё ещё предлагают ответить.
+    """
+    if not ride.passenger_id:
+        return 0
+    result = await db_session.execute(
+        select(Notification).where(
+            Notification.pool == NotificationPool.PASSENGER,
+            Notification.recipient_type == NotificationRecipientType.USER,
+            Notification.recipient_id == ride.passenger_id,
+            Notification.type == NotificationType.RIDE_COMPLETION_CHECK,
+            Notification.read_at.is_(None),
+        )
+    )
+    marked = 0
+    moment = _now()
+    for entity in result.scalars().all():
+        payload = entity.payload if isinstance(entity.payload, dict) else {}
+        if payload.get("rideId") not in (None, ride.id):
+            continue
+        entity.read_at = moment
+        marked += 1
+    if marked:
+        await db_session.flush()
+    return marked
 
 
 def _describe_driver(driver) -> str:
@@ -242,7 +293,11 @@ async def notify_passenger_for_ride_event(
         notification_type=notification_type,
         title=title,
         body=body,
-        payload=_ride_payload(ride, event=event, extra=payload_extra),
+        payload=_ride_payload(
+            ride,
+            event=event,
+            extra=_with_confirmation_flag(ride, event=event, payload_extra=payload_extra),
+        ),
     )
 
 
@@ -476,6 +531,7 @@ __all__ = [
     "RideEvent",
     "admin_recipient",
     "decorate_event_values",
+    "dismiss_completion_check",
     "driver_recipient",
     "notify_admins_ride_attention",
     "notify_chat_message",

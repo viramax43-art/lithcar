@@ -130,6 +130,26 @@ export async function cancelRideAsPassenger(
   }
 }
 
+/**
+ * Ответ на вопрос «Поездка состоялась?».
+ *
+ * «Да» закрывает поездку (водитель забыл нажать «Завершил»), «Нет» оставляет поездку
+ * «в пути», но передаёт её администратору — статус не висит на пассажире.
+ */
+export async function confirmRideCompletion(
+  rideId: string,
+  completed: boolean,
+): Promise<RideFlowApi> {
+  try {
+    return await apiRequest<RideFlowApi>(`/api/v1/rides/${rideId}/completion-confirmation`, {
+      method: 'POST',
+      body: { completed },
+    })
+  } catch (error) {
+    throw asFlowError(error)
+  }
+}
+
 export type { RideFlowApi, RideFlowRequestError }
 
 // Тот же разбор ошибок используют водительские методы — держим единый формат подсказок.

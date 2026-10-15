@@ -37,6 +37,7 @@ async def _ride_watchdog_loop(session_factory) -> None:
     Ровно этот цикл закрывает главную дыру старого флоу: водитель забыл нажать кнопку,
     пассажир ждёт на улице, а статус «замер» — теперь система сама напомнит обеим сторонам.
     """
+    from app.services import ride_flow_side_effects
     from app.services.ride_status_service import run_watchdog
 
     while True:
@@ -46,7 +47,14 @@ async def _ride_watchdog_loop(session_factory) -> None:
                 continue
             async with session_factory() as session:
                 counters = await run_watchdog(session)
-            if counters.get("admin_flags") or counters.get("wait_reminders"):
+            # Telegram отправляем только после коммита: «пустышек» быть не должно.
+            for result in counters.get("deliveries") or []:
+                await ride_flow_side_effects.deliver_flow_side_effects(result)
+            if (
+                counters.get("admin_flags")
+                or counters.get("wait_reminders")
+                or counters.get("completion_checks")
+            ):
                 logger.info("Ride watchdog tick: %s", counters)
         except Exception:  # noqa: BLE001
             logger.exception("Ride watchdog tick failed")

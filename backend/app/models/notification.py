@@ -43,6 +43,9 @@ class NotificationType:
     RIDE_EN_ROUTE_STUCK = "ride_en_route_stuck"
     RIDE_RIDE_STUCK = "ride_ride_stuck"
     RIDE_ADMIN_ATTENTION = "ride_admin_attention"
+    # Водитель не завершил поездку: пассажиру уходит вопрос «Поездка состоялась?».
+    RIDE_COMPLETION_CHECK = "ride_completion_check"
+    RIDE_COMPLETION_DECLINED = "ride_completion_declined"
 
     RIDE_EVENTS: tuple[str, ...] = (
         RIDE_ASSIGNED,
@@ -62,6 +65,8 @@ class NotificationType:
         RIDE_EN_ROUTE_STUCK,
         RIDE_RIDE_STUCK,
         RIDE_ADMIN_ATTENTION,
+        RIDE_COMPLETION_CHECK,
+        RIDE_COMPLETION_DECLINED,
     )
 
 

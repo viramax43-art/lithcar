@@ -373,3 +373,256 @@ async def test_watchdog_reminds_waiting_passenger_and_driver(client, db_session)
     assert ride.arrival_reminder_sent_at is not None
     # Долгое ожидание уходит админам: поездка помечена «требует внимания».
     assert ride.admin_attention_reason == "waiting_too_long"
+
+
+async def _start_ride_and_age_it(client, db_session, *, ride_id: str, minutes: int) -> None:
+    """Старт поездки + сдвиг `started_at` в прошлое: имитируем «водитель не завершил»."""
+    await client.post(f"/api/driver/cabinet/rides/{ride_id}/en-route")
+    await client.post(f"/api/driver/cabinet/rides/{ride_id}/arrived")
+    started = await client.post(f"/api/driver/cabinet/rides/{ride_id}/start")
+    assert started.status_code == 200, started.text
+    await db_session.execute(
+        update(RideRequest)
+        .where(RideRequest.id == ride_id)
+        .values(started_at=datetime.now(timezone.utc) - timedelta(minutes=minutes))
+    )
+    await db_session.commit()
+
+
+def test_completion_check_delay_follows_estimated_duration():
+    """Правило таймера: задержка = 2× расчётного времени в пути с границами."""
+    from app.core.config import settings
+    from app.services.ride_status_service import (
+        completion_check_delay_minutes,
+        estimated_ride_duration_minutes,
+    )
+
+    base = {
+        "id": "ride-delay",
+        "ride_number": 1,
+        "passenger_name": "Delay Passenger",
+        "from_address": "A",
+        "from_lat": 54.69,
+        "from_lng": 25.27,
+        "to_address": "B",
+        "to_lat": 54.70,
+        "to_lng": 25.28,
+        "date_time": datetime.now(timezone.utc),
+        "status": RideRequestStatus.IN_PROGRESS,
+    }
+
+    # 1. Есть маршрутная оценка — берём её и умножаем на коэффициент (по умолчанию 2).
+    with_quote = RideRequest(quote_duration_min=40.0, **base)
+    assert estimated_ride_duration_minutes(with_quote) == (40.0, "quote")
+    delay, expected, source = completion_check_delay_minutes(with_quote)
+    assert (delay, source) == (80, "quote")
+    assert expected == 40.0
+
+    # 2. Короткая поездка: раньше нижней границы пассажира не дёргаем.
+    short = RideRequest(quote_duration_min=3.0, **base)
+    delay_short, _, _ = completion_check_delay_minutes(short)
+    assert delay_short == settings.ride_completion_check_min_minutes
+    assert delay_short < delay
+
+    # 3. Нет ни оценки, ни дистанции (точки совпали) — работает значение по умолчанию.
+    nowhere = RideRequest(
+        **{
+            **base,
+            "from_lat": 0.0,
+            "from_lng": 0.0,
+            "to_lat": 0.0,
+            "to_lng": 0.0,
+        }
+    )
+    assert estimated_ride_duration_minutes(nowhere)[1] == "fallback"
+    delay_far, _, _ = completion_check_delay_minutes(nowhere)
+    assert delay_far == min(
+        settings.ride_completion_check_fallback_minutes * 2,
+        settings.ride_completion_check_max_minutes,
+    )
+
+
+async def test_watchdog_asks_passenger_if_ride_was_completed(client, db_session):
+    """Водитель не нажал «Завершил» — сторож сам спрашивает пассажира «Поездка состоялась?»."""
+    from app.db import async_session_factory
+    from app.services.ride_status_service import run_watchdog
+
+    ctx = await _setup_ride(client, db_session, suffix="chk")
+    ride_id = ctx["request_id"]
+    await _start_ride_and_age_it(client, db_session, ride_id=ride_id, minutes=25)
+
+    async with async_session_factory() as session:
+        counters = await run_watchdog(session)
+    assert counters["completion_checks"] == 1
+    # Вопрос уходит и в Telegram — уже после коммита, с кнопками [Да]/[Нет].
+    assert len(counters["deliveries"]) == 1
+
+    # Второй тик не задаёт вопрос повторно: пассажира не спамим.
+    async with async_session_factory() as session:
+        second = await run_watchdog(session)
+    assert second["completion_checks"] == 0
+
+    ride = await db_session.get(RideRequest, ride_id)
+    await db_session.refresh(ride)
+    assert ride.status == RideRequestStatus.IN_PROGRESS
+    assert ride.completion_check_at is not None
+
+    notification = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.recipient_id == ctx["passenger"].user_id,
+                Notification.type == NotificationType.RIDE_COMPLETION_CHECK,
+            )
+        )
+    ).scalars().one()
+    assert notification.payload["requiresConfirmation"] is True
+    assert notification.payload["rideId"] == ride_id
+    assert notification.payload["expectedMinutes"] >= 1
+    assert notification.read_at is None
+
+    # Вопрос виден и в карточке поездки, а не только в ленте уведомлений.
+    flow = await client.get(f"/api/v1/rides/{ride_id}/flow", headers=ctx["passenger_headers"])
+    assert flow.status_code == 200, flow.text
+    assert flow.json()["canConfirmCompletion"] is True
+    assert flow.json()["completionCheckAnswered"] is False
+    assert flow.json()["expectedRideMinutes"] > 0
+
+
+async def test_passenger_confirms_completion_closes_ride(client, db_session):
+    """Ответ «Да»: поездка закрывается, кнопки исчезают, водитель получает отметку."""
+    from app.db import async_session_factory
+    from app.services.ride_status_service import run_watchdog
+
+    ctx = await _setup_ride(client, db_session, suffix="cyes")
+    ride_id = ctx["request_id"]
+    await _start_ride_and_age_it(client, db_session, ride_id=ride_id, minutes=25)
+    async with async_session_factory() as session:
+        await run_watchdog(session)
+
+    confirmed = await client.post(
+        f"/api/v1/rides/{ride_id}/completion-confirmation",
+        json={"completed": True},
+        headers=ctx["passenger_headers"],
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == "completed"
+    assert confirmed.json()["canConfirmCompletion"] is False
+
+    ride = await db_session.get(RideRequest, ride_id)
+    await db_session.refresh(ride)
+    assert ride.status == RideRequestStatus.COMPLETED
+    assert ride.completion_check_result == "confirmed"
+    assert ride.completed_at is not None
+
+    # Кнопки [Да]/[Нет] больше не висят: вопрос помечен прочитанным.
+    check_notifications = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.recipient_id == ctx["passenger"].user_id,
+                Notification.type == NotificationType.RIDE_COMPLETION_CHECK,
+            )
+        )
+    ).scalars().all()
+    assert check_notifications
+    assert all(item.read_at is not None for item in check_notifications)
+
+    driver_notifications = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.recipient_id == ctx["driver_id"],
+                Notification.type == NotificationType.RIDE_COMPLETED,
+            )
+        )
+    ).scalars().all()
+    assert len(driver_notifications) == 1
+
+    # Повторный ответ безопасен: поездка уже закрыта.
+    again = await client.post(
+        f"/api/v1/rides/{ride_id}/completion-confirmation",
+        json={"completed": True},
+        headers=ctx["passenger_headers"],
+    )
+    assert again.status_code == 409
+
+
+async def test_passenger_declining_completion_flags_ride_for_admin(client, db_session):
+    """Ответ «Нет»: поездка остаётся «в пути», но уходит администратору."""
+    from app.db import async_session_factory
+    from app.services.ride_status_service import run_watchdog
+
+    ctx = await _setup_ride(client, db_session, suffix="cno")
+    ride_id = ctx["request_id"]
+    await _start_ride_and_age_it(client, db_session, ride_id=ride_id, minutes=25)
+    async with async_session_factory() as session:
+        await run_watchdog(session)
+
+    declined = await client.post(
+        f"/api/v1/rides/{ride_id}/completion-confirmation",
+        json={"completed": False},
+        headers=ctx["passenger_headers"],
+    )
+    assert declined.status_code == 200, declined.text
+    assert declined.json()["status"] == "in_progress"
+    # Повторно отвечать нечего: кнопки убраны.
+    assert declined.json()["canConfirmCompletion"] is False
+
+    ride = await db_session.get(RideRequest, ride_id)
+    await db_session.refresh(ride)
+    assert ride.status == RideRequestStatus.IN_PROGRESS
+    assert ride.completion_check_result == "declined"
+    assert ride.admin_attention_reason == "passenger_not_completed"
+
+    driver_notifications = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.recipient_id == ctx["driver_id"],
+                Notification.type == NotificationType.RIDE_COMPLETION_DECLINED,
+            )
+        )
+    ).scalars().all()
+    assert len(driver_notifications) == 1
+
+    # Повторный клик идемпотентен: состояние не меняется и не дублирует уведомления.
+    repeat = await client.post(
+        f"/api/v1/rides/{ride_id}/completion-confirmation",
+        json={"completed": False},
+        headers=ctx["passenger_headers"],
+    )
+    assert repeat.status_code == 200
+    assert repeat.json()["status"] == "in_progress"
+
+
+async def test_watchdog_escalates_silent_passenger_to_admin(client, db_session):
+    """Пассажир молчит — поездка уходит администратору, второй раз вопрос не задаётся."""
+    from app.db import async_session_factory
+    from app.services.ride_status_service import run_watchdog
+
+    ctx = await _setup_ride(client, db_session, suffix="silc")
+    ride_id = ctx["request_id"]
+    await _start_ride_and_age_it(client, db_session, ride_id=ride_id, minutes=25)
+
+    async with async_session_factory() as session:
+        first = await run_watchdog(session)
+    assert first["completion_checks"] == 1
+
+    # Ответа нет дольше окна ожидания — эскалация на администратора.
+    await db_session.execute(
+        update(RideRequest)
+        .where(RideRequest.id == ride_id)
+        .values(completion_check_at=datetime.now(timezone.utc) - timedelta(minutes=61))
+    )
+    await db_session.commit()
+
+    async with async_session_factory() as session:
+        second = await run_watchdog(session)
+    assert second["completion_escalations"] == 1
+    assert second["completion_checks"] == 0
+
+    ride = await db_session.get(RideRequest, ride_id)
+    await db_session.refresh(ride)
+    assert ride.completion_check_escalated_at is not None
+    assert ride.admin_attention_reason == "completion_unconfirmed"
+
+    async with async_session_factory() as session:
+        third = await run_watchdog(session)
+    assert third["completion_escalations"] == 0

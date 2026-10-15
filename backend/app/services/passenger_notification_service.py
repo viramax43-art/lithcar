@@ -55,7 +55,12 @@ async def _resolve_lang(passenger_id: str) -> str:
         return user.preferred_language
 
 
-async def _send_to_passenger(*, passenger_id: str, text: str) -> None:
+async def _send_to_passenger(
+    *,
+    passenger_id: str,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
     if not _notifications_enabled():
         return
     chat_id = _resolve_chat_id(passenger_id)
@@ -63,9 +68,46 @@ async def _send_to_passenger(*, passenger_id: str, text: str) -> None:
         return
     try:
         async with Bot(token=settings.bot_token) as bot:
-            await bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup,
+            )
     except Exception:
         logger.exception("Failed to deliver passenger Telegram notification.")
+
+
+def _completion_check_keyboard(
+    *,
+    request: RideRequest,
+    event: str,
+    lang: str,
+) -> InlineKeyboardMarkup | None:
+    """Кнопки [Да]/[Нет] для вопроса «Поездка состоялась?».
+
+    Отвечать из Telegram проще всего: пассажир читает бота чаще, чем открывает
+    мини-апп. Ответ обрабатывает handler `ride_completion` — ровно так же, как
+    кнопка в приложении (идемпотентность обеспечивает сервис).
+    """
+    from app.services.ride_notification_service import RideEvent
+
+    if event != RideEvent.COMPLETION_CHECK:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t("ride_completion.yes", lang),
+                    callback_data=f"ride_completion:{request.id}:yes",
+                ),
+                InlineKeyboardButton(
+                    text=t("ride_completion.no", lang),
+                    callback_data=f"ride_completion:{request.id}:no",
+                ),
+            ],
+        ]
+    )
 
 
 async def _send_pickup_point(*, passenger_id: str, request: RideRequest) -> None:
@@ -246,7 +288,11 @@ async def notify_passenger_ride_event(
     if extra:
         values.update(extra)
     text = _event_text("passenger", event, lang, values)
-    await _send_to_passenger(passenger_id=request.passenger_id, text=text)
+    await _send_to_passenger(
+        passenger_id=request.passenger_id,
+        text=text,
+        reply_markup=_completion_check_keyboard(request=request, event=event, lang=lang),
+    )
 
 
 async def notify_passenger_chat_message(

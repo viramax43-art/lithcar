@@ -16,7 +16,9 @@ import {
   markDriverNotificationRead,
   markPassengerNotificationRead,
 } from '../../infrastructure/api/notificationsApi'
+import { confirmRideCompletion } from '../../infrastructure/api/rideChatApi'
 import type { AppNotification, NotificationPool } from '../../types'
+import { rideCompletionPrompt } from './rideCompletionPrompt'
 
 const DEFAULT_POLL_MS = 20_000
 
@@ -33,6 +35,8 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // id уведомления, по которому сейчас отправляется ответ на «Поездка состоялась?».
+  const [answeringId, setAnsweringId] = useState<string | null>(null)
   const isMounted = useRef(true)
 
   const listFn = pool === 'passenger'
@@ -112,6 +116,43 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
     setUnreadCount(0)
   }, [pool])
 
+  /**
+   * Ответ на вопрос «Поездка состоялась?» прямо из ленты уведомлений.
+   *
+   * Так пассажиру не нужно искать карточку поездки: кнопки [Да]/[Нет] живут в самом
+   * уведомлении, а после ответа вопрос исчезает (сервер помечает его прочитанным).
+   */
+  const answerRideCompletion = useCallback(
+    async (notification: AppNotification, completed: boolean) => {
+      const prompt = rideCompletionPrompt(notification)
+      if (!prompt) return
+      setAnsweringId(notification.id)
+      setErrorMessage(null)
+      try {
+        await confirmRideCompletion(prompt.rideId, completed)
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === notification.id
+              ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
+              : item,
+          ),
+        )
+        setUnreadCount((prev) => Math.max(0, prev - (notification.readAt ? 0 : 1)))
+        await refresh()
+      } catch (err) {
+        if (!isMounted.current) return
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : t('rideCompletion.failed', { defaultValue: 'Не удалось отправить ответ.' }),
+        )
+      } finally {
+        if (isMounted.current) setAnsweringId(null)
+      }
+    },
+    [refresh, t],
+  )
+
   return {
     items,
     unreadCount,
@@ -120,5 +161,7 @@ export function useNotifications({ pool, enabled = true, pollMs = DEFAULT_POLL_M
     refresh,
     markRead,
     markAllRead,
+    answerRideCompletion,
+    answeringId,
   }
 }

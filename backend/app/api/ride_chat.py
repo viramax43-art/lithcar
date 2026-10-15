@@ -51,10 +51,26 @@ class RidePassengerFlowOut(BaseModel):
     driverWaitingMinutes: int = 0
     cancelReason: str | None = None
     cancelComment: str | None = None
+    # «Поездка состоялась?»: водитель начал поездку и не нажал «Завершил».
+    expectedRideMinutes: float = 0
+    estimationSource: str | None = None
+    completionCheckDueAt: str | None = None
+    completionCheckAt: str | None = None
+    completionCheckSecondsLeft: int = 0
+    completionCheckAnswered: bool = False
+    completionCheckResult: str | None = None
+    canConfirmCompletion: bool = False
+    completionEscalateAt: str | None = None
 
 
 class RideCancelIn(BaseModel):
     comment: str | None = Field(default=None, max_length=500)
+
+
+class RideCompletionIn(BaseModel):
+    """Ответ пассажира на вопрос «Поездка состоялась?»."""
+
+    completed: bool
 
 
 def _flow_error_to_http(exc: RideFlowError) -> HTTPException:
@@ -366,8 +382,36 @@ async def passenger_cancel_ride(
 build_ride_chat_page = _build_page
 
 
+@router.post("/{ride_id}/completion-confirmation", response_model=RidePassengerFlowOut)
+async def passenger_confirm_ride_completion(
+    ride_id: str,
+    payload: RideCompletionIn,
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    """Ответ пассажира на вопрос «Поездка состоялась?» — кнопки [Да]/[Нет].
+
+    Закрывает дыру «водитель нажал Начал поездку и не нажал Завершил»:
+    «Да» — поездка закрывается по факту; «Нет» — поездка остаётся «в пути»,
+    но попадает администратору, а водитель видит предупреждение.
+    """
+    try:
+        result = await ride_status_service.confirm_ride_completion(
+            db_session,
+            ride_id=ride_id,
+            user_id=current_user.user_id,
+            completed=payload.completed,
+        )
+    except RideFlowError as exc:
+        raise _flow_error_to_http(exc) from exc
+    await ride_flow_side_effects.deliver_flow_side_effects(result)
+    ride = result.ride
+    return RidePassengerFlowOut(rideId=ride.id, **ride_status_service.passenger_flow_state(ride))
+
+
 __all__ = [
     "RideCancelIn",
+    "RideCompletionIn",
     "RidePassengerFlowOut",
     "build_ride_chat_page",
     "router",

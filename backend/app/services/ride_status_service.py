@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +85,91 @@ def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> floa
     d_lng = radians(lng2 - lng1)
     a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lng / 2) ** 2
     return 2 * EARTH_RADIUS_M * asin(sqrt(a))
+
+
+# Результаты ответа пассажира на вопрос «Поездка состоялась?».
+COMPLETION_CONFIRMED = "confirmed"
+COMPLETION_DECLINED = "declined"
+
+
+def estimated_ride_duration_minutes(ride: RideRequest) -> tuple[float, str]:
+    """Сколько примерно ехать из A в B — основа таймера вопроса пассажиру.
+
+    Приоритет источников: маршрутная оценка из расчёта цены → дорожные километры →
+    прямая дистанция → значение по умолчанию. Оценка нужна не для денег, а чтобы
+    задать вопрос «Поездка состоялась?» через разумное время, а не «через час всем».
+    """
+    quoted = ride.quote_duration_min
+    if quoted and float(quoted) > 0:
+        return float(quoted), "quote"
+
+    speed = max(1.0, float(settings.ride_completion_check_speed_kmh))
+    road_km = float(ride.quote_road_km) if ride.quote_road_km and ride.quote_road_km > 0 else 0.0
+    if road_km <= 0:
+        straight_km = (
+            haversine_meters(ride.from_lat, ride.from_lng, ride.to_lat, ride.to_lng) / 1000.0
+        )
+        if straight_km >= 0.5:
+            # Дорога длиннее прямой: коэффициент 1.3 — та же логика, что в оценке без OSRM.
+            road_km = straight_km * 1.3
+    if road_km > 0:
+        return max(1.0, road_km / speed * 60.0), "distance"
+
+    return float(settings.ride_completion_check_fallback_minutes), "fallback"
+
+
+def completion_check_delay_minutes(ride: RideRequest) -> tuple[int, float, str]:
+    """Через сколько минут после старта спрашивать «Поездка состоялась?».
+
+    Возвращает (задержка, оценка времени в пути, источник оценки): всё это уходит
+    в payload уведомления, чтобы разбор спора опирался на числа, а не на «показалось».
+    """
+    expected, source = estimated_ride_duration_minutes(ride)
+    factor = max(1.0, float(settings.ride_completion_check_factor))
+    delay = expected * factor
+    delay = max(delay, float(settings.ride_completion_check_min_minutes))
+    delay = min(delay, float(settings.ride_completion_check_max_minutes))
+    return int(round(delay)), round(expected, 1), source
+
+
+def completion_check_due_at(ride: RideRequest) -> datetime | None:
+    """Момент вопроса: старт поездки + 2× расчётного времени в пути."""
+    started_at = _as_aware(ride.started_at)
+    if started_at is None:
+        return None
+    delay, _, _ = completion_check_delay_minutes(ride)
+    return started_at + timedelta(minutes=delay)
+
+
+def completion_check_escalate_at(ride: RideRequest) -> datetime | None:
+    """Когда звать администратора, если пассажир молчит."""
+    check_at = _as_aware(ride.completion_check_at)
+    if check_at is None:
+        return None
+    return check_at + _minutes(settings.ride_completion_check_escalate_minutes)
+
+
+def completion_check_state(ride: RideRequest, *, now: datetime | None = None) -> dict:
+    """Состояние вопроса «Поездка состоялась?» — для карточки поездки в приложении."""
+    moment = _as_aware(now) or _now()
+    expected, source = estimated_ride_duration_minutes(ride)
+    due_at = completion_check_due_at(ride)
+    sent = ride.completion_check_at is not None
+    answered = ride.completion_check_answered_at is not None
+    seconds_left = 0
+    if due_at is not None and not sent:
+        seconds_left = max(0, int((due_at - moment).total_seconds()))
+    return {
+        "expectedRideMinutes": round(expected, 1),
+        "estimationSource": source,
+        "completionCheckDueAt": _iso(due_at),
+        "completionCheckAt": _iso(ride.completion_check_at),
+        "completionCheckSecondsLeft": seconds_left,
+        "completionCheckAnswered": answered,
+        "completionCheckResult": ride.completion_check_result,
+        "canConfirmCompletion": ride.status == RideRequestStatus.IN_PROGRESS and sent and not answered,
+        "completionEscalateAt": _iso(completion_check_escalate_at(ride)),
+    }
 
 
 async def lock_ride(db_session: AsyncSession, *, ride_id: str) -> RideRequest | None:
@@ -434,6 +520,44 @@ async def start_ride(
     )
 
 
+async def _mark_ride_completed(
+    db_session: AsyncSession,
+    *,
+    ride: RideRequest,
+    actor_type: str,
+    actor_id: str | None,
+    moment: datetime,
+    payload: dict | None = None,
+) -> str:
+    """Общий финал поездки — и для кнопки водителя, и для ответа пассажира «Да».
+
+    Возвращает предыдущий статус: он нужен вызывающей стороне для уведомлений.
+    """
+    previous_status = ride.status
+    ride.status = RideRequestStatus.COMPLETED
+    ride.completed_at = moment
+    ride.status_updated_at = moment
+    _clear_admin_attention(ride)
+
+    await _record_event(
+        db_session,
+        ride=ride,
+        from_status=previous_status,
+        to_status=ride.status,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        payload=payload,
+    )
+    await _system_message(db_session, ride=ride, key="completed")
+    await ride_notification_service.notify_passenger_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.COMPLETED,
+        payload_extra={"completedAt": _iso(moment)},
+    )
+    return previous_status
+
+
 async def complete_ride(
     db_session: AsyncSession,
     *,
@@ -459,26 +583,12 @@ async def complete_ride(
             status_code=409,
         )
 
-    previous_status = ride.status
-    ride.status = RideRequestStatus.COMPLETED
-    ride.completed_at = moment
-    ride.status_updated_at = moment
-    _clear_admin_attention(ride)
-
-    await _record_event(
+    previous_status = await _mark_ride_completed(
         db_session,
         ride=ride,
-        from_status=previous_status,
-        to_status=ride.status,
         actor_type=RideStatusActorType.DRIVER,
         actor_id=driver_id,
-    )
-    await _system_message(db_session, ride=ride, key="completed")
-    await ride_notification_service.notify_passenger_for_ride_event(
-        db_session,
-        ride=ride,
-        event=RideEvent.COMPLETED,
-        payload_extra={"completedAt": _iso(moment)},
+        moment=moment,
     )
     await db_session.commit()
     await db_session.refresh(ride)
@@ -489,6 +599,172 @@ async def complete_ride(
         changed=True,
         event=RideEvent.COMPLETED,
         telegram_targets=["passenger"],
+    )
+
+
+async def request_completion_confirmation(
+    db_session: AsyncSession,
+    *,
+    ride: RideRequest,
+    now: datetime | None = None,
+    force: bool = False,
+    commit: bool = True,
+) -> RideFlowResult:
+    """Спрашиваем пассажира: «Поездка состоялась?» — с кнопками [Да]/[Нет].
+
+    Зачем: водитель нажал «Начал поездку» и не нажал «Завершил». Пассажир видит
+    «в пути» бесконечно, а статус и расчёты не двигаются. Через 2× расчётного времени
+    в пути система спрашивает пассажира сама — без звонков и переписок.
+
+    ``commit=False`` нужен сторожу: он накапливает изменения по многим поездкам и
+    коммитит их одним махом, а Telegram уходит после коммита.
+    """
+    moment = _as_aware(now) or _now()
+    if ride.status != RideRequestStatus.IN_PROGRESS:
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+    if ride.completion_check_answered_at is not None:
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+    if ride.completion_check_at is not None and not force:
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+
+    started_at = _as_aware(ride.started_at)
+    elapsed_minutes = int((moment - started_at).total_seconds() // 60) if started_at else 0
+    delay, expected, source = completion_check_delay_minutes(ride)
+    ride.completion_check_at = moment
+
+    await _system_message(db_session, ride=ride, key="completion_check", values={"minutes": delay})
+    await ride_notification_service.notify_passenger_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.COMPLETION_CHECK,
+        extra={
+            "elapsed_minutes": elapsed_minutes,
+            "expected_minutes": int(expected),
+            "check_minutes": delay,
+        },
+        payload_extra={
+            "requiresConfirmation": True,
+            "confirmationKind": "ride_completed",
+            "rideId": ride.id,
+            "expectedMinutes": int(expected),
+            "estimationSource": source,
+            "checkAfterMinutes": delay,
+            "elapsedMinutes": elapsed_minutes,
+            "startedAt": _iso(started_at),
+            "dueAt": _iso(moment),
+        },
+    )
+
+    if commit:
+        await db_session.commit()
+        await db_session.refresh(ride)
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=ride.status,
+        changed=True,
+        event=RideEvent.COMPLETION_CHECK,
+        extra={"expectedMinutes": int(expected), "estimationSource": source},
+        telegram_targets=["passenger"],
+    )
+
+
+def _completion_check_age_minutes(ride: RideRequest, *, now: datetime) -> int:
+    check_at = _as_aware(ride.completion_check_at)
+    if check_at is None:
+        return 0
+    return max(0, int((now - check_at).total_seconds() // 60))
+
+
+async def confirm_ride_completion(
+    db_session: AsyncSession,
+    *,
+    ride_id: str,
+    user_id: str,
+    completed: bool,
+    now: datetime | None = None,
+) -> RideFlowResult:
+    """Ответ пассажира на вопрос «Поездка состоялась?».
+
+    «Да» — закрываем поездку (водитель просто забыл нажать кнопку); водитель видит
+    это в кабинете и Telegram.
+    «Нет» — поездка остаётся «в пути», но уходит администратору: спорный случай
+    разбирает человек, а не «зависший» статус.
+    """
+    moment = _as_aware(now) or _now()
+    ride = await lock_ride(db_session, ride_id=ride_id)
+    if ride is None or ride.passenger_id != user_id:
+        raise RideFlowError("not_found", "Поездка не найдена.", status_code=404)
+    if RideRequestStatus.is_terminal(ride.status):
+        raise RideFlowError("ride_closed", "Поездка уже закрыта.", status_code=409)
+    if ride.status != RideRequestStatus.IN_PROGRESS:
+        raise RideFlowError(
+            "not_in_progress",
+            "Поездка ещё не началась — отвечать на вопрос не нужно.",
+            status_code=409,
+        )
+    if ride.completion_check_answered_at is not None:
+        # Идемпотентность: повторный клик (или ответ из Telegram после приложения) безопасен.
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+
+    ride.completion_check_at = ride.completion_check_at or moment
+    ride.completion_check_answered_at = moment
+    ride.completion_check_result = COMPLETION_CONFIRMED if completed else COMPLETION_DECLINED
+    await ride_notification_service.dismiss_completion_check(db_session, ride=ride)
+
+    if completed:
+        previous_status = await _mark_ride_completed(
+            db_session,
+            ride=ride,
+            actor_type=RideStatusActorType.PASSENGER,
+            actor_id=user_id,
+            moment=moment,
+            payload={"confirmation": COMPLETION_CONFIRMED, "confirmedBy": "passenger"},
+        )
+        await ride_notification_service.notify_driver_for_ride_event(
+            db_session,
+            ride=ride,
+            event=RideEvent.COMPLETED,
+            extra={"confirmed_by_passenger": True},
+        )
+        await db_session.commit()
+        await db_session.refresh(ride)
+        return RideFlowResult(
+            ride=ride,
+            previous_status=previous_status,
+            changed=True,
+            event=RideEvent.COMPLETED,
+            extra={"completedBy": "passenger"},
+            telegram_targets=["passenger", "driver"],
+        )
+
+    _flag_admin_attention(
+        ride,
+        reason=RideAdminAttentionReason.PASSENGER_NOT_COMPLETED,
+        now=moment,
+    )
+    await _system_message(db_session, ride=ride, key="completion_declined")
+    await ride_notification_service.notify_driver_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.COMPLETION_DECLINED,
+    )
+    await ride_notification_service.notify_admins_ride_attention(
+        db_session,
+        ride=ride,
+        reason=RideAdminAttentionReason.PASSENGER_NOT_COMPLETED,
+        extra={"checkedMinutes": _completion_check_age_minutes(ride, now=moment)},
+    )
+    await db_session.commit()
+    await db_session.refresh(ride)
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=ride.status,
+        changed=True,
+        event=RideEvent.COMPLETION_DECLINED,
+        extra={"passengerDeclined": True},
+        telegram_targets=["driver"],
     )
 
 
@@ -991,7 +1267,7 @@ def passenger_flow_state(ride: RideRequest, *, now: datetime | None = None) -> d
         left = (nudge_sent_at + nudge_cooldown) - moment
         nudge_left = max(0, int(left.total_seconds()))
 
-    return {
+    state = {
         "status": ride.status,
         "canChat": ride.status in RideRequestStatus.CHAT_OPEN or ride.status in RideRequestStatus.TERMINAL,
         "canSendMessage": ride.status in RideRequestStatus.CHAT_OPEN,
@@ -1020,6 +1296,9 @@ def passenger_flow_state(ride: RideRequest, *, now: datetime | None = None) -> d
         "cancelReason": ride.cancel_reason,
         "cancelComment": ride.cancel_comment,
     }
+    # Вопрос «Поездка состоялась?» показываем и в карточке поездки, а не только в уведомлениях.
+    state.update(completion_check_state(ride, now=moment))
+    return state
 
 
 WAIT_REMINDER_KEY = "wait_reminder"
@@ -1030,21 +1309,29 @@ async def run_watchdog(
     *,
     now: datetime | None = None,
     limit: int = 200,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """Обход активных поездок: напоминания участникам и пометка спорных случаев для админа.
 
     Запускается фоном (см. lifespan) — именно он спасает от «зависших» статусов,
-    когда водитель забыл нажать кнопку, а пассажир ждёт на улице.
+    когда водитель забыл нажать кнопку, а пассажир ждёт на улице. Здесь же рождается
+    вопрос «Поездка состоялась?» для поездок, которые водитель не закрыл.
+
+    Возвращает счётчики тика и список ``deliveries`` — поездки, для которых после
+    коммита нужно отправить Telegram (например, вопрос с кнопками [Да]/[Нет]).
     """
     moment = _as_aware(now) or _now()
-    counters = {
+    counters: dict[str, Any] = {
         "scanned": 0,
         "wait_reminders": 0,
         "no_show_available": 0,
         "driver_late": 0,
         "en_route_stuck": 0,
         "ride_stuck": 0,
+        "completion_checks": 0,
+        "completion_escalations": 0,
         "admin_flags": 0,
+        # Поездки, по которым после коммита нужно отправить Telegram (в т.ч. кнопки [Да]/[Нет]).
+        "deliveries": [],
     }
 
     result = await db_session.execute(
@@ -1196,14 +1483,52 @@ async def _watchdog_tick_ride(
                     extra={"rideMinutes": int((now - started_at).total_seconds() // 60)},
                 )
 
+        # «Поездка состоялась?»: водитель начал и не завершил. Спрашиваем пассажира через
+        # 2× расчётного времени в пути; если он молчит — подключаем администратора.
+        if ride.completion_check_answered_at is None:
+            due_at = completion_check_due_at(ride)
+            if ride.completion_check_at is None and due_at is not None and now >= due_at:
+                result = await request_completion_confirmation(
+                    db_session,
+                    ride=ride,
+                    now=now,
+                    commit=False,
+                )
+                if result.changed:
+                    counters["completion_checks"] += 1
+                    counters["deliveries"].append(result)
+            elif ride.completion_check_at is not None:
+                escalate_at = completion_check_escalate_at(ride)
+                if escalate_at is not None and now >= escalate_at and _flag_admin_attention(
+                    ride,
+                    reason=RideAdminAttentionReason.COMPLETION_UNCONFIRMED,
+                    now=now,
+                ):
+                    ride.completion_check_escalated_at = now
+                    await ride_notification_service.notify_admins_ride_attention(
+                        db_session,
+                        ride=ride,
+                        reason=RideAdminAttentionReason.COMPLETION_UNCONFIRMED,
+                        extra={"checkedMinutes": _completion_check_age_minutes(ride, now=now)},
+                    )
+                    counters["completion_escalations"] += 1
+                    counters["admin_flags"] += 1
+
 
 __all__ = [
+    "COMPLETION_CONFIRMED",
+    "COMPLETION_DECLINED",
     "RideFlowError",
     "RideFlowResult",
     "cancel_by_driver",
     "cancel_by_passenger",
     "complete_ride",
+    "completion_check_delay_minutes",
+    "completion_check_due_at",
+    "completion_check_state",
+    "confirm_ride_completion",
     "driver_flow_state",
+    "estimated_ride_duration_minutes",
     "haversine_meters",
     "lock_ride",
     "mark_arrived",
@@ -1212,6 +1537,7 @@ __all__ = [
     "no_show_seconds_left",
     "nudge_driver",
     "passenger_flow_state",
+    "request_completion_confirmation",
     "run_watchdog",
     "start_ride",
     "undo_last_status",
