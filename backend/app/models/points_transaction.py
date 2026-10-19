@@ -14,6 +14,9 @@ class PointsTransactionType:
     USER_TRANSFER_OUT = "user_transfer_out"
     USER_TRANSFER_IN = "user_transfer_in"
     ADMIN_ADJUSTMENT = "admin_adjustment"
+    # Отмена/неявка: возврат пассажиру и компенсация водителю.
+    RIDE_REFUND = "ride_refund"
+    RIDE_DRIVER_COMPENSATION = "ride_driver_compensation"
 
 
 class PointsTransaction(Base):

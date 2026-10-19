@@ -4,6 +4,7 @@ import { ArrowLeft, CaretRight, MapPin, Clock, User, Car } from '@phosphor-icons
 import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import { passengerNotificationTarget } from '../../components/notifications/passengerNotificationTarget'
 import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import RatingBadge from '../../components/RatingBadge'
 import type { Driver, RideRequest } from '../../types'
@@ -118,7 +119,13 @@ export default function MyRequests() {
             <ArrowLeft size={20} weight="bold" />
           </button>
           <h1 className="text-base font-extrabold tracking-tight flex-1">{t('passenger.myRidesTitle', { defaultValue: 'My rides' })}</h1>
-          <NotificationBell pool="passenger" />
+          <NotificationBell
+            pool="passenger"
+            onNotificationSelect={(notification) => {
+              const target = passengerNotificationTarget(notification)
+              if (target) navigate(target)
+            }}
+          />
         </div>
         {/* Status tabs */}
         <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto w-full max-w-2xl mx-auto">

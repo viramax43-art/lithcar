@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -12,6 +12,7 @@ from app.core.app_timezone import to_app_local_iso
 from app.core.config import settings
 from app.core.dependencies import get_db_session
 from app.models.admin_api_key import AdminApiRole
+from app.models.ride_request import RideCancelReason, RideRequestStatus
 from app.models.user import User, UserRole
 from app.services.driver_service import get_driver, is_driver_online
 from app.services.driver_notification_service import notify_driver_ride_assigned
@@ -51,6 +52,7 @@ from app.services.ride_route_update_service import (
     apply_route_update_with_notifications,
     route_error_http_detail,
 )
+from app.services.ride_settlement_service import settle_ride_cancellation
 
 
 router = APIRouter(prefix="/ride-requests")
@@ -566,6 +568,19 @@ async def patch_request_status(
     if existing is None:
         raise HTTPException(status_code=404, detail="Ride request not found.")
     previous_status = existing.status
+    if payload.status == RideRequestStatus.CANCELLED and not RideRequestStatus.is_terminal(previous_status):
+        # Админ отменяет поездку: пассажир получает полный возврат, причина видна в карточке.
+        existing.cancel_reason = RideCancelReason.ADMIN_CANCELLED
+        existing.cancelled_at = datetime.now(timezone.utc)
+        existing.cancelled_by = "admin"
+        existing.status_updated_at = existing.cancelled_at
+        await settle_ride_cancellation(
+            db_session,
+            ride=existing,
+            reason=RideCancelReason.ADMIN_CANCELLED,
+            refund_percent=100,
+            driver_compensation_percent=0,
+        )
     request = await update_request_status(db_session, request_id=request_id, status=payload.status)
     if request is None:  # defensive branch for race conditions
         raise HTTPException(status_code=404, detail="Ride request not found.")
@@ -777,6 +792,16 @@ async def remove_request(
         raise HTTPException(status_code=403, detail="Access denied.")
     if is_owner and not is_admin_user and request.status != "pending":
         raise HTTPException(status_code=400, detail="Only pending requests can be deleted by passenger.")
+    if request.status != RideRequestStatus.COMPLETED:
+        # Удаление заявки не должно «съедать» предоплату: возвращаем баллы.
+        reason = RideCancelReason.ADMIN_CANCELLED if is_admin_user else RideCancelReason.PASSENGER_CANCELLED
+        await settle_ride_cancellation(
+            db_session,
+            ride=request,
+            reason=reason,
+            refund_percent=100,
+            driver_compensation_percent=0,
+        )
     deleted = await delete_ride_request(db_session, request_id=request_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Ride request not found.")

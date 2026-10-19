@@ -13,7 +13,7 @@ from app.models.notification import (
     NotificationRecipientType,
     NotificationType,
 )
-from app.models.ride_request import RideRequest
+from app.models.ride_request import RideRequest, RideRequestStatus
 from app.services.notification_service import (
     NotificationRecipient,
     create_notification,
@@ -492,7 +492,12 @@ async def _rides_by_ids(
     wanted = [item for item in ride_ids if item != exclude_ride_id]
     if not wanted:
         return []
-    result = await db_session.execute(select(RideRequest).where(RideRequest.id.in_(wanted)))
+    result = await db_session.execute(
+        select(RideRequest).where(
+            RideRequest.id.in_(wanted),
+            RideRequest.status.in_(RideRequestStatus.CHAT_OPEN),
+        )
+    )
     return list(result.scalars().all())
 
 

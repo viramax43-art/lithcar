@@ -61,7 +61,7 @@ import { getInitialDashboardUi, getInitialDriverRegistrationUi } from '../../lib
 import { usePersistAdminUiSlice } from '../../lib/useAdminUiPersistence'
 import { DEFAULT_PLATFORM_SETTINGS, mapPlatformSettings, type PlatformSettingsConfig } from '../../lib/platformSettingsDefaults'
 import { getPlatformSettings, updatePlatformSettings } from '../../infrastructure/api/adminApi'
-import { GROUP_COLORS, type AdminTab, type MapColorGroupKey } from './constants'
+import { GROUP_COLORS, MAP_COLOR_GROUPS, type AdminTab, type MapColorGroupKey } from './constants'
 
 const ADMIN_DASHBOARD_POLL_MS = 10_000
 const INITIAL_DASHBOARD_UI = getInitialDashboardUi()
@@ -161,14 +161,19 @@ export default function AdminDashboard() {
 
   const handleAdminNotificationSelect = useCallback((notification: AppNotification) => {
     const payload = notification.payload
-    if (
-      payload &&
-      typeof payload === 'object' &&
-      payload.kind === 'driver_application' &&
-      typeof payload.applicationId === 'string'
-    ) {
+    if (!payload || typeof payload !== 'object') return
+    if (payload.kind === 'driver_application' && typeof payload.applicationId === 'string') {
       setActiveTab('drivers')
       setSelectedApplicationId(payload.applicationId)
+      return
+    }
+    // Admin ride alerts (watchdog / attention): open the ride in the requests
+    // section and make sure its status colour is visible on the map/list.
+    if (payload.kind === 'ride' && typeof payload.rideId === 'string' && payload.rideId) {
+      setActiveTab('requests')
+      setSearchQuery('')
+      setSelectedReqId(payload.rideId)
+      setEnabledColors(new Set(MAP_COLOR_GROUPS.map((group) => group.key)))
     }
   }, [])
 

@@ -91,6 +91,36 @@ class Settings(BaseSettings):
     # Сколько ждём ответ пассажира, прежде чем подключить администратора.
     ride_completion_check_escalate_minutes: int = Field(default=60)
 
+    # --- Защита от «случайных» нажатий и игнорирования ---------------------------
+    # Насколько раньше назначенного времени можно нажать «Начать поездку».
+    # Выехать заранее можно, а стартовать — только когда поездка действительно близко.
+    ride_start_max_early_minutes: int = Field(default=30)
+    # Сколько секунд/минут водитель ждёт на точке до старта, если пассажир
+    # не отметил «Я на месте». 0 — ждать не нужно (пассажир подтвердил посадку).
+    ride_start_min_wait_minutes: int = Field(default=0)
+    # Минимальная длительность поездки, после которой доступна кнопка «Завершить».
+    # 0 — без ограничения (для очень коротких маршрутов).
+    ride_min_duration_minutes: int = Field(default=0)
+    # Максимальное ожидание пассажира на точке: после него поездка закрывается
+    # автоматически как неявка (водитель не должен стоять бесконечно).
+    ride_max_wait_minutes: int = Field(default=15)
+    # Насколько водитель может один раз продлить ожидание.
+    ride_wait_extension_minutes: int = Field(default=10)
+    # Авто-отмена, если водитель «едет на точку» дольше этого времени.
+    ride_en_route_auto_cancel_minutes: int = Field(default=180)
+    # Авто-отмена, если водитель не выехал/не прибыл вскоре после назначенного времени.
+    ride_driver_late_auto_cancel_minutes: int = Field(default=30)
+    # Финансовая политика отмен: какую долю стоимости удерживаем при поздней
+    # отмене пассажиром и при неявке (идёт в компенсацию водителю).
+    ride_passenger_late_cancel_fee_percent: int = Field(default=20)
+    ride_no_show_fee_percent: int = Field(default=20)
+    # Окно, в котором пассажир может заявить «поездка не начиналась»
+    # (водитель случайно нажал «Начать поездку»). После окна — только через админа.
+    ride_start_dispute_window_minutes: int = Field(default=10)
+    # Через сколько часов зависшая спорная поездка закрывается автоматически.
+    # Деньги при этом не списываются повторно: баллы уже были списаны при брони.
+    ride_dispute_auto_close_minutes: int = Field(default=1440)
+
     payment_provider: str = Field(default="")
     yookassa_shop_id: str = Field(default="")
     yookassa_secret_key: str = Field(default="")

@@ -7,6 +7,7 @@ from app.core.security import create_access_token
 from app.models.notification import Notification, NotificationType
 from app.models.ride_request import RideRequest
 from app.models.user import User, UserRole
+from app.services.ride_chat_service import thread_key_for
 from tests.ride_datetime import future_ride_datetime_iso
 from tests.test_ride_flow_lifecycle import _headers_for, _setup_ride
 
@@ -215,3 +216,14 @@ async def test_passenger_nudge_has_cooldown(client, db_session):
     chat = await client.get(f"/api/rides/{ride_id}/chat", headers=ctx["passenger_headers"])
     quick_messages = [item for item in chat.json()["items"] if item["kind"] == "quick_reply"]
     assert len(quick_messages) == 1
+
+
+def test_offer_bookings_share_one_group_chat_thread():
+    """Все места одного предложения водителя — одна машина и один групповой чат."""
+    first = RideRequest(id="ride-offer-a", offer_id="offer-42", group_id=None)
+    second = RideRequest(id="ride-offer-b", offer_id="offer-42", group_id=None)
+    solo = RideRequest(id="ride-solo", offer_id=None, group_id=None)
+
+    assert thread_key_for(first) == "g:offer:offer-42"
+    assert thread_key_for(second) == "g:offer:offer-42"
+    assert thread_key_for(solo) == "r:ride-solo"

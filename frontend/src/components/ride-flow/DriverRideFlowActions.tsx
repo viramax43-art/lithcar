@@ -26,6 +26,7 @@ export type DriverFlowAction =
   | 'undo'
   | 'no_show'
   | 'cancel'
+  | 'extend_wait'
 
 interface DriverRideFlowActionsProps {
   rideId: string
@@ -164,6 +165,21 @@ export default function DriverRideFlowActions({
           </button>
         )}
       </div>
+
+      {flow.canExtendWait && (
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => {
+            hapticSelection()
+            void onAction('extend_wait')
+          }}
+          className="w-full min-h-[36px] rounded-card bg-white/10 hover:bg-white/20 text-[11px] font-bold text-white inline-flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+        >
+          <Clock size={13} weight="bold" />
+          {t('driver.extendWait', { defaultValue: 'Продлить ожидание' })}
+        </button>
+      )}
 
       {flow.canReportNoShow && (
         <button

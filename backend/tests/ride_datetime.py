@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 APP_TZ = ZoneInfo("Europe/Vilnius")
-MIN_BOOKING_LEAD_HOURS = 0
+MIN_BOOKING_LEAD_HOURS = 2
 
 
 def _from_local_components(day: datetime, total_minutes: int) -> datetime:

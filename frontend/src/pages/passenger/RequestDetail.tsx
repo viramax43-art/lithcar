@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import L from 'leaflet'
 import { ArrowLeft, Car, Check, MapPin, Calendar, Clock, NavigationArrow, ShareNetwork, Star, Users, Warning } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
-import type { RideRequest } from '../../types'
+import type { AppNotification, RideRequest } from '../../types'
 import Skeleton from '../../components/Skeleton'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import { passengerNotificationTarget } from '../../components/notifications/passengerNotificationTarget'
 import RideChatButton from '../../components/ride-chat/RideChatButton'
 import PassengerRideFlowActions from '../../components/ride-flow/PassengerRideFlowActions'
 import { useRideFlow } from '../../components/ride-flow/useRideFlow'
@@ -51,6 +52,7 @@ export default function RequestDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [request, setRequest] = useState<RideRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -66,6 +68,15 @@ export default function RequestDetail() {
   const [driverBlocked, setDriverBlocked] = useState(false)
   const [isSignalMode, setIsSignalMode] = useState(false)
   const [showEditSheet, setShowEditSheet] = useState(false)
+  // Уведомление о сообщении группового чата открывает шит сразу. Сигнал
+  // обновляем и при переходе на другой `?chat=1` URL — компонент может не
+  // перемонтироваться, если меняется только id/query.
+  const chatQuery = searchParams.get('chat') === '1'
+  const [chatOpenSignal, setChatOpenSignal] = useState(0)
+  useEffect(() => {
+    if (!chatQuery) return
+    setChatOpenSignal((value) => value + 1)
+  }, [chatQuery, id])
 
   // Состояние шага поездки: «Я на месте», «Где вы?», отмена и таймеры ожидания.
   const { flow: rideFlow, refresh: refreshRideFlow } = useRideFlow({
@@ -87,6 +98,26 @@ export default function RequestDetail() {
     await reloadRequest()
     await refreshRideFlow()
   }
+  /**
+   * Тап по уведомлению: поездка открывается в приложении, а сообщение чата —
+   * сразу с открытым групповым чатом. Telegram остаётся только каналом
+   * уведомлений и больше не подменяет переписку.
+   */
+  const handlePassengerNotificationSelect = (notification: AppNotification) => {
+    const target = passengerNotificationTarget(notification)
+    if (!target) return
+    const payload = notification.payload
+    const isChatMessage =
+      payload && typeof payload === 'object' && (payload as Record<string, unknown>).event === 'chat_message'
+
+    if (id && target.startsWith(`/requests/${encodeURIComponent(id)}`)) {
+      if (isChatMessage) setChatOpenSignal((value) => value + 1)
+      return
+    }
+    navigate(target)
+  }
+
+
 
   useEffect(() => {
     if (!id) return
@@ -230,8 +261,8 @@ export default function RequestDetail() {
           >
             {t(`status.${request.status}`, { defaultValue: request.status })}
           </span>
-          <NotificationBell pool="passenger" />
-          <RideChatButton rideId={id ?? null} role="passenger" />
+          <NotificationBell pool="passenger" onNotificationSelect={handlePassengerNotificationSelect} />
+          <RideChatButton rideId={id ?? null} role="passenger" openSignal={chatOpenSignal} />
         </div>
       </header>
 

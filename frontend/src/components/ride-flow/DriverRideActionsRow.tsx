@@ -31,9 +31,16 @@ export default function DriverRideActionsRow({
 }: DriverRideActionsRowProps) {
   const { t } = useTranslation()
   const [showCancel, setShowCancel] = useState(false)
+  const [showNoShowConfirm, setShowNoShowConfirm] = useState(false)
   const [comment, setComment] = useState('')
   const undoLeft = useCountdown(flow?.undoSecondsLeft)
   const noShowLeft = useCountdown(flow?.noShowSecondsLeft)
+  const startLeft = useCountdown(flow?.startAvailableInSeconds)
+  const autoNoShowLeft = useCountdown(
+    flow?.autoNoShowAt
+      ? Math.max(0, Math.floor((new Date(flow.autoNoShowAt).getTime() - Date.now()) / 1000))
+      : 0,
+  )
 
   if (!flow) return null
 
@@ -54,6 +61,26 @@ export default function DriverRideActionsRow({
           {t('driver.waitingFor', {
             minutes: waitingMinutes,
             defaultValue: `Ждём пассажира ${waitingMinutes} мин`,
+          })}
+        </p>
+      )}
+
+      {flow.status === 'awaiting_passenger' && autoNoShowLeft > 0 && (
+        <p className="text-[11px] text-amber-700 flex items-center gap-1.5">
+          <Clock size={12} weight="bold" />
+          {t('driver.autoNoShowIn', {
+            time: formatCountdown(autoNoShowLeft),
+            defaultValue: `Автонеявка через ${formatCountdown(autoNoShowLeft)}`,
+          })}
+        </p>
+      )}
+
+      {flow.status === 'awaiting_passenger' && startLeft > 0 && (
+        <p className="text-[11px] text-sky-700 flex items-center gap-1.5">
+          <Clock size={12} weight="bold" />
+          {t('driver.startAvailableIn', {
+            time: formatCountdown(startLeft),
+            defaultValue: `Старт будет доступен через ${formatCountdown(startLeft)}`,
           })}
         </p>
       )}
@@ -85,7 +112,7 @@ export default function DriverRideActionsRow({
             disabled={isBusy}
             onClick={() => {
               hapticSelection()
-              void onAction('no_show')
+              setShowNoShowConfirm(true)
             }}
             className="flex-1 min-h-[40px] rounded-card bg-amber-50 text-[11px] font-bold text-amber-700 inline-flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
           >
@@ -104,6 +131,47 @@ export default function DriverRideActionsRow({
           )
         )}
       </div>
+
+      {showNoShowConfirm && (
+        <div className="rounded-card bg-amber-50 border border-amber-200 p-3 space-y-2">
+          <p className="text-[11px] font-semibold text-amber-900">
+            {t('driver.noShowConfirmHint', {
+              defaultValue:
+                'Пассажир действительно не вышел? Поездка закроется, часть стоимости удержится как компенсация за ожидание.',
+            })}
+          </p>
+          <InlineConfirm
+            label={t('driver.reportNoShow', { defaultValue: 'Пассажир не вышел' })}
+            confirmLabel={t('driver.noShowConfirm', { defaultValue: 'Да, оформить неявку' })}
+            onConfirm={() => {
+              setShowNoShowConfirm(false)
+              void onAction('no_show')
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowNoShowConfirm(false)}
+            className="w-full min-h-[32px] text-[11px] text-muted"
+          >
+            {t('common.cancel', { defaultValue: 'Назад' })}
+          </button>
+        </div>
+      )}
+
+      {flow.canExtendWait && !showNoShowConfirm && (
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => {
+            hapticSelection()
+            void onAction('extend_wait')
+          }}
+          className="w-full min-h-[36px] rounded-card bg-surface text-[11px] font-semibold text-black/70 inline-flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+        >
+          <Clock size={13} weight="bold" />
+          {t('driver.extendWait', { defaultValue: 'Продлить ожидание' })}
+        </button>
+      )}
 
       {flow.canCancel && !showCancel && (
         <button

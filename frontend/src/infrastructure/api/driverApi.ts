@@ -247,12 +247,28 @@ export async function markDriverArrived(
   )
 }
 
-export async function startDriverRide(rideId: string): Promise<DriverRideFlowPayload> {
-  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/start`)
+export async function startDriverRide(
+  rideId: string,
+  coords?: { lat: number; lng: number },
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(
+    `/api/driver/cabinet/rides/${rideId}/start`,
+    { body: coords ?? {} },
+  )
 }
 
-export async function completeDriverRide(rideId: string): Promise<DriverRideFlowPayload> {
-  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/complete`)
+export async function completeDriverRide(
+  rideId: string,
+  coords?: { lat: number; lng: number },
+): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(
+    `/api/driver/cabinet/rides/${rideId}/complete`,
+    { body: coords ?? {} },
+  )
+}
+
+export async function extendDriverWait(rideId: string): Promise<DriverRideFlowPayload> {
+  return flowRequest<DriverRideFlowPayload>(`/api/driver/cabinet/rides/${rideId}/wait-extend`)
 }
 
 export async function undoDriverRideStatus(rideId: string): Promise<DriverRideFlowPayload> {

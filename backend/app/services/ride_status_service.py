@@ -17,7 +17,7 @@ from app.models.ride_request import (
     RideRequestStatus,
 )
 from app.models.ride_status_event import RideStatusActorType, RideStatusEvent
-from app.services import ride_chat_service, ride_notification_service
+from app.services import ride_chat_service, ride_notification_service, ride_settlement_service
 from app.services.ride_chat_service import RideChatMessageKind
 from app.services.ride_notification_service import RideEvent
 
@@ -289,6 +289,109 @@ def _assert_en_route_not_too_early(ride: RideRequest, *, now: datetime) -> None:
         )
 
 
+def _arrival_wait_deadline(ride: RideRequest) -> datetime | None:
+    """До какого момента водитель ждёт пассажира на точке (с учётом продления)."""
+    arrived_at = _as_aware(ride.arrived_at)
+    if arrived_at is None:
+        return None
+    deadline = arrived_at + _minutes(settings.ride_max_wait_minutes)
+    extended_until = _as_aware(ride.wait_extended_until)
+    if extended_until is not None and extended_until > deadline:
+        deadline = extended_until
+    return deadline
+
+
+def _start_earliest_at(ride: RideRequest) -> datetime | None:
+    """Раньше этого момента стартовать нельзя: поездка ещё «не наступила»."""
+    ride_dt = _as_aware(ride.date_time)
+    if ride_dt is None:
+        return None
+    return ride_dt - _minutes(settings.ride_start_max_early_minutes)
+
+
+def start_seconds_left(ride: RideRequest, *, now: datetime | None = None) -> int:
+    """Сколько секунд осталось до возможности нажать «Начать поездку» (0 — можно)."""
+    moment = _as_aware(now) or _now()
+    left = 0
+    earliest = _start_earliest_at(ride)
+    if earliest is not None and moment < earliest:
+        left = max(left, int((earliest - moment).total_seconds()))
+    if ride.passenger_ready_at is None and ride.passenger_boarded_at is None:
+        arrived_at = _as_aware(ride.arrived_at)
+        wait_until = arrived_at + _minutes(settings.ride_start_min_wait_minutes) if arrived_at else None
+        if wait_until is not None and moment < wait_until:
+            left = max(left, int((wait_until - moment).total_seconds()))
+    return max(0, left)
+
+
+def complete_seconds_left(ride: RideRequest, *, now: datetime | None = None) -> int:
+    """Сколько секунд осталось до возможности нажать «Завершить поездку» (0 — можно)."""
+    moment = _as_aware(now) or _now()
+    started_at = _as_aware(ride.started_at)
+    if started_at is None:
+        return 0
+    min_duration = _minutes(settings.ride_min_duration_minutes)
+    if min_duration <= timedelta(0):
+        return 0
+    available_at = started_at + min_duration
+    if moment >= available_at:
+        return 0
+    return max(0, int((available_at - moment).total_seconds()))
+
+
+def _assert_start_allowed(ride: RideRequest, *, now: datetime) -> None:
+    """Строгая последовательность: «Еду» → «Прибыл» → «Начать поездку».
+
+    Дополнительно не даём стартовать задолго до назначенного времени и раньше,
+    чем пассажир подтвердил посадку/готовность (если включён минимальный интервал).
+    """
+    if ride.status != RideRequestStatus.AWAITING_PASSENGER:
+        raise RideFlowError(
+            "not_arrived",
+            "Сначала отметьте «Прибыл» на точке подачи.",
+            status_code=409,
+        )
+    earliest = _start_earliest_at(ride)
+    if earliest is not None and now < earliest:
+        raise RideFlowError(
+            "too_early",
+            "До назначенного времени поездки ещё далеко — начинать поездку рано.",
+            status_code=409,
+            extra={"canStartAt": _iso(earliest), "availableInSeconds": start_seconds_left(ride, now=now)},
+        )
+    if ride.passenger_ready_at is None and ride.passenger_boarded_at is None:
+        arrived_at = _as_aware(ride.arrived_at)
+        wait_until = arrived_at + _minutes(settings.ride_start_min_wait_minutes) if arrived_at else None
+        if wait_until is not None and now < wait_until:
+            raise RideFlowError(
+                "start_wait_for_passenger",
+                "Подождите пассажира или попросите его отметить «Я на месте».",
+                status_code=409,
+                extra={
+                    "availableInSeconds": max(0, int((wait_until - now).total_seconds())),
+                    "minWaitMinutes": settings.ride_start_min_wait_minutes,
+                },
+            )
+
+
+def _assert_complete_allowed(ride: RideRequest, *, now: datetime) -> None:
+    """Завершить можно только начатую поездку и не мгновенно после старта."""
+    if ride.status != RideRequestStatus.IN_PROGRESS:
+        raise RideFlowError(
+            "not_started",
+            "Сначала начните поездку — завершить можно только начатую.",
+            status_code=409,
+        )
+    left = complete_seconds_left(ride, now=now)
+    if left > 0:
+        raise RideFlowError(
+            "complete_too_early",
+            "Слишком рано завершать поездку. Проверьте, что пассажир на месте высадки.",
+            status_code=409,
+            extra={"availableInSeconds": left, "minDurationMinutes": settings.ride_min_duration_minutes},
+        )
+
+
 async def mark_en_route(
     db_session: AsyncSession,
     *,
@@ -407,6 +510,9 @@ async def mark_arrived(
     ride.status_updated_at = moment
     ride.arrival_reminder_sent_at = None
     ride.no_show_available_notified_at = None
+    ride.wait_extended_at = None
+    ride.wait_extended_until = None
+    ride.passenger_boarded_at = None
     if distance_m is not None:
         ride.arrival_distance_m = distance_m
 
@@ -459,9 +565,17 @@ async def start_ride(
     *,
     ride_id: str,
     driver_id: str,
+    lat: float | None = None,
+    lng: float | None = None,
     now: datetime | None = None,
 ) -> RideFlowResult:
-    """Пассажир сел в машину: старт поездки (после «Прибыл»)."""
+    """Пассажир сел в машину: старт поездки строго после «Прибыл».
+
+    Раньше старт можно было нажать из «Еду на точку» — получалось, что поездка
+    начинается, пока водитель ещё в пути. Теперь последовательность жёсткая:
+    «Еду» → «Прибыл» → «Начать поездку», плюс защита от старта задолго до
+    назначенного времени.
+    """
     moment = _as_aware(now) or _now()
     ride = await lock_ride(db_session, ride_id=ride_id)
     if ride is None:
@@ -474,24 +588,39 @@ async def start_ride(
         return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
     if RideRequestStatus.is_terminal(ride.status):
         raise RideFlowError("ride_closed", "Поездка отменена.", status_code=409)
-    if ride.status not in (
-        RideRequestStatus.EN_ROUTE_TO_PICKUP,
-        RideRequestStatus.AWAITING_PASSENGER,
-    ):
-        raise RideFlowError(
-            "not_arrived",
-            "Сначала отметьте «Прибыл» на точке подачи.",
-            status_code=409,
-        )
+
+    _assert_start_allowed(ride, now=moment)
 
     previous_status = ride.status
-    if ride.arrived_at is None:
-        # Водитель пропустил шаг «Прибыл» — фиксируем прибытие и старт одним действием.
-        ride.arrived_at = moment
+    distance_m: float | None = None
+    if lat is not None and lng is not None:
+        distance_m = haversine_meters(lat, lng, ride.from_lat, ride.from_lng)
+        if ride.arrival_distance_m is None:
+            ride.arrival_distance_m = distance_m
+
     ride.status = RideRequestStatus.IN_PROGRESS
     ride.started_at = moment
     ride.status_updated_at = moment
+    # Новый старт после отката: старые вопросы «Поездка состоялась?» больше не актуальны.
+    ride.completion_check_at = None
+    ride.completion_check_result = None
+    ride.completion_check_answered_at = None
+    ride.completion_check_reminded_at = None
+    ride.completion_check_escalated_at = None
     _clear_admin_attention(ride)
+
+    far_from_pickup = (
+        distance_m is not None
+        and distance_m > settings.ride_arrival_radius_meters
+        and ride.passenger_ready_at is None
+        and ride.passenger_boarded_at is None
+    )
+    if far_from_pickup:
+        _flag_admin_attention(
+            ride,
+            reason=RideAdminAttentionReason.ARRIVAL_FAR_FROM_PICKUP,
+            now=moment,
+        )
 
     await _record_event(
         db_session,
@@ -500,14 +629,22 @@ async def start_ride(
         to_status=ride.status,
         actor_type=RideStatusActorType.DRIVER,
         actor_id=driver_id,
+        payload={"lat": lat, "lng": lng, "distanceMeters": distance_m},
     )
     await _system_message(db_session, ride=ride, key="started")
     await ride_notification_service.notify_passenger_for_ride_event(
         db_session,
         ride=ride,
         event=RideEvent.STARTED,
-        payload_extra={"startedAt": _iso(moment)},
+        payload_extra={"startedAt": _iso(moment), "distanceMeters": distance_m},
     )
+    if far_from_pickup:
+        await ride_notification_service.notify_admins_ride_attention(
+            db_session,
+            ride=ride,
+            reason=RideAdminAttentionReason.ARRIVAL_FAR_FROM_PICKUP,
+            extra={"distanceMeters": int(distance_m or 0), "phase": "start"},
+        )
     await db_session.commit()
     await db_session.refresh(ride)
 
@@ -516,6 +653,7 @@ async def start_ride(
         previous_status=previous_status,
         changed=True,
         event=RideEvent.STARTED,
+        extra={"distanceMeters": distance_m, "farFromPickup": far_from_pickup},
         telegram_targets=["passenger"],
     )
 
@@ -566,6 +704,8 @@ async def complete_ride(
     *,
     ride_id: str,
     driver_id: str,
+    lat: float | None = None,
+    lng: float | None = None,
     now: datetime | None = None,
 ) -> RideFlowResult:
     """Поездка завершена: освобождаем машину, закрываем чат для новых сообщений."""
@@ -579,11 +719,19 @@ async def complete_ride(
         return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
     if RideRequestStatus.is_terminal(ride.status):
         raise RideFlowError("ride_closed", "Поездка отменена.", status_code=409)
-    if ride.status != RideRequestStatus.IN_PROGRESS:
-        raise RideFlowError(
-            "not_started",
-            "Сначала начните поездку — завершить можно только начатую.",
-            status_code=409,
+
+    _assert_complete_allowed(ride, now=moment)
+
+    distance_m: float | None = None
+    if lat is not None and lng is not None:
+        distance_m = haversine_meters(lat, lng, ride.to_lat, ride.to_lng)
+        ride.completion_distance_m = distance_m
+    far_from_destination = distance_m is not None and distance_m > settings.ride_arrival_radius_meters
+    if far_from_destination:
+        _flag_admin_attention(
+            ride,
+            reason=RideAdminAttentionReason.COMPLETION_FAR_FROM_DESTINATION,
+            now=moment,
         )
 
     previous_status = await _mark_ride_completed(
@@ -592,7 +740,15 @@ async def complete_ride(
         actor_type=RideStatusActorType.DRIVER,
         actor_id=driver_id,
         moment=moment,
+        payload={"lat": lat, "lng": lng, "distanceMeters": distance_m},
     )
+    if far_from_destination:
+        await ride_notification_service.notify_admins_ride_attention(
+            db_session,
+            ride=ride,
+            reason=RideAdminAttentionReason.COMPLETION_FAR_FROM_DESTINATION,
+            extra={"distanceMeters": int(distance_m or 0)},
+        )
     await db_session.commit()
     await db_session.refresh(ride)
 
@@ -601,6 +757,7 @@ async def complete_ride(
         previous_status=previous_status,
         changed=True,
         event=RideEvent.COMPLETED,
+        extra={"distanceMeters": distance_m, "farFromDestination": far_from_destination},
         telegram_targets=["passenger"],
     )
 
@@ -819,8 +976,20 @@ async def undo_last_status(
     ride.status_updated_at = moment
     if target == RideRequestStatus.EN_ROUTE_TO_PICKUP:
         ride.arrived_at = None
+        ride.arrival_distance_m = None
+        ride.arrival_reminder_sent_at = None
+        ride.no_show_available_notified_at = None
+        ride.wait_extended_at = None
+        ride.wait_extended_until = None
     if target == RideRequestStatus.AWAITING_PASSENGER:
         ride.started_at = None
+        ride.completion_distance_m = None
+        ride.completion_check_at = None
+        ride.completion_check_result = None
+        ride.completion_check_answered_at = None
+        ride.completion_check_reminded_at = None
+        ride.completion_check_escalated_at = None
+    _clear_admin_attention(ride)
 
     await _record_event(
         db_session,
@@ -905,6 +1074,15 @@ async def cancel_by_passenger(
     ride.cancel_comment = (comment or "").strip() or None
     ride.status_updated_at = moment
 
+    fee_percent = int(settings.ride_passenger_late_cancel_fee_percent) if late else 0
+    settlement = await ride_settlement_service.settle_ride_cancellation(
+        db_session,
+        ride=ride,
+        reason=reason_code,
+        refund_percent=max(0, 100 - fee_percent),
+        driver_compensation_percent=fee_percent,
+    )
+
     await _record_event(
         db_session,
         ride=ride,
@@ -913,7 +1091,12 @@ async def cancel_by_passenger(
         actor_type=RideStatusActorType.PASSENGER,
         actor_id=user_id,
         reason_code=reason_code,
-        payload={"late": late, "comment": ride.cancel_comment},
+        payload={
+            "late": late,
+            "comment": ride.cancel_comment,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
     )
     await _system_message(db_session, ride=ride, key="cancelled")
     await ride_notification_service.notify_driver_for_ride_event(
@@ -921,7 +1104,12 @@ async def cancel_by_passenger(
         ride=ride,
         event=RideEvent.CANCELLED,
         extra={"late": late},
-        payload_extra={"late": late, "reason": reason_code},
+        payload_extra={
+            "late": late,
+            "reason": reason_code,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
     )
     await db_session.commit()
     await db_session.refresh(ride)
@@ -931,7 +1119,12 @@ async def cancel_by_passenger(
         previous_status=previous_status,
         changed=True,
         event=RideEvent.CANCELLED,
-        extra={"late": late, "reason": reason_code},
+        extra={
+            "late": late,
+            "reason": reason_code,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
         telegram_targets=["driver"],
     )
 
@@ -1006,6 +1199,19 @@ async def cancel_by_driver(
     is_no_show = reason_code == RideCancelReason.DRIVER_NO_SHOW
     if is_no_show:
         _flag_admin_attention(ride, reason=RideAdminAttentionReason.NO_SHOW, now=moment)
+        fee_percent = int(settings.ride_no_show_fee_percent)
+    else:
+        # Водитель отказался от поездки: пассажир не должен платить за это.
+        _flag_admin_attention(ride, reason=RideAdminAttentionReason.DRIVER_CANCELLED, now=moment)
+        fee_percent = 0
+
+    settlement = await ride_settlement_service.settle_ride_cancellation(
+        db_session,
+        ride=ride,
+        reason=reason_code,
+        refund_percent=max(0, 100 - fee_percent),
+        driver_compensation_percent=fee_percent,
+    )
 
     await _record_event(
         db_session,
@@ -1015,7 +1221,11 @@ async def cancel_by_driver(
         actor_type=RideStatusActorType.DRIVER,
         actor_id=driver_id,
         reason_code=reason_code,
-        payload={"comment": ride.cancel_comment},
+        payload={
+            "comment": ride.cancel_comment,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
     )
     await _system_message(db_session, ride=ride, key="no_show" if is_no_show else "cancelled")
 
@@ -1025,7 +1235,12 @@ async def cancel_by_driver(
         ride=ride,
         event=RideEvent.NO_SHOW if is_no_show else RideEvent.CANCELLED,
         extra={"reason": reason_text},
-        payload_extra={"reason": reason_code, "late": False},
+        payload_extra={
+            "reason": reason_code,
+            "late": False,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
     )
     if is_no_show:
         await ride_notification_service.notify_admins_ride_attention(
@@ -1042,7 +1257,11 @@ async def cancel_by_driver(
         previous_status=previous_status,
         changed=True,
         event=RideEvent.NO_SHOW if is_no_show else RideEvent.CANCELLED,
-        extra={"reason": reason_code},
+        extra={
+            "reason": reason_code,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
         telegram_targets=["passenger"],
     )
 
@@ -1060,7 +1279,7 @@ async def mark_passenger_ready(
     user_id: str,
     now: datetime | None = None,
 ) -> RideFlowResult:
-    """Пассажир нажал «Я на месте»: водитель видит это в приложении, чате и Telegram."""
+    """Пассажир нажал «Я на месте»: водитель видит это в приложении и чате."""
     moment = _as_aware(now) or _now()
     ride = await lock_ride(db_session, ride_id=ride_id)
     if ride is None or ride.passenger_id != user_id:
@@ -1077,6 +1296,9 @@ async def mark_passenger_ready(
             "Отметка «Я на месте» доступна до начала поездки.",
             status_code=409,
         )
+    if ride.passenger_ready_at is not None:
+        # Повторный тап не дублирует сообщение в чате и уведомление водителю.
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
 
     ride.passenger_ready_at = moment
     await db_session.flush()
@@ -1176,6 +1398,117 @@ async def nudge_driver(
     )
 
 
+async def extend_wait(
+    db_session: AsyncSession,
+    *,
+    ride_id: str,
+    driver_id: str,
+    now: datetime | None = None,
+) -> RideFlowResult:
+    """Водитель один раз продлевает ожидание пассажира на точке."""
+    moment = _as_aware(now) or _now()
+    ride = await lock_ride(db_session, ride_id=ride_id)
+    if ride is None:
+        raise RideFlowError("not_found", "Поездка не найдена.", status_code=404)
+    _assert_driver_owns(ride, driver_id=driver_id)
+    if ride.status != RideRequestStatus.AWAITING_PASSENGER:
+        raise RideFlowError(
+            "not_waiting",
+            "Продлить ожидание можно только на точке подачи.",
+            status_code=409,
+        )
+    if ride.wait_extended_at is not None:
+        raise RideFlowError(
+            "wait_already_extended",
+            "Ожидание уже продлевалось. Оформите неявку или свяжитесь с пассажиром.",
+            status_code=409,
+        )
+    deadline = _arrival_wait_deadline(ride)
+    if deadline is not None and moment >= deadline:
+        raise RideFlowError(
+            "wait_expired",
+            "Максимальное время ожидания истекло.",
+            status_code=409,
+        )
+
+    ride.wait_extended_at = moment
+    ride.wait_extended_until = moment + _minutes(settings.ride_wait_extension_minutes)
+    await db_session.flush()
+    await _system_message(
+        db_session,
+        ride=ride,
+        key="wait_extended",
+        values={"minutes": settings.ride_wait_extension_minutes},
+    )
+    await ride_notification_service.notify_passenger_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.WAIT_REMINDER,
+        extra={"minutes": settings.ride_wait_extension_minutes, "extended": True},
+    )
+    await db_session.commit()
+    await db_session.refresh(ride)
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=ride.status,
+        changed=True,
+        event=RideEvent.WAIT_REMINDER,
+        extra={"waitExtendedUntil": _iso(ride.wait_extended_until)},
+        telegram_targets=["passenger"],
+    )
+
+
+async def mark_passenger_boarded(
+    db_session: AsyncSession,
+    *,
+    ride_id: str,
+    user_id: str,
+    now: datetime | None = None,
+) -> RideFlowResult:
+    """Пассажир подтвердил, что сел в машину.
+
+    Это не обязательный шаг, но он даёт обеим сторонам доказательство посадки:
+    водитель не «стартует пустую машину», а пассажир не остаётся в ситуации
+    «поездка началась, а я ещё на улице».
+    """
+    moment = _as_aware(now) or _now()
+    ride = await lock_ride(db_session, ride_id=ride_id)
+    if ride is None or ride.passenger_id != user_id:
+        raise RideFlowError("not_found", "Поездка не найдена.", status_code=404)
+    if RideRequestStatus.is_terminal(ride.status):
+        raise RideFlowError("ride_closed", "Поездка уже завершена или отменена.", status_code=409)
+    if ride.status not in (RideRequestStatus.AWAITING_PASSENGER, RideRequestStatus.IN_PROGRESS):
+        raise RideFlowError(
+            "not_allowed",
+            "Подтвердить посадку можно после прибытия водителя.",
+            status_code=409,
+        )
+    if ride.passenger_boarded_at is not None:
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+
+    ride.passenger_boarded_at = moment
+    await db_session.flush()
+    await _system_message(db_session, ride=ride, key="boarded")
+    await ride_notification_service.notify_driver_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.PASSENGER_READY,
+        payload_extra={"passengerBoardedAt": _iso(moment), "boarded": True},
+    )
+    await db_session.commit()
+    await db_session.refresh(ride)
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=ride.status,
+        changed=True,
+        event=RideEvent.PASSENGER_READY,
+        extra={"boarded": True, "passengerBoardedAt": _iso(moment)},
+        telegram_targets=["driver"],
+    )
+
+
 def undo_seconds_left(ride: RideRequest, *, now: datetime | None = None) -> int:
     """Сколько секунд осталось на откат статуса (0 — откат недоступен)."""
     if ride.status not in _UNDO_TARGET:
@@ -1187,6 +1520,115 @@ def undo_seconds_left(ride: RideRequest, *, now: datetime | None = None) -> int:
     window = _minutes(settings.ride_status_undo_window_minutes)
     remaining = (updated_at + window) - moment
     return max(0, int(remaining.total_seconds()))
+
+
+async def dispute_ride_start(
+    db_session: AsyncSession,
+    *,
+    ride_id: str,
+    user_id: str,
+    comment: str | None = None,
+    now: datetime | None = None,
+) -> RideFlowResult:
+    """Пассажир сообщает: водитель нажал «Начать поездку», но пассажир не в машине.
+
+    Доступно только в коротком окне после старта и только если пассажир не
+    подтверждал посадку. Поездка отменяется с полным возвратом, водитель и
+    администратор получают уведомление — это защита от случайного старта.
+    """
+    moment = _as_aware(now) or _now()
+    ride = await lock_ride(db_session, ride_id=ride_id)
+    if ride is None or ride.passenger_id != user_id:
+        raise RideFlowError("not_found", "Поездка не найдена.", status_code=404)
+    if RideRequestStatus.is_terminal(ride.status):
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+    if ride.status != RideRequestStatus.IN_PROGRESS:
+        raise RideFlowError(
+            "not_in_progress",
+            "Поездка ещё не началась — отмените её обычным способом.",
+            status_code=409,
+        )
+    if ride.passenger_boarded_at is not None:
+        raise RideFlowError(
+            "boarding_confirmed",
+            "Вы уже подтвердили посадку. Для решения вопроса свяжитесь с администратором.",
+            status_code=409,
+        )
+    if ride.dispute_at is not None:
+        return RideFlowResult(ride=ride, previous_status=ride.status, changed=False)
+
+    started_at = _as_aware(ride.started_at)
+    window = _minutes(settings.ride_start_dispute_window_minutes)
+    if started_at is not None and moment - started_at > window:
+        raise RideFlowError(
+            "dispute_window_expired",
+            "Время на отмену «поездка не начиналась» истекло. Напишите администратору.",
+            status_code=409,
+            extra={"windowMinutes": settings.ride_start_dispute_window_minutes},
+        )
+
+    previous_status = ride.status
+    ride.dispute_at = moment
+    ride.dispute_reason = (comment or "").strip() or None
+    ride.status = RideRequestStatus.CANCELLED
+    ride.cancelled_at = moment
+    ride.cancelled_by = RideStatusActorType.PASSENGER
+    ride.cancel_reason = RideCancelReason.PASSENGER_DISPUTE_START
+    ride.cancel_comment = ride.dispute_reason
+    ride.status_updated_at = moment
+    _flag_admin_attention(
+        ride,
+        reason=RideAdminAttentionReason.PASSENGER_START_DISPUTE,
+        now=moment,
+    )
+
+    settlement = await ride_settlement_service.settle_ride_cancellation(
+        db_session,
+        ride=ride,
+        reason=RideCancelReason.PASSENGER_DISPUTE_START,
+        refund_percent=100,
+        driver_compensation_percent=0,
+    )
+
+    await _record_event(
+        db_session,
+        ride=ride,
+        from_status=previous_status,
+        to_status=ride.status,
+        actor_type=RideStatusActorType.PASSENGER,
+        actor_id=user_id,
+        reason_code=RideCancelReason.PASSENGER_DISPUTE_START,
+        payload={"comment": ride.dispute_reason, "refundPoints": settlement.passenger_refund},
+    )
+    await _system_message(db_session, ride=ride, key="dispute_start")
+    await ride_notification_service.notify_driver_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.CANCELLED,
+        extra={
+            "reason": await _cancel_reason_text(
+                db_session, ride=ride, reason_code=RideCancelReason.PASSENGER_DISPUTE_START
+            )
+        },
+        payload_extra={"reason": RideCancelReason.PASSENGER_DISPUTE_START, "dispute": True},
+    )
+    await ride_notification_service.notify_admins_ride_attention(
+        db_session,
+        ride=ride,
+        reason=RideAdminAttentionReason.PASSENGER_START_DISPUTE,
+        extra={"comment": ride.dispute_reason},
+    )
+    await db_session.commit()
+    await db_session.refresh(ride)
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=previous_status,
+        changed=True,
+        event=RideEvent.CANCELLED,
+        extra={"reason": RideCancelReason.PASSENGER_DISPUTE_START, "refundPoints": settlement.passenger_refund},
+        telegram_targets=["driver"],
+    )
 
 
 def no_show_seconds_left(ride: RideRequest, *, now: datetime | None = None) -> int:
@@ -1210,16 +1652,25 @@ def driver_flow_state(ride: RideRequest, *, now: datetime | None = None) -> dict
     arrived_at = _as_aware(ride.arrived_at)
     waiting_seconds = int((moment - arrived_at).total_seconds()) if arrived_at else 0
     no_show_left = no_show_seconds_left(ride, now=moment)
+    start_left = start_seconds_left(ride, now=moment)
+    complete_left = complete_seconds_left(ride, now=moment)
+    wait_deadline = _arrival_wait_deadline(ride)
 
     can_en_route = status == RideRequestStatus.ASSIGNED
     can_arrived = status in (RideRequestStatus.ASSIGNED, RideRequestStatus.EN_ROUTE_TO_PICKUP)
-    can_start = status in (RideRequestStatus.EN_ROUTE_TO_PICKUP, RideRequestStatus.AWAITING_PASSENGER)
-    can_complete = status == RideRequestStatus.IN_PROGRESS
+    can_start = status == RideRequestStatus.AWAITING_PASSENGER and start_left == 0
+    can_complete = status == RideRequestStatus.IN_PROGRESS and complete_left == 0
     can_cancel = status in RideRequestStatus.DRIVER_CANCELLABLE
     can_no_show = (
         status == RideRequestStatus.AWAITING_PASSENGER
         and arrived_at is not None
         and no_show_left == 0
+    )
+    can_extend_wait = (
+        status == RideRequestStatus.AWAITING_PASSENGER
+        and arrived_at is not None
+        and ride.wait_extended_at is None
+        and (wait_deadline is None or moment < wait_deadline)
     )
 
     can_en_route_at: str | None = None
@@ -1240,18 +1691,32 @@ def driver_flow_state(ride: RideRequest, *, now: datetime | None = None) -> dict
         "canComplete": can_complete,
         "canCancel": can_cancel,
         "canReportNoShow": can_no_show,
+        "canExtendWait": can_extend_wait,
         "canUndo": undo_seconds_left(ride, now=moment) > 0,
         "undoSecondsLeft": undo_seconds_left(ride, now=moment),
         "noShowSecondsLeft": no_show_left,
+        "startAvailableInSeconds": start_left,
+        "completeAvailableInSeconds": complete_left,
         "enRouteAt": _iso(ride.en_route_at),
         "arrivedAt": _iso(arrived_at),
         "startedAt": _iso(ride.started_at),
         "waitingSeconds": waiting_seconds,
+        "waitExtendedUntil": _iso(ride.wait_extended_until),
+        "autoNoShowAt": _iso(wait_deadline),
         "passengerReady": ride.passenger_ready_at is not None,
         "passengerReadyAt": _iso(ride.passenger_ready_at),
+        "passengerBoarded": ride.passenger_boarded_at is not None,
+        "passengerBoardedAt": _iso(ride.passenger_boarded_at),
         "canEnRouteAt": can_en_route_at,
         "requiresAdminAttention": ride.admin_attention_at is not None,
         "adminAttentionReason": ride.admin_attention_reason,
+        "refundedPoints": int(ride.refund_points or 0),
+        "driverCompensationPoints": int(ride.driver_compensation_points or 0),
+        "refundedAt": _iso(ride.refunded_at),
+        "settlementReason": ride.settlement_reason,
+        "disputeAt": _iso(ride.dispute_at),
+        "autoResolvedAt": _iso(ride.auto_resolved_at),
+        "autoResolveReason": ride.auto_resolve_reason,
     }
 
 
@@ -1270,6 +1735,18 @@ def passenger_flow_state(ride: RideRequest, *, now: datetime | None = None) -> d
         left = (nudge_sent_at + nudge_cooldown) - moment
         nudge_left = max(0, int(left.total_seconds()))
 
+    dispute_left = 0
+    started_at = _as_aware(ride.started_at)
+    if (
+        ride.status == RideRequestStatus.IN_PROGRESS
+        and started_at is not None
+        and ride.dispute_at is None
+        and ride.passenger_boarded_at is None
+    ):
+        dispute_deadline = started_at + _minutes(settings.ride_start_dispute_window_minutes)
+        if moment < dispute_deadline:
+            dispute_left = max(0, int((dispute_deadline - moment).total_seconds()))
+
     state = {
         "status": ride.status,
         "canChat": ride.status in RideRequestStatus.CHAT_OPEN or ride.status in RideRequestStatus.TERMINAL,
@@ -1281,6 +1758,9 @@ def passenger_flow_state(ride: RideRequest, *, now: datetime | None = None) -> d
             RideRequestStatus.AWAITING_PASSENGER,
         ),
         "passengerReady": ride.passenger_ready_at is not None,
+        "canBoard": ride.status in (RideRequestStatus.AWAITING_PASSENGER, RideRequestStatus.IN_PROGRESS)
+        and ride.passenger_boarded_at is None,
+        "passengerBoarded": ride.passenger_boarded_at is not None,
         "canNudgeDriver": ride.status
         in (
             RideRequestStatus.ASSIGNED,
@@ -1291,13 +1771,23 @@ def passenger_flow_state(ride: RideRequest, *, now: datetime | None = None) -> d
         "canCancel": can_cancel,
         "lateCancel": ride.status
         in (RideRequestStatus.EN_ROUTE_TO_PICKUP, RideRequestStatus.AWAITING_PASSENGER),
+        "lateCancelFeePercent": int(settings.ride_passenger_late_cancel_fee_percent),
+        "canDisputeStart": dispute_left > 0,
+        "disputeSecondsLeft": dispute_left,
         "enRouteAt": _iso(ride.en_route_at),
         "arrivedAt": _iso(arrived_at),
         "startedAt": _iso(ride.started_at),
         "waitingSeconds": waiting_seconds,
+        "waitExtendedUntil": _iso(ride.wait_extended_until),
+        "autoNoShowAt": _iso(_arrival_wait_deadline(ride)),
         "driverWaitingMinutes": settings.ride_wait_reminder_minutes,
         "cancelReason": ride.cancel_reason,
         "cancelComment": ride.cancel_comment,
+        "refundedPoints": int(ride.refund_points or 0),
+        "driverCompensationPoints": int(ride.driver_compensation_points or 0),
+        "refundedAt": _iso(ride.refunded_at),
+        "settlementReason": ride.settlement_reason,
+        "autoResolvedAt": _iso(ride.auto_resolved_at),
     }
     # Вопрос «Поездка состоялась?» показываем и в карточке поездки, а не только в уведомлениях.
     state.update(completion_check_state(ride, now=moment))
@@ -1332,6 +1822,9 @@ async def run_watchdog(
         "ride_stuck": 0,
         "completion_checks": 0,
         "completion_escalations": 0,
+        "auto_cancels": 0,
+        "auto_no_show": 0,
+        "auto_completed": 0,
         "admin_flags": 0,
         # Поездки, по которым после коммита нужно отправить Telegram (в т.ч. кнопки [Да]/[Нет]).
         "deliveries": [],
@@ -1354,6 +1847,164 @@ async def run_watchdog(
 
     await db_session.commit()
     return counters
+
+
+async def _auto_cancel_ride(
+    db_session: AsyncSession,
+    *,
+    ride: RideRequest,
+    now: datetime,
+    reason_code: str,
+    refund_percent: int,
+    driver_compensation_percent: int,
+    attention_reason: str,
+    event: str = RideEvent.CANCELLED,
+) -> RideFlowResult:
+    """Авто-отмена поездки сторожем: без участия сторон, но по понятным правилам.
+
+    Всегда фиксирует причину и финансовый итог, чтобы администратор мог разобрать
+    случай, а пассажир видел, что произошло и сколько баллов вернулось.
+    """
+    previous_status = ride.status
+    ride.status = RideRequestStatus.CANCELLED
+    ride.cancelled_at = now
+    ride.cancelled_by = RideStatusActorType.SYSTEM
+    ride.cancel_reason = reason_code
+    ride.cancel_comment = None
+    ride.status_updated_at = now
+    ride.auto_resolved_at = now
+    ride.auto_resolve_reason = reason_code
+    _flag_admin_attention(ride, reason=attention_reason, now=now)
+
+    settlement = await ride_settlement_service.settle_ride_cancellation(
+        db_session,
+        ride=ride,
+        reason=reason_code,
+        refund_percent=refund_percent,
+        driver_compensation_percent=driver_compensation_percent,
+    )
+
+    await _record_event(
+        db_session,
+        ride=ride,
+        from_status=previous_status,
+        to_status=ride.status,
+        actor_type=RideStatusActorType.SYSTEM,
+        actor_id=None,
+        reason_code=reason_code,
+        payload={
+            "auto": True,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
+    )
+    await _system_message(
+        db_session,
+        ride=ride,
+        key="no_show" if event == RideEvent.NO_SHOW else "cancelled",
+    )
+    reason_text = await _cancel_reason_text(db_session, ride=ride, reason_code=reason_code)
+    await ride_notification_service.notify_passenger_for_ride_event(
+        db_session,
+        ride=ride,
+        event=event,
+        extra={"reason": reason_text},
+        payload_extra={
+            "reason": reason_code,
+            "auto": True,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
+    )
+    await ride_notification_service.notify_driver_for_ride_event(
+        db_session,
+        ride=ride,
+        event=event,
+        extra={"reason": reason_text},
+        payload_extra={"reason": reason_code, "auto": True},
+    )
+    await ride_notification_service.notify_admins_ride_attention(
+        db_session,
+        ride=ride,
+        reason=attention_reason,
+        extra={"reason": reason_code, "auto": True},
+    )
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=previous_status,
+        changed=True,
+        event=event,
+        extra={
+            "reason": reason_code,
+            "auto": True,
+            "refundPoints": settlement.passenger_refund,
+            "driverCompensationPoints": settlement.driver_compensation,
+        },
+        telegram_targets=["passenger", "driver"],
+    )
+
+
+async def _auto_complete_ride(
+    db_session: AsyncSession,
+    *,
+    ride: RideRequest,
+    now: datetime,
+    reason_code: str,
+) -> RideFlowResult:
+    """Авто-закрытие зависшей поездки «в пути».
+
+    Баллы уже списаны при бронировании, поэтому дополнительных списаний нет.
+    Поездка просто перестаёт висеть в активных, а администратор видит причину.
+    """
+    previous_status = ride.status
+    ride.status = RideRequestStatus.COMPLETED
+    ride.completed_at = now
+    ride.status_updated_at = now
+    ride.auto_resolved_at = now
+    ride.auto_resolve_reason = reason_code
+    _flag_admin_attention(ride, reason=RideAdminAttentionReason.AUTO_RESOLVED, now=now)
+    await ride_notification_service.dismiss_completion_check(db_session, ride=ride)
+
+    await _record_event(
+        db_session,
+        ride=ride,
+        from_status=previous_status,
+        to_status=ride.status,
+        actor_type=RideStatusActorType.SYSTEM,
+        actor_id=None,
+        reason_code=reason_code,
+        payload={"auto": True},
+    )
+    await _system_message(db_session, ride=ride, key="completed")
+    await ride_notification_service.notify_passenger_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.COMPLETED,
+        payload_extra={"auto": True, "autoReason": reason_code},
+    )
+    await ride_notification_service.notify_driver_for_ride_event(
+        db_session,
+        ride=ride,
+        event=RideEvent.COMPLETED,
+        extra={"auto": True, "autoReason": reason_code},
+        payload_extra={"auto": True, "autoReason": reason_code},
+    )
+    await ride_notification_service.notify_admins_ride_attention(
+        db_session,
+        ride=ride,
+        reason=RideAdminAttentionReason.AUTO_RESOLVED,
+        extra={"autoReason": reason_code},
+    )
+
+    return RideFlowResult(
+        ride=ride,
+        previous_status=previous_status,
+        changed=True,
+        event=RideEvent.COMPLETED,
+        extra={"auto": True, "autoReason": reason_code},
+        telegram_targets=["passenger", "driver"],
+    )
 
 
 async def _watchdog_tick_ride(
@@ -1411,6 +2062,25 @@ async def _watchdog_tick_ride(
             )
             counters["admin_flags"] += 1
 
+        # Пассажир не вышел за максимальное время ожидания: закрываем поездку
+        # автоматически, чтобы водитель не стоял бесконечно, а пассажир знал итог.
+        wait_deadline = _arrival_wait_deadline(ride)
+        if wait_deadline is not None and now >= wait_deadline and ride.auto_resolved_at is None:
+            fee_percent = int(settings.ride_no_show_fee_percent)
+            result = await _auto_cancel_ride(
+                db_session,
+                ride=ride,
+                now=now,
+                reason_code=RideCancelReason.SYSTEM_NO_SHOW,
+                refund_percent=max(0, 100 - fee_percent),
+                driver_compensation_percent=fee_percent,
+                attention_reason=RideAdminAttentionReason.NO_SHOW,
+                event=RideEvent.NO_SHOW,
+            )
+            counters["auto_no_show"] += 1
+            counters["deliveries"].append(result)
+            return
+
     if status == RideRequestStatus.ASSIGNED:
         ride_dt = _as_aware(ride.date_time)
         late_after = _minutes(settings.ride_driver_late_reminder_minutes)
@@ -1440,6 +2110,26 @@ async def _watchdog_tick_ride(
                 )
                 counters["admin_flags"] += 1
 
+        # Водитель так и не выехал: держать пассажира в ожидании бесконечно нельзя.
+        auto_cancel_after = _minutes(settings.ride_driver_late_auto_cancel_minutes)
+        if (
+            ride_dt is not None
+            and now >= ride_dt + auto_cancel_after
+            and ride.auto_resolved_at is None
+        ):
+            result = await _auto_cancel_ride(
+                db_session,
+                ride=ride,
+                now=now,
+                reason_code=RideCancelReason.SYSTEM_DRIVER_LATE,
+                refund_percent=100,
+                driver_compensation_percent=0,
+                attention_reason=RideAdminAttentionReason.DRIVER_LATE,
+            )
+            counters["auto_cancels"] += 1
+            counters["deliveries"].append(result)
+            return
+
     if status == RideRequestStatus.EN_ROUTE_TO_PICKUP:
         en_route_at = _as_aware(ride.en_route_at)
         timeout = _minutes(settings.ride_en_route_timeout_minutes)
@@ -1462,6 +2152,26 @@ async def _watchdog_tick_ride(
                     reason=RideAdminAttentionReason.EN_ROUTE_TOO_LONG,
                     extra={"enRouteMinutes": int((now - en_route_at).total_seconds() // 60)},
                 )
+
+        # «Едет» дольше критического времени — авто-отмена с полным возвратом.
+        auto_cancel_at = (
+            en_route_at + _minutes(settings.ride_en_route_auto_cancel_minutes)
+            if en_route_at is not None
+            else None
+        )
+        if auto_cancel_at is not None and now >= auto_cancel_at and ride.auto_resolved_at is None:
+            result = await _auto_cancel_ride(
+                db_session,
+                ride=ride,
+                now=now,
+                reason_code=RideCancelReason.SYSTEM_DRIVER_LATE,
+                refund_percent=100,
+                driver_compensation_percent=0,
+                attention_reason=RideAdminAttentionReason.EN_ROUTE_TOO_LONG,
+            )
+            counters["auto_cancels"] += 1
+            counters["deliveries"].append(result)
+            return
 
     if status == RideRequestStatus.IN_PROGRESS:
         started_at = _as_aware(ride.started_at)
@@ -1517,6 +2227,34 @@ async def _watchdog_tick_ride(
                     counters["completion_escalations"] += 1
                     counters["admin_flags"] += 1
 
+        # Если стороны так и не закрыли вопрос (пассажир не ответил или ответил «нет»),
+        # поездка не должна висеть в «в пути» сутками. Закрываем автоматически и
+        # оставляем администратору пометку — без повторного списания баллов.
+        if ride.auto_resolved_at is None:
+            auto_anchor: datetime | None = None
+            auto_reason: str | None = None
+            answered_at = _as_aware(ride.completion_check_answered_at)
+            check_at = _as_aware(ride.completion_check_at)
+            if answered_at is not None:
+                auto_anchor = answered_at
+                auto_reason = "completion_disputed_timeout"
+            elif check_at is not None:
+                auto_anchor = check_at + _minutes(settings.ride_completion_check_escalate_minutes)
+                auto_reason = "completion_unconfirmed_timeout"
+            if (
+                auto_anchor is not None
+                and auto_reason is not None
+                and now >= auto_anchor + _minutes(settings.ride_dispute_auto_close_minutes)
+            ):
+                result = await _auto_complete_ride(
+                    db_session,
+                    ride=ride,
+                    now=now,
+                    reason_code=auto_reason,
+                )
+                counters["auto_completed"] += 1
+                counters["deliveries"].append(result)
+
 
 __all__ = [
     "COMPLETION_CONFIRMED",
@@ -1526,16 +2264,20 @@ __all__ = [
     "cancel_by_driver",
     "cancel_by_passenger",
     "complete_ride",
+    "complete_seconds_left",
     "completion_check_delay_minutes",
     "completion_check_due_at",
     "completion_check_state",
     "confirm_ride_completion",
+    "dispute_ride_start",
     "driver_flow_state",
     "estimated_ride_duration_minutes",
+    "extend_wait",
     "haversine_meters",
     "lock_ride",
     "mark_arrived",
     "mark_en_route",
+    "mark_passenger_boarded",
     "mark_passenger_ready",
     "no_show_seconds_left",
     "nudge_driver",
@@ -1543,6 +2285,7 @@ __all__ = [
     "request_completion_confirmation",
     "run_watchdog",
     "start_ride",
+    "start_seconds_left",
     "undo_last_status",
     "undo_seconds_left",
 ]

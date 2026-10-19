@@ -3,6 +3,7 @@ import RideTimeField from '../../components/RideTimeField'
 import { MapContainer, Marker, Polyline, Popup } from 'react-leaflet'
 import LocalizedTileLayer from '../../components/LocalizedTileLayer'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import { passengerNotificationTarget } from '../../components/notifications/passengerNotificationTarget'
 import RoutePointConfirmButton from '../../components/route-point-picker/RoutePointConfirmButton'
 import RoutePointFields from '../../components/route-point-picker/RoutePointFields'
 import { RoutePointPinLabel, RoutePointPinMarkers } from '../../components/route-point-picker/RoutePointPinOverlay'
@@ -431,7 +432,13 @@ export default function NewRequest() {
             {model.isLocating ? <span className="w-4 h-4 rounded-full border-[2px] border-border border-t-black animate-spin" /> : <Crosshair size={18} weight="bold" />}
           </button>
           {/* Address search lives next to the A/B fields in the bottom panel — no duplicate trigger here */}
-          <NotificationBell pool="passenger" />
+          <NotificationBell
+            pool="passenger"
+            onNotificationSelect={(notification) => {
+              const target = passengerNotificationTarget(notification)
+              if (target) navigate(target)
+            }}
+          />
         </div>
       </header>
       )}

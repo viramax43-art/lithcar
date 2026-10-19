@@ -138,15 +138,18 @@ async def driver_mark_arrived(
 @router.post("/cabinet/rides/{ride_id}/start", response_model=DriverRideFlowOut)
 async def driver_start_ride(
     ride_id: str,
+    payload: DriverGeoPayload | None = None,
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    """Пассажир в машине: поездка началась."""
+    """Пассажир в машине: поездка началась (строго после «Прибыл»)."""
     try:
         result = await ride_status_service.start_ride(
             db_session,
             ride_id=ride_id,
             driver_id=session.driver_id,
+            lat=payload.lat if payload else None,
+            lng=payload.lng if payload else None,
         )
     except RideFlowError as exc:
         raise _flow_error_to_http(exc) from exc
@@ -157,12 +160,34 @@ async def driver_start_ride(
 @router.post("/cabinet/rides/{ride_id}/complete", response_model=DriverRideFlowOut)
 async def driver_complete_ride(
     ride_id: str,
+    payload: DriverGeoPayload | None = None,
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Поездка завершена."""
     try:
         result = await ride_status_service.complete_ride(
+            db_session,
+            ride_id=ride_id,
+            driver_id=session.driver_id,
+            lat=payload.lat if payload else None,
+            lng=payload.lng if payload else None,
+        )
+    except RideFlowError as exc:
+        raise _flow_error_to_http(exc) from exc
+    await ride_flow_side_effects.deliver_flow_side_effects(result)
+    return await _flow_out(db_session, ride=result.ride, driver_id=session.driver_id)
+
+
+@router.post("/cabinet/rides/{ride_id}/wait-extend", response_model=DriverRideFlowOut)
+async def driver_extend_wait(
+    ride_id: str,
+    session: DriverSession = Depends(get_driver_session),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    """Продлить ожидание пассажира на точке (один раз)."""
+    try:
+        result = await ride_status_service.extend_wait(
             db_session,
             ride_id=ride_id,
             driver_id=session.driver_id,
@@ -297,7 +322,7 @@ async def driver_send_ride_chat_message(
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    """Сообщение водителя в чат поездки (уходит всем пассажирам машины и в Telegram)."""
+    """Сообщение водителя в групповой чат поездки (водитель + все попутчики)."""
     ride = await _load_driver_ride(db_session, ride_id=ride_id, driver_id=session.driver_id)
     try:
         await ride_chat_service.post_message(
@@ -324,12 +349,6 @@ async def driver_send_ride_chat_message(
         raise _chat_error_to_http(exc) from exc
 
     await db_session.refresh(ride)
-    await ride_flow_side_effects.deliver_chat_side_effects(
-        ride=ride,
-        sender_type="driver",
-        sender_name=session.name,
-        text=payload.body,
-    )
     return await build_ride_chat_page(
         db_session,
         ride=ride,

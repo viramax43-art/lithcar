@@ -13,12 +13,13 @@ import { offerSeatsBooked } from '../../../lib/offerSeats'
 import { getDriverMatchClaimLabel } from '../../../lib/matchUi'
 import { hapticNotification, openExternalLink } from '../../../lib/telegram'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
-import type { DriverRideOffer, MatchedRideRequest } from '../../../types'
+import type { AppNotification, DriverRideOffer, MatchedRideRequest } from '../../../types'
 import { OFFER_STATUS_COLOR } from '../constants'
 import DriverOfferForm from './DriverOfferForm'
 
 interface DriverOffersListProps {
   onClose: () => void
+  onNotificationSelect?: (notification: AppNotification) => void
 }
 
 const PAGE_SIZE = 20
@@ -28,7 +29,7 @@ function formatVehicleLabel(brand?: string, model?: string): string {
   return [effectiveBrand, model].filter(Boolean).join(' ').trim() || model || '—'
 }
 
-export default function DriverOffersList({ onClose }: DriverOffersListProps) {
+export default function DriverOffersList({ onClose, onNotificationSelect }: DriverOffersListProps) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<'open' | 'all'>('open')
   const [offers, setOffers] = useState<DriverRideOffer[]>([])
@@ -196,7 +197,13 @@ export default function DriverOffersList({ onClose }: DriverOffersListProps) {
           >
             <Plus size={18} weight="bold" />
           </button>
-          <NotificationBell pool="driver" />
+          <NotificationBell
+            pool="driver"
+            onNotificationSelect={(notification) => {
+              onClose()
+              onNotificationSelect?.(notification)
+            }}
+          />
         </div>
         <div className="flex items-center gap-1 px-5 pb-3 overflow-x-auto w-full max-w-2xl mx-auto">
           {(['open', 'all'] as const).map((key) => (

@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import Skeleton from '../../components/Skeleton'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import { passengerNotificationTarget } from '../../components/notifications/passengerNotificationTarget'
 import CabinetRoleBanner from '../../components/CabinetRoleBanner'
 import TransferPointsSheet from '../../components/TransferPointsSheet'
 import { ApiError, getAdminPanelAccess, getMyDriverApplication, getPricing, getUserCabinet, issuePassengerQrSale, listBlockedUsers, parseApiErrorCode, purchasePointsByCard, transferPoints, unblockUser, updateCurrentUserLanguage } from '../../lib/backend'
@@ -218,7 +219,13 @@ export default function Profile() {
             <ArrowLeft size={20} weight="bold" />
           </button>
           <h1 className="text-base font-extrabold tracking-tight flex-1">{t('profile.title', { defaultValue: 'Profile' })}</h1>
-          <NotificationBell pool="passenger" />
+          <NotificationBell
+            pool="passenger"
+            onNotificationSelect={(notification) => {
+              const target = passengerNotificationTarget(notification)
+              if (target) navigate(target)
+            }}
+          />
         </div>
       </header>
 

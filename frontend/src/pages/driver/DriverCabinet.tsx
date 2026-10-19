@@ -39,7 +39,7 @@ import { ApiError } from '../../infrastructure/http/httpClient'
 import { setLastAppShell, exitToPassengerApp } from '../../lib/driverShell'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
-import type { DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
+import type { AppNotification, DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
 
 import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
 import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/DriverCabinetModeSwitch'
@@ -49,6 +49,7 @@ import DriverPointSheet from './components/DriverPointSheet'
 import {
   cancelDriverRide,
   completeDriverRide,
+  extendDriverWait,
   getDriverRideFlow,
   markDriverArrived,
   markDriverEnRoute,
@@ -60,6 +61,7 @@ import type { DriverFlowAction } from '../../components/ride-flow/DriverRideFlow
 import type { RideFlowState } from '../../types'
 import DriverSideMenu from './components/DriverSideMenu'
 import NotificationBell from '../../components/notifications/NotificationBell'
+import RideChatSheet from '../../components/ride-chat/RideChatSheet'
 import CabinetRoleBanner, { CABINET_ROLE_BANNER_BODY_HEIGHT } from '../../components/CabinetRoleBanner'
 
 const MAP_POLL_MS = 8_000
@@ -351,6 +353,8 @@ export default function DriverCabinet() {
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null)
   /** Состояние жизненного цикла выбранной поездки: кнопки шага, откат, неявка, чат. */
   const [rideFlow, setRideFlow] = useState<RideFlowState | null>(null)
+  /** Уведомление о сообщении открывает чат поездки прямо на карте. */
+  const [notificationChatRideId, setNotificationChatRideId] = useState<string | null>(null)
   const [isFlowBusy, setIsFlowBusy] = useState(false)
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [isActioning, setIsActioning] = useState(false)
@@ -615,6 +619,29 @@ export default function DriverCabinet() {
   const points = mapData?.points ?? []
   const availablePoints = mapData?.availablePoints ?? []
 
+  /**
+   * Тап по уведомлению водителя: сообщение чата открываем сразу, а поездку
+   * фокусируем на карте (если её точка уже загружена).
+   */
+  const handleDriverNotificationSelect = useCallback(
+    (notification: AppNotification) => {
+      const payload = notification.payload as Record<string, unknown> | null
+      const rideId = payload?.rideId
+      if (typeof rideId !== 'string' || !rideId) return
+      if (payload?.event === 'chat_message') {
+        setNotificationChatRideId(rideId)
+      }
+      const target =
+        points.find((point) => point.rideId === rideId && point.pointStatus !== 'done')
+        ?? points.find((point) => point.rideId === rideId)
+      if (target) {
+        setCabinetMode('my')
+        setSelectedPointId(target.id)
+      }
+    },
+    [points],
+  )
+
   // The driver map shows every upcoming trip — the day/period filter was removed
   // from the cabinet, so both pools are used as-is.
   const visiblePoints = points
@@ -789,6 +816,7 @@ export default function DriverCabinet() {
       else if (action === 'start') await startDriverRide(rideId)
       else if (action === 'complete') await completeDriverRide(rideId)
       else if (action === 'undo') await undoDriverRideStatus(rideId)
+      else if (action === 'extend_wait') await extendDriverWait(rideId)
       else if (action === 'no_show') await reportDriverNoShow(rideId, comment)
       else if (action === 'cancel') await cancelDriverRide(rideId, 'driver_cancelled', comment)
 
@@ -1068,18 +1096,7 @@ export default function DriverCabinet() {
             pool="driver"
             enabled={!!session}
             className="w-12 h-12 bg-white rounded-2xl shadow-card flex items-center justify-center active:scale-95 transition-transform relative touch-none"
-            onNotificationSelect={(notification) => {
-              // Deep link: focus the related ride on the map when the payload references one.
-              const rideId = (notification.payload as Record<string, unknown> | null)?.rideId
-              if (typeof rideId !== 'string') return
-              const target =
-                points.find((p) => p.rideId === rideId && p.pointStatus !== 'done')
-                ?? points.find((p) => p.rideId === rideId)
-              if (target) {
-                setCabinetMode('my')
-                setSelectedPointId(target.id)
-              }
-            }}
+            onNotificationSelect={handleDriverNotificationSelect}
           />
         </div>
       </div>
@@ -1167,48 +1184,8 @@ export default function DriverCabinet() {
         </div>
       )}
 
-      {/* ── Empty states ─────────────────────────────────────────────────── */}
-      {/* Makes the "Мои поездки" / "Доступные" toggle always visibly distinct:
-          when a pool is empty the map would otherwise look identical. */}
-      {!isMapMarkViewMode && mapData && mapDisplayPoints.length === 0 && (
-        <div
-          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
-          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
-        >
-          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[260px]">
-            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
-              <Car size={22} className="text-muted" weight="fill" />
-            </div>
-            <p className="text-sm font-bold">
-              {cabinetMode === 'available'
-                ? t('driver.noAvailableRides', { defaultValue: 'Нет доступных поездок' })
-                : t('driver.noAssignedRides', { defaultValue: 'Нет назначенных поездок' })}
-            </p>
-            <p className="text-xs text-muted mt-1 leading-snug">
-              {cabinetMode === 'available'
-                ? t('driver.noAvailableRidesHint', { defaultValue: 'Новые заявки появятся здесь автоматически.' })
-                : t('driver.noAssignedRidesHint', { defaultValue: 'Как только вас назначат на поездку, точки появятся здесь.' })}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {!isMapMarkViewMode && cabinetMode === 'my' && mapData && visiblePoints.length > 0 && activePoints.length === 0 && (
-        <div
-          className="absolute inset-x-0 top-0 z-[10] flex items-center justify-center pointer-events-none"
-          style={{ bottom: NEXT_BAR_H, paddingTop: mapInsetTop }}
-        >
-          <div className="bg-white/92 backdrop-blur-sm rounded-card shadow-card px-6 py-5 text-center max-w-[230px]">
-            <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mx-auto mb-3">
-              <Car size={22} className="text-muted" weight="fill" />
-            </div>
-            <p className="text-sm font-bold">{t('driver.noActiveRides', { defaultValue: 'Нет активных поездок' })}</p>
-            <p className="text-xs text-muted mt-1 leading-snug">
-              {t('driver.noAssignedRidesHint', { defaultValue: 'Как только вас назначат на поездку, точки появятся здесь.' })}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Без blur-заглушек «Нет поездок»: карта и нижняя панель сами показывают
+          состояние, а модальное пятно перекрывало карту и мешало работе. */}
 
       {/* ── Next-stop persistent bar ─────────────────────────────────────── */}
       {!isMapMarkViewMode && cabinetMode === 'my' && (
@@ -1351,6 +1328,14 @@ export default function DriverCabinet() {
         }}
       />
 
+      {/* Чат из уведомления: открывается поверх карты, без поиска карточки поездки. */}
+      <RideChatSheet
+        rideId={notificationChatRideId}
+        role="driver"
+        open={notificationChatRideId !== null}
+        onClose={() => setNotificationChatRideId(null)}
+      />
+
       {/* ── Side menu ────────────────────────────────────────────────────── */}
       <DriverSideMenu
         isOpen={sideMenuOpen}
@@ -1360,6 +1345,7 @@ export default function DriverCabinet() {
         onOpenPassengerApp={handleOpenPassengerApp}
         requestOffersScreen={openOffersMenu}
         onRequestOffersHandled={() => setOpenOffersMenu(false)}
+        onNotificationSelect={handleDriverNotificationSelect}
       />
 
       {/* ── Error toast ──────────────────────────────────────────────────── */}

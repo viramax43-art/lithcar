@@ -118,6 +118,10 @@ export default function RideChatSheet({ rideId, role, open, onClose }: RideChatS
     () => participants.map((item) => item.name).filter(Boolean).join(' · '),
     [participants],
   )
+  const passengerCount = useMemo(
+    () => participants.filter((item) => item.type === 'passenger').length,
+    [participants],
+  )
 
   const closedMessage = closedReason === 'ride_closed'
     ? t('rideChat.closedRide', { defaultValue: 'Чат закрыт: поездка завершена.' })
@@ -147,6 +151,14 @@ export default function RideChatSheet({ rideId, role, open, onClose }: RideChatS
               <ChatCircleDots size={16} weight="fill" />
               {t('rideChat.title', { defaultValue: 'Чат поездки' })}
             </p>
+            {passengerCount > 0 && (
+              <p className="text-[11px] font-bold text-black/70 mt-0.5">
+                {t('rideChat.groupTitle', {
+                  count: passengerCount,
+                  defaultValue: `Групповой чат: водитель и ${passengerCount} попутчик(ов)`,
+                })}
+              </p>
+            )}
             {participantsLabel && (
               <p className="text-xs text-muted mt-0.5 truncate">{participantsLabel}</p>
             )}

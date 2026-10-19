@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { DriverSessionUser } from '../../../infrastructure/api/contracts'
+import type { AppNotification } from '../../../types'
 import { redeemPassengerQrSale } from '../../../lib/backend'
 import { hapticNotification, hapticSelection } from '../../../lib/telegram'
 import LanguageSwitcher from '../../../components/LanguageSwitcher'
@@ -33,6 +34,8 @@ interface DriverSideMenuProps {
   onOpenPassengerApp: () => void
   requestOffersScreen?: boolean
   onRequestOffersHandled?: () => void
+  /** Deep link from a driver notification: focus the ride or open its chat. */
+  onNotificationSelect?: (notification: AppNotification) => void
 }
 
 export default function DriverSideMenu({
@@ -43,6 +46,7 @@ export default function DriverSideMenu({
   onOpenPassengerApp,
   requestOffersScreen = false,
   onRequestOffersHandled,
+  onNotificationSelect,
 }: DriverSideMenuProps) {
   const { t } = useTranslation()
   const [scanMessage, setScanMessage] = useState<string | null>(null)
@@ -305,7 +309,9 @@ export default function DriverSideMenu({
         </div>
       </div>
 
-      {showOffers && <DriverOffersList onClose={() => setShowOffers(false)} />}
+      {showOffers && (
+        <DriverOffersList onClose={() => setShowOffers(false)} onNotificationSelect={onNotificationSelect} />
+      )}
       {showHistory && <DriverRideHistory onClose={() => setShowHistory(false)} />}
       {showBlocked && <DriverBlockedList onClose={() => setShowBlocked(false)} />}
       {showScanner && (

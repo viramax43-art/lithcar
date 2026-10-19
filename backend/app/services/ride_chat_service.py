@@ -46,10 +46,18 @@ class RideChatSender:
 
 
 def thread_key_for(ride: RideRequest) -> str:
-    """Ключ чата: общий на всю машину (группа), иначе — на конкретную заявку."""
+    """Ключ чата: общий на всю машину (группа), иначе — на конкретную заявку.
+
+    Для заявок, забронированных из предложения водителя, `group_id` обычно пуст,
+    но все они относятся к одному рейсу (`offer_id`) — это и есть «машина».
+    Без этого каждый попутчик получал отдельный чат с водителем вместо группы.
+    """
     group_id = (ride.group_id or "").strip()
     if group_id:
         return f"g:{group_id}"
+    offer_id = (ride.offer_id or "").strip()
+    if offer_id:
+        return f"g:offer:{offer_id}"
     return f"r:{ride.id}"
 
 
@@ -108,6 +116,12 @@ async def list_thread_ride_ids(db_session: AsyncSession, *, thread_key: str) -> 
     """Все заявки, попадающие в тот же чат (группа пассажиров одной машины)."""
     if thread_key.startswith("g:"):
         group_id = thread_key[2:]
+        if group_id.startswith("offer:"):
+            offer_id = group_id[len("offer:"):]
+            result = await db_session.execute(
+                select(RideRequest.id).where(RideRequest.offer_id == offer_id)
+            )
+            return list(result.scalars().all())
         result = await db_session.execute(
             select(RideRequest.id).where(RideRequest.group_id == group_id)
         )
@@ -460,7 +474,10 @@ async def peer_last_read_at(
     if not ride_ids:
         return None
     passenger_ids_result = await db_session.execute(
-        select(RideRequest.passenger_id).where(RideRequest.id.in_(ride_ids))
+        select(RideRequest.passenger_id).where(
+            RideRequest.id.in_(ride_ids),
+            RideRequest.status.in_(RideRequestStatus.CHAT_OPEN),
+        )
     )
     passenger_ids = [row for row in passenger_ids_result.scalars().all() if row]
     if not passenger_ids:
@@ -491,9 +508,14 @@ async def unread_counts_for_driver(
     if not rides:
         return 0
     total = 0
+    seen_threads: set[str] = set()
     for ride in rides:
         if ride.status not in RideRequestStatus.CHAT_OPEN:
             continue
+        thread_key = thread_key_for(ride)
+        if thread_key in seen_threads:
+            continue
+        seen_threads.add(thread_key)
         total += await count_unread(
             db_session,
             ride=ride,

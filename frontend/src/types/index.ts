@@ -508,25 +508,43 @@ export interface RideFlowState {
   canSendMessage?: boolean
   canMarkReady?: boolean
   passengerReady?: boolean
+  canBoard?: boolean
+  passengerBoarded?: boolean
+  passengerBoardedAt?: string | null
   canNudgeDriver?: boolean
   nudgeSecondsLeft?: number
   canCancel?: boolean
   lateCancel?: boolean
+  lateCancelFeePercent?: number
+  canDisputeStart?: boolean
+  disputeSecondsLeft?: number
   canEnRoute?: boolean
   canArrived?: boolean
   canStart?: boolean
   canComplete?: boolean
   canReportNoShow?: boolean
+  canExtendWait?: boolean
   canUndo?: boolean
   undoSecondsLeft?: number
   noShowSecondsLeft?: number
+  startAvailableInSeconds?: number
+  completeAvailableInSeconds?: number
   enRouteAt?: string | null
   arrivedAt?: string | null
   startedAt?: string | null
   waitingSeconds?: number
+  waitExtendedUntil?: string | null
+  autoNoShowAt?: string | null
   driverWaitingMinutes?: number
   cancelReason?: string | null
   cancelComment?: string | null
+  refundedPoints?: number
+  driverCompensationPoints?: number
+  refundedAt?: string | null
+  settlementReason?: string | null
+  autoResolvedAt?: string | null
+  autoResolveReason?: string | null
+  disputeAt?: string | null
   requiresAdminAttention?: boolean
   adminAttentionReason?: string | null
   passengerReadyAt?: string | null

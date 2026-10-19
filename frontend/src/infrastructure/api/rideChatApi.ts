@@ -108,6 +108,27 @@ export async function markPassengerReady(rideId: string): Promise<RideFlowApi> {
   }
 }
 
+/** Пассажир подтверждает, что сел в машину (снимает спор о случайном старте). */
+export async function markPassengerBoarded(rideId: string): Promise<RideFlowApi> {
+  try {
+    return await apiRequest<RideFlowApi>(`/api/v1/rides/${rideId}/boarded`, { method: 'POST' })
+  } catch (error) {
+    throw asFlowError(error)
+  }
+}
+
+/** «Поездка не начиналась»: отмена с полным возвратом в коротком окне после старта. */
+export async function disputeRideStart(rideId: string, comment?: string): Promise<RideFlowApi> {
+  try {
+    return await apiRequest<RideFlowApi>(`/api/v1/rides/${rideId}/dispute-start`, {
+      method: 'POST',
+      body: comment ? { comment } : {},
+    })
+  } catch (error) {
+    throw asFlowError(error)
+  }
+}
+
 export async function nudgeDriver(rideId: string): Promise<RideFlowApi> {
   try {
     return await apiRequest<RideFlowApi>(`/api/v1/rides/${rideId}/nudge`, { method: 'POST' })

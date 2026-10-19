@@ -629,6 +629,24 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "The ride was cancelled by the administration.",
         "ru": "Поездку отменила администрация.",
     },
+    "notif.ride.cancel_reason.passenger_dispute_start": {
+        "lt": "Keleivis nurode, kad kelione neprasidejo: vairuotojas ja pradejo per klaida.",
+        "pl": "Pasazer zglosil, ze przejazd sie nie rozpoczal: kierowca uruchomil go omylkowo.",
+        "en": "The passenger reported the ride never started: the driver started it by mistake.",
+        "ru": "Пассажир сообщил, что поездка не начиналась: водитель запустил её по ошибке.",
+    },
+    "notif.ride.cancel_reason.system_driver_late": {
+        "lt": "Kelione atsaukta automatiskai: vairuotojas neatvyko laiku.",
+        "pl": "Przejazd anulowany automatycznie: kierowca nie przyjechal na czas.",
+        "en": "The ride was cancelled automatically: the driver did not arrive in time.",
+        "ru": "Поездка отменена автоматически: водитель не приехал вовремя.",
+    },
+    "notif.ride.cancel_reason.system_no_show": {
+        "lt": "Kelione atsaukta automatiskai: keleivis neatvyko per maksimalu laukimo laika.",
+        "pl": "Przejazd anulowany automatycznie: pasazer nie przyszedl w maksymalnym czasie oczekiwania.",
+        "en": "The ride was cancelled automatically: the passenger did not show up within the maximum waiting time.",
+        "ru": "Поездка отменена автоматически: пассажир не вышел за максимальное время ожидания.",
+    },
     "notif.ride.passenger.assigned.title": {
         "lt": "✅ Paskirtas vairuotojas",
         "pl": "✅ Kierowca przypisany",
@@ -982,6 +1000,24 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "pl": "⏱ Kierowca czeka juz {minutes} min.",
         "en": "⏱ The driver has been waiting {minutes} min.",
         "ru": "⏱ Водитель ждёт уже {minutes} мин.",
+    },
+    "notif.ride.system.wait_extended": {
+        "lt": "⏱ Vairuotojas pratęsė laukimą dar {minutes} min.",
+        "pl": "⏱ Kierowca przedluzyl oczekiwanie o {minutes} min.",
+        "en": "⏱ The driver extended the wait by {minutes} min.",
+        "ru": "⏱ Водитель продлил ожидание ещё на {minutes} мин.",
+    },
+    "notif.ride.system.boarded": {
+        "lt": "🙋 Keleivis patvirtino, kad sedi automobilyje.",
+        "pl": "🙋 Pasazer potwierdzil, ze jest w samochodzie.",
+        "en": "🙋 The passenger confirmed they are in the car.",
+        "ru": "🙋 Пассажир подтвердил, что сел в машину.",
+    },
+    "notif.ride.system.dispute_start": {
+        "lt": "⚠️ Keleivis pranese, kad kelione neprasidejo. Kelione atsaukta, situacija perduota administratoriui.",
+        "pl": "⚠️ Pasazer zglosil, ze przejazd sie nie rozpoczal. Przejazd anulowany, sprawa przekazana administratorowi.",
+        "en": "⚠️ The passenger reported the ride never started. The ride is cancelled and the case is with an administrator.",
+        "ru": "⚠️ Пассажир сообщил, что поездка не начиналась. Поездка отменена, ситуация передана администратору.",
     },
     "notif.ride.passenger.completion_check.title": {
         "lt": "❓ Ar kelione ivyko?",

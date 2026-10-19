@@ -40,17 +40,30 @@ class RidePassengerFlowOut(BaseModel):
     canSendMessage: bool
     canMarkReady: bool
     passengerReady: bool
+    canBoard: bool = False
+    passengerBoarded: bool = False
+    passengerBoardedAt: str | None = None
     canNudgeDriver: bool
     nudgeSecondsLeft: int
     canCancel: bool
     lateCancel: bool
+    lateCancelFeePercent: int = 0
+    canDisputeStart: bool = False
+    disputeSecondsLeft: int = 0
     enRouteAt: str | None = None
     arrivedAt: str | None = None
     startedAt: str | None = None
     waitingSeconds: int = 0
+    waitExtendedUntil: str | None = None
+    autoNoShowAt: str | None = None
     driverWaitingMinutes: int = 0
     cancelReason: str | None = None
     cancelComment: str | None = None
+    refundedPoints: int = 0
+    driverCompensationPoints: int = 0
+    refundedAt: str | None = None
+    settlementReason: str | None = None
+    autoResolvedAt: str | None = None
     # «Поездка состоялась?»: водитель начал поездку и не нажал «Завершил».
     expectedRideMinutes: float = 0
     estimationSource: str | None = None
@@ -71,6 +84,12 @@ class RideCompletionIn(BaseModel):
     """Ответ пассажира на вопрос «Поездка состоялась?»."""
 
     completed: bool
+
+
+class RideDisputeIn(BaseModel):
+    """Пассажир заявляет, что поездка фактически не начиналась."""
+
+    comment: str | None = Field(default=None, max_length=500)
 
 
 def _flow_error_to_http(exc: RideFlowError) -> HTTPException:
@@ -108,7 +127,7 @@ async def _participants(db_session: AsyncSession, *, ride, viewer_id: str) -> li
     """Участники чата: водитель и все пассажиры машины (попутчики видят друг друга)."""
     from sqlalchemy import select
 
-    from app.models.ride_request import RideRequest
+    from app.models.ride_request import RideRequest, RideRequestStatus
 
     participants: list[RideChatParticipantOut] = []
     if ride.driver_id:
@@ -127,6 +146,10 @@ async def _participants(db_session: AsyncSession, *, ride, viewer_id: str) -> li
             select(RideRequest).where(RideRequest.id.in_(thread_ride_ids))
         )
         for item in result.scalars().all():
+            # Отменённые/завершённые попутчики остаются в истории, но не в списке
+            # активной группы: иначе чат выглядит так, будто они всё ещё в машине.
+            if item.status not in RideRequestStatus.CHAT_OPEN and item.id != ride.id:
+                continue
             if item.passenger_name:
                 participants.append(
                     RideChatParticipantOut(
@@ -225,9 +248,11 @@ async def passenger_send_ride_chat_message(
     current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    """Отправка сообщения в чат поездки.
+    """Отправка сообщения в групповой чат поездки.
 
-    Сообщение сразу уходит собеседникам: в приложение (лента уведомлений и чат) и в Telegram.
+    Чат живёт только в мини-аппе: водитель и все попутчики машины видят общую
+    переписку. В Telegram сообщения не пересылаются — там остаются только
+    уведомления о событиях поездки со ссылкой обратно в приложение.
     """
     ride = await _load_ride(db_session, ride_id=ride_id, user=current_user)
     try:
@@ -255,12 +280,6 @@ async def passenger_send_ride_chat_message(
         raise _chat_error_to_http(exc) from exc
 
     await db_session.refresh(ride)
-    await ride_flow_side_effects.deliver_chat_side_effects(
-        ride=ride,
-        sender_type="passenger",
-        sender_name=ride.passenger_name,
-        text=payload.body,
-    )
     return await _build_page(
         db_session,
         ride=ride,
@@ -323,6 +342,56 @@ async def passenger_mark_ready(
             db_session,
             ride_id=ride_id,
             user_id=current_user.user_id,
+        )
+    except RideFlowError as exc:
+        raise _flow_error_to_http(exc) from exc
+    await ride_flow_side_effects.deliver_flow_side_effects(result)
+    ride = result.ride
+    return RidePassengerFlowOut(rideId=ride.id, **ride_status_service.passenger_flow_state(ride))
+
+
+@router.post("/{ride_id}/boarded", response_model=RidePassengerFlowOut)
+async def passenger_confirm_boarding(
+    ride_id: str,
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    """Пассажир подтверждает посадку в машину.
+
+    Подтверждение добровольное, но оно снимает спор «поездка началась, а меня
+    не было в машине» и даёт водителю сигнал, что можно стартовать.
+    """
+    try:
+        result = await ride_status_service.mark_passenger_boarded(
+            db_session,
+            ride_id=ride_id,
+            user_id=current_user.user_id,
+        )
+    except RideFlowError as exc:
+        raise _flow_error_to_http(exc) from exc
+    await ride_flow_side_effects.deliver_flow_side_effects(result)
+    ride = result.ride
+    return RidePassengerFlowOut(rideId=ride.id, **ride_status_service.passenger_flow_state(ride))
+
+
+@router.post("/{ride_id}/dispute-start", response_model=RidePassengerFlowOut)
+async def passenger_dispute_ride_start(
+    ride_id: str,
+    payload: RideDisputeIn,
+    current_user: User = Depends(require_roles(*_PASSENGER_RIDE_ROLES)),
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    """«Поездка не начиналась»: водитель нажал старт, но пассажир не в машине.
+
+    Доступно только в коротком окне после старта и только без подтверждённой
+    посадки. Поездка отменяется с полным возвратом баллов, случай уходит админу.
+    """
+    try:
+        result = await ride_status_service.dispute_ride_start(
+            db_session,
+            ride_id=ride_id,
+            user_id=current_user.user_id,
+            comment=payload.comment,
         )
     except RideFlowError as exc:
         raise _flow_error_to_http(exc) from exc
@@ -412,6 +481,7 @@ async def passenger_confirm_ride_completion(
 __all__ = [
     "RideCancelIn",
     "RideCompletionIn",
+    "RideDisputeIn",
     "RidePassengerFlowOut",
     "build_ride_chat_page",
     "router",

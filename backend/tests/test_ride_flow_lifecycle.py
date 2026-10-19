@@ -11,7 +11,7 @@ from app.models.ride_message import RideChatMessage
 from app.models.ride_request import RideCancelReason, RideRequest, RideRequestStatus
 from app.models.ride_status_event import RideStatusEvent
 from app.models.user import User, UserRole
-from tests.ride_datetime import future_ride_datetime_iso
+from tests.ride_datetime import MIN_BOOKING_LEAD_HOURS, future_ride_datetime_iso
 
 
 def _headers_for(user_id: str, role: str) -> dict[str, str]:
@@ -42,9 +42,16 @@ async def _create_zone(client) -> None:
     assert response.status_code == 200
 
 
-async def _setup_ride(client, db_session, *, hours_ahead: float = 2, suffix: str = "flow"):
-    """Зона, водитель, пассажир и назначенная поездка — общая заготовка для тестов флоу."""
+async def _setup_ride(client, db_session, *, hours_ahead: float | None = None, suffix: str = "flow"):
+    """Зона, водитель, пассажир и назначенная поездка — общая заготовка для тестов флоу.
+
+    По умолчанию поездка создаётся на ближайший допустимый слот (backend требует
+    лид 2 часа), а затем её время сдвигается на «сейчас», чтобы проверять флоу
+    без ожидания. Явно переданный `hours_ahead` (например, 10) оставляет поездку
+    в будущем.
+    """
     await _create_zone(client)
+    create_hours = MIN_BOOKING_LEAD_HOURS + 1 if hours_ahead is None else hours_ahead
 
     created_driver = await client.post(
         "/api/drivers",
@@ -82,11 +89,11 @@ async def _setup_ride(client, db_session, *, hours_ahead: float = 2, suffix: str
             "passengerName": f"Flow Passenger {suffix}",
             "fromPoint": {"address": "Start A", "latlng": {"lat": 54.69, "lng": 25.27}},
             "toPoint": {"address": "End B", "latlng": {"lat": 54.70, "lng": 25.28}},
-            "dateTime": future_ride_datetime_iso(hours_ahead=hours_ahead),
+            "dateTime": future_ride_datetime_iso(hours_ahead=create_hours),
         },
         headers=passenger_headers,
     )
-    assert created_request.status_code == 201
+    assert created_request.status_code == 201, created_request.text
     request_id = created_request.json()["id"]
 
     assigned = await client.patch(
@@ -94,6 +101,16 @@ async def _setup_ride(client, db_session, *, hours_ahead: float = 2, suffix: str
         json={"driverId": driver_id},
     )
     assert assigned.status_code == 200
+
+    if hours_ahead is None or hours_ahead <= 0:
+        # Тестам нужен «сейчас», а не следующий получасовой слот: иначе защита
+        # от старта задолго до назначенного времени законно заблокирует старт.
+        await db_session.execute(
+            update(RideRequest)
+            .where(RideRequest.id == request_id)
+            .values(date_time=datetime.now(timezone.utc) - timedelta(minutes=1))
+        )
+        await db_session.commit()
 
     driver_login = await client.post("/api/driver/session/login", json={"key": driver_key})
     assert driver_login.status_code == 200

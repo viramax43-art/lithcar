@@ -50,6 +50,13 @@ class RideCancelReason:
     DRIVER_CANCELLED = "driver_cancelled"
     DRIVER_NO_SHOW = "driver_no_show"
     ADMIN_CANCELLED = "admin_cancelled"
+    # Пассажир сразу после старта сообщил, что на самом деле не в машине
+    # (водитель нажал «Начать поездку» случайно). Отмена с полным возвратом.
+    PASSENGER_DISPUTE_START = "passenger_dispute_start"
+    # Авто-отмена сторожем: водитель не выехал/не прибыл вовремя.
+    SYSTEM_DRIVER_LATE = "system_driver_late"
+    # Авто-отмена сторожем: пассажир не вышел за максимальное время ожидания.
+    SYSTEM_NO_SHOW = "system_no_show"
 
     ALL: tuple[str, ...] = (
         PASSENGER_CANCELLED,
@@ -57,6 +64,9 @@ class RideCancelReason:
         DRIVER_CANCELLED,
         DRIVER_NO_SHOW,
         ADMIN_CANCELLED,
+        PASSENGER_DISPUTE_START,
+        SYSTEM_DRIVER_LATE,
+        SYSTEM_NO_SHOW,
     )
 
 
@@ -73,6 +83,14 @@ class RideAdminAttentionReason:
     PASSENGER_NOT_COMPLETED = "passenger_not_completed"
     # Пассажир не ответил на вопрос «Поездка состоялась?» — статус поездки всё ещё «в пути».
     COMPLETION_UNCONFIRMED = "completion_unconfirmed"
+    # Пассажир заявил «поездка не начиналась» сразу после старта.
+    PASSENGER_START_DISPUTE = "passenger_start_dispute"
+    # Водитель отказался от поездки уже после назначения — пассажиру полный возврат.
+    DRIVER_CANCELLED = "driver_cancelled"
+    # Водитель нажал «Завершил» далеко от точки высадки.
+    COMPLETION_FAR_FROM_DESTINATION = "completion_far_from_destination"
+    # Поездка закрыта автоматически сторожем (не хватило реакции сторон).
+    AUTO_RESOLVED = "auto_resolved"
 
 
 class RideRequest(Base):
@@ -135,17 +153,39 @@ class RideRequest(Base):
     status_updated_at = Column(DateTime(timezone=True), nullable=True, index=True)
     # Пассажир подтвердил «я на месте» — сильно снижает риск неявки.
     passenger_ready_at = Column(DateTime(timezone=True), nullable=True)
+    # Пассажир подтвердил, что сел в машину (после старта это ещё и защита от
+    # случайного нажатия «Начать поездку» со стороны водителя).
+    passenger_boarded_at = Column(DateTime(timezone=True), nullable=True)
     # Расстояние от водителя до точки подачи в момент «Прибыл» (для разбора споров).
     arrival_distance_m = Column(Float, nullable=True)
+    # Расстояние от водителя до точки высадки в момент «Завершил» (для разбора споров).
+    completion_distance_m = Column(Float, nullable=True)
     # Однократные отметки, чтобы не спамить участников напоминаниями.
     arrival_reminder_sent_at = Column(DateTime(timezone=True), nullable=True)
     no_show_available_notified_at = Column(DateTime(timezone=True), nullable=True)
     driver_late_reminded_at = Column(DateTime(timezone=True), nullable=True)
     nudge_sent_at = Column(DateTime(timezone=True), nullable=True)
+    # Продление ожидания на точке: даётся один раз, чтобы не держать водителя бесконечно.
+    wait_extended_at = Column(DateTime(timezone=True), nullable=True)
+    wait_extended_until = Column(DateTime(timezone=True), nullable=True)
     # Админ-контроль спорных поездок (водитель опаздывает, статус «завис» и т.п.).
     admin_attention_at = Column(DateTime(timezone=True), nullable=True)
     admin_attention_reason = Column(String, nullable=True)
+    # Пассажир заявил «поездка не начиналась» сразу после старта.
+    dispute_at = Column(DateTime(timezone=True), nullable=True)
+    dispute_reason = Column(String, nullable=True)
+    # Автоматическое закрытие сторожем: чтобы не трогать поездку дважды и было видно, почему.
+    auto_resolved_at = Column(DateTime(timezone=True), nullable=True)
+    auto_resolve_reason = Column(String, nullable=True)
+    # --- Финансы отмены ----------------------------------------------------------
+    # Баллы списываются при бронировании (эскроу). При отмене/неявке часть
+    # возвращается пассажиру, часть может уйти водителю как компенсация.
+    refunded_at = Column(DateTime(timezone=True), nullable=True)
+    refund_points = Column(Integer, nullable=True)
+    driver_compensation_points = Column(Integer, nullable=True)
+    settlement_reason = Column(String, nullable=True)
     # --- «Поездка состоялась?» ---------------------------------------------------
+
     # Водитель нажал «Начал поездку», но не нажал «Завершил»: система оценивает время
     # в пути, умножает его и спрашивает пассажира. Ответ попадает в эти поля.
     completion_check_at = Column(DateTime(timezone=True), nullable=True)

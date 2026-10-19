@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChatCircleDots } from '@phosphor-icons/react'
 
@@ -12,6 +12,8 @@ interface RideChatButtonProps {
   variant?: 'light' | 'dark' | 'wide'
   className?: string
   disabled?: boolean
+  /** Увеличивается при переходе из уведомления о сообщении — сразу открываем чат. */
+  openSignal?: number
 }
 
 const VARIANT_CLASS: Record<'light' | 'dark' | 'wide', string> = {
@@ -32,10 +34,16 @@ export default function RideChatButton({
   variant = 'light',
   className,
   disabled = false,
+  openSignal = 0,
 }: RideChatButtonProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { unreadCount, refresh } = useRideChatUnread({ rideId, role, enabled: !open })
+
+  useEffect(() => {
+    if (!openSignal || !rideId) return
+    setOpen(true)
+  }, [openSignal, rideId])
 
   const label = t('rideChat.open', { defaultValue: 'Чат поездки' })
   const classes = className ?? VARIANT_CLASS[variant]
