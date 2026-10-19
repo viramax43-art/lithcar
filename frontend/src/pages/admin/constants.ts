@@ -51,6 +51,7 @@ export type AdminTab =
   | 'requests'
   | 'zones'
   | 'settings'
+  | 'transfer'
   | 'system'
   | 'staff'
   | 'drivers'
@@ -59,7 +60,7 @@ export type AdminTab =
   | 'passengers'
 
 export const ADMIN_SECTION_TABS: Record<AdminSection, AdminTab[]> = {
-  functionality: ['requests', 'zones', 'settings', 'system', 'staff'],
+  functionality: ['requests', 'zones', 'settings', 'transfer', 'system', 'staff'],
   drivers: ['drivers', 'driverApps', 'qrSales'],
   passengers: ['passengers'],
 }

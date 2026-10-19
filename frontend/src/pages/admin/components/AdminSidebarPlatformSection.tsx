@@ -182,32 +182,19 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
       </Section>
 
       <Section title={t('admin.platform.system', { defaultValue: 'Система и логика' })}>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block text-sm">
-            <span className="font-semibold">EUR / USD</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              className={inputCls + ' mt-1'}
-              value={platform.system.eurUsdRate}
-              onChange={(e) => save({ system: { ...platform.system, eurUsdRate: Number(e.target.value) } })}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-semibold">{t('admin.platform.kmRatio', { defaultValue: 'Коэф. км' })}</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              className={inputCls + ' mt-1'}
-              value={platform.system.kmRatioMultiplier}
-              onChange={(e) =>
-                save({ system: { ...platform.system, kmRatioMultiplier: Number(e.target.value) } })
-              }
-            />
-          </label>
-        </div>
+        <label className="block text-sm">
+          <span className="font-semibold">{t('admin.platform.kmRatio', { defaultValue: 'Коэф. км' })}</span>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            className={inputCls + ' mt-1'}
+            value={platform.system.kmRatioMultiplier}
+            onChange={(e) =>
+              save({ system: { ...platform.system, kmRatioMultiplier: Number(e.target.value) } })
+            }
+          />
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm">
             <span className="font-semibold">{t('admin.platform.stalePending', { defaultValue: 'Удалять висящие (мин)' })}</span>

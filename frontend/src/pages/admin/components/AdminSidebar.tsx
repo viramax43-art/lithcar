@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ArrowsLeftRight,
   Car,
   ClipboardText,
   CreditCard,
@@ -31,6 +32,7 @@ import { AdminSidebarDriversSection } from './AdminSidebarDriversSection'
 import { AdminSidebarDriverRegistrationSection } from './AdminSidebarDriverRegistrationSection'
 import { AdminSidebarRequestsSuggestionsSection } from './AdminSidebarRequestsSuggestionsSection'
 import { AdminSidebarStaffSection } from './AdminSidebarStaffSection'
+import { AdminSidebarTransferSection } from './AdminSidebarTransferSection'
 import { AdminSidebarZonesSettingsQrSection } from './AdminSidebarZonesSettingsQrSection'
 import EditDriverModal from './EditDriverModal'
 import EditStaffModal from './EditStaffModal'
@@ -48,6 +50,7 @@ const TAB_DEFS: Record<AdminTab, { icon: typeof MapPin; labelKey: string }> = {
   requests: { icon: MapPin, labelKey: 'admin.tabs.requests' },
   zones: { icon: PenNib, labelKey: 'admin.tabs.zones' },
   settings: { icon: Gear, labelKey: 'admin.tabs.settings' },
+  transfer: { icon: ArrowsLeftRight, labelKey: 'admin.tabs.transfer' },
   system: { icon: Wrench, labelKey: 'admin.tabs.system' },
   staff: { icon: Users, labelKey: 'admin.tabs.staff' },
   drivers: { icon: Car, labelKey: 'admin.tabs.drivers' },
@@ -282,6 +285,7 @@ export default function AdminSidebar(props: AdminSidebarProps) {
                   })}
                 {activeTab === 'zones' && t('admin.sidebar.zonesCount', { count: serviceZones.length })}
                 {activeTab === 'settings' && t('admin.sidebar.pricingTitle')}
+                {activeTab === 'transfer' && t('admin.sidebar.transferTitle', { defaultValue: 'Перевод средств' })}
                 {activeTab === 'system' && t('admin.tabs.system', { defaultValue: 'Система' })}
                 {activeTab === 'qrSales' && t('admin.sidebar.paymentsCount', { count: qrSales.length })}
                 {activeTab === 'driverApps' &&
@@ -455,6 +459,8 @@ export default function AdminSidebar(props: AdminSidebarProps) {
               platform={platformSettings}
               onChange={handlePlatformChange}
             />
+
+            <AdminSidebarTransferSection activeTab={activeTab} />
 
             <AdminSidebarPassengersSection activeTab={activeTab} />
 
