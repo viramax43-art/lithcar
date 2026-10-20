@@ -13,6 +13,7 @@ export interface PlatformSettingsConfig {
     reassignmentPriorityBoost: boolean
     defaultCanSellPoints: boolean
     defaultCanSelfAssign: boolean
+    availableRadiusKm: number
   }
   system: {
     eurUsdRate: number
@@ -53,6 +54,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsConfig = {
     reassignmentPriorityBoost: true,
     defaultCanSellPoints: true,
     defaultCanSelfAssign: false,
+    availableRadiusKm: 7,
   },
   system: {
     eurUsdRate: 1.08,

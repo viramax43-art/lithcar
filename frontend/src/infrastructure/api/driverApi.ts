@@ -105,8 +105,12 @@ export async function notifyPickupChange(rideId: string): Promise<DriverCabinetR
   })
 }
 
-export async function getDriverMapData(): Promise<DriverMapData> {
-  return apiRequest<DriverMapData>('/api/v1/driver/cabinet/map', { authMode: 'cookie' })
+export async function getDriverMapData(radiusKm?: number): Promise<DriverMapData> {
+  const query =
+    typeof radiusKm === 'number' && Number.isFinite(radiusKm)
+      ? `?radiusKm=${encodeURIComponent(String(radiusKm))}`
+      : ''
+  return apiRequest<DriverMapData>(`/api/v1/driver/cabinet/map${query}`, { authMode: 'cookie' })
 }
 
 export async function claimDriverRide(requestId: string, payload?: { offerId?: string }): Promise<DriverCabinetRide> {

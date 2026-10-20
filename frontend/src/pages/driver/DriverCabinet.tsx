@@ -39,6 +39,12 @@ import { ApiError } from '../../infrastructure/http/httpClient'
 import { setLastAppShell, exitToPassengerApp } from '../../lib/driverShell'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import { useEscapeClose } from '../../lib/useEscapeClose'
+import {
+  DEFAULT_DRIVER_AVAILABLE_RADIUS_KM,
+  normalizeDriverAvailableRadiusKm,
+  readStoredDriverAvailableRadiusKm,
+  storeDriverAvailableRadiusKm,
+} from '../../lib/driverAvailableRadius'
 import type { AppNotification, DriverCabinetData, DriverMapData, DriverMapPoint, LatLng, PassengerLiveLocation } from '../../types'
 
 import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
@@ -46,6 +52,7 @@ import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/Dr
 import DriverOfferForm from './components/DriverOfferForm'
 import DriverMap from './components/DriverMap'
 import DriverMapLegend from './components/DriverMapLegend'
+import DriverAvailableRadiusFilter from './components/DriverAvailableRadiusFilter'
 import DriverPointSheet from './components/DriverPointSheet'
 import {
   cancelDriverRide,
@@ -379,16 +386,20 @@ export default function DriverCabinet() {
   const [isMapMarkViewMode, setIsMapMarkViewMode] = useState(false)
   const [cabinetMode, setCabinetMode] = useState<DriverCabinetMode>('available')
   const [isClaiming, setIsClaiming] = useState(false)
+  /** Driver's explicit radius choice; `null` = follow the admin default. */
+  const [availableRadiusKm, setAvailableRadiusKm] = useState<number | null>(
+    readStoredDriverAvailableRadiusKm,
+  )
 
   const canSelfAssign = Boolean(session?.canSelfAssign ?? mapData?.session.canSelfAssign)
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
   const loadMapData = useCallback(async () => {
-    const data = await getDriverMapData()
+    const data = await getDriverMapData(availableRadiusKm ?? undefined)
     setMapData(data)
     if (!session) setSession(data.session)
-  }, [session])
+  }, [session, availableRadiusKm])
 
   const loadCabinetData = useCallback(async () => {
     const data = await getDriverCabinet({ limit: 100, offset: 0 })
@@ -464,6 +475,12 @@ export default function DriverCabinet() {
     const t = setInterval(() => void loadMapData().catch(() => undefined), MAP_POLL_MS)
     return () => clearInterval(t)
   }, [session?.driverId, loadMapData])
+
+  // Apply a freshly picked radius right away instead of waiting for the poll.
+  useEffect(() => {
+    if (!session || availableRadiusKm == null) return
+    void loadMapData().catch(() => undefined)
+  }, [availableRadiusKm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll cabinet data (slower)
   useEffect(() => {
@@ -668,6 +685,24 @@ export default function DriverCabinet() {
     return new Set(visibleAvailablePoints.map((p) => p.rideId)).size
   }, [visibleAvailablePoints])
 
+  // Persisted driver choice wins; otherwise follow the radius the backend used
+  // (its admin-configured default), then the built-in fallback.
+  const effectiveAvailableRadiusKm = normalizeDriverAvailableRadiusKm(
+    availableRadiusKm
+      ?? mapData?.availableRadiusKm
+      ?? mapData?.defaultAvailableRadiusKm
+      ?? DEFAULT_DRIVER_AVAILABLE_RADIUS_KM,
+  )
+  const hiddenAvailableRides = mapData?.hiddenAvailableRides ?? 0
+
+  const handleAvailableRadiusChange = useCallback((value: number) => {
+    const next = normalizeDriverAvailableRadiusKm(value)
+    setAvailableRadiusKm(next)
+    storeDriverAvailableRadiusKm(next)
+    setSelectedPointId(null)
+    hapticSelection()
+  }, [])
+
   const activePoints = useMemo(
     () => visiblePoints.filter((p) => p.pointStatus !== 'done'),
     [visiblePoints],
@@ -725,6 +760,10 @@ export default function DriverCabinet() {
   const legendTopOffset = canSelfAssign
     ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 128}px)`
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
+
+  // Docks under the legend; only rendered in the "available" mode.
+  const radiusFilterTopOffset =
+    `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 172}px)`
 
   const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
     + (canSelfAssign ? 56 : 0)
@@ -1120,6 +1159,17 @@ export default function DriverCabinet() {
         <DriverMapLegend topOffset={legendTopOffset} />
       )}
 
+      {!isMapMarkViewMode && canSelfAssign && cabinetMode === 'available' && (
+        <DriverAvailableRadiusFilter
+          radiusKm={effectiveAvailableRadiusKm}
+          pointCount={availableRideCount}
+          hiddenCount={hiddenAvailableRides}
+          topOffset={radiusFilterTopOffset}
+          needsLocation={!mapData?.driverLocation}
+          onChange={handleAvailableRadiusChange}
+        />
+      )}
+
       {/* Primary long-route CTA — direction / future offer */}
       {!isMapMarkViewMode && !selectedPointId && (
         <div
@@ -1344,6 +1394,7 @@ export default function DriverCabinet() {
 
       {offerFormOpen && (
         <DriverOfferForm
+          initialLocation={displayDriverLocation}
           onClose={() => setOfferFormOpen(false)}
           onCreated={() => {
             void loadMapData().catch(() => undefined)

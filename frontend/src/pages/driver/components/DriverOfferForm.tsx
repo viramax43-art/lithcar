@@ -30,10 +30,13 @@ import { hapticSelection } from '../../../lib/telegram'
 import { useDriverOfferFormController } from '../useDriverOfferFormController'
 import { getDefaultMapCenterTuple, getDefaultMapZoom, resolveMapCenter } from '../../../lib/mapRegion'
 import { MapFlyToResolvedCenter } from '../../../components/MapFlyToResolvedCenter'
+import type { LatLng } from '../../../types'
 
 interface DriverOfferFormProps {
   onClose: () => void
   onCreated: () => void
+  /** Driver's current position; the map opens here instead of the zones centroid. */
+  initialLocation?: LatLng | null
 }
 
 const SHEET_MIN_HEIGHT_PX = 160
@@ -59,7 +62,7 @@ function clampSheetHeight(height: number) {
 }
 
 
-export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormProps) {
+export default function DriverOfferForm({ onClose, onCreated, initialLocation }: DriverOfferFormProps) {
   const { t } = useTranslation()
   const pinAnchorYFracRef = useRef(DEFAULT_PIN_ANCHOR_Y_FRAC)
   const mapAreaRef = useRef<HTMLDivElement>(null)
@@ -68,6 +71,17 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
     onCreated()
     onClose()
   }, pinAnchorYFracRef)
+
+  // Freeze the driver's position at the moment the form opens. The cabinet keeps
+  // receiving GPS updates while the sheet is open; letting them re-centre the map
+  // would yank the pin out from under the driver.
+  const [mapStartLocation, setMapStartLocation] = useState<LatLng | null>(
+    initialLocation ?? null,
+  )
+  useEffect(() => {
+    if (mapStartLocation || !initialLocation) return
+    setMapStartLocation(initialLocation)
+  }, [initialLocation, mapStartLocation])
 
   const { pinAnchorYFrac, obstructionPx } = useMapPinAnchor(mapAreaRef, bottomSheetRef, pinAnchorYFracRef, {
     mapRef: model.mapRef,
@@ -89,17 +103,24 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
   useEscapeClose(true, onClose)
 
-  // Like passenger: no auto-GPS. Map starts on zones; crosshair sets location on tap.
+  // The driver already sees their own position on the cabinet map. Opening the
+  // offer form must not jump to the zones centroid: current GPS wins, zones are
+  // only a fallback while the driver position is unknown.
   const allowMapAutoFly = !model.fromPoint && !model.toPoint
   const mapOperatingCenter = useMemo(
-    () => resolveMapCenter(model.activeZones, null),
-    [model.activeZones],
+    () => resolveMapCenter(model.activeZones, mapStartLocation),
+    [model.activeZones, mapStartLocation],
   )
   const mapFlyKey = allowMapAutoFly
-    ? model.activeZones.length > 0
-      ? `zones:${model.activeZones.length}`
-      : 'region-default'
+    ? mapStartLocation
+      ? `driver:${mapStartLocation.lat.toFixed(5)},${mapStartLocation.lng.toFixed(5)}`
+      : model.activeZones.length > 0
+        ? `zones:${model.activeZones.length}`
+        : 'region-default'
     : 'user-picking'
+  const mapInitialCenter: [number, number] = mapStartLocation
+    ? [mapStartLocation.lat, mapStartLocation.lng]
+    : getDefaultMapCenterTuple()
 
   const pinEmptyHint = model.activeIsFrom
     ? t('driver.pinHintPickup', { defaultValue: 'Откуда выезжаете?' })
@@ -224,7 +245,7 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
       </header>
 
       <div ref={mapAreaRef} className="relative flex-1 min-h-0">
-        <MapContainer center={getDefaultMapCenterTuple()} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false}>
+        <MapContainer center={mapInitialCenter} zoom={getDefaultMapZoom()} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <LocalizedTileLayer />
           <MapFlyToResolvedCenter
             center={mapOperatingCenter}

@@ -354,6 +354,12 @@ export interface DriverMapData {
   passengerLocations?: PassengerLiveLocation[]
   activeRides: number
   totalRides: number
+  /** Radius (km) actually applied to `availablePoints`; 0 = no limit. */
+  availableRadiusKm?: number
+  /** Admin-configured default radius (km) for the available-rides filter. */
+  defaultAvailableRadiusKm?: number
+  /** Available rides hidden by the radius filter in this response. */
+  hiddenAvailableRides?: number
 }
 
 export interface DriverCabinetData {

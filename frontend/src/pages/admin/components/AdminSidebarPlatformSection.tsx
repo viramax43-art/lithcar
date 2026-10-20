@@ -179,6 +179,24 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
           checked={platform.driver.defaultCanSelfAssign}
           onChange={(v) => save({ driver: { ...platform.driver, defaultCanSelfAssign: v } })}
         />
+        <label className="block text-sm">
+          <span className="font-semibold">
+            {t('admin.platform.availableRadius', {
+              defaultValue: 'Радиус доступных заявок на карте водителя (км, 0 = все)',
+            })}
+          </span>
+          <input
+            type="number"
+            step="1"
+            min={0}
+            max={100}
+            className={inputCls + ' mt-1'}
+            value={platform.driver.availableRadiusKm}
+            onChange={(e) =>
+              save({ driver: { ...platform.driver, availableRadiusKm: Number(e.target.value) } })
+            }
+          />
+        </label>
       </Section>
 
       <Section title={t('admin.platform.system', { defaultValue: 'Система и логика' })}>

@@ -22,6 +22,9 @@ DEFAULT_PLATFORM_CONFIG: dict[str, Any] = {
         "reassignmentPriorityBoost": True,
         "defaultCanSellPoints": True,
         "defaultCanSelfAssign": False,
+        # Default search radius for the "available rides" driver map, in km.
+        # 0 disables the radius filter and shows rides from the whole service area.
+        "availableRadiusKm": 7.0,
     },
     "system": {
         "eurUsdRate": 1.08,
@@ -105,6 +108,21 @@ def min_ride_distance_km(config: dict[str, Any] | None = None) -> float:
     except (TypeError, ValueError):
         value = 3.0
     return max(0.0, value)
+
+
+def driver_available_radius_km(config: dict[str, Any] | None = None) -> float:
+    """Return the admin default search radius for available rides, in km.
+
+    ``0`` (or a negative value) disables the filter. Values above 100 km are
+    clamped, matching the API query validation.
+    """
+    cfg = normalize_platform_config(config)
+    raw = cfg.get("driver", {}).get("availableRadiusKm", 7.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = 7.0
+    return min(100.0, max(0.0, value))
 
 
 def default_passenger_points(config: dict[str, Any] | None = None) -> int:

@@ -64,6 +64,11 @@ from app.services.driver_qr_sale_service import (
     list_driver_debts_summary,
 )
 from app.services.pricing_service import get_or_create_pricing
+from app.services.geo_service import haversine_km
+from app.services.platform_settings_service import (
+    driver_available_radius_km,
+    get_platform_config,
+)
 from app.services.rating_service import (
     RatingError,
     get_driver_rating_aggregate,
@@ -270,6 +275,12 @@ class DriverMapOut(BaseModel):
     passengerLocations: list[PassengerLiveLocationOut] = []
     activeRides: int
     totalRides: int
+    # Effective radius (km) used for availablePoints; 0 means "no limit".
+    availableRadiusKm: float = 0.0
+    # Admin-configured default, so a fresh driver UI can preselect it.
+    defaultAvailableRadiusKm: float = 0.0
+    # Available rides excluded by the radius filter in this response.
+    hiddenAvailableRides: int = 0
 
 
 class DriverCabinetOut(BaseModel):
@@ -498,8 +509,6 @@ def _compute_dynamic_ride_order(
     Remaining pending rides are sorted greedily by distance from current position.
     Returns a mapping of ride.id → 1-based order index.
     """
-    from app.services.geo_service import haversine_km
-
     active: list = []
     pending: list = []
     for r in rides:
@@ -970,6 +979,13 @@ def _ride_visible_on_driver_map(ride, *, now: datetime) -> bool:
 
 @router.get("/cabinet/map", response_model=DriverMapOut)
 async def driver_cabinet_map(
+    radius_km: float | None = Query(
+        default=None,
+        ge=0,
+        le=100,
+        alias="radiusKm",
+        description="Available-rides search radius in km; omit to use the platform default.",
+    ),
     session: DriverSession = Depends(get_driver_session),
     db_session: AsyncSession = Depends(get_db_session),
 ):
@@ -992,11 +1008,21 @@ async def driver_cabinet_map(
             RideRequestStatus.IN_PROGRESS,
         }
     ]
-    passenger_ids = list({item.passenger_id for item in map_rides})
 
     driver = await get_driver(db_session, driver_id=session.driver_id)
+    driver_lat = driver.current_lat if driver else None
+    driver_lng = driver.current_lng if driver else None
+
+    platform_config = await get_platform_config(db_session)
+    default_available_radius_km = driver_available_radius_km(platform_config)
+    effective_available_radius_km = (
+        default_available_radius_km
+        if radius_km is None
+        else min(100.0, max(0.0, float(radius_km)))
+    )
 
     available_rides: list = []
+    hidden_available_rides = 0
     if session.can_self_assign:
         available_rides, _ = await list_unassigned_rides(
             db_session,
@@ -1004,15 +1030,28 @@ async def driver_cabinet_map(
             offset=0,
             driver_user_id=driver.user_id if driver else None,
         )
-        passenger_ids = list({item.passenger_id for item in map_rides + available_rides})
+        # Distance filtering needs a known driver position. Without it the map
+        # keeps showing every available ride instead of silently hiding them.
+        if (
+            effective_available_radius_km > 0
+            and driver_lat is not None
+            and driver_lng is not None
+        ):
+            total_available = len(available_rides)
+            available_rides = [
+                ride
+                for ride in available_rides
+                if haversine_km(driver_lat, driver_lng, ride.from_lat, ride.from_lng)
+                <= effective_available_radius_km
+            ]
+            hidden_available_rides = total_available - len(available_rides)
+
+    passenger_ids = list({item.passenger_id for item in map_rides + available_rides})
 
     username_by_user_id, passenger_rating_by_user_id = await _load_passenger_context(
         db_session,
         passenger_ids=passenger_ids,
     )
-
-    driver_lat = driver.current_lat if driver else None
-    driver_lng = driver.current_lng if driver else None
 
     session_out = await _to_driver_session_out(
         db_session,
@@ -1048,6 +1087,9 @@ async def driver_cabinet_map(
         passengerLocations=_build_passenger_live_locations(map_rides),
         activeRides=len(active_rides),
         totalRides=total,
+        availableRadiusKm=effective_available_radius_km,
+        defaultAvailableRadiusKm=default_available_radius_km,
+        hiddenAvailableRides=hidden_available_rides,
     )
 
 
