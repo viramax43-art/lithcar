@@ -42,6 +42,7 @@ import { useEscapeClose } from '../../lib/useEscapeClose'
 import {
   DEFAULT_DRIVER_AVAILABLE_RADIUS_KM,
   normalizeDriverAvailableRadiusKm,
+  normalizeDriverAvailableRadiusMaxKm,
   readStoredDriverAvailableRadiusKm,
   storeDriverAvailableRadiusKm,
 } from '../../lib/driverAvailableRadius'
@@ -686,22 +687,27 @@ export default function DriverCabinet() {
   }, [visibleAvailablePoints])
 
   // Persisted driver choice wins; otherwise follow the radius the backend used
-  // (its admin-configured default), then the built-in fallback.
-  const effectiveAvailableRadiusKm = normalizeDriverAvailableRadiusKm(
-    availableRadiusKm
-      ?? mapData?.availableRadiusKm
-      ?? mapData?.defaultAvailableRadiusKm
-      ?? DEFAULT_DRIVER_AVAILABLE_RADIUS_KM,
+  // (its admin-configured default), then the built-in fallback. The admin may
+  // lower the slider maximum, so the effective value is clamped to it too.
+  const maxAvailableRadiusKm = normalizeDriverAvailableRadiusMaxKm(mapData?.maxAvailableRadiusKm)
+  const effectiveAvailableRadiusKm = Math.min(
+    maxAvailableRadiusKm,
+    normalizeDriverAvailableRadiusKm(
+      availableRadiusKm
+        ?? mapData?.availableRadiusKm
+        ?? mapData?.defaultAvailableRadiusKm
+        ?? DEFAULT_DRIVER_AVAILABLE_RADIUS_KM,
+    ),
   )
   const hiddenAvailableRides = mapData?.hiddenAvailableRides ?? 0
 
   const handleAvailableRadiusChange = useCallback((value: number) => {
-    const next = normalizeDriverAvailableRadiusKm(value)
+    const next = Math.min(maxAvailableRadiusKm, normalizeDriverAvailableRadiusKm(value))
     setAvailableRadiusKm(next)
     storeDriverAvailableRadiusKm(next)
     setSelectedPointId(null)
     hapticSelection()
-  }, [])
+  }, [maxAvailableRadiusKm])
 
   const activePoints = useMemo(
     () => visiblePoints.filter((p) => p.pointStatus !== 'done'),
@@ -1167,6 +1173,7 @@ export default function DriverCabinet() {
         >
           <DriverAvailableRadiusFilter
             radiusKm={effectiveAvailableRadiusKm}
+            maxRadiusKm={maxAvailableRadiusKm}
             pointCount={availableRideCount}
             hiddenCount={hiddenAvailableRides}
             needsLocation={!mapData?.driverLocation}

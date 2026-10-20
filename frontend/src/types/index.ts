@@ -358,6 +358,8 @@ export interface DriverMapData {
   availableRadiusKm?: number
   /** Admin-configured default radius (km) for the available-rides filter. */
   defaultAvailableRadiusKm?: number
+  /** Admin-configured maximum radius (km) of the driver radius slider. */
+  maxAvailableRadiusKm?: number
   /** Available rides hidden by the radius filter in this response. */
   hiddenAvailableRides?: number
 }

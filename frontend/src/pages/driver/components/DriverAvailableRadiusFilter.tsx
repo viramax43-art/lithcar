@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { CaretDown, CaretUp, Crosshair } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
-import { DRIVER_AVAILABLE_RADIUS_OPTIONS } from '../../../lib/driverAvailableRadius'
+import {
+  DRIVER_AVAILABLE_RADIUS_MAX_KM,
+  normalizeDriverAvailableRadiusMaxKm,
+} from '../../../lib/driverAvailableRadius'
 
 interface DriverAvailableRadiusFilterProps {
   /** Effective radius in km; `0` means "no limit". */
   radiusKm: number
+  /** Admin-configured upper bound; falls back to the API limit. */
+  maxRadiusKm?: number
   pointCount: number
   hiddenCount?: number
   /** The backend can only filter once the driver's position is known. */
@@ -18,14 +24,21 @@ function formatRadius(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
+function clampRadius(value: number, maxKm: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(maxKm, Math.max(0, Math.round(value)))
+}
+
 /**
  * Compact map bar that limits the "available rides" pool to a radius around
- * the driver. The radius is applied server-side; this component only owns the
- * presentation and the preset list. It is anchored to the bottom edge by its
- * parent, so the expanded panel opens upward without leaving the viewport.
+ * the driver. The radius is applied server-side; this component exposes a
+ * continuous slider plus a manual numeric field. It is anchored to the bottom
+ * edge by its parent, so the expanded panel opens upward without leaving the
+ * viewport.
  */
 export default function DriverAvailableRadiusFilter({
   radiusKm,
+  maxRadiusKm = DRIVER_AVAILABLE_RADIUS_MAX_KM,
   pointCount,
   hiddenCount = 0,
   needsLocation = false,
@@ -33,15 +46,40 @@ export default function DriverAvailableRadiusFilter({
 }: DriverAvailableRadiusFilterProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const effectiveMaxKm = normalizeDriverAvailableRadiusMaxKm(maxRadiusKm)
+  const [draftKm, setDraftKm] = useState(() => clampRadius(radiusKm, effectiveMaxKm))
+  const [manualValue, setManualValue] = useState(() => String(clampRadius(radiusKm, effectiveMaxKm)))
 
-  // An admin may configure a value that is not one of the presets — keep it
-  // selectable so the active chip is always visible.
-  const options = DRIVER_AVAILABLE_RADIUS_OPTIONS.includes(radiusKm)
-    ? DRIVER_AVAILABLE_RADIUS_OPTIONS
-    : [...DRIVER_AVAILABLE_RADIUS_OPTIONS, radiusKm].sort((a, b) => a - b)
+  // Keep the local draft in sync when the effective radius changes (initial
+  // load, admin default change, or a newer map poll).
+  useEffect(() => {
+    const next = clampRadius(radiusKm, effectiveMaxKm)
+    setDraftKm(next)
+    setManualValue(String(next))
+  }, [radiusKm, effectiveMaxKm])
 
-  const valueLabel = radiusKm > 0
-    ? t('driver.map.radiusKm', { count: formatRadius(radiusKm), defaultValue: '{{count}} км' })
+  const commitRadius = (value: number) => {
+    const next = clampRadius(value, effectiveMaxKm)
+    setDraftKm(next)
+    setManualValue(String(next))
+    if (next !== radiusKm) onChange(next)
+  }
+
+  const commitManualValue = () => {
+    const parsed = Number(manualValue.replace(',', '.').trim())
+    if (!Number.isFinite(parsed)) {
+      setManualValue(String(draftKm))
+      return
+    }
+    commitRadius(parsed)
+  }
+
+  const progress = effectiveMaxKm > 0
+    ? Math.min(100, Math.max(0, (draftKm / effectiveMaxKm) * 100))
+    : 0
+
+  const valueLabel = draftKm > 0
+    ? t('driver.map.radiusKm', { count: formatRadius(draftKm), defaultValue: '{{count}} км' })
     : t('driver.map.radiusAll', { defaultValue: 'Все' })
 
   return (
@@ -82,36 +120,63 @@ export default function DriverAvailableRadiusFilter({
       </button>
 
       {expanded && (
-        <div className="px-3 pt-3 pb-1 space-y-2 border-b border-border">
-          <div className="grid grid-cols-4 gap-1.5">
-            {options.map((value) => {
-              const selected = value === radiusKm
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => onChange(value)}
-                  className={`min-h-9 rounded-xl px-2 text-[11px] font-bold transition-colors touch-none ${
-                    selected ? 'bg-black text-white' : 'bg-surface text-muted hover:text-black'
-                  }`}
-                >
-                  {value === 0
-                    ? t('driver.map.radiusAll', { defaultValue: 'Все' })
-                    : t('driver.map.radiusKm', {
-                        count: formatRadius(value),
-                        defaultValue: '{{count}} км',
-                      })}
-                </button>
-              )
-            })}
+        <div className="px-3 pt-2.5 pb-2 space-y-2 border-b border-border">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+              {t('driver.map.radiusFilter', { defaultValue: 'Радиус' })}
+            </span>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={effectiveMaxKm}
+                step={1}
+                value={manualValue}
+                onChange={(event) => setManualValue(event.target.value)}
+                onBlur={commitManualValue}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur()
+                }}
+                aria-label={t('driver.map.radiusManual', {
+                  defaultValue: 'Радиус вручную, км',
+                })}
+                className="w-16 h-9 px-2 rounded-xl border-[1.5px] border-border bg-surface text-center text-sm font-bold outline-none focus:border-black focus:bg-white transition-colors"
+              />
+              <span className="text-[11px] font-semibold text-muted">
+                {t('driver.map.radiusUnit', { defaultValue: 'км' })}
+              </span>
+            </label>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={effectiveMaxKm}
+            step={1}
+            value={draftKm}
+            onChange={(event) => setDraftKm(clampRadius(Number(event.target.value), effectiveMaxKm))}
+            onPointerUp={(event) => commitRadius(Number(event.currentTarget.value))}
+            onKeyUp={(event) => commitRadius(Number(event.currentTarget.value))}
+            aria-label={t('driver.map.radiusFilter', { defaultValue: 'Радиус' })}
+            aria-valuetext={valueLabel}
+            className="driver-radius-slider w-full"
+            style={{ '--driver-radius-progress': `${progress}%` } as CSSProperties}
+          />
+          <div className="flex justify-between text-[10px] font-medium text-muted">
+            <span>{t('driver.map.radiusZero', { defaultValue: '0 — все' })}</span>
+            <span>
+              {t('driver.map.radiusKm', {
+                count: formatRadius(effectiveMaxKm),
+                defaultValue: '{{count}} км',
+              })}
+            </span>
           </div>
           <p className="text-[10px] leading-snug text-muted">
             {t('driver.map.radiusHint', {
               defaultValue: 'Показываются только заявки, посадка которых ближе выбранного радиуса.',
             })}
           </p>
-          {needsLocation && radiusKm > 0 && (
+          {needsLocation && draftKm > 0 && (
             <p className="text-[10px] leading-snug font-semibold text-amber-700">
               {t('driver.map.radiusNeedsLocation', {
                 defaultValue: 'Включите геолокацию, чтобы фильтр по расстоянию работал.',

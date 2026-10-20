@@ -14,6 +14,7 @@ export interface PlatformSettingsConfig {
     defaultCanSellPoints: boolean
     defaultCanSelfAssign: boolean
     availableRadiusKm: number
+    availableRadiusMaxKm: number
   }
   system: {
     eurUsdRate: number
@@ -55,6 +56,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsConfig = {
     defaultCanSellPoints: true,
     defaultCanSelfAssign: false,
     availableRadiusKm: 7,
+    availableRadiusMaxKm: 100,
   },
   system: {
     eurUsdRate: 1.08,

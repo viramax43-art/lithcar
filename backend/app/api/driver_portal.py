@@ -67,6 +67,7 @@ from app.services.pricing_service import get_or_create_pricing
 from app.services.geo_service import haversine_km
 from app.services.platform_settings_service import (
     driver_available_radius_km,
+    driver_available_radius_max_km,
     get_platform_config,
 )
 from app.services.rating_service import (
@@ -279,6 +280,8 @@ class DriverMapOut(BaseModel):
     availableRadiusKm: float = 0.0
     # Admin-configured default, so a fresh driver UI can preselect it.
     defaultAvailableRadiusKm: float = 0.0
+    # Admin-configured upper bound of the radius slider.
+    maxAvailableRadiusKm: float = 100.0
     # Available rides excluded by the radius filter in this response.
     hiddenAvailableRides: int = 0
 
@@ -1014,11 +1017,12 @@ async def driver_cabinet_map(
     driver_lng = driver.current_lng if driver else None
 
     platform_config = await get_platform_config(db_session)
+    max_available_radius_km = driver_available_radius_max_km(platform_config)
     default_available_radius_km = driver_available_radius_km(platform_config)
     effective_available_radius_km = (
         default_available_radius_km
         if radius_km is None
-        else min(100.0, max(0.0, float(radius_km)))
+        else min(max_available_radius_km, max(0.0, float(radius_km)))
     )
 
     available_rides: list = []
@@ -1089,6 +1093,7 @@ async def driver_cabinet_map(
         totalRides=total,
         availableRadiusKm=effective_available_radius_km,
         defaultAvailableRadiusKm=default_available_radius_km,
+        maxAvailableRadiusKm=max_available_radius_km,
         hiddenAvailableRides=hidden_available_rides,
     )
 

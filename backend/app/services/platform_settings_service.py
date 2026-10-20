@@ -25,6 +25,8 @@ DEFAULT_PLATFORM_CONFIG: dict[str, Any] = {
         # Default search radius for the "available rides" driver map, in km.
         # 0 disables the radius filter and shows rides from the whole service area.
         "availableRadiusKm": 7.0,
+        # Upper bound of the driver-map radius slider, in km.
+        "availableRadiusMaxKm": 100.0,
     },
     "system": {
         "eurUsdRate": 1.08,
@@ -110,11 +112,27 @@ def min_ride_distance_km(config: dict[str, Any] | None = None) -> float:
     return max(0.0, value)
 
 
+def driver_available_radius_max_km(config: dict[str, Any] | None = None) -> float:
+    """Return the admin-configured upper bound of the radius slider, in km.
+
+    The value is clamped to the 1–100 km range enforced by the API. The driver
+    map always allows ``0`` (all rides), so the lower bound only applies to the
+    maximum itself.
+    """
+    cfg = normalize_platform_config(config)
+    raw = cfg.get("driver", {}).get("availableRadiusMaxKm", 100.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = 100.0
+    return min(100.0, max(1.0, value))
+
+
 def driver_available_radius_km(config: dict[str, Any] | None = None) -> float:
     """Return the admin default search radius for available rides, in km.
 
-    ``0`` (or a negative value) disables the filter. Values above 100 km are
-    clamped, matching the API query validation.
+    ``0`` (or a negative value) disables the filter. The value is clamped to
+    the admin-configured slider maximum, which in turn cannot exceed 100 km.
     """
     cfg = normalize_platform_config(config)
     raw = cfg.get("driver", {}).get("availableRadiusKm", 7.0)
@@ -122,7 +140,8 @@ def driver_available_radius_km(config: dict[str, Any] | None = None) -> float:
         value = float(raw)
     except (TypeError, ValueError):
         value = 7.0
-    return min(100.0, max(0.0, value))
+    max_km = driver_available_radius_max_km(cfg)
+    return min(max_km, max(0.0, value))
 
 
 def default_passenger_points(config: dict[str, Any] | None = None) -> int:

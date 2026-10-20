@@ -129,6 +129,7 @@ async def test_driver_map_filters_available_rides_by_radius(client, db_session):
     default_body = default_map.json()
     assert default_body["defaultAvailableRadiusKm"] == 7
     assert default_body["availableRadiusKm"] == 7
+    assert default_body["maxAvailableRadiusKm"] == 100
     assert _available_ride_ids(default_body) == {near_id}
     assert default_body["hiddenAvailableRides"] == 1
 
@@ -165,3 +166,23 @@ async def test_driver_map_filters_available_rides_by_radius(client, db_session):
     assert remapped.json()["availableRadiusKm"] == 1
     assert _available_ride_ids(remapped.json()) == {near_id}
     assert remapped.json()["hiddenAvailableRides"] == 1
+
+    # The admin can lower the slider maximum; both the default and explicit
+    # requests are capped by it.
+    capped_settings = await client.patch(
+        "/api/admin/platform-settings",
+        json={"driver": {"availableRadiusKm": 80, "availableRadiusMaxKm": 25}},
+    )
+    assert capped_settings.status_code == 200
+    assert capped_settings.json()["driver"]["availableRadiusMaxKm"] == 25
+
+    capped_default = await client.get("/api/driver/cabinet/map")
+    assert capped_default.status_code == 200
+    assert capped_default.json()["maxAvailableRadiusKm"] == 25
+    assert capped_default.json()["defaultAvailableRadiusKm"] == 25
+    assert capped_default.json()["availableRadiusKm"] == 25
+
+    capped_override = await client.get("/api/driver/cabinet/map", params={"radiusKm": 100})
+    assert capped_override.status_code == 200
+    assert capped_override.json()["availableRadiusKm"] == 25
+    assert _available_ride_ids(capped_override.json()) == {near_id}

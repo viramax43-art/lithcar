@@ -182,19 +182,53 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
         <label className="block text-sm">
           <span className="font-semibold">
             {t('admin.platform.availableRadius', {
-              defaultValue: 'Радиус доступных заявок на карте водителя (км, 0 = все)',
+              defaultValue: 'Радиус по умолчанию на карте водителя (км, 0 = все)',
             })}
           </span>
           <input
             type="number"
             step="1"
             min={0}
-            max={100}
+            max={platform.driver.availableRadiusMaxKm}
             className={inputCls + ' mt-1'}
             value={platform.driver.availableRadiusKm}
-            onChange={(e) =>
-              save({ driver: { ...platform.driver, availableRadiusKm: Number(e.target.value) } })
-            }
+            onChange={(e) => {
+              const value = Math.min(
+                platform.driver.availableRadiusMaxKm,
+                Math.max(0, Number(e.target.value) || 0),
+              )
+              save({ driver: { ...platform.driver, availableRadiusKm: value } })
+            }}
+          />
+          <p className="text-[10px] leading-snug text-muted mt-1">
+            {t('admin.platform.availableRadiusHint', {
+              defaultValue: 'Водитель может изменить радиус на карте; 0 показывает все заявки.',
+            })}
+          </p>
+        </label>
+        <label className="block text-sm">
+          <span className="font-semibold">
+            {t('admin.platform.availableRadiusMax', {
+              defaultValue: 'Максимальный радиус бегунка (км)',
+            })}
+          </span>
+          <input
+            type="number"
+            step="1"
+            min={1}
+            max={100}
+            className={inputCls + ' mt-1'}
+            value={platform.driver.availableRadiusMaxKm}
+            onChange={(e) => {
+              const max = Math.min(100, Math.max(1, Number(e.target.value) || 1))
+              save({
+                driver: {
+                  ...platform.driver,
+                  availableRadiusMaxKm: max,
+                  availableRadiusKm: Math.min(platform.driver.availableRadiusKm, max),
+                },
+              })
+            }}
           />
         </label>
       </Section>
