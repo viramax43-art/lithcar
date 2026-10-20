@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assignOfferColors,
+  contrastRatio,
   fallbackOfferColor,
+  offerColorTextColor,
   offerIntersectsViewport,
   OFFER_COLOR_PALETTE,
   OWN_OFFER_COLOR,
@@ -77,6 +79,38 @@ describe('assignOfferColors', () => {
   it('returns a stable fallback colour outside the viewport', () => {
     expect(fallbackOfferColor('offer-42')).toBe(fallbackOfferColor('offer-42'))
     expect(OFFER_COLOR_PALETTE).toContain(fallbackOfferColor('offer-42'))
+  })
+})
+
+describe('offerColorTextColor', () => {
+  function expectReadableLabel(fill: string) {
+    const label = offerColorTextColor(fill)
+    expect(contrastRatio(label, fill)).toBeGreaterThanOrEqual(4.5)
+  }
+
+  it('keeps A/B letters readable on every palette colour', () => {
+    for (const fill of [...OFFER_COLOR_PALETTE, OWN_OFFER_COLOR]) {
+      expectReadableLabel(fill)
+    }
+  })
+
+  it('picks white for dark fills and black for bright fills', () => {
+    expect(offerColorTextColor('#2563EB')).toBe('#FFFFFF')
+    expect(offerColorTextColor('#F97316')).toBe('#000000')
+    expect(offerColorTextColor('#CA8A04')).toBe('#000000')
+  })
+
+  it('keeps overflow hsl colours readable as well', () => {
+    const colors = assignOfferColors(makeOffers(OFFER_COLOR_PALETTE.length + 24))
+    expect(colors.size).toBeGreaterThan(OFFER_COLOR_PALETTE.length)
+
+    for (const fill of colors.values()) {
+      expectReadableLabel(fill)
+    }
+  })
+
+  it('parses short hex colours', () => {
+    expect(contrastRatio('#fff', '#000')).toBeCloseTo(21, 5)
   })
 })
 

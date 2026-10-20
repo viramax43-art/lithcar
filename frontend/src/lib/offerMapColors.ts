@@ -3,13 +3,19 @@ import type { LatLng } from '../types'
 /**
  * Reserved for the passenger's own booked ride. It is deliberately excluded
  * from the regular palette so "my ride" can never look like somebody else's.
+ * The darker green keeps white letters and the "your ride" badge readable.
  */
-export const OWN_OFFER_COLOR = '#16A34A'
+export const OWN_OFFER_COLOR = '#15803D'
 
 /**
- * Saturated, sufficiently dark colours: they stay readable under a white
- * marker border and as a 2px route line on a light map. Green is omitted on
- * purpose — it is reserved for OWN_OFFER_COLOR.
+ * Vivid, saturated colours with clearly separated hues. They are used both for
+ * the A/B badges and for the route line, so they must stand out from the light
+ * map and from each other.
+ *
+ * Marker letters are not hard-coded to white: `offerColorTextColor` picks
+ * black or white per colour, which keeps bright orange/gold/cyan badges just
+ * as readable as dark blue/violet ones. Green is omitted on purpose — it is
+ * reserved for OWN_OFFER_COLOR.
  */
 export const OFFER_COLOR_PALETTE = [
   '#2563EB',
@@ -25,6 +31,99 @@ export const OFFER_COLOR_PALETTE = [
   '#C026D3',
   '#475569',
 ] as const
+
+const LABEL_LIGHT = '#FFFFFF'
+const LABEL_DARK = '#000000'
+const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
+const HSL_COLOR_REGEX =
+  /^hsla?\(\s*([+-]?\d+(?:\.\d+)?)(?:deg)?[\s,]+(\d+(?:\.\d+)?)%[\s,]+(\d+(?:\.\d+)?)%(?:\s*[,/]\s*[\d.]+%?)?\s*\)$/i
+
+function hslToRgb(hue: number, saturation: number, lightness: number): [number, number, number] {
+  const h = ((hue % 360) + 360) % 360 / 360
+  const s = Math.min(Math.max(saturation, 0), 100) / 100
+  const l = Math.min(Math.max(lightness, 0), 100) / 100
+
+  if (s === 0) {
+    const channel = l * 255
+    return [channel, channel, channel]
+  }
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+  const channelAt = (offset: number) => {
+    let t = h + offset
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+
+  return [channelAt(1 / 3) * 255, channelAt(0) * 255, channelAt(-1 / 3) * 255]
+}
+
+function parseColorChannels(value: string): [number, number, number] | null {
+  const normalized = value.trim()
+
+  const hex = normalized.match(HEX_COLOR_REGEX)
+  if (hex) {
+    const digits = hex[1]
+    const expanded =
+      digits.length === 3
+        ? digits
+            .split('')
+            .map((digit) => digit + digit)
+            .join('')
+        : digits
+    return [
+      Number.parseInt(expanded.slice(0, 2), 16),
+      Number.parseInt(expanded.slice(2, 4), 16),
+      Number.parseInt(expanded.slice(4, 6), 16),
+    ]
+  }
+
+  const hsl = normalized.match(HSL_COLOR_REGEX)
+  if (hsl) {
+    return hslToRgb(Number(hsl[1]), Number(hsl[2]), Number(hsl[3]))
+  }
+
+  return null
+}
+
+function relativeLuminance(channels: [number, number, number]): number {
+  const [red, green, blue] = channels.map((channel) => {
+    const value = channel / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+}
+
+/** WCAG contrast ratio between two CSS colours (1–21). */
+export function contrastRatio(foreground: string, background: string): number {
+  const foregroundChannels = parseColorChannels(foreground)
+  const backgroundChannels = parseColorChannels(background)
+  if (!foregroundChannels || !backgroundChannels) return 0
+
+  const foregroundLuminance = relativeLuminance(foregroundChannels)
+  const backgroundLuminance = relativeLuminance(backgroundChannels)
+  return (
+    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+  )
+}
+
+/**
+ * Returns the label colour with the strongest contrast against the badge fill.
+ * Using pure black/white guarantees at least 4.58:1 for any valid colour, which
+ * keeps the A/B letters readable even when many small markers overlap.
+ */
+export function offerColorTextColor(background: string): string {
+  if (!parseColorChannels(background)) return LABEL_LIGHT
+  return contrastRatio(LABEL_DARK, background) >= contrastRatio(LABEL_LIGHT, background)
+    ? LABEL_DARK
+    : LABEL_LIGHT
+}
 
 export interface OfferColorInput {
   id: string
@@ -77,8 +176,8 @@ function findFreePaletteColor(
 function overflowOfferColor(seed: number, overflowIndex: number): string {
   const rawHue = Math.round((seed % 360 + overflowIndex * 137.508) % 360)
   const hue = rawHue >= 105 && rawHue <= 180 ? (rawHue + 75) % 360 : rawHue
-  const lightness = overflowIndex % 2 === 0 ? 42 : 52
-  return `hsl(${hue} 72% ${lightness}%)`
+  const lightness = overflowIndex % 2 === 0 ? 40 : 50
+  return `hsl(${hue} 82% ${lightness}%)`
 }
 
 /**
