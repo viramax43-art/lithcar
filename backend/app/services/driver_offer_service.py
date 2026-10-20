@@ -23,6 +23,7 @@ from app.services.ride_booking_service import (
     _quote_breakdown_to_json,
     validate_ride_datetime,
 )
+from app.services.ride_distance_policy import ensure_ride_distance_allowed_for_session
 from app.services.ride_quote_service import calculate_ride_quote
 from app.services.ride_request_service import (
     ClaimRideError,
@@ -144,6 +145,15 @@ async def create_driver_offer(
 
     if total_seats < 1:
         raise DriverOfferError("invalid_status", "totalSeats must be at least 1.")
+
+    # A driver offer must also cover at least the configured A→B distance.
+    await ensure_ride_distance_allowed_for_session(
+        db_session,
+        from_lat=from_lat,
+        from_lng=from_lng,
+        to_lat=to_lat,
+        to_lng=to_lng,
+    )
 
     pricing = await _get_or_create_pricing_no_commit(db_session)
     try:

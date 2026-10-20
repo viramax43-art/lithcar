@@ -258,6 +258,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Failed to create ride. Check date and time.",
         "ru": "Не удалось оформить поездку. Проверьте дату и время.",
     },
+    "booking.point_b_too_close": {
+        "lt": "Taskas B per arti tasko A.",
+        "pl": "Punkt B jest zbyt blisko punktu A.",
+        "en": "Point B is too close to point A.",
+        "ru": "Точка Б слишком близко к точке А.",
+    },
+    "booking.min_distance": {
+        "lt": "Minimalus atstumas",
+        "pl": "Minimalna odleglosc",
+        "en": "Minimum distance",
+        "ru": "Минимальное расстояние",
+    },
     "booking.created": {
         "lt": "Kelione sukurta.",
         "pl": "Przejazd utworzony.",

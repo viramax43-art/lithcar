@@ -183,6 +183,21 @@ export function AdminSidebarPlatformSection({ activeTab, platform, onChange }: P
 
       <Section title={t('admin.platform.system', { defaultValue: 'Система и логика' })}>
         <label className="block text-sm">
+          <span className="font-semibold">
+            {t('admin.platform.minRideDistance', { defaultValue: 'Мин. расстояние A→B (км, 0 = без ограничения)' })}
+          </span>
+          <input
+            type="number"
+            step="0.1"
+            min={0}
+            className={inputCls + ' mt-1'}
+            value={platform.system.minRideDistanceKm}
+            onChange={(e) =>
+              save({ system: { ...platform.system, minRideDistanceKm: Number(e.target.value) } })
+            }
+          />
+        </label>
+        <label className="block text-sm">
           <span className="font-semibold">{t('admin.platform.kmRatio', { defaultValue: 'Коэф. км' })}</span>
           <input
             type="number"

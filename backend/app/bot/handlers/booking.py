@@ -31,6 +31,7 @@ from app.services.ride_booking_service import (
     InvalidRideDateTimeError,
     book_ride,
 )
+from app.services.ride_distance_policy import RideDistanceTooShortError
 from app.services.user_service import update_user_language
 
 router = Router(name="booking")
@@ -499,6 +500,14 @@ async def submit_booking(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer(
             f"{t('booking.insufficient_points', lang)}\n"
             f"{t('booking.required', lang)}: {exc.required_points}, {t('booking.current', lang)}: {exc.current_balance}."
+        )
+        await callback.answer()
+        return
+    except RideDistanceTooShortError as exc:
+        await state.update_data(submitted=False)
+        await callback.message.answer(
+            f"{t('booking.point_b_too_close', lang)}\n"
+            f"{t('booking.min_distance', lang)}: {exc.min_distance_km:g} km."
         )
         await callback.answer()
         return

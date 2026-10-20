@@ -15,7 +15,7 @@ import {
 } from '../../lib/geocode'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../lib/telegram'
 import type { LatLng, PricingSettings, ServiceZone } from '../../types'
-import { coordsNear } from '../../utils/geo'
+import { coordsNear, distanceKm } from '../../utils/geo'
 import {
   isPickupZoneCheckActive,
   resolvePickupLocation,
@@ -224,6 +224,24 @@ export function useDriverOfferFormController(
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
 
+  const validatePointB = useCallback(
+    (latlng: LatLng): boolean => {
+      const minDistanceKm = pricing.minRideDistanceKm
+      if (fromPoint && minDistanceKm > 0 && distanceKm(fromPoint, latlng) + 1e-9 < minDistanceKm) {
+        hapticNotification('error')
+        showZoneWarning(
+          t('passenger.pointBTooClose', {
+            min: minDistanceKm,
+            defaultValue: `Точка Б слишком близко. Минимальное расстояние — ${minDistanceKm} км.`,
+          }),
+        )
+        return false
+      }
+      return true
+    },
+    [fromPoint, pricing.minRideDistanceKm, showZoneWarning, t],
+  )
+
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
     const fieldForZone: 'from' | 'to' =
@@ -247,6 +265,7 @@ export function useDriverOfferFormController(
       hapticImpact('light')
       window.setTimeout(() => armPinFromMapCenter(), 200)
     } else if (!toPoint || activeField === 'to') {
+      if (!validatePointB(pinLatLng)) return
       setToPoint(pinLatLng)
       setToAddress(resolved)
       hapticImpact('medium')
@@ -264,6 +283,7 @@ export function useDriverOfferFormController(
     cancelPinResolution,
     showZoneWarning,
     t,
+    validatePointB,
   ])
 
   const focusRouteField = useCallback(
@@ -344,6 +364,7 @@ export function useDriverOfferFormController(
         setActiveField('to')
         hapticSelection()
       } else if (!toPoint) {
+        if (!validatePointB(latlng)) return
         setToPoint(latlng)
         setToAddress(shortName)
         hapticSelection()
@@ -352,6 +373,7 @@ export function useDriverOfferFormController(
         setFromAddress(shortName)
         hapticSelection()
       } else {
+        if (!validatePointB(latlng)) return
         setToPoint(latlng)
         setToAddress(shortName)
         hapticSelection()
@@ -361,7 +383,7 @@ export function useDriverOfferFormController(
       setSearchResults([])
       panMapToTarget(latlng)
     },
-    [activeField, fromPoint, panMapToTarget, toPoint],
+    [activeField, fromPoint, panMapToTarget, toPoint, validatePointB],
   )
 
   const handleLocateMe = useCallback(() => {
@@ -435,7 +457,14 @@ export function useDriverOfferFormController(
     } catch (error) {
       hapticNotification('error')
       const code = parseApiErrorCode(error)
-      if (code === 'pickup_out_of_zone') {
+      if (code === 'ride_distance_too_short') {
+        setErrorMessage(
+          t('passenger.pointBTooClose', {
+            min: pricing.minRideDistanceKm,
+            defaultValue: `Точка Б слишком близко. Минимальное расстояние — ${pricing.minRideDistanceKm} км.`,
+          }),
+        )
+      } else if (code === 'pickup_out_of_zone') {
         setErrorMessage(
           t('passenger.pointAOutOfZone', {
             defaultValue:
@@ -455,7 +484,7 @@ export function useDriverOfferFormController(
     } finally {
       setSubmitting(false)
     }
-  }, [dateTime, fromAddress, fromPoint, onSuccess, parsedTotalSeats, t, toAddress, toPoint])
+  }, [dateTime, fromAddress, fromPoint, onSuccess, parsedTotalSeats, pricing.minRideDistanceKm, t, toAddress, toPoint])
 
   useEffect(() => {
     if (fromPoint && toPoint) return

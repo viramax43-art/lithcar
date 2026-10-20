@@ -77,6 +77,14 @@ async def clean_database():
         truncate_query = f"TRUNCATE TABLE {', '.join(table_names)} RESTART IDENTITY CASCADE"
         async with engine.begin() as conn:
             await conn.execute(text(truncate_query))
+            # Existing suites exercise lifecycle logic with short routes; keep the
+            # admin-configurable A→B limit disabled unless a test opts in.
+            await conn.execute(
+                text(
+                    "INSERT INTO platform_settings (id, config_json, updated_at) "
+                    "VALUES (1, '{\"system\": {\"minRideDistanceKm\": 0}}'::jsonb, now())"
+                )
+            )
     await engine.dispose()
     yield
 

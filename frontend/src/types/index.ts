@@ -218,6 +218,8 @@ export interface PricingSettings {
   workStartTime: string
   workEndTime: string
   slotIntervalMinutes: number
+  /** Minimum A→B distance in km; 0 disables the check. */
+  minRideDistanceKm: number
 }
 
 export interface RideQuoteBreakdownLine {

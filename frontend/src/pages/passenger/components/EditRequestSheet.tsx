@@ -8,6 +8,7 @@ import { addAppLocalDays, rideLocalDateInput, rideLocalTimeInput, toAppLocalDate
 import RideTimeField from '../../../components/RideTimeField'
 import { buildRideTimeSlots } from '../../../lib/rideTimeSlots'
 import { useEscapeClose } from '../../../lib/useEscapeClose'
+import { distanceKm } from '../../../utils/geo'
 import type { PricingSettings, RideRequest } from '../../../types'
 
 interface EditRequestSheetProps {
@@ -82,9 +83,19 @@ export default function EditRequestSheet({
 
   if (!open) return null
 
-  const canSave = routeOnly
-    ? Boolean(routeValue.fromAddress.trim() && routeValue.toAddress.trim())
-    : Boolean(routeValue.fromAddress.trim() && routeValue.toAddress.trim() && date && time)
+  const destinationChanged =
+    routeValue.toAddress.trim() !== request.to.address.trim() ||
+    routeValue.toLatLng.lat !== request.to.latlng.lat ||
+    routeValue.toLatLng.lng !== request.to.latlng.lng
+  const destinationTooClose =
+    destinationChanged &&
+    pricing.minRideDistanceKm > 0 &&
+    distanceKm(routeValue.fromLatLng, routeValue.toLatLng) + 1e-9 < pricing.minRideDistanceKm
+  const canSave =
+    (routeOnly
+      ? Boolean(routeValue.fromAddress.trim() && routeValue.toAddress.trim())
+      : Boolean(routeValue.fromAddress.trim() && routeValue.toAddress.trim() && date && time)) &&
+    !destinationTooClose
 
   return (
     <>
@@ -154,6 +165,15 @@ export default function EditRequestSheet({
               </div>
             </>
           )}
+
+          {destinationTooClose ? (
+            <p className="text-xs font-medium text-red-600">
+              {t('passenger.pointBTooClose', {
+                min: pricing.minRideDistanceKm,
+                defaultValue: `Точка Б слишком близко. Минимальное расстояние — ${pricing.minRideDistanceKm} км.`,
+              })}
+            </p>
+          ) : null}
 
           <button
             type="button"

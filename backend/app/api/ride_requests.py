@@ -46,6 +46,7 @@ from app.services.ride_request_service import (
     update_ride_request,
     update_request_status,
 )
+from app.services.ride_distance_policy import RideDistanceTooShortError
 from app.services.ride_route_update_service import (
     PointUpdate,
     RouteChangeActor,
@@ -329,6 +330,8 @@ async def create_request(
             payment_method=payload.paymentMethod or "points",
         )
         request = booking_result.request
+    except RideDistanceTooShortError as exc:
+        raise HTTPException(status_code=400, detail=exc.as_http_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except InvalidRideDateTimeError as exc:

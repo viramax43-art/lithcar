@@ -26,6 +26,8 @@ DEFAULT_PLATFORM_CONFIG: dict[str, Any] = {
     "system": {
         "eurUsdRate": 1.08,
         "kmRatioMultiplier": 1.0,
+        # Минимальное расстояние между точками A и B. 0 отключает проверку.
+        "minRideDistanceKm": 3.0,
         "staleRequestMinutesPending": 30,
         "staleRequestMinutesPastRide": 5,
         "autoDeleteStaleRequests": True,
@@ -89,6 +91,20 @@ async def update_platform_config(
     await db_session.commit()
     await db_session.refresh(row)
     return merged
+
+
+def min_ride_distance_km(config: dict[str, Any] | None = None) -> float:
+    """Return the configured minimum A→B distance in kilometres.
+
+    ``0`` (or a negative value) disables the check.
+    """
+    cfg = normalize_platform_config(config)
+    raw = cfg.get("system", {}).get("minRideDistanceKm", 3.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = 3.0
+    return max(0.0, value)
 
 
 def default_passenger_points(config: dict[str, Any] | None = None) -> int:

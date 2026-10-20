@@ -43,6 +43,7 @@ import type { AppNotification, DriverCabinetData, DriverMapData, DriverMapPoint,
 
 import DriverAvailableRideSheet from './components/DriverAvailableRideSheet'
 import DriverCabinetModeSwitch, { type DriverCabinetMode } from './components/DriverCabinetModeSwitch'
+import DriverOfferForm from './components/DriverOfferForm'
 import DriverMap from './components/DriverMap'
 import DriverMapLegend from './components/DriverMapLegend'
 import DriverPointSheet from './components/DriverPointSheet'
@@ -369,7 +370,8 @@ export default function DriverCabinet() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
   const [driverHeading, setDriverHeading] = useState<number | null>(null)
-  const [openOffersMenu, setOpenOffersMenu] = useState(false)
+  /** "Add trip" opens the direction form directly, without the offers list in between. */
+  const [offerFormOpen, setOfferFormOpen] = useState(false)
   const [pendingRating, setPendingRating] = useState<{ rideId: string; passengerName: string; passengerId: string } | null>(null)
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false)
   const [ratingPassengerBlocked, setRatingPassengerBlocked] = useState(false)
@@ -1110,10 +1112,7 @@ export default function DriverCabinet() {
             setCabinetMode(mode)
             setSelectedPointId(null)
           }}
-          onAddTrip={() => {
-            setOpenOffersMenu(true)
-            setSideMenuOpen(true)
-          }}
+          onAddTrip={() => setOfferFormOpen(true)}
         />
       )}
 
@@ -1133,10 +1132,7 @@ export default function DriverCabinet() {
         >
           <button
             type="button"
-            onClick={() => {
-              setOpenOffersMenu(true)
-              setSideMenuOpen(true)
-            }}
+            onClick={() => setOfferFormOpen(true)}
             className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl bg-black text-white px-4 py-3 text-sm font-bold shadow-card active:scale-[0.97] transition-transform"
           >
             <Megaphone size={18} weight="fill" />
@@ -1343,10 +1339,18 @@ export default function DriverCabinet() {
         onClose={() => setSideMenuOpen(false)}
         onLogout={() => void handleLogout()}
         onOpenPassengerApp={handleOpenPassengerApp}
-        requestOffersScreen={openOffersMenu}
-        onRequestOffersHandled={() => setOpenOffersMenu(false)}
         onNotificationSelect={handleDriverNotificationSelect}
       />
+
+      {offerFormOpen && (
+        <DriverOfferForm
+          onClose={() => setOfferFormOpen(false)}
+          onCreated={() => {
+            void loadMapData().catch(() => undefined)
+            void loadCabinetData().catch(() => undefined)
+          }}
+        />
+      )}
 
       {/* ── Error toast ──────────────────────────────────────────────────── */}
       {!isMapMarkViewMode && errorMessage && (

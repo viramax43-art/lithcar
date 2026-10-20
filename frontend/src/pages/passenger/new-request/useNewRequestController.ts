@@ -17,7 +17,7 @@ import {
 } from '../../../lib/geocode'
 import { hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram'
 import type { LatLng, PricingSettings, RideQuote, ServiceZone } from '../../../types'
-import { coordsNear } from '../../../utils/geo'
+import { coordsNear, distanceKm } from '../../../utils/geo'
 import {
   isPickupZoneCheckActive,
   resolvePickupLocation,
@@ -284,6 +284,24 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
 
   armPinFromMapCenterRef.current = armPinFromMapCenter
 
+  const validatePointB = useCallback(
+    (latlng: LatLng): boolean => {
+      const minDistanceKm = pricing.minRideDistanceKm
+      if (fromPoint && minDistanceKm > 0 && distanceKm(fromPoint, latlng) + 1e-9 < minDistanceKm) {
+        hapticNotification('error')
+        showZoneWarning(
+          t('passenger.pointBTooClose', {
+            min: minDistanceKm,
+            defaultValue: `Точка Б слишком близко. Минимальное расстояние — ${minDistanceKm} км.`,
+          }),
+        )
+        return false
+      }
+      return true
+    },
+    [fromPoint, pricing.minRideDistanceKm, showZoneWarning, t],
+  )
+
   const confirmPoint = useCallback(() => {
     if (!pinLatLng) return
     const fieldForZone: 'from' | 'to' =
@@ -309,6 +327,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       hapticImpact('light')
       window.setTimeout(() => armPinFromMapCenter(), 200)
     } else if (!toPoint || activeField === 'to') {
+      if (!validatePointB(pinLatLng)) return
       setToPoint(pinLatLng)
       setToAddress(resolved)
       hapticImpact('medium')
@@ -328,6 +347,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
     cancelPinResolution,
     showZoneWarning,
     t,
+    validatePointB,
   ])
 
   const focusRouteField = useCallback(
@@ -482,6 +502,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         setActiveField('to')
         hapticSelection()
       } else if (!toPoint) {
+        if (!validatePointB(latlng)) return
         setToPoint(latlng)
         setToAddress(shortName)
         hapticSelection()
@@ -490,6 +511,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         setFromAddress(shortName)
         hapticSelection()
       } else {
+        if (!validatePointB(latlng)) return
         setToPoint(latlng)
         setToAddress(shortName)
         hapticSelection()
@@ -499,7 +521,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       setSearchResults([])
       panMapToTarget(latlng)
     },
-    [activeField, fromPoint, panMapToTarget, toPoint],
+    [activeField, fromPoint, panMapToTarget, toPoint, validatePointB],
   )
 
   const handleLocateMe = useCallback(() => {
@@ -572,6 +594,13 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
         setErrorMessage(t('passenger.insufficientPointsOffer', {
           defaultValue: 'Недостаточно поинтов на балансе.',
         }))
+      } else if (code === 'ride_distance_too_short' || rawMessage === 'ride_distance_too_short') {
+        setErrorMessage(
+          t('passenger.pointBTooClose', {
+            min: pricing.minRideDistanceKm,
+            defaultValue: `Точка Б слишком близко. Минимальное расстояние — ${pricing.minRideDistanceKm} км.`,
+          }),
+        )
       } else if (code === 'pickup_out_of_zone' || rawMessage === 'pickup_out_of_zone') {
         setErrorMessage(
           t('passenger.pointAOutOfZone', {
@@ -595,7 +624,7 @@ export function useNewRequestController(pinAnchorYFracRef?: MutableRefObject<num
       submitLock.current = created
       setSubmitting(false)
     }
-  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, toAddress, toPoint, t])
+  }, [dateTime, fromAddress, fromPoint, navigate, passengerName, pricing.minRideDistanceKm, toAddress, toPoint, t])
 
   const handleSubmit = useCallback(async () => {
     await submitRequest('points')

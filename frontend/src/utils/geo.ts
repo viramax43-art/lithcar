@@ -1,7 +1,7 @@
 import type { LatLng } from '../types'
 
-/** True when two coordinates are within maxMeters (default ~15 m). */
-export function coordsNear(a: LatLng, b: LatLng, maxMeters = 15): boolean {
+/** Distance between two coordinates in kilometres (haversine). */
+export function distanceKm(a: LatLng, b: LatLng): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
   const dLng = toRad(b.lng - a.lng)
@@ -10,8 +10,12 @@ export function coordsNear(a: LatLng, b: LatLng, maxMeters = 15): boolean {
   const h =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
-  const distanceM = 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-  return distanceM <= maxMeters
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+/** True when two coordinates are within maxMeters (default ~15 m). */
+export function coordsNear(a: LatLng, b: LatLng, maxMeters = 15): boolean {
+  return distanceKm(a, b) * 1000 <= maxMeters
 }
 
 /**

@@ -17,6 +17,7 @@ export interface PlatformSettingsConfig {
   system: {
     eurUsdRate: number
     kmRatioMultiplier: number
+    minRideDistanceKm: number
     staleRequestMinutesPending: number
     staleRequestMinutesPastRide: number
     autoDeleteStaleRequests: boolean
@@ -56,6 +57,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsConfig = {
   system: {
     eurUsdRate: 1.08,
     kmRatioMultiplier: 1.0,
+    minRideDistanceKm: 3,
     staleRequestMinutesPending: 30,
     staleRequestMinutesPastRide: 5,
     autoDeleteStaleRequests: true,

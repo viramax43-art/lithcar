@@ -16,6 +16,7 @@ from app.services.pricing_service import (
     DEFAULT_POINTS_PER_RIDE,
     DEFAULT_PRICING_MODE,
 )
+from app.services.ride_distance_policy import ensure_ride_distance_allowed_for_session
 from app.services.ride_quote_service import calculate_ride_quote, default_pricing_formula_json
 from app.services.ride_request_service import create_ride_request_record
 
@@ -123,6 +124,15 @@ async def book_ride(
 ) -> RideBookingResult:
     normalized_payment_method = RidePaymentMethod.normalize(payment_method)
     try:
+        # Point B must be far enough from point A; the limit is admin-configurable.
+        await ensure_ride_distance_allowed_for_session(
+            db_session,
+            from_lat=from_lat,
+            from_lng=from_lng,
+            to_lat=to_lat,
+            to_lng=to_lng,
+        )
+
         pricing = await _get_or_create_pricing_no_commit(db_session)
         normalized_date_time = validate_ride_datetime(
             date_time,

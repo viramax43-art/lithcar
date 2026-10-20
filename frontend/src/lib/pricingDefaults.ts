@@ -30,6 +30,7 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   workStartTime: '06:00',
   workEndTime: '19:00',
   slotIntervalMinutes: 30,
+  minRideDistanceKm: 3,
 }
 
 export function mapPricingSettings(raw: Partial<PricingSettings>): PricingSettings {
@@ -48,5 +49,6 @@ export function mapPricingSettings(raw: Partial<PricingSettings>): PricingSettin
     workStartTime: String(raw.workStartTime ?? '06:00'),
     workEndTime: String(raw.workEndTime ?? '19:00'),
     slotIntervalMinutes: Number(raw.slotIntervalMinutes ?? 30),
+    minRideDistanceKm: Math.max(0, Number(raw.minRideDistanceKm ?? 3)),
   }
 }

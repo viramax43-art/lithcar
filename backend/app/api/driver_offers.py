@@ -19,6 +19,7 @@ from app.services.driver_offer_service import (
     list_driver_offers,
 )
 from app.services.driver_service import get_driver
+from app.services.ride_distance_policy import RideDistanceTooShortError
 
 
 router = APIRouter(prefix="/driver/offers")
@@ -158,6 +159,8 @@ async def create_offer(
             date_time=payload.dateTime,
             total_seats=payload.totalSeats,
         )
+    except RideDistanceTooShortError as exc:
+        raise HTTPException(status_code=400, detail=exc.as_http_detail()) from exc
     except DriverOfferError as exc:
         if exc.code == "out_of_zone":
             raise HTTPException(

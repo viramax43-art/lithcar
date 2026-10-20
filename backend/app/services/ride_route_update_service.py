@@ -8,12 +8,18 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ride_request import RideRequest, RideRequestStatus
+from app.services.ride_distance_policy import (
+    RIDE_DISTANCE_TOO_SHORT_CODE,
+    RideDistanceTooShortError,
+    ensure_ride_distance_allowed_for_session,
+)
 from app.services.ride_request_service import get_request
 from app.services.zone_service import assert_pickup_in_active_zone, PickupOutOfZoneError
 
 RoutePointKind = Literal["from", "to"]
 _COORD_EPSILON = 1e-6
 _PICKUP_OUT_OF_ZONE_PREFIX = "pickup_out_of_zone:"
+_RIDE_DISTANCE_TOO_SHORT_PREFIX = f"{RIDE_DISTANCE_TOO_SHORT_CODE}:"
 
 
 def route_error_http_detail(error: str) -> str | dict[str, str]:
@@ -22,6 +28,11 @@ def route_error_http_detail(error: str) -> str | dict[str, str]:
         return {
             "code": "pickup_out_of_zone",
             "message": error[len(_PICKUP_OUT_OF_ZONE_PREFIX) :],
+        }
+    if error.startswith(_RIDE_DISTANCE_TOO_SHORT_PREFIX):
+        return {
+            "code": RIDE_DISTANCE_TOO_SHORT_CODE,
+            "message": error[len(_RIDE_DISTANCE_TOO_SHORT_PREFIX) :],
         }
     return error
 
@@ -138,6 +149,18 @@ async def update_ride_route_points(
             )
         except PickupOutOfZoneError as exc:
             return None, None, f"{_PICKUP_OUT_OF_ZONE_PREFIX}{exc.message}"
+
+    if to_changed:
+        try:
+            await ensure_ride_distance_allowed_for_session(
+                db_session,
+                from_lat=next_from_lat,
+                from_lng=next_from_lng,
+                to_lat=next_to_lat,
+                to_lng=next_to_lng,
+            )
+        except RideDistanceTooShortError as exc:
+            return None, None, f"{_RIDE_DISTANCE_TOO_SHORT_PREFIX}{exc}"
 
     if from_changed and from_point is not None:
         if actor == RouteChangeActor.DRIVER:

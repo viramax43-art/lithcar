@@ -32,8 +32,6 @@ interface DriverSideMenuProps {
   onLogout: () => void
   /** Explicit exit from the driver shell into the passenger cabinet (TZ D3). */
   onOpenPassengerApp: () => void
-  requestOffersScreen?: boolean
-  onRequestOffersHandled?: () => void
   /** Deep link from a driver notification: focus the ride or open its chat. */
   onNotificationSelect?: (notification: AppNotification) => void
 }
@@ -44,8 +42,6 @@ export default function DriverSideMenu({
   onClose,
   onLogout,
   onOpenPassengerApp,
-  requestOffersScreen = false,
-  onRequestOffersHandled,
   onNotificationSelect,
 }: DriverSideMenuProps) {
   const { t } = useTranslation()
@@ -67,13 +63,6 @@ export default function DriverSideMenu({
       if (logoutArmTimer.current) window.clearTimeout(logoutArmTimer.current)
     }
   }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen || !requestOffersScreen) return
-    setShowOffers(true)
-    onClose()
-    onRequestOffersHandled?.()
-  }, [isOpen, requestOffersScreen, onClose, onRequestOffersHandled])
 
   useEscapeClose(isOpen, onClose)
 

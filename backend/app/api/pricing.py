@@ -10,6 +10,7 @@ from app.api.admin_session import require_admin_roles, require_user_or_admin_ses
 from app.core.dependencies import get_db_session
 from app.core.i18n_text import normalize_user_info_text_i18n
 from app.models.admin_api_key import AdminApiRole
+from app.services.platform_settings_service import get_platform_config, min_ride_distance_km
 from app.services.pricing_service import get_or_create_pricing, ride_price_eur, update_pricing
 from app.services.ride_quote_service import PRICING_MODE_DYNAMIC, PRICING_MODE_FIXED, PricingFormulaV1
 
@@ -59,6 +60,8 @@ class PricingOut(BaseModel):
     workStartTime: str
     workEndTime: str
     slotIntervalMinutes: int
+    # Editable in admin platform settings; the apps use it to validate point B.
+    minRideDistanceKm: float
 
 
 class PricingUpdate(BaseModel):
@@ -116,7 +119,7 @@ def _formula_to_out(formula: PricingFormulaV1) -> PricingFormulaOut:
     )
 
 
-def _to_pricing_out(pricing) -> PricingOut:
+def _to_pricing_out(pricing, *, min_distance_km: float) -> PricingOut:
     from app.services.ride_quote_service import parse_pricing_formula
 
     formula = parse_pricing_formula(pricing.pricing_formula_json)
@@ -131,6 +134,7 @@ def _to_pricing_out(pricing) -> PricingOut:
         workStartTime=pricing.work_start_time,
         workEndTime=pricing.work_end_time,
         slotIntervalMinutes=pricing.slot_interval_minutes,
+        minRideDistanceKm=min_distance_km,
     )
 
 
@@ -140,7 +144,11 @@ async def get_pricing(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     pricing = await get_or_create_pricing(db_session)
-    return _to_pricing_out(pricing)
+    platform_config = await get_platform_config(db_session)
+    return _to_pricing_out(
+        pricing,
+        min_distance_km=min_ride_distance_km(platform_config),
+    )
 
 
 @router.patch("", response_model=PricingOut)
@@ -171,4 +179,8 @@ async def patch_pricing(
         work_end_time=payload.workEndTime,
         slot_interval_minutes=payload.slotIntervalMinutes,
     )
-    return _to_pricing_out(pricing)
+    platform_config = await get_platform_config(db_session)
+    return _to_pricing_out(
+        pricing,
+        min_distance_km=min_ride_distance_km(platform_config),
+    )

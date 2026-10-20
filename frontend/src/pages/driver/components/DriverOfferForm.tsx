@@ -1,4 +1,12 @@
-import { useMemo, useRef } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { Crosshair, UsersThree, X } from '@phosphor-icons/react'
 import { MapContainer, Marker, Polyline } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +35,29 @@ interface DriverOfferFormProps {
   onClose: () => void
   onCreated: () => void
 }
+
+const SHEET_MIN_HEIGHT_PX = 160
+const SHEET_RESIZE_STEP_PX = 24
+const SHEET_VIEWPORT_RATIO = 0.88
+/** Keep the app header visible while the sheet is expanded. */
+const SHEET_TOP_GAP_PX = 104
+
+function getSheetViewportHeight() {
+  return window.visualViewport?.height ?? window.innerHeight
+}
+
+function getSheetMaxHeight() {
+  const viewportHeight = getSheetViewportHeight()
+  return Math.max(
+    SHEET_MIN_HEIGHT_PX,
+    Math.min(viewportHeight * SHEET_VIEWPORT_RATIO, viewportHeight - SHEET_TOP_GAP_PX),
+  )
+}
+
+function clampSheetHeight(height: number) {
+  return Math.min(getSheetMaxHeight(), Math.max(SHEET_MIN_HEIGHT_PX, height))
+}
+
 
 export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormProps) {
   const { t } = useTranslation()
@@ -73,6 +104,102 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
   const pinEmptyHint = model.activeIsFrom
     ? t('driver.pinHintPickup', { defaultValue: 'Откуда выезжаете?' })
     : t('driver.pinHintDestination', { defaultValue: 'Куда едете?' })
+
+  const [sheetHeight, setSheetHeight] = useState<number | null>(null)
+  const [isResizingSheet, setIsResizingSheet] = useState(false)
+  const sheetDragRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
+
+  const stopSheetResize = useCallback((target: HTMLElement, pointerId: number) => {
+    const drag = sheetDragRef.current
+    if (!drag || drag.pointerId !== pointerId) return
+    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId)
+    sheetDragRef.current = null
+    setIsResizingSheet(false)
+  }, [])
+
+  const handleSheetResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+      const sheet = bottomSheetRef.current
+      if (!sheet) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      const startHeight = sheet.getBoundingClientRect().height
+      sheetDragRef.current = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startHeight,
+      }
+      // Freeze the current natural height so the next move can grow it.
+      setSheetHeight(Math.round(startHeight))
+      setIsResizingSheet(true)
+      event.currentTarget.setPointerCapture(event.pointerId)
+    },
+    [],
+  )
+
+  const handleSheetResizeMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = sheetDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    event.preventDefault()
+    setSheetHeight(Math.round(clampSheetHeight(drag.startHeight + (drag.startY - event.clientY))))
+  }, [])
+
+  const handleSheetResizeEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      stopSheetResize(event.currentTarget, event.pointerId)
+    },
+    [stopSheetResize],
+  )
+
+  const handleSheetResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const currentHeight =
+        sheetHeight ?? bottomSheetRef.current?.getBoundingClientRect().height ?? SHEET_MIN_HEIGHT_PX
+      let nextHeight: number
+
+      switch (event.key) {
+        case 'ArrowUp':
+          nextHeight = currentHeight + SHEET_RESIZE_STEP_PX
+          break
+        case 'ArrowDown':
+          nextHeight = currentHeight - SHEET_RESIZE_STEP_PX
+          break
+        case 'PageUp':
+          nextHeight = currentHeight + SHEET_RESIZE_STEP_PX * 4
+          break
+        case 'PageDown':
+          nextHeight = currentHeight - SHEET_RESIZE_STEP_PX * 4
+          break
+        case 'Home':
+          nextHeight = SHEET_MIN_HEIGHT_PX
+          break
+        case 'End':
+          nextHeight = getSheetMaxHeight()
+          break
+        default:
+          return
+      }
+
+      event.preventDefault()
+      setSheetHeight(Math.round(clampSheetHeight(nextHeight)))
+    },
+    [sheetHeight],
+  )
+
+  useEffect(() => {
+    const keepSheetInBounds = () => {
+      setSheetHeight((current) => (current === null ? null : Math.round(clampSheetHeight(current))))
+    }
+    window.addEventListener('resize', keepSheetInBounds)
+    window.visualViewport?.addEventListener('resize', keepSheetInBounds)
+    return () => {
+      window.removeEventListener('resize', keepSheetInBounds)
+      window.visualViewport?.removeEventListener('resize', keepSheetInBounds)
+    }
+  }, [])
 
   return (
     <div className="fixed inset-0 z-[210] bg-white flex flex-col">
@@ -177,13 +304,44 @@ export default function DriverOfferForm({ onClose, onCreated }: DriverOfferFormP
 
       <div
         ref={bottomSheetRef}
-        className={`absolute left-0 right-0 z-20 bg-white border-t border-border rounded-t-3xl shadow-bar transition-transform duration-300 ${
+        className={`absolute left-0 right-0 z-20 flex flex-col overflow-hidden bg-white border-t border-border rounded-t-3xl shadow-bar transition-transform duration-300 ${
           model.isPanning ? 'translate-y-full' : 'translate-y-0'
         }`}
-        style={{ bottom: 0, paddingBottom: 'var(--app-safe-area-bottom-total)' }}
+        style={{
+          bottom: 0,
+          paddingBottom: 'var(--app-safe-area-bottom-total)',
+          ...(sheetHeight === null ? {} : { height: `${sheetHeight}px` }),
+        }}
       >
-        <div className="w-9 h-1 rounded-full bg-border mx-auto mt-2 mb-1" />
-        <div className="px-4 pb-4 space-y-3 max-w-2xl mx-auto max-h-[70dvh] overflow-y-auto overscroll-contain">
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t('driver.offerSheetResize', { defaultValue: 'Потяните, чтобы изменить высоту панели' })}
+          aria-valuemin={SHEET_MIN_HEIGHT_PX}
+          aria-valuemax={Math.round(getSheetMaxHeight())}
+          aria-valuenow={sheetHeight === null ? undefined : sheetHeight}
+          tabIndex={0}
+          className="group mx-auto mt-1 flex h-6 w-16 flex-shrink-0 touch-none select-none cursor-row-resize items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+          onPointerDown={handleSheetResizeStart}
+          onPointerMove={handleSheetResizeMove}
+          onPointerUp={handleSheetResizeEnd}
+          onPointerCancel={handleSheetResizeEnd}
+          onLostPointerCapture={handleSheetResizeEnd}
+          onKeyDown={handleSheetResizeKeyDown}
+        >
+          <div
+            className={`w-9 h-1 rounded-full transition-colors ${
+              isResizingSheet ? 'bg-black' : 'bg-border group-hover:bg-muted'
+            }`}
+          />
+        </div>
+        <div
+          className={`w-full px-4 pb-4 space-y-3 max-w-2xl mx-auto overscroll-contain ${
+            sheetHeight === null
+              ? 'max-h-[70dvh] overflow-y-auto'
+              : 'flex-1 min-h-0 overflow-y-auto'
+          }`}
+        >
           {model.errorMessage && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">
               {model.errorMessage}
