@@ -14,17 +14,26 @@ import { useOfferDaySelection } from '../../hooks/useOfferDaySelection'
 import { useMapPinAnchor } from '../../hooks/useMapPinAnchor'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../lib/mapPinAnchor'
 import L from 'leaflet'
-import { useEffect, useMemo, useState, useRef, Fragment } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { hapticSelection } from '../../lib/telegram'
-import { makeMapMarkIcon, makeOfferPickupIcon } from '../../lib/mapMarkIcons'
+import { makeMapMarkIcon, makeOfferEndpointIcon } from '../../lib/mapMarkIcons'
+import {
+  assignOfferColors,
+  fallbackOfferColor,
+  offerIntersectsViewport,
+  OFFER_COLOR_PALETTE,
+  OWN_OFFER_COLOR,
+  sameViewportBounds,
+  type OfferViewportBounds,
+} from '../../lib/offerMapColors'
 import LanguageSwitcher from '../../components/LanguageSwitcher'
 import { listPublicMapMarks, updateCurrentUserLanguage } from '../../lib/backend'
 import { useEnsurePassengerSession } from '../../application/session/useEnsurePassengerSession'
 import type { AppLanguage } from '../../i18n/languages'
 import { hasUserInfoText, resolveUserInfoText } from '../../lib/userInfoText'
-import { iconA, iconB, iconOfferB, MapBinder } from './new-request/NewRequestMapBinder'
+import { iconA, iconB, MapBinder, OfferMapViewportWatcher } from './new-request/NewRequestMapBinder'
 import { OfferRouteFitBounds } from './new-request/OfferRouteFitBounds'
 import OfferDayFilter from './components/OfferDayFilter'
 import { useNewRequestController } from './new-request/useNewRequestController'
@@ -91,8 +100,12 @@ export default function NewRequest() {
     ),
   })
 
-  const offerPickupIcon = useMemo(() => makeOfferPickupIcon(), [])
-  const offerPickupIconSubdued = useMemo(() => makeOfferPickupIcon({ subdued: true }), [])
+  const [offerViewportBounds, setOfferViewportBounds] = useState<OfferViewportBounds | null>(null)
+  const handleOfferViewportChange = useCallback((bounds: OfferViewportBounds) => {
+    setOfferViewportBounds((previous) =>
+      sameViewportBounds(previous, bounds) ? previous : bounds,
+    )
+  }, [])
 
   const visibleMapOffers = useMemo(
     () => offersMap.offers.filter(isOfferVisibleToPassenger),
@@ -115,6 +128,53 @@ export default function NewRequest() {
     if (!offersMap.selectedOfferId) return null
     return offerById.get(offersMap.selectedOfferId) ?? null
   }, [offersMap.selectedOfferId, offerById])
+
+  // Colour assignment is scoped to the current viewport: with many overlapping
+  // routes the palette must be spent only on rides the passenger can actually
+  // see, otherwise two visible routes may end up with the same colour.
+  const offersInViewport = useMemo(() => {
+    if (!offerViewportBounds) return visibleMapOffers
+    return visibleMapOffers.filter((offer) =>
+      offerIntersectsViewport(offer, offerViewportBounds),
+    )
+  }, [offerViewportBounds, visibleMapOffers])
+
+  const offersForColorAssignment = useMemo(() => {
+    const byId = new Map<string, MatchedPassengerRideOffer>()
+    const source = offersInViewport.length > 0 ? offersInViewport : visibleMapOffers
+    for (const offer of source) byId.set(offer.id, offer)
+    // The opened offer may have been fitted into view and temporarily be
+    // outside the viewport snapshot — keep its colour stable while the sheet is open.
+    if (highlightedOffer) byId.set(highlightedOffer.id, highlightedOffer)
+    // Own bookings always keep the reserved green, regardless of the viewport.
+    for (const offer of visibleMapOffers) {
+      if (offer.bookedByMe) byId.set(offer.id, offer)
+    }
+    return [...byId.values()]
+  }, [highlightedOffer, offersInViewport, visibleMapOffers])
+
+  const offerColorCacheRef = useRef<ReadonlyMap<string, string>>(new Map())
+  const offerColorById = useMemo(() => {
+    const assigned = assignOfferColors(
+      offersForColorAssignment,
+      OFFER_COLOR_PALETTE,
+      offerColorCacheRef.current,
+    )
+    offerColorCacheRef.current = assigned
+    return assigned
+  }, [offersForColorAssignment])
+
+  const resolveOfferColor = useCallback(
+    (offer: MatchedPassengerRideOffer) => {
+      if (offer.bookedByMe) return OWN_OFFER_COLOR
+      return offerColorById.get(offer.id) ?? fallbackOfferColor(offer.id)
+    },
+    [offerColorById],
+  )
+
+  const ownRideBadgeLabel = t('passenger.offers.myRideBadge', {
+    defaultValue: 'Ваша поездка',
+  })
 
   const routeModalOffers = useMemo(() => {
     if (!model.fromPoint || !model.toPoint) return []
@@ -205,6 +265,9 @@ export default function NewRequest() {
       : 'region-default'
     : 'user-picking'
 
+  const highlightedOfferColor = highlightedOffer ? resolveOfferColor(highlightedOffer) : null
+  const highlightedOfferIsOwn = Boolean(highlightedOffer?.bookedByMe)
+
   return (
     <div className="passenger-request-screen relative overflow-hidden bg-white">
       <div ref={mapAreaRef} className="absolute inset-0" style={{ zIndex: 0 }}>
@@ -217,14 +280,20 @@ export default function NewRequest() {
             enabled={allowMapAutoFly}
             pinAnchorYFracRef={pinAnchorYFracRef}
           />
+          <OfferMapViewportWatcher onChange={handleOfferViewportChange} />
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
               const isSelected = offersMap.selectedOfferId === offer.id
+              const isOwn = Boolean(offer.bookedByMe)
+              const color = resolveOfferColor(offer)
+              const hasSelection = Boolean(offersMap.selectedOfferId)
               const routeOpacity = isSelected
                 ? (model.isPinLive ? 0.75 : 0.95)
-                : offersMap.selectedOfferId
-                  ? (model.isPinLive ? 0.12 : 0.2)
-                  : (model.isPinLive ? 0.28 : 0.42)
+                : hasSelection
+                  ? (isOwn ? 0.45 : model.isPinLive ? 0.1 : 0.18)
+                  : isOwn
+                    ? 0.9
+                    : (model.isPinLive ? 0.28 : 0.5)
               return (
                 <Polyline
                   key={`offer-route-${offer.id}`}
@@ -233,9 +302,9 @@ export default function NewRequest() {
                     [offer.to.latlng.lat, offer.to.latlng.lng],
                   ]}
                   pathOptions={{
-                    color: isSelected ? '#000' : '#374151',
-                    weight: isSelected ? 5 : 2,
-                    dashArray: '10, 10',
+                    color,
+                    weight: isSelected ? 5 : isOwn ? 3.5 : 2,
+                    dashArray: isSelected || isOwn ? undefined : '10, 10',
                     opacity: routeOpacity,
                   }}
                   interactive={false}
@@ -245,22 +314,42 @@ export default function NewRequest() {
           {!offersPaused &&
             visibleMapOffers.map((offer) => {
               if (offersMap.selectedOfferId === offer.id) return null
+              const isOwn = Boolean(offer.bookedByMe)
+              const color = resolveOfferColor(offer)
+              const markerSize = model.isPinLive ? 28 : 30
               const select = (event: L.LeafletMouseEvent) => {
                 L.DomEvent.stopPropagation(event.originalEvent)
                 offersMap.selectOffer(offer.id)
               }
-              const markerIcon = model.isPinLive ? offerPickupIconSubdued : offerPickupIcon
+              const pickupIcon = makeOfferEndpointIcon({
+                label: 'A',
+                color,
+                isOwn,
+                subdued: model.isPinLive,
+                size: markerSize,
+                showOwnBadge: isOwn && !model.isPinLive,
+                ownBadgeLabel: ownRideBadgeLabel,
+              })
+              const dropoffIcon = makeOfferEndpointIcon({
+                label: 'B',
+                color,
+                isOwn,
+                subdued: model.isPinLive,
+                size: markerSize,
+              })
               return (
                 <Fragment key={`offer-endpoints-${offer.id}`}>
                   <Marker
                     position={[offer.from.latlng.lat, offer.from.latlng.lng]}
-                    icon={markerIcon}
+                    icon={pickupIcon}
                     eventHandlers={{ click: select }}
+                    zIndexOffset={isOwn ? 500 : 0}
                   />
                   <Marker
                     position={[offer.to.latlng.lat, offer.to.latlng.lng]}
-                    icon={iconOfferB}
+                    icon={dropoffIcon}
                     eventHandlers={{ click: select }}
+                    zIndexOffset={isOwn ? 500 : 0}
                   />
                 </Fragment>
               )
@@ -273,9 +362,9 @@ export default function NewRequest() {
                 [highlightedOffer.to.latlng.lat, highlightedOffer.to.latlng.lng],
               ]}
               pathOptions={{
-                color: '#000',
+                color: highlightedOfferColor ?? OWN_OFFER_COLOR,
                 weight: 5,
-                dashArray: '10, 10',
+                dashArray: highlightedOfferIsOwn ? undefined : '10, 10',
                 opacity: model.isPinLive ? 0.75 : 0.95,
               }}
               interactive={false}
@@ -293,7 +382,15 @@ export default function NewRequest() {
                   highlightedOffer.from.latlng.lat,
                   highlightedOffer.from.latlng.lng,
                 ]}
-                icon={iconA}
+                icon={makeOfferEndpointIcon({
+                  label: 'A',
+                  color: highlightedOfferColor ?? OWN_OFFER_COLOR,
+                  isOwn: highlightedOfferIsOwn,
+                  selected: true,
+                  size: 36,
+                  showOwnBadge: highlightedOfferIsOwn,
+                  ownBadgeLabel: ownRideBadgeLabel,
+                })}
                 interactive={false}
                 zIndexOffset={600}
               />
@@ -302,7 +399,13 @@ export default function NewRequest() {
                   highlightedOffer.to.latlng.lat,
                   highlightedOffer.to.latlng.lng,
                 ]}
-                icon={iconB}
+                icon={makeOfferEndpointIcon({
+                  label: 'B',
+                  color: highlightedOfferColor ?? OWN_OFFER_COLOR,
+                  isOwn: highlightedOfferIsOwn,
+                  selected: true,
+                  size: 36,
+                })}
                 interactive={false}
                 zIndexOffset={600}
               />

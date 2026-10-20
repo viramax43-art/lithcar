@@ -3,6 +3,7 @@ import L from 'leaflet'
 import { useMap, useMapEvents } from 'react-leaflet'
 import type { LatLng } from '../../../types'
 import { DEFAULT_PIN_ANCHOR_Y_FRAC } from '../../../lib/mapPinAnchor'
+import type { OfferViewportBounds } from '../../../lib/offerMapColors'
 
 export const iconA = L.divIcon({
   className: '',
@@ -16,21 +17,6 @@ export const iconB = L.divIcon({
   html: '<div class="marker-b">B</div>',
   iconSize: [36, 36],
   iconAnchor: [18, 18],
-})
-
-/** Smaller A/B for driver offers on the passenger map (non-selected). */
-export const iconOfferA = L.divIcon({
-  className: '',
-  html: '<div class="marker-a marker-a--offer">A</div>',
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-})
-
-export const iconOfferB = L.divIcon({
-  className: '',
-  html: '<div class="marker-b marker-b--offer">B</div>',
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
 })
 
 export function MapBinder({
@@ -72,6 +58,39 @@ export function MapBinder({
       onPanEnd(readPinLatLng())
     },
   })
+
+  return null
+}
+
+/**
+ * Reports the visible map rectangle after every pan/zoom. Offer colours are
+ * recalculated only for this rectangle, so the palette is never "wasted" on
+ * rides outside the area the passenger is currently looking at.
+ */
+export function OfferMapViewportWatcher({
+  onChange,
+}: {
+  onChange: (bounds: OfferViewportBounds) => void
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    const reportBounds = () => {
+      const bounds = map.getBounds()
+      onChange({
+        south: bounds.getSouth(),
+        west: bounds.getWest(),
+        north: bounds.getNorth(),
+        east: bounds.getEast(),
+      })
+    }
+
+    reportBounds()
+    map.on('moveend zoomend', reportBounds)
+    return () => {
+      map.off('moveend zoomend', reportBounds)
+    }
+  }, [map, onChange])
 
   return null
 }

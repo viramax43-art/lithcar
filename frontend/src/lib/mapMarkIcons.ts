@@ -18,47 +18,95 @@ export function normalizeMapMarkColor(value: string | null | undefined): string 
   return HEX_COLOR_REGEX.test(normalized) ? normalized : DEFAULT_COLOR
 }
 
-const OFFER_CAR_SVG =
-  '<svg width="14" height="14" viewBox="0 0 256 256" fill="#FFFFFF" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M240,112H229.2L201.9,49.6A16,16,0,0,0,186.8,40H69.2a16,16,0,0,0-15.1,9.6L26.8,112H16a8,8,0,0,0,0,16h8v64a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16V168h96v32a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V128h8a8,8,0,0,0,0-16ZM69.2,56H186.8l24,64H45.2ZM64,208H40V168H64Zm128,0V168h24v40Z"/></svg>'
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
-const offerPickupIconCache = new Map<string, L.DivIcon>()
+const offerEndpointIconCache = new Map<string, L.DivIcon>()
 
-export function makeOfferPickupIcon(options: {
-  size?: number
-  subdued?: boolean
+export interface OfferEndpointIconOptions {
+  /** A or B. */
+  label: string
+  /** Shared by both endpoints of one ride. */
+  color: string
+  /** Reserved green styling, check mark and an optional "your ride" tag. */
+  isOwn?: boolean
   selected?: boolean
-  booked?: boolean
-} = {}): L.DivIcon {
-  const { size = 32, subdued = false, selected = false, booked = false } = options
-  const effectiveSize = subdued ? 28 : size
-  const cacheKey = `${effectiveSize}-${subdued}-${selected}-${booked}`
-  const cached = offerPickupIconCache.get(cacheKey)
+  subdued?: boolean
+  size?: number
+  showOwnBadge?: boolean
+  ownBadgeLabel?: string
+}
+
+/**
+ * A/B endpoint badge for a passenger offer. Both endpoints of one ride receive
+ * the same colour, which lets a passenger pair them even when many routes
+ * overlap at a low zoom level. The passenger's own booking is always green,
+ * has a check mark and can show a "your ride" label.
+ */
+export function makeOfferEndpointIcon(options: OfferEndpointIconOptions): L.DivIcon {
+  const {
+    label,
+    color,
+    isOwn = false,
+    selected = false,
+    subdued = false,
+    size = 30,
+    showOwnBadge = false,
+    ownBadgeLabel = '',
+  } = options
+
+  const effectiveSize = subdued && !isOwn ? 28 : size
+  const badgeVisible = Boolean(isOwn && showOwnBadge && ownBadgeLabel.trim())
+  const badgeText = escapeHtml(ownBadgeLabel.trim())
+  const cacheKey = [
+    label,
+    color,
+    isOwn,
+    selected,
+    subdued,
+    effectiveSize,
+    badgeVisible,
+    badgeText,
+  ].join('|')
+  const cached = offerEndpointIconCache.get(cacheKey)
   if (cached) return cached
 
-  const opacity = subdued ? 0.55 : 1
-  const scale = subdued ? 0.9 : selected ? 1.05 : 1
-  const bg = booked ? '#16A34A' : '#000'
+  const opacity = subdued && !isOwn ? 0.55 : 1
+  const scale = selected ? 1.08 : subdued && !isOwn ? 0.9 : 1
   const ring = selected
-    ? `box-shadow:0 0 0 3px #fff,0 0 0 5px ${bg},0 2px 8px rgba(0,0,0,0.15);`
-    : 'box-shadow:0 2px 8px rgba(0,0,0,0.15);'
-  const bookedMark = booked
-    ? '<div style="position:absolute;right:-2px;top:-2px;width:14px;height:14px;border-radius:50%;background:#fff;color:#16A34A;font-size:10px;font-weight:800;line-height:14px;text-align:center;border:1px solid #16A34A;">✓</div>'
+    ? `0 0 0 3px #fff,0 0 0 6px ${color},0 4px 14px rgba(0,0,0,0.3)`
+    : isOwn
+      ? `0 0 0 3px #fff,0 0 0 5px ${color},0 3px 12px rgba(22,163,74,0.35)`
+      : '0 2px 8px rgba(0,0,0,0.24)'
+  const checkMark = isOwn
+    ? '<div style="position:absolute;right:-4px;top:-4px;width:15px;height:15px;border-radius:50%;background:#fff;color:#16A34A;font-size:10px;font-weight:900;line-height:15px;text-align:center;border:1.5px solid #16A34A;box-sizing:border-box;">✓</div>'
     : ''
+  const ownBadge = badgeVisible
+    ? `<div style="margin-top:3px;padding:2px 6px;border-radius:9999px;background:#fff;color:${color};font-size:9px;font-weight:800;line-height:1.15;white-space:nowrap;border:1px solid ${color};box-shadow:0 1px 5px rgba(0,0,0,0.18);font-family:Inter,system-ui,sans-serif;">${badgeText}</div>`
+    : ''
+  const totalWidth = Math.max(effectiveSize, badgeVisible ? 96 : effectiveSize)
+  const totalHeight = effectiveSize + (badgeVisible ? 20 : 0)
 
   const icon = L.divIcon({
     className: '',
-    html: `<div style="position:relative;opacity:${opacity};transform:scale(${scale});transform-origin:center center;">
-  <div style="width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:${bg};border:3px solid #fff;display:flex;align-items:center;justify-content:center;${ring}">
-    ${booked ? '' : OFFER_CAR_SVG}
-    ${booked ? '<span style="color:#fff;font-size:14px;font-weight:800;line-height:1;">✓</span>' : ''}
-  </div>
-  ${bookedMark}
-</div>`,
-    iconSize: [effectiveSize, effectiveSize],
-    iconAnchor: [effectiveSize / 2, effectiveSize / 2],
+    html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;width:${totalWidth}px;opacity:${opacity};transform:scale(${scale});transform-origin:center top;font-family:Inter,system-ui,sans-serif;">
+      <div style="position:relative;width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:${color};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.round(effectiveSize * 0.4)}px;font-weight:900;box-shadow:${ring};box-sizing:border-box;">
+        ${escapeHtml(label)}
+        ${checkMark}
+      </div>
+      ${ownBadge}
+    </div>`,
+    iconSize: [totalWidth, totalHeight],
+    iconAnchor: [totalWidth / 2, effectiveSize / 2],
   })
 
-  offerPickupIconCache.set(cacheKey, icon)
+  offerEndpointIconCache.set(cacheKey, icon)
   return icon
 }
 
