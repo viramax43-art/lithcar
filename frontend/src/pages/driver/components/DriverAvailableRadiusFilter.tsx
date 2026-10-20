@@ -9,7 +9,6 @@ interface DriverAvailableRadiusFilterProps {
   radiusKm: number
   pointCount: number
   hiddenCount?: number
-  topOffset?: string
   /** The backend can only filter once the driver's position is known. */
   needsLocation?: boolean
   onChange: (value: number) => void
@@ -22,13 +21,13 @@ function formatRadius(value: number): string {
 /**
  * Compact map bar that limits the "available rides" pool to a radius around
  * the driver. The radius is applied server-side; this component only owns the
- * presentation and the preset list.
+ * presentation and the preset list. It is anchored to the bottom edge by its
+ * parent, so the expanded panel opens upward without leaving the viewport.
  */
 export default function DriverAvailableRadiusFilter({
   radiusKm,
   pointCount,
   hiddenCount = 0,
-  topOffset = 'calc(var(--app-safe-area-top-total) + 172px)',
   needsLocation = false,
   onChange,
 }: DriverAvailableRadiusFilterProps) {
@@ -46,10 +45,7 @@ export default function DriverAvailableRadiusFilter({
     : t('driver.map.radiusAll', { defaultValue: 'Все' })
 
   return (
-    <div
-      className="driver-available-radius-filter absolute left-3 right-3 z-[12] bg-white rounded-card shadow-card overflow-hidden md:max-w-md md:mx-auto"
-      style={{ top: topOffset }}
-    >
+    <div className="driver-available-radius-filter w-full bg-white rounded-card shadow-card overflow-hidden flex flex-col-reverse">
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
@@ -86,7 +82,7 @@ export default function DriverAvailableRadiusFilter({
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border">
+        <div className="px-3 pt-3 pb-1 space-y-2 border-b border-border">
           <div className="grid grid-cols-4 gap-1.5">
             {options.map((value) => {
               const selected = value === radiusKm

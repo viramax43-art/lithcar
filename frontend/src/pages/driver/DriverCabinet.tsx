@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Car, CaretRight, Clock, Crosshair, List, MapPin, Megaphone, SteeringWheel, X } from '@phosphor-icons/react'
+import { Car, CaretRight, Clock, Crosshair, List, MapPin, SteeringWheel, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 
 import RideRatingSheet from '../../components/RideRatingSheet'
@@ -761,10 +761,6 @@ export default function DriverCabinet() {
     ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 128}px)`
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
-  // Docks under the legend; only rendered in the "available" mode.
-  const radiusFilterTopOffset =
-    `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 172}px)`
-
   const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
     + (canSelfAssign ? 56 : 0)
     + LEGEND_BAR_HEIGHT
@@ -1159,37 +1155,23 @@ export default function DriverCabinet() {
         <DriverMapLegend topOffset={legendTopOffset} />
       )}
 
+      {/* Available-rides radius filter — expands upward from the bottom edge. */}
       {!isMapMarkViewMode && canSelfAssign && cabinetMode === 'available' && (
-        <DriverAvailableRadiusFilter
-          radiusKm={effectiveAvailableRadiusKm}
-          pointCount={availableRideCount}
-          hiddenCount={hiddenAvailableRides}
-          topOffset={radiusFilterTopOffset}
-          needsLocation={!mapData?.driverLocation}
-          onChange={handleAvailableRadiusChange}
-        />
-      )}
-
-      {/* Primary long-route CTA — direction / future offer */}
-      {!isMapMarkViewMode && !selectedPointId && (
         <div
-          className="absolute left-4 right-4 z-[13] flex justify-center pointer-events-none"
+          className="absolute left-3 right-3 z-[13] md:max-w-md md:mx-auto"
           style={{
             bottom: NEXT_BAR_H > 0
               ? `calc(${NEXT_BAR_H}px + 12px)`
               : 'calc(16px + var(--app-safe-area-bottom-total, 0px))',
           }}
         >
-          <button
-            type="button"
-            onClick={() => setOfferFormOpen(true)}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl bg-black text-white px-4 py-3 text-sm font-bold shadow-card active:scale-[0.97] transition-transform"
-          >
-            <Megaphone size={18} weight="fill" />
-            {t('driver.setDirectionCta', {
-              defaultValue: 'Поставить направление',
-            })}
-          </button>
+          <DriverAvailableRadiusFilter
+            radiusKm={effectiveAvailableRadiusKm}
+            pointCount={availableRideCount}
+            hiddenCount={hiddenAvailableRides}
+            needsLocation={!mapData?.driverLocation}
+            onChange={handleAvailableRadiusChange}
+          />
         </div>
       )}
 
