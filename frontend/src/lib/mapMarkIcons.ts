@@ -84,16 +84,18 @@ export function makeOfferEndpointIcon(options: OfferEndpointIconOptions): L.DivI
   const opacity = subdued && !isOwn ? 0.55 : 1
   const scale = selected ? 1.08 : subdued && !isOwn ? 0.9 : 1
   const labelColor = offerColorTextColor(color)
+  const borderColor = labelColor
+  const haloColor = borderColor === '#FFFFFF' ? MARKER_OUTLINE : '#FFFFFF'
   const labelShadow = labelColor === '#FFFFFF' ? '0 1px 2px rgba(0,0,0,0.7)' : 'none'
-  // The white inner ring separates the fill from the dark outer ring. That
-  // outer ring keeps every badge visible on a light map, while the white ring
-  // does the same over dark map features. Selected and own markers get a second
-  // white ring so they stay on top of a dense cluster of routes.
+  // The border repeats the label colour: black on bright orange/gold/cyan and
+  // white on dark blue/violet/green. The opposite-tone outer halo keeps the
+  // badge visible on both light and dark map tiles. Selected and own markers
+  // get an extra alternating ring so they stand out in a dense route cluster.
   const ring = selected
-    ? `0 0 0 2px ${MARKER_OUTLINE},0 0 0 5px #fff,0 0 0 7px ${MARKER_OUTLINE},0 6px 18px ${MARKER_OUTLINE_SHADOW}`
+    ? `0 0 0 2px ${haloColor},0 0 0 5px ${borderColor},0 0 0 7px ${haloColor},0 6px 18px ${MARKER_OUTLINE_SHADOW}`
     : isOwn
-      ? `0 0 0 2px ${MARKER_OUTLINE},0 0 0 5px #fff,0 0 0 7px ${MARKER_OUTLINE},0 6px 18px rgba(21,128,61,0.5)`
-      : `0 0 0 2px ${MARKER_OUTLINE},0 4px 12px ${MARKER_OUTLINE_SHADOW}`
+      ? `0 0 0 2px ${haloColor},0 0 0 5px ${borderColor},0 0 0 7px ${haloColor},0 6px 18px rgba(21,128,61,0.5)`
+      : `0 0 0 2px ${haloColor},0 4px 12px ${MARKER_OUTLINE_SHADOW}`
   const checkMark = isOwn
     ? `<div style="position:absolute;right:-4px;top:-4px;width:15px;height:15px;border-radius:50%;background:#fff;color:${color};font-size:10px;font-weight:900;line-height:15px;text-align:center;border:1.5px solid ${color};box-shadow:0 0 0 1px ${MARKER_OUTLINE};box-sizing:border-box;">✓</div>`
     : ''
@@ -106,7 +108,7 @@ export function makeOfferEndpointIcon(options: OfferEndpointIconOptions): L.DivI
   const icon = L.divIcon({
     className: '',
     html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;width:${totalWidth}px;opacity:${opacity};transform:scale(${scale});transform-origin:center top;font-family:Inter,system-ui,sans-serif;">
-      <div style="position:relative;width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:${color};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:${labelColor};text-shadow:${labelShadow};font-size:${Math.round(effectiveSize * 0.4)}px;font-weight:900;box-shadow:${ring};box-sizing:border-box;">
+      <div style="position:relative;width:${effectiveSize}px;height:${effectiveSize}px;border-radius:50%;background:${color};border:3px solid ${borderColor};display:flex;align-items:center;justify-content:center;color:${labelColor};text-shadow:${labelShadow};font-size:${Math.round(effectiveSize * 0.4)}px;font-weight:900;box-shadow:${ring};box-sizing:border-box;">
         ${escapeHtml(label)}
         ${checkMark}
       </div>
