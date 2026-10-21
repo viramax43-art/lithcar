@@ -893,6 +893,19 @@ body {
   animation: listItemIn 0.2s ease-out;
 }
 
+/* === Driver cabinet layout === */
+.driver-cabinet-shell {
+  /* p-1 shell + 4.5rem buttons on phones. */
+  --driver-cabinet-mode-switch-h: 5rem;
+}
+
+@media (min-width: 768px) {
+  .driver-cabinet-shell {
+    /* p-1 shell + 3rem buttons on desktop. */
+    --driver-cabinet-mode-switch-h: 3.5rem;
+  }
+}
+
 /* === Driver map period filter === */
 .driver-map-period-filter input[type="time"] {
   -webkit-appearance: none;

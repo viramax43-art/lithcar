@@ -760,11 +760,12 @@ export default function DriverCabinet() {
     ? visibleAvailablePoints.find((p) => p.rideId === selectedAvailableRideId && p.pointType === 'dropoff') ?? null
     : null
 
-  // The add-trip / available-passengers row sits at banner + 64 and is ~56px
-  // tall; the colour legend docks right under it. Without self-assign the row is
-  // hidden, so the legend moves up to the header's baseline.
+  // The add-trip / available-passengers row sits at banner + 64 and is 56px tall
+  // on desktop / 80px on phones (the buttons are 1.5x taller there); the colour
+  // legend docks right under it via the matching CSS variable. Without
+  // self-assign the row is hidden, so the legend moves up to the header.
   const legendTopOffset = canSelfAssign
-    ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 128}px)`
+    ? `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px + var(--driver-cabinet-mode-switch-h, 3.5rem) + 8px)`
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
   const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
@@ -1040,7 +1041,7 @@ export default function DriverCabinet() {
 
   return (
     <div
-      className="relative overflow-hidden bg-black"
+      className="driver-cabinet-shell relative overflow-hidden bg-black"
       style={{ width: '100dvw', height: '100dvh' }}
     >
       {/* ── Full-screen map ─────────────────────────────────────────────── */}
