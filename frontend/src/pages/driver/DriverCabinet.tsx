@@ -769,7 +769,8 @@ export default function DriverCabinet() {
     : `calc(var(--app-safe-area-top-total) + ${CABINET_ROLE_BANNER_BODY_HEIGHT + 64}px)`
 
   const mapInsetTop = CABINET_ROLE_BANNER_BODY_HEIGHT
-    + (canSelfAssign ? 56 : 0)
+    // Reserve the larger phone row; the extra 24px on desktop is harmless.
+    + (canSelfAssign ? 80 : 0)
     + LEGEND_BAR_HEIGHT
     + 18
 

@@ -33,14 +33,14 @@ export default function DriverCabinetModeSwitch({
       <button
         type="button"
         onClick={onAddTrip}
-        className="flex-1 min-h-[4.5rem] md:min-h-12 rounded-xl text-xs font-bold transition-colors touch-none bg-black text-white inline-flex items-center justify-center gap-1.5 active:scale-[0.98]"
+        className="driver-cabinet-mode-btn flex-1 rounded-xl text-xs font-bold transition-colors touch-none bg-black text-white inline-flex items-center justify-center gap-1.5 active:scale-[0.98]"
       >
         <Plus size={16} weight="bold" />
         {t('driver.addTrip', { defaultValue: 'Добавить поездку' })}
       </button>
       <button
         type="button"
-        className={`flex-1 min-h-[4.5rem] md:min-h-12 rounded-xl text-xs font-bold transition-colors touch-none inline-flex items-center justify-center gap-1.5 ${
+        className={`driver-cabinet-mode-btn flex-1 rounded-xl text-xs font-bold transition-colors touch-none inline-flex items-center justify-center gap-1.5 ${
           mode === 'available' ? 'bg-black text-white' : 'text-muted hover:bg-surface'
         }`}
         onClick={() => onChange('available')}

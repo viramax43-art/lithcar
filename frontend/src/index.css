@@ -895,14 +895,29 @@ body {
 
 /* === Driver cabinet layout === */
 .driver-cabinet-shell {
-  /* p-1 shell + 4.5rem buttons on phones. */
-  --driver-cabinet-mode-switch-h: 5rem;
+  /* p-1 shell + 3rem buttons on desktop. */
+  --driver-cabinet-mode-switch-h: 3.5rem;
 }
 
-@media (min-width: 768px) {
+/*
+ * The add-trip / available-passengers buttons are 1.5x taller on phones
+ * (48px -> 72px). A width breakpoint cannot express "phone": a narrow desktop
+ * window would grow too, while a phone in landscape can be wider than md.
+ * Touch-first devices are detected by their primary pointer instead.
+ * `.driver-cabinet-mode-btn.touch-none` is intentionally more specific than
+ * the global `.touch-none { min-height: auto }` touch-target reset.
+ */
+.driver-cabinet-mode-btn {
+  min-height: 3rem;
+}
+
+@media (pointer: coarse) {
+  .driver-cabinet-mode-btn.touch-none {
+    min-height: 4.5rem;
+  }
   .driver-cabinet-shell {
-    /* p-1 shell + 3rem buttons on desktop. */
-    --driver-cabinet-mode-switch-h: 3.5rem;
+    /* p-1 shell + 4.5rem buttons on phones. */
+    --driver-cabinet-mode-switch-h: 5rem;
   }
 }
 
